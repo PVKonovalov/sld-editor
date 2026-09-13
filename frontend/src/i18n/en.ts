@@ -1,0 +1,63 @@
+// English UI strings — every user-facing string in the app should be a key
+// here, looked up through t() (see ./index.ts), rather than an inline
+// literal, so adding a second locale later is a matter of adding a
+// sibling dictionary, not hunting down hardcoded text.
+export const dictionary = {
+  'common.close': 'Close',
+  'common.none': '— none —',
+  'common.idLabel': 'ID: {{id}}',
+
+  'sidebar.file': 'File',
+  'sidebar.elements': 'Elements',
+  'sidebar.settings': 'Settings',
+  'sidebar.properties': 'Properties',
+
+  'file.new': 'New',
+  'file.namePlaceholder': 'Diagram name',
+  'file.create': 'Create',
+  'file.open': 'Open',
+  'file.noDiagrams': 'No saved diagrams yet.',
+  'file.save': 'Save',
+  'file.saveAs': 'Save As',
+
+  'elements.uncategorized': 'Other',
+  'elements.empty': 'No element libraries configured.',
+  'elements.pickHint': 'Click an element, then click the canvas to place it.',
+  'elements.armedHint': 'Click the canvas to place a {{name}}. Esc to cancel.',
+
+  'settings.noDiagram': 'Open or create a diagram to edit its settings.',
+  'settings.gridSpacing': 'Grid spacing',
+  'settings.snapToGrid': 'Snap to grid',
+  'settings.showGrid': 'Show grid',
+  'settings.background': 'Background color',
+  'settings.voltageClasses': 'Voltage classes',
+  'settings.noVoltageClasses': 'No voltage classes yet — add one below to assign it to elements.',
+  'settings.pickVoltage': 'Pick a voltage level…',
+  'settings.addVoltageClass': 'Add',
+  'settings.deleteVoltageClass': 'Delete voltage class',
+
+  'properties.noSelection': 'Select an element on the canvas to edit its properties.',
+  'properties.name': 'Name',
+  'properties.voltageClass': 'Voltage class',
+  'properties.state': 'State',
+  'properties.orientation': 'Orientation',
+  'properties.points': 'Points',
+  'properties.pointX': 'Point {{n}} X',
+  'properties.pointY': 'Point {{n}} Y',
+  'properties.connectHint': 'Ctrl/Cmd-click another element on the canvas to connect them.',
+  'properties.connectorKind': 'Connector ({{kind}})',
+  'properties.deleteElement': 'Delete element',
+  'properties.multiSelection': '{{count}} elements selected',
+  'properties.deleteElements': 'Delete elements',
+  'properties.deleteConnector': 'Delete connector',
+
+  'canvas.noDiagram': 'Create or open a diagram from the File panel to get started.',
+
+  'contextMenu.copy': 'Copy',
+  'contextMenu.paste': 'Paste',
+  'contextMenu.delete': 'Delete',
+  'contextMenu.deleteSegment': 'Delete segment',
+  'contextMenu.deleteWire': 'Delete wire',
+} as const
+
+export type Dictionary = typeof dictionary

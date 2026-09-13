@@ -1,0 +1,60 @@
+server:
+  bind: "0.0.0.0:8090"
+
+logging:
+  level: info
+
+diagrams:
+  # Relative to the backend process's working directory (intended to be run
+  # from backend/, e.g. `go run ./cmd/sld-editor -config config/sld-editor.yaml`).
+  dir: "../diagrams"
+
+elements:
+  # Element-library XML files, merged in order (a later file's definition of
+  # a shape overrides an earlier one's). Add your own library file and list
+  # its path here to extend the Elements palette without any code change —
+  # see assets/elements/base.xml for the format.
+  libraries:
+    - "assets/elements/base.xml"
+
+editor:
+  # Settings-panel defaults for a diagram that hasn't saved its own.
+  grid_spacing: 20
+  snap: true
+  show_grid: true
+  background: "#12161d"
+
+# Default voltage-level -> color palette offered when adding a voltage
+# class to a diagram. Editing a diagram's own voltage classes never changes
+# this list; it's only ever a starting point for a new one.
+voltage_colors:
+  - name: "0.4 kV"
+    color: "#4a90d9"
+  - name: "6 kV"
+    color: "#326400"
+  - name: "10 kV"
+    color: "#962896"
+  - name: "35 kV"
+    color: "#c07000"
+  - name: "110 kV"
+    color: "#00a0f0"
+  - name: "220 kV"
+    color: "#d02020"
+  - name: 330 KV
+    color: "#d04040"
+
+# Global Open/Close/Intermediate legend a switching device's state-driven
+# fill is drawn from (internal/slddoc.Render's data-fill/data-state
+# attributes) and the Properties panel's State dropdown offers. Unlike
+# voltage_colors, there's no per-diagram override for this — an element only
+# ever records a raw State value, never a color.
+state_colors:
+  - state: 0
+    label: "Open"
+    color: "red"
+  - state: 1
+    label: "Close"
+    color: "lawngreen"
+  - state: 2
+    label: "Intermediate"
+    color: "yellow"

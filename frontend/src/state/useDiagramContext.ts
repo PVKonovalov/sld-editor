@@ -1,0 +1,62 @@
+import { createContext, useContext } from 'react'
+import type { Diagram, DiagramInfo, ElementSymbol, EditorConfig, EditorSettings } from '../types'
+
+export interface DiagramContextValue {
+  diagramName: string | null
+  diagram: Diagram | null
+  dirty: boolean
+  diagrams: DiagramInfo[]
+  elements: ElementSymbol[]
+  config: EditorConfig | null
+  error: string | null
+
+  // Exactly one of these is non-null/non-empty at a time — selecting one
+  // clears the others. armedSymbol is the palette entry currently "loaded"
+  // for click-to-place; selecting anything cancels it.
+  selectedElementId: number | null
+  selectedConnectorId: number | null
+  armedSymbol: ElementSymbol | null
+
+  // The full element multi-selection — always a superset of
+  // selectedElementId (a plain click collapses it to that one id; a
+  // connector selection or an armed symbol clears it). Shift-click toggles
+  // an id in/out via toggleElementSelection instead of replacing it.
+  // Everything that only makes sense for a single element (Properties'
+  // full field editor, a BusBarSection's draggable point handles,
+  // Ctrl/Cmd-click-to-connect's anchor) keys off selectedElementId and
+  // ignores this set once it holds more than one id.
+  selectedElementIds: Set<number>
+  toggleElementSelection: (id: number) => void
+
+  // The last voltage class the user picked in Properties, remembered for
+  // the lifetime of the session (not persisted with the diagram) so newly
+  // placed elements/busbars can default to it instead of starting unset.
+  defaultVoltage: number | undefined
+  setDefaultVoltage: (voltage: number | undefined) => void
+
+  selectElement: (id: number | null) => void
+  selectConnector: (id: number | null) => void
+  armSymbol: (symbol: ElementSymbol | null) => void
+  deleteSelected: () => void
+
+  clearError: () => void
+  refreshDiagrams: () => Promise<void>
+  newDiagram: (name: string, width?: number, height?: number) => Promise<void>
+  openDiagram: (name: string) => Promise<void>
+  saveDiagram: () => Promise<void>
+  saveDiagramAs: (name: string) => Promise<void>
+  updateDiagram: (updater: (d: Diagram) => Diagram) => void
+  updateEditorSettings: (patch: Partial<EditorSettings>) => void
+}
+
+// Kept in its own module (rather than alongside DiagramProvider in
+// DiagramContext.tsx) so that file exports only a component — mixing a
+// component export with a hook export in one file defeats Vite's Fast
+// Refresh (it falls back to a full reload on every edit).
+export const DiagramContext = createContext<DiagramContextValue | null>(null)
+
+export function useDiagramContext(): DiagramContextValue {
+  const ctx = useContext(DiagramContext)
+  if (!ctx) throw new Error('useDiagramContext must be used within a DiagramProvider')
+  return ctx
+}

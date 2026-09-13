@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Default element library bundled with sld-editor: one reusable,
+  local-coordinate SVG <template> per equipment shape, drawn around the
+  origin (0,0) in the shape's native (unrotated) orientation. The renderer
+  (internal/slddoc.Render) places it with transform="translate(x,y)
+  rotate(orient)".
+
+  Geometry and shape codes are ported from sld-svg's symbols.xml
+  (github.com/PVKonovalov/sld-svg), the sibling project that defines this
+  XML format; class/name/category attributes are this editor's own
+  addition, used to group and label these shapes in the Elements palette.
+  A site can add further shapes without editing this file by pointing
+  elements.libraries (see config/sld-editor.yaml) at one or more additional
+  files in this same format — later libraries override an earlier one's
+  template for a shape they both define.
+
+  Placeholders: {color} is the voltage class's display color, except for a
+  Lamp (106) and FaultPassageIndicator (320003), which aren't part of the
+  electrical network — there {color} comes from the element's own
+  fillOn/fillOff (Lamp) or is fixed (FaultPassageIndicator). {fill} is a
+  state-dependent fill (breakers/switches only — red/lawngreen/yellow for
+  open/closed/unknown, "none" when no state was recorded). {radius} is a
+  Lamp's or FaultPassageIndicator's own recorded circle radius.
+  {state:parallel|perpendicular|diagonal} picks one of the three given path
+  "d" fragments by the element's State: parallel (drawn along the device's
+  own vertical axis) for closed (1) or unrecorded, perpendicular for open
+  (0), diagonal (45°) for any other recorded value. {fillAttr} and
+  {stateAttr} are a real xsde2svg breaker/switch's own data-fill (the fixed
+  legend of what {fill}'s three colors mean) and data-state (the element's
+  raw State value) attributes — each expands to nothing when it doesn't
+  apply (data-state has no recorded State to publish), so they can sit
+  directly after the "d" attribute on whichever path carries {fill} or
+  {state:...} without leaving a stray empty attribute behind.
+
+  A <terminals> block (optional — a shape with none, like a busbar, simply
+  isn't offered one) lists the local, unrotated points on a symbol where a
+  real electrical connection can be made — e.g. a Breaker's own two stem
+  ends. This is purely informational for now (Canvas draws a small red "X"
+  at each one, on the current selection, as a visual aid) — Ctrl/Cmd-click-
+  to-connect (diagramOps.connectElements) still just joins the two
+  elements' bare anchors, not these.
+-->
+<symbols>
+  <symbol shape="24" class="BusBarSection" name="Busbar section" category="Busbars">
+    <!-- A busbar has no fixed template: its geometry is the element's own
+         drawn Points (two or more vertices), rendered as a polyline
+         directly by internal/slddoc.Render before this library is
+         consulted. This entry exists only so the Elements palette can
+         offer "Busbar section" alongside every templated shape. -->
+    <template></template>
+  </symbol>
+
+  <symbol shape="7" class="JunctionPoint" name="Junction point" category="Wiring">
+    <template><![CDATA[
+<circle cx="0" cy="0" r="3" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="41" class="Breaker" name="Breaker" category="Switching devices">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M -7 -7 h 14 v 14 h -14 z"{fillAttr} style="fill:{fill};stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -5 v 10|M -5 0 h 10|M -3.5 -3.5 l 7 7}"{stateAttr} style="stroke:{color};stroke-width:1" />
+<path d="M 0 -10 v 3 M 0 10 v -3" style="stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- The line+chevron pair close to the box on each side is the
+       withdrawable "trolley" isolating contact; the small gap out to the
+       far chevron is the isolating throw distance, drawn as a gap by
+       design, not a missing connector. -->
+  <symbol shape="43" class="Breaker" name="Breaker (withdrawable)" category="Switching devices">
+    <template><![CDATA[
+<path d="M -8 -8 h 17 v 17 h -17 z"{fillAttr} style="fill:{fill};stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -5 v 11|M -5 0 h 11|M -3.9 -3.9 l 7.8 7.8}"{stateAttr} style="stroke:{color};stroke-width:1" />
+<path d="M 0 -8 v -13 m 0 0 l -4 4 m 4 -4 l 4 4 M 0 8 v 13 m 0 0 l -4 -4 m 4 4 l 4 -4" style="stroke:{color};stroke-width:1" />
+<path d="M 0 -30 l -4 4 m 8 0 l -4 -4 M 0 30 l -4 -4 m 8 0 l -4 4" style="stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="42" class="LoadBreakSwitch" name="Load-break switch" category="Switching devices">
+    <template><![CDATA[
+<path d="M 0 -10 v 2 m 0 16 v 2 m -8 -2 h 16 m -16 -16 h 16" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -8 l 8 8 l -8 8 l -8 -8 l 8 -8"{fillAttr} style="fill:{fill};stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -5 v 10|M -5 0 h 10|M -3.5 -3.5 l 7 7}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="71" class="Disconnector" name="Disconnector" category="Switching devices">
+    <template><![CDATA[
+<path d="{state:M 0 6 v -13|M -6 0 h 13|M -4.6 -4.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -4 -9 h 8 m 0 18 h -8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -9 v -1 M 0 9 v 1" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="162" class="Disconnector" name="Disconnector" category="Switching devices">
+    <template><![CDATA[
+<path d="{state:M 0 6 v -13|M -6 0 h 13|M -4.6 -4.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -4 -9 h 8 m 0 18 h -8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -9 v -1 M 0 9 v 1" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="49" class="Disconnector" name="Disconnector (withdrawable)" category="Switching devices">
+    <template><![CDATA[
+<path d="M 0 -22 l -4 4 m 4 -4 l 4 4 m -4 -4 v 12 m -4 0 h 8 m -4 2 v 16 m -4 2 h 8 m -4 0 v 12 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 30 l -4 -4 m 4 4 l 4 -4 M 0 -30 l -4 4 m 4 -4 l 4 4" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="54" class="GroundSwitch" name="Ground switch" category="Switching devices">
+    <template><![CDATA[
+<path d="M 0 12 v -9 m -4 0 h 8 m -8 -20 h 8 m -4 0 v -8 m -8 0 h 16 m -2 -3 h -12 m 2 -3 h 8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 6 -8 h -12" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="31" class="Ground" name="Ground terminal" category="Grounding">
+    <template><![CDATA[
+<path d="M 0 0 v -10 m -8 10 h 16 m -2 3 h -12 m 2 3 h 8" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="47" class="PowerTransformer" name="Power transformer" category="Transformers">
+    <template><![CDATA[
+<circle cx="18" cy="0" r="22" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M 40 0 h 13" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M 18 0 l -7 -7 M 18 0 l 7 -7 M 18 0 l 0 7" style="fill:none;stroke:{color};stroke-width:1" />
+<circle cx="-18" cy="0" r="22" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M -40 0 h -13" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M -18 0 l -7 -7 M -18 0 l 7 -7 M -18 0 l 0 7" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="34" class="CurrentTransformer" name="Current transformer" category="Measurement">
+    <template><![CDATA[
+<path d="M -8 -8 h 8 a 6 4 0 0 1 0 8 a 6 4 0 0 1 0 8 h -8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -11 v 22" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="33" class="ChokeCoil" name="Choke coil" category="Other equipment">
+    <template><![CDATA[
+<path d="M 0 -20 v 5 h 1 m 0 0 a 5 5 0 1 1 0 10 a 5 5 0 1 1 0 10 a 5 5 0 1 1 0 10 h -1 v 5" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="35" class="SurgeArrester" name="Surge arrester" category="Protection">
+    <template><![CDATA[
+<path d="M 0 -10 v 8 M 0 10 v -8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -2 l -3 -6 l 6 0 z M 0 2 l -3 6 l 6 0 z" style="fill:{color};stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="203" class="Fuse" name="Fuse" category="Protection">
+    <template><![CDATA[
+<path d="M 0 -10 v 20 m 0 -20 h 5 v 20 h -10 v -20 h 5" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="388" class="Capacitor" name="Capacitor" category="Other equipment">
+    <template><![CDATA[
+<path d="M 0 -10 v 5 m -12 0 h 24 m -24 10 h 24 m -12 0 v 5" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <symbol shape="106" class="Lamp" name="Lamp" category="Indicators">
+    <template><![CDATA[
+<circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:slategray;stroke-width:2" />
+]]></template>
+  </symbol>
+
+  <symbol shape="320003" class="FaultPassageIndicator" name="Fault passage indicator" category="Indicators">
+    <template><![CDATA[
+<circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:lime;stroke-width:0.80" />
+<text x="0" y="0" style="fill:lime;text-anchor:middle;dominant-baseline:middle;font-size:13px;font-family:Arial" >FPI</text>
+]]></template>
+  </symbol>
+</symbols>

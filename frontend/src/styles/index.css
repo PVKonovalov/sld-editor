@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Native controls (checkboxes, color/number inputs, ...) follow the theme
+   instead of always rendering in the browser's light-mode default. */
+:root {
+  color-scheme: dark;
+}
+:root:not(.dark) {
+  color-scheme: light;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  @apply bg-surface-900 text-gray-100;
+  font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* react-zoom-pan-pinch sets cursor:grab on its wrapper by default; the
+   diagram canvas isn't draggable-feeling content, so reset it. */
+.react-transform-wrapper {
+  cursor: default !important;
+  width: 100% !important;
+  height: 100% !important;
+}

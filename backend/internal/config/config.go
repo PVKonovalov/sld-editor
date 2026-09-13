@@ -1,0 +1,72 @@
+// Package config defines sld-editor's own YAML-backed configuration
+// struct, loaded through the generic reader in pkg/configuration.
+package config
+
+// Config is sld-editor's top-level configuration, read from a YAML file
+// (see config/sld-editor.yaml) with per-field environment-variable
+// overrides (env:"true" tags, read by pkg/configuration).
+type Config struct {
+	Server struct {
+		// Bind is the address the HTTP API listens on, e.g. "0.0.0.0:8090".
+		Bind string `yaml:"bind" env:"true"`
+	} `yaml:"server"`
+
+	Logging struct {
+		Level string `yaml:"level" env:"true"`
+	} `yaml:"logging"`
+
+	Diagrams struct {
+		// Dir is the directory diagrams are listed/loaded/saved from.
+		Dir string `yaml:"dir" env:"true"`
+	} `yaml:"diagrams"`
+
+	Elements struct {
+		// Libraries lists element-library XML files (see internal/elements),
+		// merged in order — a later file's definition of a shape overrides
+		// an earlier one's. A site adds equipment sld-editor doesn't ship
+		// with by writing its own library file and adding its path here, no
+		// code change required.
+		Libraries []string `yaml:"libraries" env:"true"`
+	} `yaml:"elements"`
+
+	Editor struct {
+		// GridSpacing/Snap/ShowGrid/Background are the Settings panel's
+		// defaults for a diagram that hasn't saved its own (Diagram.Editor is
+		// nil).
+		GridSpacing float64 `yaml:"grid_spacing" env:"true"`
+		Snap        bool    `yaml:"snap" env:"true"`
+		ShowGrid    bool    `yaml:"show_grid" env:"true"`
+		Background  string  `yaml:"background" env:"true"`
+	} `yaml:"editor"`
+
+	// VoltageColors is the default voltage-level -> color palette offered
+	// when adding a voltage class to a diagram (or seeding a new one); it
+	// has no effect on a diagram's own already-saved VoltageClasses.
+	VoltageColors []VoltageColor `yaml:"voltage_colors"`
+
+	// StateColors is the install-wide Open/Close/Intermediate legend a
+	// switching device's state-driven fill (and its data-fill/data-state
+	// attributes — see internal/slddoc.Render) are drawn from. Unlike
+	// VoltageColors, this has no per-diagram override: a diagram's own
+	// elements only ever carry a raw State value (0/1/2/...), never a
+	// color, so there is nothing for a diagram to have "already saved"
+	// here to fall back to.
+	StateColors []StateColor `yaml:"state_colors"`
+}
+
+// VoltageColor is one default palette entry.
+type VoltageColor struct {
+	Name  string `yaml:"name" json:"name"`
+	Color string `yaml:"color" json:"color"`
+}
+
+// StateColor is one entry of the global state->color legend: State is the
+// raw value an Element's own State field records (0/1/2/...), Label is
+// what the Properties panel's State dropdown shows for it, and Color is
+// what internal/slddoc.Render fills a switching device's body with when
+// State matches.
+type StateColor struct {
+	State int    `yaml:"state" json:"state"`
+	Label string `yaml:"label" json:"label"`
+	Color string `yaml:"color" json:"color"`
+}
