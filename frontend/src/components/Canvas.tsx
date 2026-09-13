@@ -440,7 +440,7 @@ export function Canvas() {
       setGhost(null)
       if (dx !== 0 || dy !== 0) {
         dragElementsInDom(movingIds, dx, dy)
-        updateDiagram(d => movingIds.reduce((acc, id) => diagramOps.moveElement(acc, id, dx, dy), d))
+        updateDiagram(d => diagramOps.moveElements(d, movingIds, dx, dy))
       }
     }
     window.addEventListener('mousemove', onMove)

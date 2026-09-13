@@ -272,6 +272,92 @@ export function moveElement(diagram: Diagram, id: number, dx: number, dy: number
   }
 }
 
+/** Moves a whole set of elements together by (dx, dy) — same translation
+ * moveElement applies to each one — and re-routes every connector attached
+ * to any of their ports to follow ("Piece C", endpoint-follows-only, the
+ * simplest useful version rather than full accordion re-layout): a
+ * connector whose *both* ends belong to elements in ids translates as a
+ * rigid whole (nothing about its shape needs to change, since every point
+ * keeps the same relative position); one with only one end attached to a
+ * moving element instead has just that end dragged to its new position,
+ * with the segment touching it kept orthogonal the same way
+ * moveConnectorVertex keeps an interior vertex's own segments orthogonal —
+ * an ordinary interior neighbor slides along whichever axis preserves that
+ * one segment's original orientation, while a neighbor that's actually the
+ * connector's other (unmoving) true endpoint gets a new bend inserted next
+ * to it instead, since it can't move. Only a plain whole-element drag goes
+ * through here — a BusBarSection's own single-endpoint drag handle
+ * (updateBusbarPoint) is a separate, harder case (there's no single
+ * "moved by dx,dy" delta for the rest of the shape) and isn't rerouted. */
+export function moveElements(diagram: Diagram, ids: number[], dx: number, dy: number): Diagram {
+  const moving = new Set(ids)
+  const movedNodeIds = new Set<number>()
+  for (const el of diagram.elements) {
+    if (!moving.has(el.id)) continue
+    for (const p of el.ports ?? []) movedNodeIds.add(p.node)
+  }
+
+  const moved = ids.reduce((acc, id) => moveElement(acc, id, dx, dy), diagram)
+  if (movedNodeIds.size === 0) return moved
+
+  const shift = (p: Point): Point => ({ x: p.x + dx, y: p.y + dy })
+
+  const connectors = moved.connectors.map(connector => {
+    const fromMoved = movedNodeIds.has(connector.from)
+    const toMoved = movedNodeIds.has(connector.to)
+    if (!fromMoved && !toMoved) return connector
+    if (fromMoved && toMoved) return { ...connector, points: connector.points.map(shift) }
+
+    const points = connector.points
+    if (fromMoved) {
+      const old0 = points[0]
+      const new0 = shift(old0)
+      if (points.length === 2) {
+        const other = points[1]
+        const wasHorizontal = old0.y === other.y
+        const bend = wasHorizontal ? { x: new0.x, y: other.y } : { x: other.x, y: new0.y }
+        return { ...connector, points: simplifyOrthogonalPath([new0, bend, other]) }
+      }
+      const neighbor = points[1]
+      const wasHorizontal = old0.y === neighbor.y
+      const adjusted = wasHorizontal
+        ? { ...neighbor, y: new0.y }
+        : old0.x === neighbor.x
+          ? { ...neighbor, x: new0.x }
+          : neighbor
+      return { ...connector, points: simplifyOrthogonalPath([new0, adjusted, ...points.slice(2)]) }
+    }
+
+    const oldLast = points[points.length - 1]
+    const newLast = shift(oldLast)
+    if (points.length === 2) {
+      const other = points[0]
+      const wasHorizontal = oldLast.y === other.y
+      const bend = wasHorizontal ? { x: newLast.x, y: other.y } : { x: other.x, y: newLast.y }
+      return { ...connector, points: simplifyOrthogonalPath([other, bend, newLast]) }
+    }
+    const neighbor = points[points.length - 2]
+    const wasHorizontal = oldLast.y === neighbor.y
+    const adjusted = wasHorizontal
+      ? { ...neighbor, y: newLast.y }
+      : oldLast.x === neighbor.x
+        ? { ...neighbor, x: newLast.x }
+        : neighbor
+    return { ...connector, points: simplifyOrthogonalPath([...points.slice(0, -2), adjusted, newLast]) }
+  })
+
+  const nodes = moved.nodes.map(n => {
+    if (!movedNodeIds.has(n.id)) return n
+    for (const c of connectors) {
+      if (c.from === n.id) return { ...n, x: c.points[0].x, y: c.points[0].y }
+      if (c.to === n.id) return { ...n, x: c.points[c.points.length - 1].x, y: c.points[c.points.length - 1].y }
+    }
+    return n
+  })
+
+  return { ...moved, connectors, nodes }
+}
+
 /** Updates one endpoint of a BusBarSection's own Points in place — its
  * anchor (X/Y) is recomputed as the midpoint of the first and last point,
  * the same convention placeBusbar establishes when first drawing one. A

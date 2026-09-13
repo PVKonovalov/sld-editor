@@ -502,3 +502,40 @@ it precisely enough to trigger Delete/Backspace.
 
 Deferred (see CLAUDE.md's Project state): re-routing when an element
 moves, a 45°/manual-bend-axis mode.
+
+2026-09-13: "Piece C" — a connector re-routes to follow whichever
+element(s) it's attached to when they're dragged, endpoint-follows-only
+(the simplest useful version, approved over full accordion re-layout).
+
+New `diagramOps.moveElements(diagram, ids, dx, dy)` replaces the plain
+per-id `moveElement` reduce Canvas's own element-drag mouseup handler used
+to call. Beyond translating the moved element(s) themselves exactly as
+before, it now also re-routes every connector with a Port on one of them:
+if *both* its ends belong to elements moving together in the same drag
+(e.g. two elements in a multi-selection joined by a wire), the whole
+connector translates as a rigid whole — every point keeps the same
+relative position, so nothing about its shape needs to change; if only
+one end is attached to a moving element, just that end is dragged to its
+new position and the segment touching it is kept orthogonal the same way
+an interior vertex drag already is (Piece A's `moveConnectorVertex`): an
+ordinary interior neighbor slides along whichever axis preserves that
+segment's own orientation, while a neighbor that's actually the
+connector's other (unmoving) true endpoint — a plain two-point wire, most
+commonly — instead gets a new bend inserted next to it, leaving that
+still-attached end's own approach direction undisturbed. A connector
+dangling at its far end (from ending a route in mid-air, or a Piece B
+segment cut) follows this same rule with no special-casing: its dangling
+node was never a Port's node, so it's simply never in the moving set,
+exactly like a real unmoving attachment.
+
+Applies to a plain whole-element drag only — a BusBarSection's own single-
+endpoint drag handle (`updateBusbarPoint`) isn't rerouted; there's no
+single (dx, dy) for the rest of that shape to hand a reroute the way a
+whole-element move can, and reworking that is out of scope for now.
+
+Verified live: a bent multi-segment wire between two breakers correctly
+kept its middle unchanged and only re-angled the segment touching whichever
+breaker moved; dragging both breakers together as a multi-selection
+translated the whole wire rigidly with no new bends; a plain straight
+two-point wire correctly grew a new bend at the still-fixed end when its
+other end's breaker was dragged diagonally.
