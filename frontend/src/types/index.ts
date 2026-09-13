@@ -82,7 +82,7 @@ export interface DiagramElement {
 }
 
 // Matches backend/internal/slddoc.ConnectorKind.
-export type ConnectorKind = 'BusbarWire' | 'OverheadLine' | 'CableLine' | 'ObjectLink'
+export type ConnectorKind = 'BusbarWire' | 'OverheadLine' | 'CableLine' | 'BusWork'
 
 export interface Connector {
   id: number

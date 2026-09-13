@@ -408,7 +408,10 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
  * for real port geometry (the symbol library doesn't record per-shape port
  * offsets — see backend/internal/slddoc's Port doc comment) — connecting
  * two elements always runs a straight line anchor-to-anchor rather than to
- * each shape's true terminal position. */
+ * each shape's true terminal position. The new connector's voltage comes
+ * from whichever of from/to already has one (see drawConnectorPath's own
+ * doc comment) — with no defaultVoltage param here, an element joined to
+ * one with no voltage of its own at all just stays unset, same as before. */
 export function connectElements(diagram: Diagram, fromId: number, toId: number): Diagram {
   if (fromId === toId) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
@@ -420,8 +423,9 @@ export function connectElements(diagram: Diagram, fromId: number, toId: number):
   const toNode: DiagramNode = { id: ids.take(), x: to.x, y: to.y }
   const connector: Connector = {
     id: ids.take(),
-    kind: 'ObjectLink',
+    kind: 'BusWork',
     layer: from.layer,
+    voltage: from.voltage ?? to.voltage,
     from: fromNode.id,
     to: toNode.id,
     points: [
@@ -449,18 +453,21 @@ export function connectElements(diagram: Diagram, fromId: number, toId: number):
  * connectElements' always-straight, always-two-point anchor-to-anchor
  * line. A Node (plus a Port referencing it) is still created at each
  * element's own endpoint of the path, exactly as connectElements does;
- * only the Connector's own drawn geometry differs. voltage, when given,
- * seeds the new connector's own voltage class the same way placeElement/
- * placeBusbar already do — without it a freshly drawn wire renders with no
- * color at all (Render's fallback for an unset/unknown voltage id), even
- * though the in-progress preview drew in a visible highlight color while
- * routing was still live. */
+ * only the Connector's own drawn geometry differs. The new connector's
+ * voltage class comes from whichever of from/to already has one — it's
+ * electrically joining them, so it should read as the same voltage they
+ * already do, not some unrelated value — falling back to defaultVoltage
+ * (the last one picked in Properties, same seed placeElement/placeBusbar
+ * use) only when neither end has one at all; either way, without this a
+ * freshly drawn wire could render with no color (Render's fallback for an
+ * unset/unknown voltage id) even while the in-progress preview drew in a
+ * visible highlight color during routing. */
 export function drawConnectorPath(
   diagram: Diagram,
   fromId: number,
   toId: number,
   points: Point[],
-  voltage?: number,
+  defaultVoltage?: number,
 ): Diagram {
   if (fromId === toId || points.length < 2) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
@@ -474,9 +481,9 @@ export function drawConnectorPath(
   const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
   const connector: Connector = {
     id: ids.take(),
-    kind: 'ObjectLink',
+    kind: 'BusWork',
     layer: from.layer,
-    voltage,
+    voltage: from.voltage ?? to.voltage ?? defaultVoltage,
     from: fromNode.id,
     to: toNode.id,
     points,
@@ -501,8 +508,10 @@ export function drawConnectorPath(
  * element gets a Port referencing it, leaving that end dangling (matching
  * how removeElement already treats a connector touching a node no element
  * still ports into). Used to let double-click end an in-progress route
- * without requiring a target element. voltage: see drawConnectorPath. */
-export function drawDanglingConnectorPath(diagram: Diagram, fromId: number, points: Point[], voltage?: number): Diagram {
+ * without requiring a target element. defaultVoltage: see drawConnectorPath
+ * — here there's no `to` element to check, so it's from's own voltage,
+ * then defaultVoltage. */
+export function drawDanglingConnectorPath(diagram: Diagram, fromId: number, points: Point[], defaultVoltage?: number): Diagram {
   if (points.length < 2) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
   if (!from) return diagram
@@ -514,9 +523,9 @@ export function drawDanglingConnectorPath(diagram: Diagram, fromId: number, poin
   const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
   const connector: Connector = {
     id: ids.take(),
-    kind: 'ObjectLink',
+    kind: 'BusWork',
     layer: from.layer,
-    voltage,
+    voltage: from.voltage ?? defaultVoltage,
     from: fromNode.id,
     to: toNode.id,
     points,

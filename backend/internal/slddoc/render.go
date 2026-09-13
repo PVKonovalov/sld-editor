@@ -166,17 +166,17 @@ var connectorKindName = map[string]string{
 	string(KindBusbarWire):   "Busbar wire",
 	string(KindOverheadLine): "Overhead line",
 	string(KindCableLine):    "Cable line",
-	string(KindObjectLink):   "Buswork",
+	string(KindBusWork):      "Buswork",
 }
 
 // connectorTypeCode gives a Connector's data-type, mirroring an Element's
 // Shape-as-data-type: the xsde2svg type code for a generic object-to-object
-// connection (this schema's ClassObjectLink/KindObjectLink — what
+// connection (this schema's ClassObjectLink/KindBusWork — what
 // diagramOps.connectElements creates) is 21. Only that one kind is mapped
 // so far; a Kind absent from this map renders with no data-type, same as
 // before this existed.
 var connectorTypeCode = map[ConnectorKind]string{
-	KindObjectLink: "21",
+	KindBusWork: "21",
 }
 
 // typeComment writes a "<!-- Name:shape -->" line the first time shape is

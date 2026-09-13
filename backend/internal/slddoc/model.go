@@ -164,8 +164,14 @@ const (
 	KindBusbarWire   ConnectorKind = "BusbarWire"
 	KindOverheadLine ConnectorKind = "OverheadLine"
 	KindCableLine    ConnectorKind = "CableLine"
-	KindObjectLink   ConnectorKind = "ObjectLink"
+	KindBusWork      ConnectorKind = "BusWork"
 )
+
+// kindObjectLinkLegacy is KindBusWork's old stored value, from before this
+// editor renamed it — kept only so Load can still make sense of a
+// connector saved by an older version of this editor rather than erroring
+// or leaving it un-typed.
+const kindObjectLinkLegacy ConnectorKind = "ObjectLink"
 
 // Connector is a drawn wire segment: a chain of points whose two ends
 // resolve to electrical Nodes.
@@ -229,6 +235,11 @@ func Load(r io.Reader) (*Diagram, error) {
 	var d Diagram
 	if err := xml.NewDecoder(r).Decode(&d); err != nil {
 		return nil, fmt.Errorf("slddoc: decoding diagram: %w", err)
+	}
+	for i, c := range d.Connectors {
+		if c.Kind == kindObjectLinkLegacy {
+			d.Connectors[i].Kind = KindBusWork
+		}
 	}
 	return &d, nil
 }

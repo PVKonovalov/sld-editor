@@ -301,13 +301,13 @@ func TestRender_BusbarMatchesXsde2svgConventions(t *testing.T) {
 	}
 }
 
-func TestRender_ObjectLinkConnectorCarriesDataType21(t *testing.T) {
+func TestRender_BusWorkConnectorCarriesDataType21(t *testing.T) {
 	lib := NewSymbolLibrary(map[string]string{})
 	d := &Diagram{
 		Width: 2000, Height: 1200,
 		VoltageClasses: []VoltageClass{{ID: 1, Name: "10kV", Color: "#962896"}},
 		Connectors: []Connector{{
-			ID: 3988, Kind: KindObjectLink, Voltage: 1,
+			ID: 3988, Kind: KindBusWork, Voltage: 1,
 			Points: []Point{{X: 1310, Y: 560}, {X: 1310, Y: 670}},
 		}},
 	}
@@ -319,7 +319,7 @@ func TestRender_ObjectLinkConnectorCarriesDataType21(t *testing.T) {
 	out := buf.String()
 
 	if !strings.Contains(out, `data-type="21"`) {
-		t.Errorf("an ObjectLink connector (what diagramOps.connectElements creates) should carry data-type=\"21\", like a real xsde2svg connection: %s", out)
+		t.Errorf("a BusWork connector (what diagramOps.connectElements creates) should carry data-type=\"21\", like a real xsde2svg connection: %s", out)
 	}
 	if !strings.Contains(out, `id="3988"`) {
 		t.Errorf("connector should carry its own bare integer id: %s", out)

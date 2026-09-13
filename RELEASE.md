@@ -539,3 +539,36 @@ breaker moved; dragging both breakers together as a multi-selection
 translated the whole wire rigidly with no new bends; a plain straight
 two-point wire correctly grew a new bend at the still-fixed end when its
 other end's breaker was dragged diagonally.
+
+2026-09-13: Fixed a wire connecting a breaker to a busbar sometimes
+rendering black instead of the voltage color both were already carrying
+(reported directly: a breaker-to-busbar jumper drawn with the routing tool
+showed "Voltage class — none —" in Properties even though both endpoints
+already had one), and renamed the connector kind the routing tool and
+Ctrl/Cmd-click-connect both produce from `ObjectLink` to `BusWork`.
+
+The voltage bug: `drawConnectorPath`/`drawDanglingConnectorPath` colored a
+newly finished wire from `defaultVoltage` alone — a purely session-level
+"last voltage class picked in Properties" value (see `DiagramContext`) —
+never from what the wire was actually connecting. A wire drawn before
+touching Properties this session (or right after reopening a diagram, when
+nothing's been picked yet) came out with no voltage at all, even joining
+two elements that already plainly shared one. Both functions (and
+`connectElements`, which never set a connector's voltage to begin with)
+now take it from whichever of the wire's own `from`/`to` elements already
+has one, falling back to `defaultVoltage` only when neither end does.
+
+The rename: `kind="ObjectLink"` was the one thing left still saying
+"Object link" rather than "Buswork" — the SVG type-comment (`<!--
+Buswork:21 -->`) was already fixed to read that way earlier, but the
+underlying stored value the frontend/backend/XML file itself all still
+used was untouched. `ConnectorKind`'s `KindObjectLink = "ObjectLink"` is
+now `KindBusWork = "BusWork"` (`backend/internal/slddoc/model.go`, mirrored
+in `frontend/src/types/index.ts`), and every place that creates one
+(`drawConnectorPath`, `drawDanglingConnectorPath`, `connectElements`) was
+updated to match. This changes what's actually persisted in a saved
+diagram's XML, so `slddoc.Load` now transparently rewrites any connector
+still carrying the old `"ObjectLink"` value to `"BusWork"` the moment it's
+read from disk — every diagram already saved with the old value keeps
+loading and rendering correctly, and simply picks up the new value for
+real the next time it's saved.
