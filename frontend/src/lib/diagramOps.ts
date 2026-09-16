@@ -3,11 +3,13 @@ import type {
   DiagramElement,
   DiagramNode,
   Connector,
+  ConnectorKind,
   VoltageClass,
   ElementClass,
   Point,
   ElementSymbol,
   EditorConfig,
+  Label,
 } from '../types'
 
 // A voltage-class <select>'s option value is either an existing class's own
@@ -82,23 +84,42 @@ class IdSequence {
 
 /** Backfills lastId for a diagram saved before this editor tracked one (or
  * one that has never had an id assigned by it), by scanning every existing
- * element/node/connector/voltage-class id for the highest value already in
- * use — so a freshly opened legacy diagram can't hand out an id that
- * collides with one already on disk. A no-op once a diagram has its own
- * lastId. */
+ * element/node/connector/voltage-class/label id for the highest value
+ * already in use — so a freshly opened legacy diagram can't hand out an id
+ * that collides with one already on disk. A no-op once a diagram has its
+ * own lastId.
+ *
+ * Also backfills a fresh id for any Label still carrying id 0 — Label
+ * didn't have its own id at all until this editor added one, so a diagram
+ * saved before that has every one of its labels share id 0 (Go/JSON's
+ * zero value for a missing attribute), which breaks per-label
+ * select/drag/edit/delete (they'd all resolve to the same "id"). Unlike
+ * the lastId backfill above, this always runs, even for a diagram whose
+ * lastId is already set from its elements/connectors — the two gaps are
+ * independent and can each exist without the other. */
 export function ensureLastId(diagram: Diagram): Diagram {
-  if (diagram.lastId) return diagram
+  let d = diagram
 
-  let max = 0
-  const consider = (id: number) => {
-    if (id > max) max = id
+  if (!d.lastId) {
+    let max = 0
+    const consider = (id: number) => {
+      if (id > max) max = id
+    }
+    d.elements.forEach(e => consider(e.id))
+    d.nodes.forEach(n => consider(n.id))
+    d.connectors.forEach(c => consider(c.id))
+    d.voltageClasses.forEach(vc => consider(vc.id))
+    d.labels.forEach(l => consider(l.id))
+    if (max > 0) d = { ...d, lastId: max }
   }
-  diagram.elements.forEach(e => consider(e.id))
-  diagram.nodes.forEach(n => consider(n.id))
-  diagram.connectors.forEach(c => consider(c.id))
-  diagram.voltageClasses.forEach(vc => consider(vc.id))
 
-  return max > 0 ? { ...diagram, lastId: max } : diagram
+  if (d.labels.some(l => l.id === 0)) {
+    const ids = new IdSequence(d)
+    const labels = d.labels.map(l => (l.id === 0 ? { ...l, id: ids.take() } : l))
+    d = { ...d, lastId: ids.lastId, labels }
+  }
+
+  return d
 }
 
 function defaultLayer(diagram: Diagram): number {
@@ -113,6 +134,28 @@ function defaultLayer(diagram: Diagram): number {
  * seeds the new element's voltage class from whichever one the user last
  * picked in Properties, so placing several elements in a row doesn't
  * require re-assigning the same voltage each time. */
+// A Breaker/Disconnector (either the fixed or withdrawable shape — both
+// share the same Class) starts out placed in service, not open, so a
+// freshly drawn one-line reads correctly without a separate trip to
+// Properties for every single device: 1 is "Close" in the state->color
+// legend (config.stateColors). LoadBreakSwitch/GroundSwitch — the other
+// two SWITCHING_DEVICE_CLASSES PropertiesPanel gives a State dropdown —
+// deliberately keep starting unset; only breakers/disconnectors were
+// asked for.
+const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector'])
+const STATE_CLOSE = 1
+
+// A freshly placed Lamp starts unlit (state 0) with a real fillOff/fillOn/
+// radius instead of all three left empty — unset radius renders as an
+// invisible r="0" circle, so without this a new Lamp is blank until a trip
+// to Properties.
+const LAMP_DEFAULTS: Pick<DiagramElement, 'state' | 'fillOff' | 'fillOn' | 'radius'> = {
+  state: 0,
+  fillOff: 'none',
+  fillOn: 'red',
+  radius: 11,
+}
+
 export function placeElement(
   diagram: Diagram,
   symbol: ElementSymbol,
@@ -121,15 +164,22 @@ export function placeElement(
 ): Diagram {
   const ids = new IdSequence(diagram)
   const id = ids.take()
+  const elementClass = symbol.class as ElementClass
   const element: DiagramElement = {
     id,
-    class: symbol.class as ElementClass,
+    class: elementClass,
     shape: symbol.shape,
     name: `${symbol.name}-${id}`,
     layer: defaultLayer(diagram),
-    voltage: defaultVoltage,
+    // A Lamp is a plain indicator, not something carrying its own primary
+    // voltage — it reads its two fixed FillOff/FillOn colors, not a voltage
+    // class color, so it shouldn't inherit whatever the user last picked in
+    // Properties the way every other symbol does.
+    ...(elementClass === 'Lamp' ? {} : { voltage: defaultVoltage }),
     x: point.x,
     y: point.y,
+    ...(DEFAULT_CLOSED_CLASSES.has(elementClass) ? { state: STATE_CLOSE } : {}),
+    ...(elementClass === 'Lamp' ? LAMP_DEFAULTS : {}),
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -379,6 +429,25 @@ function nextPortName(e: DiagramElement): string {
   return String((e.ports?.length ?? 0) + 1)
 }
 
+// A newly drawn OverheadLine/CableLine connector gets an auto-generated
+// Name — the same "<kind label>-<id>" convention placeElement already
+// uses for a newly placed equipment symbol ("Breaker-3") — since both are
+// meant to carry a real identity a plain BusWork/BusbarWire connector
+// never does; it's also what actually makes writeNamedLine's own
+// data-name attribute non-empty (confirmed against a real xsde2svg-
+// exported line's own data-name, e.g. sld-viewer/assets/sld/IEEE9bus.svg's
+// "Line2" — see backend/internal/slddoc/render.go). Every other kind
+// returns undefined, same as never setting Name at all.
+const NAMED_CONNECTOR_KIND_LABEL: Partial<Record<ConnectorKind, string>> = {
+  OverheadLine: 'Overhead line',
+  CableLine: 'Cable line',
+}
+
+function defaultConnectorName(kind: ConnectorKind, id: number): string | undefined {
+  const label = NAMED_CONNECTOR_KIND_LABEL[kind]
+  return label ? `${label}-${id}` : undefined
+}
+
 /** Rotates a local (unrotated) point by an element's own orient (degrees)
  * and translates it by the element's own anchor — matching exactly how
  * internal/slddoc.Render places a symbol's template, via
@@ -468,6 +537,7 @@ export function drawConnectorPath(
   toId: number,
   points: Point[],
   defaultVoltage?: number,
+  kind: ConnectorKind = 'BusWork',
 ): Diagram {
   if (fromId === toId || points.length < 2) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
@@ -479,9 +549,11 @@ export function drawConnectorPath(
   const end = points[points.length - 1]
   const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
   const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
+  const connectorId = ids.take()
   const connector: Connector = {
-    id: ids.take(),
-    kind: 'BusWork',
+    id: connectorId,
+    kind,
+    name: defaultConnectorName(kind, connectorId),
     layer: from.layer,
     voltage: from.voltage ?? to.voltage ?? defaultVoltage,
     from: fromNode.id,
@@ -513,7 +585,18 @@ export function drawConnectorPath(
  * into whatever diagram it eventually returns, and ids is an IdSequence
  * already open on that diagram (so two splices in the same edit, one per
  * end, share one counter). Returns null if connectorId/segmentIndex don't
- * resolve to a real span to split. */
+ * resolve to a real span to split.
+ *
+ * tapPoint landing exactly on one of the connector's own two true
+ * endpoints (its from/to Node's own position) is a special, cheaper case:
+ * rather than spawning a new junction Node plus a zero-length duplicate
+ * connector alongside the original, it reuses that end's already-existing
+ * Node directly and leaves the original connector untouched — the same
+ * thing an element's own terminal already does, just against a connector
+ * end instead of a Port. This is also what makes a 'OverheadLine'
+ * connector's own begin/end-only connect targets (Canvas's
+ * findConnectionTarget) a plain, correct node reuse rather than a
+ * needless split. */
 function spliceConnectorAt(
   diagram: Diagram,
   connectorId: number,
@@ -524,6 +607,17 @@ function spliceConnectorAt(
   const connector = diagram.connectors.find(c => c.id === connectorId)
   if (!connector) return null
   if (segmentIndex < 0 || segmentIndex >= connector.points.length - 1) return null
+
+  const start = connector.points[0]
+  const end = connector.points[connector.points.length - 1]
+  if (tapPoint.x === start.x && tapPoint.y === start.y) {
+    const fromNode = diagram.nodes.find(n => n.id === connector.from)
+    if (fromNode) return { connectors: [connector], nodes: [], junctionNode: fromNode }
+  }
+  if (tapPoint.x === end.x && tapPoint.y === end.y) {
+    const toNode = diagram.nodes.find(n => n.id === connector.to)
+    if (toNode) return { connectors: [connector], nodes: [], junctionNode: toNode }
+  }
 
   const junctionNode: DiagramNode = { id: ids.take(), x: tapPoint.x, y: tapPoint.y }
   const beforePoints = simplifyOrthogonalPath([...connector.points.slice(0, segmentIndex + 1), tapPoint])
@@ -575,6 +669,7 @@ export function drawConnectorPathToConnector(
   segmentIndex: number,
   points: Point[],
   defaultVoltage?: number,
+  kind: ConnectorKind = 'BusWork',
 ): Diagram {
   if (points.length < 2) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
@@ -588,9 +683,11 @@ export function drawConnectorPathToConnector(
   if (!splice) return diagram
   const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
 
+  const tapConnectorId = ids.take()
   const tapConnector: Connector = {
-    id: ids.take(),
-    kind: 'BusWork',
+    id: tapConnectorId,
+    kind,
+    name: defaultConnectorName(kind, tapConnectorId),
     layer: from.layer,
     voltage: from.voltage ?? target.voltage ?? defaultVoltage,
     from: fromNode.id,
@@ -623,6 +720,7 @@ export function drawConnectorPathFromConnector(
   toId: number,
   points: Point[],
   defaultVoltage?: number,
+  kind: ConnectorKind = 'BusWork',
 ): Diagram {
   if (points.length < 2) return diagram
   const source = diagram.connectors.find(c => c.id === sourceConnectorId)
@@ -636,9 +734,11 @@ export function drawConnectorPathFromConnector(
   if (!splice) return diagram
   const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
 
+  const tapConnectorId = ids.take()
   const tapConnector: Connector = {
-    id: ids.take(),
-    kind: 'BusWork',
+    id: tapConnectorId,
+    kind,
+    name: defaultConnectorName(kind, tapConnectorId),
     layer: to.layer,
     voltage: source.voltage ?? to.voltage ?? defaultVoltage,
     from: splice.junctionNode.id,
@@ -671,6 +771,7 @@ export function drawConnectorBetweenConnectors(
   targetSegmentIndex: number,
   points: Point[],
   defaultVoltage?: number,
+  kind: ConnectorKind = 'BusWork',
 ): Diagram {
   if (points.length < 2 || sourceConnectorId === targetConnectorId) return diagram
   const source = diagram.connectors.find(c => c.id === sourceConnectorId)
@@ -685,9 +786,11 @@ export function drawConnectorBetweenConnectors(
   const targetSplice = spliceConnectorAt(diagram, targetConnectorId, targetSegmentIndex, endTap, ids)
   if (!targetSplice) return diagram
 
+  const tapConnectorId = ids.take()
   const tapConnector: Connector = {
-    id: ids.take(),
-    kind: 'BusWork',
+    id: tapConnectorId,
+    kind,
+    name: defaultConnectorName(kind, tapConnectorId),
     layer: source.layer,
     voltage: source.voltage ?? target.voltage ?? defaultVoltage,
     from: sourceSplice.junctionNode.id,
@@ -717,7 +820,13 @@ export function drawConnectorBetweenConnectors(
  * without requiring a target element. defaultVoltage: see drawConnectorPath
  * — here there's no `to` element to check, so it's from's own voltage,
  * then defaultVoltage. */
-export function drawDanglingConnectorPath(diagram: Diagram, fromId: number, points: Point[], defaultVoltage?: number): Diagram {
+export function drawDanglingConnectorPath(
+  diagram: Diagram,
+  fromId: number,
+  points: Point[],
+  defaultVoltage?: number,
+  kind: ConnectorKind = 'BusWork',
+): Diagram {
   if (points.length < 2) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
   if (!from) return diagram
@@ -727,9 +836,11 @@ export function drawDanglingConnectorPath(diagram: Diagram, fromId: number, poin
   const end = points[points.length - 1]
   const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
   const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
+  const connectorId = ids.take()
   const connector: Connector = {
-    id: ids.take(),
-    kind: 'BusWork',
+    id: connectorId,
+    kind,
+    name: defaultConnectorName(kind, connectorId),
     layer: from.layer,
     voltage: from.voltage ?? defaultVoltage,
     from: fromNode.id,
@@ -758,6 +869,7 @@ export function drawDanglingConnectorPathFromConnector(
   sourceSegmentIndex: number,
   points: Point[],
   defaultVoltage?: number,
+  kind: ConnectorKind = 'BusWork',
 ): Diagram {
   if (points.length < 2) return diagram
   const source = diagram.connectors.find(c => c.id === sourceConnectorId)
@@ -770,9 +882,11 @@ export function drawDanglingConnectorPathFromConnector(
   if (!splice) return diagram
   const endNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
 
+  const tapConnectorId = ids.take()
   const tapConnector: Connector = {
-    id: ids.take(),
-    kind: 'BusWork',
+    id: tapConnectorId,
+    kind,
+    name: defaultConnectorName(kind, tapConnectorId),
     layer: source.layer,
     voltage: source.voltage ?? defaultVoltage,
     from: splice.junctionNode.id,
@@ -785,6 +899,136 @@ export function drawDanglingConnectorPathFromConnector(
     lastId: ids.lastId,
     nodes: [...diagram.nodes, ...splice.nodes, endNode],
     connectors: [...diagram.connectors.filter(c => c.id !== sourceConnectorId), ...splice.connectors, tapConnector],
+  }
+}
+
+/** Like drawConnectorPath, but the *source* end (points[0]) isn't an
+ * element's terminal at all — a bare point in mid-air, with no Node
+ * created there referencing any Port. Used when a route is started by
+ * double-clicking empty canvas rather than clicking a terminal (see
+ * Canvas's own routing-start handling) — lets a diagram be drawn
+ * wire-first, with equipment placed onto it (or not) afterward, instead
+ * of always needing an element to exist before a wire can touch it. */
+export function drawConnectorPathFromPoint(
+  diagram: Diagram,
+  points: Point[],
+  toId: number,
+  defaultVoltage?: number,
+  kind: ConnectorKind = 'BusWork',
+): Diagram {
+  if (points.length < 2) return diagram
+  const to = diagram.elements.find(e => e.id === toId)
+  if (!to) return diagram
+
+  const ids = new IdSequence(diagram)
+  const start = points[0]
+  const end = points[points.length - 1]
+  const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
+  const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
+  const connectorId = ids.take()
+  const connector: Connector = {
+    id: connectorId,
+    kind,
+    name: defaultConnectorName(kind, connectorId),
+    layer: to.layer,
+    voltage: to.voltage ?? defaultVoltage,
+    from: fromNode.id,
+    to: toNode.id,
+    points,
+  }
+
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    nodes: [...diagram.nodes, fromNode, toNode],
+    elements: diagram.elements.map(e =>
+      e.id === toId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: toNode.id }] } : e,
+    ),
+    connectors: [...diagram.connectors, connector],
+  }
+}
+
+/** Like drawConnectorPathFromPoint, but the target end is a tap into an
+ * *existing connector's own line* (targetConnectorId/segmentIndex) rather
+ * than an element — a route started in mid-air and finished by tapping
+ * into an already-drawn wire. */
+export function drawConnectorPathFromPointToConnector(
+  diagram: Diagram,
+  points: Point[],
+  targetConnectorId: number,
+  segmentIndex: number,
+  defaultVoltage?: number,
+  kind: ConnectorKind = 'BusWork',
+): Diagram {
+  if (points.length < 2) return diagram
+  const target = diagram.connectors.find(c => c.id === targetConnectorId)
+  if (!target) return diagram
+
+  const ids = new IdSequence(diagram)
+  const start = points[0]
+  const tapPoint = points[points.length - 1]
+  const splice = spliceConnectorAt(diagram, targetConnectorId, segmentIndex, tapPoint, ids)
+  if (!splice) return diagram
+  const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
+
+  const tapConnectorId = ids.take()
+  const tapConnector: Connector = {
+    id: tapConnectorId,
+    kind,
+    name: defaultConnectorName(kind, tapConnectorId),
+    layer: target.layer,
+    voltage: target.voltage ?? defaultVoltage,
+    from: fromNode.id,
+    to: splice.junctionNode.id,
+    points,
+  }
+
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    nodes: [...diagram.nodes, fromNode, ...splice.nodes],
+    connectors: [...diagram.connectors.filter(c => c.id !== targetConnectorId), ...splice.connectors, tapConnector],
+  }
+}
+
+/** Like drawConnectorPathFromPoint, but ends in mid-air too (points[points.
+ * length-1]) rather than on an element or connector — a route both
+ * started and finished by double-clicking empty canvas, so the whole
+ * connector has no element or connector attached to either end at all
+ * (matching what a hand-built "just a wire" diagram already looks like —
+ * see RELEASE.md's overhead-line-only). Since there's no element/
+ * connector to borrow a layer from, falls back to defaultLayer (the same
+ * seed placeElement/placeBusbar use for a brand new one). */
+export function drawDanglingConnectorPathFromPoint(
+  diagram: Diagram,
+  points: Point[],
+  defaultVoltage?: number,
+  kind: ConnectorKind = 'BusWork',
+): Diagram {
+  if (points.length < 2) return diagram
+
+  const ids = new IdSequence(diagram)
+  const start = points[0]
+  const end = points[points.length - 1]
+  const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
+  const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
+  const connectorId = ids.take()
+  const connector: Connector = {
+    id: connectorId,
+    kind,
+    name: defaultConnectorName(kind, connectorId),
+    layer: defaultLayer(diagram),
+    voltage: defaultVoltage,
+    from: fromNode.id,
+    to: toNode.id,
+    points,
+  }
+
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    nodes: [...diagram.nodes, fromNode, toNode],
+    connectors: [...diagram.connectors, connector],
   }
 }
 
@@ -814,8 +1058,81 @@ export function removeElement(diagram: Diagram, id: number): Diagram {
   }
 }
 
+/** Places a new standalone (unlinked) text label at point. for, when given,
+ * is saved as a plain reference to that element's id — informational only,
+ * the same as Connector.name; the label does not follow the element if it's
+ * later moved. */
+export function placeLabel(diagram: Diagram, point: Point, forId?: number): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const label: Label = {
+    id,
+    layer: defaultLayer(diagram),
+    x: point.x,
+    y: point.y,
+    size: 10,
+    text: 'Label',
+    ...(forId ? { for: forId } : {}),
+  }
+  return { ...diagram, lastId: ids.lastId, labels: [...diagram.labels, label] }
+}
+
+/** Translates a label's own anchor by (dx, dy). */
+export function moveLabel(diagram: Diagram, id: number, dx: number, dy: number): Diagram {
+  return {
+    ...diagram,
+    labels: diagram.labels.map(l => (l.id === id ? { ...l, x: l.x + dx, y: l.y + dy } : l)),
+  }
+}
+
+/** Applies a partial edit (Text/Size/Anchor/Bold/For, from Properties) to a
+ * label. */
+export function updateLabel(diagram: Diagram, id: number, patch: Partial<Label>): Diagram {
+  return {
+    ...diagram,
+    labels: diagram.labels.map(l => (l.id === id ? { ...l, ...patch } : l)),
+  }
+}
+
+export function removeLabel(diagram: Diagram, id: number): Diagram {
+  return { ...diagram, labels: diagram.labels.filter(l => l.id !== id) }
+}
+
+/** Removes a connector, and either of its own from/to Nodes that becomes
+ * genuinely unreferenced as a result — not the from/to of any other
+ * remaining connector, and not any element's Port either. A Node with no
+ * *element* attached at all is still a normal, intentional thing (a route
+ * started or ended in mid-air — see drawDanglingConnectorPath and its
+ * *FromPoint sibling — is exactly this, deliberately), so this only prunes
+ * one once literally nothing references it anymore; otherwise a diagram's
+ * saved XML would accumulate a dead <node> entry every time a wire like
+ * that got deleted. deleteConnectorSegment deliberately doesn't go through
+ * this — it reuses this same connector's own from/to for whichever side
+ * keeps the original endpoint, so pruning them here first would leave that
+ * side pointing at a node that no longer exists. */
 export function removeConnector(diagram: Diagram, id: number): Diagram {
-  return { ...diagram, connectors: diagram.connectors.filter(c => c.id !== id) }
+  const removed = diagram.connectors.find(c => c.id === id)
+  if (!removed) return diagram
+
+  const remainingConnectors = diagram.connectors.filter(c => c.id !== id)
+  const candidateNodes = new Set([removed.from, removed.to])
+
+  const stillUsed = new Set<number>()
+  for (const e of diagram.elements) {
+    for (const p of e.ports ?? []) stillUsed.add(p.node)
+  }
+  for (const c of remainingConnectors) {
+    stillUsed.add(c.from)
+    stillUsed.add(c.to)
+  }
+
+  const orphaned = (nodeId: number) => candidateNodes.has(nodeId) && !stillUsed.has(nodeId)
+
+  return {
+    ...diagram,
+    connectors: remainingConnectors,
+    nodes: diagram.nodes.filter(n => !orphaned(n.id)),
+  }
 }
 
 /** Removes just one segment of a connector — points[segmentIndex] to
@@ -839,7 +1156,12 @@ export function deleteConnectorSegment(diagram: Diagram, connectorId: number, se
   const beforePoints = points.slice(0, segmentIndex + 1)
   const afterPoints = points.slice(segmentIndex + 1)
 
-  let result = removeConnector(diagram, connectorId)
+  // A plain filter here, not removeConnector itself: removeConnector also
+  // prunes the removed connector's own now-unreferenced from/to nodes, but
+  // this function is about to reuse connector.from/connector.to for
+  // whichever side keeps the original endpoint — pruning them first would
+  // leave that side pointing at a node that no longer exists.
+  let result = { ...diagram, connectors: diagram.connectors.filter(c => c.id !== connectorId) }
   const ids = new IdSequence(result)
   const newConnectors: Connector[] = []
   const newNodes: DiagramNode[] = []

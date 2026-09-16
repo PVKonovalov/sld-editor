@@ -17,7 +17,7 @@ function Shell() {
   // independently rather than sharing one "active panel" slot with them.
   const [activeLeftPanel, setActiveLeftPanel] = useState<LeftPanelId | null>('file')
   const [propertiesOpen, setPropertiesOpen] = useState(false)
-  const { selectedElementId, selectedConnectorId } = useDiagramContext()
+  const { selectedElementId, selectedConnectorId, selectedLabelId } = useDiagramContext()
   const hadSelection = useRef(false)
 
   // Selecting something on the canvas brings the Properties panel forward
@@ -25,12 +25,12 @@ function Shell() {
   // this only fires on the null -> non-null transition, not on every
   // selection change.
   useEffect(() => {
-    const hasSelection = selectedElementId !== null || selectedConnectorId !== null
+    const hasSelection = selectedElementId !== null || selectedConnectorId !== null || selectedLabelId !== null
     if (hasSelection && !hadSelection.current) {
       setPropertiesOpen(true)
     }
     hadSelection.current = hasSelection
-  }, [selectedElementId, selectedConnectorId])
+  }, [selectedElementId, selectedConnectorId, selectedLabelId])
 
   function togglePanel(id: PanelId) {
     if (id === 'properties') {

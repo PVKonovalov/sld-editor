@@ -209,13 +209,18 @@ const kindObjectLinkLegacy ConnectorKind = "ObjectLink"
 // Connector is a drawn wire segment: a chain of points whose two ends
 // resolve to electrical Nodes.
 type Connector struct {
-	ID      int           `xml:"id,attr" json:"id"`
-	Kind    ConnectorKind `xml:"kind,attr" json:"kind"`
-	Voltage int           `xml:"voltage,attr,omitempty" json:"voltage,omitempty"`
-	Layer   int           `xml:"layer,attr" json:"layer"`
-	Dashed  bool          `xml:"dashed,attr,omitempty" json:"dashed,omitempty"`
-	From    int           `xml:"from,attr" json:"from"`
-	To      int           `xml:"to,attr" json:"to"`
+	ID   int           `xml:"id,attr" json:"id"`
+	Kind ConnectorKind `xml:"kind,attr" json:"kind"`
+	// Name is optional, like Element.Name — most connector kinds render
+	// with no data-name at all (writePolyline's dataAttrs never includes
+	// one), but a KindOverheadLine's own <g> wrapper does, matching a real
+	// xsde2svg-exported line (e.g. "Line2").
+	Name    string `xml:"name,attr,omitempty" json:"name,omitempty"`
+	Voltage int    `xml:"voltage,attr,omitempty" json:"voltage,omitempty"`
+	Layer   int    `xml:"layer,attr" json:"layer"`
+	Dashed  bool   `xml:"dashed,attr,omitempty" json:"dashed,omitempty"`
+	From    int    `xml:"from,attr" json:"from"`
+	To      int    `xml:"to,attr" json:"to"`
 
 	Points []Point `xml:"point" json:"points"`
 }
@@ -229,6 +234,12 @@ type Point struct {
 // Label is a standalone text caption. For carries the id of the Element it
 // annotates (0 means unset — a standalone label).
 type Label struct {
+	// ID, like every other id-shaped field in this model, is a plain
+	// positive integer the frontend's own IdSequence assigns (0 means
+	// unset/invalid, since a real id is never 0) — needed so a specific
+	// label can be individually selected/edited/deleted, the same as an
+	// Element/Connector already can be.
+	ID     int     `xml:"id,attr" json:"id"`
 	For    int     `xml:"for,attr,omitempty" json:"for,omitempty"`
 	Layer  int     `xml:"layer,attr" json:"layer"`
 	X      float64 `xml:"x,attr" json:"x"`
@@ -236,7 +247,20 @@ type Label struct {
 	Size   float64 `xml:"size,attr" json:"size"`
 	Anchor string  `xml:"anchor,attr,omitempty" json:"anchor,omitempty"`
 	Bold   bool    `xml:"bold,attr,omitempty" json:"bold,omitempty"`
-	Text   string  `xml:",chardata" json:"text"`
+	// Color is the label's own text fill; empty means the default white
+	// writeLabel has always used, so an already-saved label with no color
+	// attribute at all keeps rendering exactly as before.
+	Color string `xml:"color,attr,omitempty" json:"color,omitempty"`
+	// VAlign is the label's vertical anchor relative to Y — "top"/"middle",
+	// or empty for the original baseline-at-Y behavior ("bottom" is never
+	// actually written; an empty attribute already means that, the same
+	// way Anchor's own empty value means "start").
+	VAlign string `xml:"valign,attr,omitempty" json:"valign,omitempty"`
+	// Font is the label's own font-family; empty means the default Arial
+	// writeLabel has always used, so an already-saved label with no font
+	// attribute at all keeps rendering exactly as before.
+	Font string `xml:"font,attr,omitempty" json:"font,omitempty"`
+	Text string `xml:",chardata" json:"text"`
 }
 
 // emptyElement matches a start tag immediately followed by its own end tag

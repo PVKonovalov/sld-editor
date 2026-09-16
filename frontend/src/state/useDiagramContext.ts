@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react'
-import type { Diagram, DiagramInfo, ElementSymbol, EditorConfig, EditorSettings } from '../types'
+import type { Diagram, DiagramInfo, ElementSymbol, EditorConfig, EditorSettings, ConnectorKind } from '../types'
 
 export interface DiagramContextValue {
   diagramName: string | null
@@ -12,10 +12,18 @@ export interface DiagramContextValue {
 
   // Exactly one of these is non-null/non-empty at a time — selecting one
   // clears the others. armedSymbol is the palette entry currently "loaded"
-  // for click-to-place; selecting anything cancels it.
+  // for click-to-place; armedWireKind is a wire kind loaded from the
+  // palette's own Wires section instead (the routing tool's next
+  // completed route uses it, then Canvas clears it back to null itself,
+  // single-shot like armedSymbol); armedLabel is the Elements panel's own
+  // "Text" button, click-to-place a standalone Label the same way armedSymbol
+  // places an element; selecting anything cancels the others.
   selectedElementId: number | null
   selectedConnectorId: number | null
+  selectedLabelId: number | null
   armedSymbol: ElementSymbol | null
+  armedWireKind: ConnectorKind | null
+  armedLabel: boolean
 
   // The full element multi-selection — always a superset of
   // selectedElementId (a plain click collapses it to that one id; a
@@ -39,7 +47,10 @@ export interface DiagramContextValue {
 
   selectElement: (id: number | null) => void
   selectConnector: (id: number | null) => void
+  selectLabel: (id: number | null) => void
   armSymbol: (symbol: ElementSymbol | null) => void
+  armWireKind: (kind: ConnectorKind | null) => void
+  armLabel: (armed: boolean) => void
   deleteSelected: () => void
 
   clearError: () => void

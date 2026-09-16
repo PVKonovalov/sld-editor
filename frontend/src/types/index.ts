@@ -94,6 +94,10 @@ export type ConnectorKind = 'BusbarWire' | 'OverheadLine' | 'CableLine' | 'BusWo
 export interface Connector {
   id: number
   kind: ConnectorKind
+  // Optional, like DiagramElement.name — most kinds render with no
+  // data-name at all; a 'OverheadLine' connector's own <g> wrapper does
+  // (see backend/internal/slddoc.writeOverheadLine).
+  name?: string
   voltage?: number
   layer: number
   dashed?: boolean
@@ -103,6 +107,7 @@ export interface Connector {
 }
 
 export interface Label {
+  id: number
   for?: number
   layer: number
   x: number
@@ -110,6 +115,9 @@ export interface Label {
   size: number
   anchor?: string
   bold?: boolean
+  color?: string
+  valign?: string
+  font?: string
   text: string
 }
 

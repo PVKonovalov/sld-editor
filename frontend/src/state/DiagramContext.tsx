@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
-import type { Diagram, DiagramInfo, ElementSymbol, EditorConfig, EditorSettings } from '../types'
+import type { Diagram, DiagramInfo, ElementSymbol, EditorConfig, EditorSettings, ConnectorKind } from '../types'
 import { DiagramContext, type DiagramContextValue } from './useDiagramContext'
 
 export function DiagramProvider({ children }: { children: ReactNode }) {
@@ -14,7 +14,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [selectedElementId, setSelectedElementIdState] = useState<number | null>(null)
   const [selectedElementIds, setSelectedElementIds] = useState<Set<number>>(new Set())
   const [selectedConnectorId, setSelectedConnectorIdState] = useState<number | null>(null)
+  const [selectedLabelId, setSelectedLabelIdState] = useState<number | null>(null)
   const [armedSymbol, setArmedSymbolState] = useState<ElementSymbol | null>(null)
+  const [armedWireKind, setArmedWireKindState] = useState<ConnectorKind | null>(null)
+  const [armedLabel, setArmedLabelState] = useState(false)
   const [defaultVoltage, setDefaultVoltage] = useState<number | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
 
@@ -31,16 +34,34 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     api.getConfig().then(setConfig).catch(e => setError((e as Error).message))
   }, [refreshDiagrams])
 
+  // Keeps the browser tab title in sync with whichever diagram is open —
+  // the same "*" dirty marker FilePanel's own Save button already shows,
+  // so an unsaved change is visible even when that panel isn't.
+  useEffect(() => {
+    document.title = diagramName ? `${diagramName}${dirty ? ' *' : ''} — SLD Editor` : 'SLD Editor'
+  }, [diagramName, dirty])
+
   const clearSelection = useCallback(() => {
     setSelectedElementIdState(null)
     setSelectedElementIds(new Set())
     setSelectedConnectorIdState(null)
+    setSelectedLabelIdState(null)
   }, [])
 
+  // Deliberately doesn't touch armedWireKind (unlike armedSymbol): a route
+  // start is a tight-radius terminal hit (findConnectionTarget), so a
+  // slightly-off click meant to hit a terminal very often lands on the
+  // element's own much wider hit target instead and selects it as a plain
+  // click would — if that cleared the arm too, every near-miss would force
+  // re-opening the palette and re-arming, which is exactly what made this
+  // unusable before. armedWireKind only ever clears via armSymbol/
+  // armWireKind themselves, Canvas's own Esc handler, or a route actually
+  // completing (Canvas, once it does).
   const selectElement = useCallback((id: number | null) => {
     setSelectedElementIdState(id)
     setSelectedElementIds(id === null ? new Set() : new Set([id]))
     setSelectedConnectorIdState(null)
+    setSelectedLabelIdState(null)
     setArmedSymbolState(null)
   }, [])
 
@@ -48,14 +69,54 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setSelectedConnectorIdState(id)
     setSelectedElementIdState(null)
     setSelectedElementIds(new Set())
+    setSelectedLabelIdState(null)
+    setArmedSymbolState(null)
+  }, [])
+
+  const selectLabel = useCallback((id: number | null) => {
+    setSelectedLabelIdState(id)
+    setSelectedElementIdState(null)
+    setSelectedElementIds(new Set())
+    setSelectedConnectorIdState(null)
     setArmedSymbolState(null)
   }, [])
 
   const armSymbol = useCallback((symbol: ElementSymbol | null) => {
     setArmedSymbolState(symbol)
+    setArmedWireKindState(null)
+    setArmedLabelState(false)
     setSelectedElementIdState(null)
     setSelectedElementIds(new Set())
     setSelectedConnectorIdState(null)
+    setSelectedLabelIdState(null)
+  }, [])
+
+  // A wire kind "armed" from the Elements palette's own Wires section
+  // (mutually exclusive with armedSymbol/selection, same as arming an
+  // equipment symbol) — the routing tool's next completed route uses it
+  // instead of the default 'BusWork', then Canvas clears it back to null
+  // itself once that route finishes, single-shot just like armedSymbol.
+  const armWireKind = useCallback((kind: ConnectorKind | null) => {
+    setArmedWireKindState(kind)
+    setArmedSymbolState(null)
+    setArmedLabelState(false)
+    setSelectedElementIdState(null)
+    setSelectedElementIds(new Set())
+    setSelectedConnectorIdState(null)
+    setSelectedLabelIdState(null)
+  }, [])
+
+  // The Elements panel's own "Text" button — click-to-place a standalone
+  // Label, mutually exclusive with armedSymbol/armedWireKind/selection the
+  // same way arming either of those already is.
+  const armLabel = useCallback((armed: boolean) => {
+    setArmedLabelState(armed)
+    setArmedSymbolState(null)
+    setArmedWireKindState(null)
+    setSelectedElementIdState(null)
+    setSelectedElementIds(new Set())
+    setSelectedConnectorIdState(null)
+    setSelectedLabelIdState(null)
   }, [])
 
   // Shift-click: toggles one element in/out of the multi-selection instead
@@ -75,6 +136,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setSelectedElementIds(next)
       setSelectedElementIdState(next.size === 1 ? [...next][0] : next.size === 0 ? null : id)
       setSelectedConnectorIdState(null)
+      setSelectedLabelIdState(null)
       setArmedSymbolState(null)
     },
     [selectedElementIds],
@@ -114,10 +176,17 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
 
   const openDiagram = useCallback(
     async (name: string) => {
-      const d = diagramOps.ensureLastId(await api.getDiagram(name))
+      const raw = await api.getDiagram(name)
+      const d = diagramOps.ensureLastId(raw)
       setDiagramName(name)
       setDiagram(d)
-      setDirty(false)
+      // ensureLastId returns the same object reference when it found
+      // nothing to backfill (see its own doc comment) — a genuine
+      // backfill (a missing lastId, or a legacy label still sharing id 0
+      // with every other one) needs to reach disk, not just this
+      // in-memory session, so it's flagged dirty the same as any other
+      // edit rather than silently staying fixed only until the tab closes.
+      setDirty(d !== raw)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
     },
@@ -167,8 +236,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       const id = selectedConnectorId
       updateDiagram(d => diagramOps.removeConnector(d, id))
       clearSelection()
+    } else if (selectedLabelId !== null) {
+      const id = selectedLabelId
+      updateDiagram(d => diagramOps.removeLabel(d, id))
+      clearSelection()
     }
-  }, [selectedElementIds, selectedConnectorId, updateDiagram, clearSelection])
+  }, [selectedElementIds, selectedConnectorId, selectedLabelId, updateDiagram, clearSelection])
 
   const clearError = useCallback(() => setError(null), [])
 
@@ -185,12 +258,18 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectedElementIds,
       toggleElementSelection,
       selectedConnectorId,
+      selectedLabelId,
       armedSymbol,
+      armedWireKind,
+      armedLabel,
       defaultVoltage,
       setDefaultVoltage,
       selectElement,
       selectConnector,
+      selectLabel,
       armSymbol,
+      armWireKind,
+      armLabel,
       deleteSelected,
       clearError,
       refreshDiagrams,
@@ -213,12 +292,18 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectedElementIds,
       toggleElementSelection,
       selectedConnectorId,
+      selectedLabelId,
       armedSymbol,
+      armedWireKind,
+      armedLabel,
       defaultVoltage,
       setDefaultVoltage,
       selectElement,
       selectConnector,
+      selectLabel,
       armSymbol,
+      armWireKind,
+      armLabel,
       deleteSelected,
       clearError,
       refreshDiagrams,

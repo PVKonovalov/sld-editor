@@ -876,3 +876,421 @@ state left by the last `npm run build`), so the repo type-checks/builds
 even before anyone runs a locale-specific script first; both `dist-en/`
 and `dist-ru/` were added to `.gitignore` alongside the existing
 `frontend/dist/`.
+
+2026-09-16: Added real support for `KindOverheadLine` ("Overhead line"),
+a `ConnectorKind` the model already declared but never fully wired up —
+prompted by the user supplying a real xsde2svg snippet
+(`<!-- Overhead line:22 --><g id="302" data-type="22" data-name="Line2"
+data-voltage="#962896"><polyline .../></g>`) and clarifying it should
+draw like buswork, but only accept a connection at its own begin/end.
+
+Backend (`internal/slddoc`): `connectorTypeCode` gained `KindOverheadLine:
+"22"` (confirmed against both the user's snippet and a real corpus file,
+`sld-viewer/assets/sld/IEEE9bus.svg`'s own xsde2svg-catalog-code
+documentation — previously only `KindBusWork` had a code at all). New
+`writeOverheadLine` renders this kind with a `<g id data-type data-name
+data-voltage>` wrapper around its polyline — unlike every other connector
+kind (and a busbar), which stays a single flat `<polyline>`, no `<g>` —
+at a fixed 1.5 stroke width (`overheadLineStrokeWidth`), matching the real
+convention exactly (verified: rendering the user's own example
+reproduces their snippet byte-for-byte). `Connector` gained an optional
+`Name` field (mirroring `Element.Name`) since the real format's
+`data-name="Line2"` needed somewhere to come from — every other connector
+kind still renders with no `data-name` at all.
+`TestRender_AnnotatesTypeGroups` updated for the type-comment format
+change this implies (`<!-- Overhead line -->` → `<!-- Overhead line:22
+-->`, now that a code exists to append).
+
+Frontend: a connector's Kind is now an actual editable `<select>` in
+Properties (BusWork/Overhead line/Cable line/Busbar wire, plus a new
+Name field above it) instead of read-only text — draw it with the
+routing tool as usual (still creates `BusWork` by default; there's no
+separate "draw an overhead line" tool/mode), then switch its kind
+afterward.
+
+The "begin/end only" restriction: `Canvas.findConnectionTarget` now
+special-cases `'OverheadLine'` connectors — instead of
+`nearestSegmentOnPolyline`'s "anywhere along the line" search every other
+connector kind gets, it only offers the connector's own two true
+endpoints, within the same tight `TERMINAL_HIT_RADIUS` an element's own
+terminal uses. This applies uniformly to both ends of a route (starting
+*or* finishing on an overhead line), since both funnel through the same
+function. Landing exactly on an endpoint this way is also, correctly, not
+really a "tap" at all: `diagramOps.spliceConnectorAt` gained a
+short-circuit — tapPoint landing exactly on a connector's own from/to
+Node position now reuses that already-existing Node directly (and leaves
+the connector itself untouched) instead of spawning a redundant junction
+Node plus a zero-length duplicate connector, which is what the general
+mid-span-tap path would otherwise have produced for this exact-endpoint
+case. This is a correctness improvement for *any* connector kind, not
+overhead-line-specific — it just happens to be the only path an overhead
+line's own restricted target-set can ever reach.
+
+Verified: a Go test builds a breaker tapped onto an overhead line's own
+begin point (node id reused directly, no extra node/connector) and
+confirms the rendered SVG — both wires meet exactly at the shared
+coordinate, the overhead line as its own `<g>`-wrapped block, the tap as
+an ordinary flat `Buswork:21` polyline.
+
+2026-09-16: Replaced the just-added Properties Kind dropdown with an
+up-front palette choice instead (reported directly: a connector's type
+shouldn't be changeable after the fact, same as an element's own
+shape/class can't be — it should be picked before drawing, like an
+equipment symbol, from its own icon in the palette).
+
+Removed: Properties' connector Kind `<select>` and the now-dead
+`properties.kind`/`connectorKind.*` (Properties-only) i18n keys and
+`CONNECTOR_KIND_LABELS` map added earlier today.
+
+Added instead: a "Wires" section at the top of the Elements palette with
+three entries — Overhead line, Cable line, Busbar wire (`BusWork` itself
+needs no button, since it's already the routing tool's own default with
+nothing armed) — each with its own small icon (new
+`lib/wireKindIcon.ts`), styled to hint at how each kind differs: Overhead
+line's icon has tower-like tick marks at both ends (matching its real
+heavier `<g>`-wrapped render), Cable line's is dashed (the conventional
+SLD symbol for an underground cable), Busbar wire's is a thicker line
+with a small dot at each end.
+
+New `armedWireKind` state (`DiagramContext`, mutually exclusive with
+`armedSymbol`/selection, exactly like arming an equipment symbol —
+clicking a palette wire-kind button, selecting anything, or Esc all
+clear it) — a *single-shot* arm: the routing tool's next completed route
+uses it, then `Canvas` clears it back to `null` itself once that route
+finishes (on-target completion or double-click-to-end-in-mid-air alike),
+so arming applies to exactly one wire, not every subsequent one.
+
+Every `diagramOps` route-creator (`drawConnectorPath`,
+`drawConnectorPathToConnector`, `drawConnectorPathFromConnector`,
+`drawConnectorBetweenConnectors`, `drawDanglingConnectorPath`,
+`drawDanglingConnectorPathFromConnector`) grew a trailing `kind:
+ConnectorKind = 'BusWork'` parameter — appended after the existing
+`defaultVoltage` param specifically so no existing call site needed
+updating, only `Canvas`'s own six call sites, which now pass `armedWireKind
+?? 'BusWork'`. `connectElements` (the older, separate instant
+Ctrl/Cmd-click-connect) is deliberately untouched and still always
+produces `BusWork`, unaffected by any armed wire kind — it was never part
+of the routing tool this applies to.
+
+2026-09-16: Fixed "impossible to draw new wires — canvas is moving",
+introduced by the wire-kind-arming feature just above. `TransformWrapper`'s
+own `disabled` prop (which locks `react-zoom-pan-pinch`'s pan/zoom while
+`armedSymbol`/`routing`/etc. are active, so a click-to-place or an
+in-progress route doesn't fight the canvas panning under it) never got
+`armedWireKind` added alongside `armedSymbol` — so with a wire kind armed
+but the route not yet started (the moment between clicking a palette
+Wires button and clicking a terminal to begin), panning stayed active,
+and any incidental mouse movement during that first click got grabbed as
+a pan instead of registering as the route's start. Added `armedWireKind`
+to that condition, matching `armedSymbol`.
+
+2026-09-16: The user reported "the same bug" after the fix above, so
+this time verified directly in a real browser (Claude in Chrome, against
+the actual running dev servers) instead of reasoning about it — and it
+wasn't panning at all. `armedWireKind` was correctly locking pan/zoom the
+whole time; the real problem was that arming a wire kind was far too
+fragile to use in the first place.
+
+Starting a route is a tight-radius hit on a terminal specifically
+(`findConnectionTarget`, `TERMINAL_HIT_RADIUS`), much smaller than an
+element's own wider click target — so a click meant to start a route very
+commonly lands a few pixels off the terminal and instead selects the
+whole element, exactly as a plain click would. `selectElement`/
+`selectConnector`/`toggleElementSelection` all cleared `armedWireKind` as
+a side effect of that selection (mirroring how they already clear
+`armedSymbol`) — so *every* near-miss silently cancelled the armed wire
+kind, forcing a trip back to the palette to re-arm before trying again.
+Reproduced directly: with "Overhead line" armed, a click 6 screenshot
+pixels off the breaker's own terminal selected the breaker (Properties
+opened on it) and un-highlighted the Overhead line button.
+
+Fix: `selectElement`/`selectConnector`/`toggleElementSelection` no longer
+touch `armedWireKind` at all — it now only ever clears via `armSymbol`
+(genuine mutual exclusion between the two "arm" mechanisms), `armWireKind`
+itself, `Canvas`'s own Esc handler, or a route actually completing. A
+near-miss now just selects the element under the cursor, same as always,
+while leaving the armed kind intact to simply try again.
+
+Verified the full corrected flow live: armed "Overhead line", a
+deliberate near-miss click selected the breaker without losing the arm,
+then a precise click on the same terminal started a route (dashed preview
+tracked the cursor, canvas didn't move), and double-click-to-end-in-mid-
+air produced a real `<g data-type="22">` element in the rendered SVG at
+stroke-width 1.5 — confirming the whole path end-to-end, not just the
+one symptom originally reported.
+
+2026-09-16: A batch of smaller requests, all implemented and verified in
+the same session:
+
+**The routing tool can now start in mid-air too**, not just end there —
+double-clicking empty canvas (not already routing, and not on an existing
+connector's own line, which still means "add a bend point" as before)
+starts a brand new route from a bare point with nothing attached, the
+same way double-click-to-end already works. `RouteStart` (`Canvas.tsx`)
+adds a third `'point'` kind alongside `ConnectTarget`'s existing
+`'element'`/`'connector'`; three new `diagramOps` creators —
+`drawConnectorPathFromPoint`, `drawConnectorPathFromPointToConnector`,
+`drawDanglingConnectorPathFromPoint` — cover every combination this
+implies. `react-zoom-pan-pinch`'s own default double-click-to-zoom is now
+explicitly disabled (`doubleClick={{disabled: true}}`), since empty-canvas
+double-click has real meaning now and the two would otherwise fight.
+Verified live: double-click, drag, double-click again produced a
+two-segment wire with both ends genuinely unattached (no element, no
+Port) — exactly what a hand-built "just a wire" diagram like
+`overhead-line-only` already looked like, now reachable from the UI
+itself.
+
+**Deleting a connector now prunes its own now-orphaned nodes.**
+`removeConnector` previously only filtered the connector itself, leaving
+any endpoint Node nothing else referenced (no element Port, no other
+connector's from/to) to accumulate as dead `<node>` cruft in the saved
+XML forever. It now prunes exactly those — never a node still shared by
+another connector or an element, which is a normal, intentional dangling
+end, not orphaned. `deleteConnectorSegment` deliberately keeps using a
+plain filter instead of the updated `removeConnector`, since it reuses
+the same connector's own from/to for whichever side keeps the original
+endpoint — pruning first would leave that side pointing at a node that no
+longer exists. Verified live: drew a mid-air-to-mid-air wire, saved
+(`<nodes>` had both), deleted it, saved again (`<nodes/>` empty).
+
+**The browser tab title now follows the open diagram** — `${name}${dirty
+? ' *' : ''} — SLD Editor`, the same "*" convention FilePanel's own Save
+button already uses, via a `document.title` effect in `DiagramProvider`
+keyed on `diagramName`/`dirty`. Verified live (tab title updated on
+create and again once a wire was drawn, dirtying it).
+
+**Breaker/Disconnector now default to Close (state 1)** when placed,
+instead of starting unset — `placeElement`'s own `DEFAULT_CLOSED_CLASSES`
+set, checked against the element's Class (covers both the fixed and
+withdrawable shape of either, since they share a Class). LoadBreakSwitch/
+GroundSwitch — Properties' other two switching-device classes with a
+State dropdown — deliberately keep starting unset; only breakers/
+disconnectors were asked for. Verified live: a freshly placed breaker
+rendered lawngreen (Close) immediately, no separate trip to Properties.
+
+**Cable line gained its own xsde2svg code, 23** (`connectorTypeCode`),
+alongside Overhead line's 22 and Buswork's 21. `writeOverheadLine` was
+generalized to `writeNamedLine` and now also handles `KindCableLine` —
+the same `<g id data-type data-name data-voltage>` wrapper Overhead line
+already got, rather than the flat, name-less polyline every other
+connector kind still renders as. `TestRender_AnnotatesTypeGroups` updated
+for the resulting type-comment change (`<!-- Cable line -->` → `<!-- Cable
+line:23 -->`).
+
+**A newly drawn Overhead line/Cable line connector now gets an
+auto-generated Name** ("Overhead line-12"), the same "`<kind label>-<id>`"
+convention `placeElement` already uses for equipment ("Breaker-3") — this
+is what actually makes `writeNamedLine`'s own `data-name` attribute
+non-empty by default, matching a real xsde2svg-exported line's own
+data-name (e.g. the `sld-viewer` corpus's "Line2"). New
+`defaultConnectorName`/`NAMED_CONNECTOR_KIND_LABEL` in `diagramOps.ts`,
+threaded through all 8 `kind`-parameterized route-creator functions (every
+one except `connectElements`, which is always `BusWork` and never took a
+`kind` param). BusWork/BusbarWire connectors stay unnamed, same as
+before. Verified live: a Cable line drawn from a breaker's terminal to
+mid-air came back from Properties as "Cable line-7"; a matching Go-level
+render of that same connector reproduced `data-name="Cable line-7"`
+byte-for-byte (the live session's own backend process hadn't been
+restarted yet to pick up the Go-side changes, so this was confirmed via a
+direct render call rather than the live SVG, which was still on the old
+binary).
+
+**"Busbar wire" removed from the Wires palette** — it had no rendering
+(or other) distinction from an ordinary `BusWork` wire to justify its own
+button, unlike Overhead line/Cable line, which now have real
+xsde2svg-catalog identity (kind, data-type code, auto-name). Removed from
+`wireKindIcon.ts`'s `WIRE_KIND_ICONS`/`WIRE_KINDS` and
+`ElementsPanel.tsx`'s `WIRE_KIND_LABELS`, plus the now-dead
+`connectorKind.BusbarWire` i18n key. `ConnectorKind.BusbarWire` itself is
+untouched in the model (`types/index.ts`) — an existing diagram already
+using it still loads/renders/saves correctly, it's just no longer
+offered as a fresh choice. Verified live: the Wires section now shows
+only two buttons.
+
+**"Show nodes" now defaults to on** — `Canvas`/`SettingsPanel`'s own
+fallback changed from `?? false` to `?? true` wherever
+`diagram.editor?.showNodes` is read. Verified live: a freshly placed
+breaker's own terminal node showed its red X mark immediately, with
+Settings never opened.
+
+**Properties now prints an element's own type name** ("Breaker",
+"Breaker (withdrawable)") above its Name field — the same label its own
+Elements-panel palette button shows (looked up from the `elements`
+catalog by the element's own `shape`, not just its `class`, since the
+latter doesn't distinguish a fixed shape from a withdrawable one sharing
+it), falling back to the bare `class` for an element whose shape isn't in
+the current library. Verified live: selecting a placed breaker now shows
+"Breaker" at the top of Properties.
+
+2026-09-16: The click-to-route tool's default behavior is now select, not
+draw — a plain click, even one landing squarely on a terminal, only
+starts a route while a wire kind is armed from the Elements palette's own
+"Wires" section (shown pressed/highlighted while active); with nothing
+armed, it's always select/drag, exactly like clicking anywhere else on
+the element. Previously, being *near* a terminal was enough on its own to
+start drawing regardless of any armed state, which is what made it so
+easy to accidentally start (or fail to start) a route while just trying
+to select something.
+
+New "Wire" button added to the Wires palette section (`wireKindIcon.ts`'s
+`WIRE_KIND_ICONS`/`WIRE_KINDS` gained `'BusWork'`, listed first) — since
+drawing at all now requires an explicit arm, there needed to be one for
+the plain/default kind too, not just Overhead line/Cable line.
+`handleMouseDown`'s plain-click terminal-start check, `handleWrapperDoubleClick`'s
+empty-canvas mid-air-start check, and `handleWrapperMouseMove`'s hover
+target-highlight (`connectTarget`) are all now gated behind `armedWireKind`
+when not already routing — the hover highlight in particular no longer
+shows a "you could connect here" indicator with nothing armed, since it
+would be misleading now that nothing happens if you click it.
+Ctrl/Cmd-click-instant-connect (`connectElements`) and reshaping an
+already-selected connector's own geometry are both untouched — neither
+was ever part of the routing tool this gate applies to.
+
+Verified live: with nothing armed, clicking directly on a breaker
+terminal already wired to a connector selected that connector instead of
+starting a route (previously this would have started one); arming "Wire"
+and clicking the same terminal correctly started a route (dashed preview
+appeared).
+
+2026-09-16: Text/label element, with all its real parameters (Text, Size,
+Anchor, Bold, For), editable through Properties the same way an
+element's fields are. `Label` gained its own `ID` (backend `model.go`,
+frontend `types/index.ts`) so one specific label can be individually
+selected/dragged/deleted, the same as an Element/Connector already could
+be — previously a Label only ever round-tripped through the XML, with no
+editor support at all. `writeLabel` (`render.go`) now takes the same
+`RenderMode` every other selectable node does, always emitting the
+label's own `id` and, in `Interactive` mode only, `data-editor-kind="label"`
+on its `<text>` (its `<tspan>` continuation lines aren't separately
+marked — `closest()` hit-testing against the ancestor `<text>` already
+covers a click landing on one).
+
+Frontend: a new "Text" section in the Elements palette (armed the same
+click-to-arm way a wire kind is — `armedLabel`/`armLabel`, mutually
+exclusive with `armedSymbol`/`armedWireKind`/selection); clicking the
+canvas places a standalone `"Label"` text at that point
+(`diagramOps.placeLabel`). Clicking an existing label selects it
+(`selectedLabelId`/`selectLabel`) — Properties auto-opens the same way it
+already does for a first element/connector selection — and dragging it
+moves its own anchor (`diagramOps.moveLabel`), following the same
+instant-DOM-first, commit-on-mouseup pattern `dragElementsInDom` already
+uses for an element (`dragLabelInDom` sets the live `<text>`'s own `x`/`y`,
+plus each `<tspan>`'s `x`, directly). A selected label gets a simple
+circle drawn at its own anchor point, not a measured text bounding box —
+the same minimal-marker convention a connector/busbar's own highlight
+already uses. Delete/Backspace and Properties' own delete button both
+remove it (`diagramOps.removeLabel`). Properties' new label section:
+a multi-line Text field, numeric Size, an Anchor dropdown
+(start/middle/end), a Bold checkbox, and a For dropdown listing every
+element in the diagram (default "— none —") — For is saved as a plain
+reference (`Label.for`, an element id), not a live link: dragging the
+referenced element does not move the label along with it, and this is
+deliberately out of scope for now.
+
+Also: a freshly placed Lamp now starts with real defaults (`state: 0`,
+`fillOff: 'none'`, `fillOn: 'red'`, `radius: 11`) instead of all three
+left unset, which previously rendered as an invisible `r="0"` circle
+until a trip to Properties (`diagramOps.placeElement`'s `LAMP_DEFAULTS`);
+a Lamp also no longer inherits `defaultVoltage` the way every other
+placed symbol does — it's a plain indicator read by its own fixed
+FillOff/FillOn colors, not something with a primary voltage of its own.
+
+Verified live: placed a Lamp (rendered as an unlit slategray-stroked
+circle, radius 11, no voltage assigned) and a Text label; edited the
+label's Text (multi-line), Size, Anchor (start -> middle, recentered
+live), and Bold (live bold) in Properties; set For to the placed Lamp;
+dragged the label to a new position; deleted it via Properties' own
+Delete button. Saved and reloaded the diagram from disk — the label's
+`id`/`for` and the Lamp's `state`/`fillOff`/`fillOn`/`radius` (and
+absent `voltage`) all round-tripped correctly through the `.xml`.
+
+2026-09-16: A selected Lamp now gets its own Properties section instead
+of the ordinary element fields it made no sense for: no Voltage class
+`<select>` (a Lamp reads its own fixed Off/On colors, not a voltage
+class color) and no Orientation `<select>` (its own template is a plain
+circle — rotating it changes nothing visually) — both skipped the same
+way via `PropertiesPanel`'s `isLamp` check — and in their place a State
+dropdown (Off/On, plain text labels rather than reusing the
+switching-device Open/Close/Intermediate legend, since a lamp isn't
+one), an Off color/On color picker pair (`<input type="color">`, bound
+to `FillOff`/`FillOn`), and a numeric Radius, all three previously only
+ever set once, at placement, with no way to change them afterward. The
+color pickers fall back to a plain black/red swatch (`swatchColor`) when
+the stored value isn't a `#rrggbb` hex — covers `LAMP_DEFAULTS`' own
+`fillOff: 'none'`, which a color picker can't represent directly, or any
+older diagram carrying a plain CSS color name; picking a color always
+commits a real hex regardless of what was there before.
+
+Verified live: placed a Lamp, confirmed Properties showed State/Off
+color/On color/Radius with no Voltage class or Orientation field;
+switched State to On and set On color via the picker to `#00ff00` — the
+lamp rendered solid green live.
+
+2026-09-16: A label's own text can now be colored and vertically
+anchored, not just white with a fixed baseline. `Label` gained `Color`
+(`FillOff`/`FillOn`-style, empty means the original hardcoded white, so
+an already-saved label with no `color` attribute keeps rendering exactly
+as before) and `VAlign` (`"top"`/`"middle"`, empty means the original
+baseline-at-Y behavior, i.e. "bottom" — `writeLabel` maps this to a
+`dominant-baseline` style, `hanging`/`middle`, added only when set).
+Properties' Label section gained a Color picker (`<input type="color">`,
+same `swatchColor` black/red-style fallback the Lamp's own pickers use —
+here falling back to white for an already-white/legacy label) and a
+Vertical anchor dropdown (Top/Middle/Bottom) alongside the existing
+horizontal Anchor.
+
+While verifying this, found the backend dev server had silently stayed
+on stale code through an earlier restart attempt (`kill` matched the
+wrong process name, the new `go run` then failed on "address already in
+use" and was never checked) — its still-running old binary predated
+even the earlier Color/`swatchColor` work, so a save through it silently
+dropped both new fields entirely (JSON unmarshaling ignores keys a
+struct doesn't have). Fixed by killing whatever's actually bound to
+:8090 (`lsof -ti:8090`) rather than trying to match the process by name,
+and confirming the fix with a direct `curl -X POST /api/render` round
+trip before touching the browser again.
+
+Verified live: opened a saved diagram's existing label, set Color to
+`#00ccff` via the picker and Vertical anchor to Middle — text recolored
+live; saved and confirmed the `.xml` on disk now reads
+`color="#00ccff" valign="middle"`.
+
+2026-09-16: A label's own font-family is now editable too. `Label`
+gained `Font` (empty means the original hardcoded Arial, same
+already-saved-label-keeps-rendering-as-before convention `Color`/
+`VAlign` already use); Properties' Label section gained a Font dropdown
+(`LABEL_FONTS`: Arial/Times New Roman/Courier New/Verdana/Georgia — a
+handful of common web-safe SVG fonts, Arial first so it maps back to
+"unset" the same way Vertical anchor's own "Bottom" does).
+
+Verified live: set a label's Font to Courier New and Size to 32 —
+rendered in the picked monospace-serif font live; saved and confirmed
+the `.xml` reads `font="Courier New"`.
+
+2026-09-16: Fixed every label in a diagram saved before Label had its
+own `id` (any diagram from before this session's Label feature work —
+`diagrams/PS_110kV_Example.xml`, 303 of them) all silently sharing id 0,
+which made per-label select/drag/edit/delete break in a hard-to-spot
+way: clicking any one of them showed the right text in Properties but
+`ID: 0`, and `diagramOps.updateLabel`/`removeLabel` (which key off
+`l.id === id`) would have applied to *every* label sharing that id at
+once. `ensureLastId` now always backfills a fresh, real id for any label
+still at 0 via `IdSequence`, independent of whether the diagram's own
+`lastId` needed backfilling too (this diagram already had one, from its
+elements/connectors, which is exactly why the label gap went unnoticed
+— `ensureLastId`'s old single early-return skipped everything once
+`lastId` was already set). `DiagramContext.openDiagram` now also flags
+the diagram dirty when `ensureLastId` actually changed anything (it
+returns the same object reference otherwise, so `d !== raw` is enough
+to tell) — without this, the fix only fixed a diagram for the current
+browser session; it was never re-saved to disk, so reopening it
+reintroduced the same shared id 0.
+
+Verified live: opened `PS_110kV_Example`, confirmed via a DOM query that
+all 303 `data-editor-kind="label"` elements now carry distinct ids (no
+longer all 0); clicked the "1СР-110" label specifically and confirmed
+Properties showed a real, single `ID` matching only that one; the title
+bar and Save button both picked up the dirty flag on open, without any
+further edit; saved, and confirmed the `.xml` on disk now carries a
+unique `id="…"` on every one of its 303 `<label>` elements, with
+`lastId` bumped to cover them.

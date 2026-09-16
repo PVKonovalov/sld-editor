@@ -23,6 +23,12 @@ const TERMINAL_HIT_RADIUS = 5
 type Ghost = { ids: number[]; dx: number; dy: number }
 type NewBusbar = { start: Point; current: Point }
 type PointDrag = { elementId: number; pointIndex: number; point: Point }
+// An in-progress drag of a selected Label's own anchor — mirrors Ghost's
+// dx/dy-offset convention (single label, not a set, so no ids array), kept
+// separate from Ghost so an element drag's own selectedElements-hiding
+// logic isn't affected by dragging a label at the same time (they're
+// mutually exclusive selections anyway, but the state itself stays scoped).
+type LabelDrag = { id: number; dx: number; dy: number }
 type ContextMenuState = { x: number; y: number; diagramPoint: Point; elementId: number | null; connectorId: number | null }
 // A valid place for a route to start or finish: either an element's own
 // terminal/busbar point ('element'), or a point along an already-drawn
@@ -38,10 +44,20 @@ type ContextMenuState = { x: number; y: number; diagramPoint: Point; elementId: 
 type ConnectTarget =
   | { kind: 'element'; elementId: number; point: Point }
   | { kind: 'connector'; connectorId: number; segmentIndex: number; point: Point }
+// A route's own starting anchor: either a genuine ConnectTarget (an
+// element/busbar terminal, or a connector tap — see ConnectTarget's own
+// doc comment), or a bare 'point' in mid-air with nothing there at all —
+// double-clicking empty canvas while not already routing starts one of
+// these (see handleWrapperDoubleClick), letting a diagram be drawn
+// wire-first instead of always needing an element to exist before a wire
+// can touch it. Never something findConnectionTarget itself returns —
+// only ConnectTarget's own two kinds are real hit-test results.
+type RouteStart = ConnectTarget | { kind: 'point'; point: Point }
 // An in-progress click-to-route: path always holds at least the start
-// point (from's own terminal/anchor or connector tap), each further click
-// appending one more anchored vertex (see appendOrthogonalPoint).
-type Routing = { from: ConnectTarget; path: Point[] }
+// point (from's own terminal/anchor, connector tap, or bare mid-air
+// point), each further click appending one more anchored vertex (see
+// appendOrthogonalPoint).
+type Routing = { from: RouteStart; path: Point[] }
 // An in-progress drag of an already-drawn connector's own geometry: either
 // an existing interior vertex (kind 'vertex', index into its points array)
 // or a segment's midpoint (kind 'midpoint', the index of that segment's
@@ -115,11 +131,17 @@ export function Canvas() {
     selectedElementIds,
     toggleElementSelection,
     selectedConnectorId,
+    selectedLabelId,
     armedSymbol,
+    armedWireKind,
+    armedLabel,
     defaultVoltage,
     selectElement,
     selectConnector,
+    selectLabel,
     armSymbol,
+    armWireKind,
+    armLabel,
     deleteSelected,
     updateDiagram,
   } = useDiagramContext()
@@ -129,6 +151,7 @@ export function Canvas() {
   const [ghost, setGhost] = useState<Ghost | null>(null)
   const [newBusbar, setNewBusbar] = useState<NewBusbar | null>(null)
   const [pointDrag, setPointDrag] = useState<PointDrag | null>(null)
+  const [labelDrag, setLabelDrag] = useState<LabelDrag | null>(null)
   const [clipboard, setClipboard] = useState<diagramOps.ClipboardEntry[]>([])
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [routing, setRouting] = useState<Routing | null>(null)
@@ -175,7 +198,7 @@ export function Canvas() {
           e.preventDefault()
           updateDiagram(d => diagramOps.removeConnectorVertex(d, selectedVertex.connectorId, selectedVertex.index))
           setSelectedVertex(null)
-        } else if (selectedElementId !== null || selectedConnectorId !== null) {
+        } else if (selectedElementId !== null || selectedConnectorId !== null || selectedLabelId !== null) {
           e.preventDefault()
           deleteSelected()
         }
@@ -186,6 +209,8 @@ export function Canvas() {
         } else if (selectedVertex) setSelectedVertex(null)
         else if (contextMenu) setContextMenu(null)
         else if (armedSymbol) armSymbol(null)
+        else if (armedWireKind) armWireKind(null)
+        else if (armedLabel) armLabel(false)
         else selectElement(null)
       }
     }
@@ -194,9 +219,14 @@ export function Canvas() {
   }, [
     selectedElementId,
     selectedConnectorId,
+    selectedLabelId,
     armedSymbol,
+    armedWireKind,
+    armedLabel,
     deleteSelected,
     armSymbol,
+    armWireKind,
+    armLabel,
     selectElement,
     contextMenu,
     routing,
@@ -215,7 +245,7 @@ export function Canvas() {
   const gridSpacing = diagram.editor?.gridSpacing ?? config?.editor.gridSpacing ?? 20
   const snapEnabled = diagram.editor?.snap ?? config?.editor.snap ?? true
   const showGrid = diagram.editor?.showGrid ?? config?.editor.showGrid ?? true
-  const showNodes = diagram.editor?.showNodes ?? false
+  const showNodes = diagram.editor?.showNodes ?? true
 
   function toPoint(clientX: number, clientY: number): Point {
     const rect = wrapperRef.current!.getBoundingClientRect()
@@ -236,7 +266,7 @@ export function Canvas() {
   // already-drawn connector, counts as a terminal") and, mid-route, to
   // find a valid point to complete onto. exclude keeps a route from
   // completing back onto its own starting element/connector.
-  function findConnectionTarget(point: Point, exclude: ConnectTarget | null, includeBusbars: boolean): ConnectTarget | null {
+  function findConnectionTarget(point: Point, exclude: RouteStart | null, includeBusbars: boolean): ConnectTarget | null {
     let best: ConnectTarget | null = null
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
@@ -264,6 +294,29 @@ export function Canvas() {
     if (includeBusbars) {
       for (const c of diagram!.connectors) {
         if (exclude?.kind === 'connector' && c.id === exclude.connectorId) continue
+        if (c.kind === 'OverheadLine') {
+          // Unlike every other connector kind (tappable anywhere along its
+          // own line, via nearestSegmentOnPolyline below), an overhead
+          // line only accepts a connection at its own two true begin/end
+          // points — same tight TERMINAL_HIT_RADIUS an element's own
+          // terminal uses, not the loose "anywhere on the line" search.
+          // diagramOps.spliceConnectorAt already treats landing exactly on
+          // one of these as a plain existing-Node reuse rather than a
+          // real split, so this restriction is also what makes that the
+          // only way to land here at all.
+          const ends: [Point, number][] = [
+            [c.points[0], 0],
+            [c.points[c.points.length - 1], c.points.length - 2],
+          ]
+          for (const [p, segmentIndex] of ends) {
+            const dist = Math.hypot(p.x - point.x, p.y - point.y)
+            if (dist < bestDist) {
+              bestDist = dist
+              best = { kind: 'connector', connectorId: c.id, segmentIndex, point: p }
+            }
+          }
+          continue
+        }
         const { index, point: nearest } = nearestSegmentOnPolyline(c.points, point)
         const p = snapPointOnSegment(c.points[index], c.points[index + 1], nearest, gridSpacing, snapEnabled)
         const dist = Math.hypot(p.x - point.x, p.y - point.y)
@@ -279,47 +332,90 @@ export function Canvas() {
   // Tracks connectTarget continuously (both for idle hover-discovery of a
   // pin to start a route from, and for live target-snapping while
   // routing) — skipped during any other drag gesture, which already owns
-  // mousemove via its own temporary window listener.
+  // mousemove via its own temporary window listener. Outside of an
+  // already-in-progress route, this only shows a hover target at all
+  // while a wire kind is armed (armedWireKind) — with nothing armed, a
+  // plain click anywhere, including right on a terminal, is always just
+  // select/drag, so highlighting a "connect here" target with no way to
+  // act on it would be misleading.
   function handleWrapperMouseMove(e: React.MouseEvent) {
-    if (armedSymbol || ghost || pointDrag || newBusbar) return
+    if (armedSymbol || ghost || pointDrag || newBusbar || labelDrag) return
     const point = toPoint(e.clientX, e.clientY)
-    setConnectTarget(findConnectionTarget(point, routing?.from ?? null, !!routing || e.ctrlKey || e.metaKey))
-    if (routing) setRoutingCursor(point)
+    if (routing) {
+      setConnectTarget(findConnectionTarget(point, routing.from, true))
+      setRoutingCursor(point)
+    } else if (armedWireKind) {
+      setConnectTarget(findConnectionTarget(point, null, e.ctrlKey || e.metaKey))
+    } else {
+      setConnectTarget(null)
+    }
   }
 
   // A click while routing either completes the route (when connectTarget
   // is a genuine target — any other element's terminal, any point along a
   // busbar, or any point along an already-drawn connector, tapping into it
-  // as a junction) or anchors a new bend point and keeps routing. Four
-  // combinations of routing.from/target kind are possible; each maps to
-  // its own diagramOps creator (see their own doc comments).
+  // as a junction) or anchors a new bend point and keeps routing. Six
+  // combinations of routing.from/target kind are possible (from: element,
+  // connector, or a bare mid-air point; target: element or connector);
+  // each maps to its own diagramOps creator (see their own doc comments).
   function handleRoutingClick(point: Point) {
     if (!routing) return
     const target = findConnectionTarget(point, routing.from, true)
     if (target) {
       const path = appendOrthogonalPoint(routing.path, target.point)
       const from = routing.from
+      const kind = armedWireKind ?? 'BusWork'
       updateDiagram(d => {
         if (from.kind === 'element') {
           return target.kind === 'element'
-            ? diagramOps.drawConnectorPath(d, from.elementId, target.elementId, path, defaultVoltage)
-            : diagramOps.drawConnectorPathToConnector(d, from.elementId, target.connectorId, target.segmentIndex, path, defaultVoltage)
+            ? diagramOps.drawConnectorPath(d, from.elementId, target.elementId, path, defaultVoltage, kind)
+            : diagramOps.drawConnectorPathToConnector(
+                d,
+                from.elementId,
+                target.connectorId,
+                target.segmentIndex,
+                path,
+                defaultVoltage,
+                kind,
+              )
+        }
+        if (from.kind === 'connector') {
+          return target.kind === 'element'
+            ? diagramOps.drawConnectorPathFromConnector(
+                d,
+                from.connectorId,
+                from.segmentIndex,
+                target.elementId,
+                path,
+                defaultVoltage,
+                kind,
+              )
+            : diagramOps.drawConnectorBetweenConnectors(
+                d,
+                from.connectorId,
+                from.segmentIndex,
+                target.connectorId,
+                target.segmentIndex,
+                path,
+                defaultVoltage,
+                kind,
+              )
         }
         return target.kind === 'element'
-          ? diagramOps.drawConnectorPathFromConnector(d, from.connectorId, from.segmentIndex, target.elementId, path, defaultVoltage)
-          : diagramOps.drawConnectorBetweenConnectors(
+          ? diagramOps.drawConnectorPathFromPoint(d, path, target.elementId, defaultVoltage, kind)
+          : diagramOps.drawConnectorPathFromPointToConnector(
               d,
-              from.connectorId,
-              from.segmentIndex,
+              path,
               target.connectorId,
               target.segmentIndex,
-              path,
               defaultVoltage,
+              kind,
             )
       })
       setRouting(null)
       setRoutingCursor(null)
       setConnectTarget(null)
+      if (armedWireKind) armWireKind(null)
       return
     }
     setRouting({ ...routing, path: appendOrthogonalPoint(routing.path, snapPoint(point)) })
@@ -331,33 +427,61 @@ export function Canvas() {
   // already ran through handleRoutingClick first, anchoring at most one
   // more bend point since both land on the same spot, so this just
   // finalizes whatever routing.path already is) — or, when not routing,
-  // adds a new bend point directly at wherever it landed on an existing
-  // connector's own line (projected onto the exact segment double-clicked,
-  // so the new point starts out perfectly straight-through until dragged
-  // elsewhere).
+  // either adds a new bend point directly at wherever it landed on an
+  // existing connector's own line (projected onto the exact segment
+  // double-clicked, so the new point starts out perfectly straight-through
+  // until dragged elsewhere), or, on truly empty canvas *while a wire kind
+  // is armed* (armedWireKind — same gate the plain-click terminal-start
+  // check uses, so double-clicking empty canvas is a no-op otherwise, not
+  // an implicit way to start drawing), *starts* a brand new route from a
+  // bare mid-air point (RouteStart's own 'point' kind) — the
+  // double-click-to-start counterpart of double-click-to-end, letting a
+  // diagram be drawn wire-first instead of always needing an element to
+  // exist before a wire can touch it.
   function handleWrapperDoubleClick(e: React.MouseEvent) {
     if (routing) {
       e.stopPropagation()
       const from = routing.from
-      updateDiagram(d =>
-        from.kind === 'element'
-          ? diagramOps.drawDanglingConnectorPath(d, from.elementId, routing.path, defaultVoltage)
-          : diagramOps.drawDanglingConnectorPathFromConnector(d, from.connectorId, from.segmentIndex, routing.path, defaultVoltage),
-      )
+      const kind = armedWireKind ?? 'BusWork'
+      updateDiagram(d => {
+        if (from.kind === 'element') {
+          return diagramOps.drawDanglingConnectorPath(d, from.elementId, routing.path, defaultVoltage, kind)
+        }
+        if (from.kind === 'connector') {
+          return diagramOps.drawDanglingConnectorPathFromConnector(
+            d,
+            from.connectorId,
+            from.segmentIndex,
+            routing.path,
+            defaultVoltage,
+            kind,
+          )
+        }
+        return diagramOps.drawDanglingConnectorPathFromPoint(d, routing.path, defaultVoltage, kind)
+      })
       setRouting(null)
       setRoutingCursor(null)
       setConnectTarget(null)
+      if (armedWireKind) armWireKind(null)
       return
     }
     const hit = (e.target as HTMLElement).closest('[data-editor-kind="connector"]') as HTMLElement | null
-    if (!hit) return
-    const connectorId = Number(hit.id)
-    const connector = diagram!.connectors.find(c => c.id === connectorId)
-    if (!connector) return
+    if (hit) {
+      const connectorId = Number(hit.id)
+      const connector = diagram!.connectors.find(c => c.id === connectorId)
+      if (!connector) return
+      e.stopPropagation()
+      const { index, point } = nearestSegmentOnPolyline(connector.points, toPoint(e.clientX, e.clientY))
+      updateDiagram(d => diagramOps.insertConnectorVertex(d, connectorId, index, snapPoint(point)))
+      selectConnector(connectorId)
+      return
+    }
+    if (armedSymbol || !armedWireKind) return
     e.stopPropagation()
-    const { index, point } = nearestSegmentOnPolyline(connector.points, toPoint(e.clientX, e.clientY))
-    updateDiagram(d => diagramOps.insertConnectorVertex(d, connectorId, index, snapPoint(point)))
-    selectConnector(connectorId)
+    const point = snapPoint(toPoint(e.clientX, e.clientY))
+    setRouting({ from: { kind: 'point', point }, path: [point] })
+    setRoutingCursor(point)
+    setConnectTarget(null)
   }
 
   // Drags the real backend-rendered symbol(s) by (dx, dy) directly in the
@@ -380,6 +504,22 @@ export function Canvas() {
         node.setAttribute('transform', `translate(${el.x + dx},${el.y + dy}) rotate(${el.orient ?? 0})`)
       }
     }
+  }
+
+  // Drags a selected label's own <text> (and its <tspan> continuation
+  // lines, each of which repeats the same x) directly in the DOM by (dx,
+  // dy), the same instant-feedback approach dragElementsInDom uses for an
+  // element.
+  function dragLabelInDom(id: number, dx: number, dy: number) {
+    const root = wrapperRef.current
+    const label = diagram!.labels.find(l => l.id === id)
+    const node = root?.querySelector(`[data-editor-kind="label"][id="${id}"]`)
+    if (!label || !node) return
+    const x = label.x + dx
+    const y = label.y + dy
+    node.setAttribute('x', String(x))
+    node.setAttribute('y', String(y))
+    node.querySelectorAll('tspan').forEach(tspan => tspan.setAttribute('x', String(x)))
   }
 
   function handleMouseDown(e: React.MouseEvent) {
@@ -424,18 +564,32 @@ export function Canvas() {
       return
     }
 
+    if (armedLabel) {
+      e.stopPropagation()
+      updateDiagram(d => diagramOps.placeLabel(d, snapPoint(point)))
+      armLabel(false)
+      return
+    }
+
     // A plain click landing on an element's own terminal (or, for a shape
     // with none defined, its bare anchor) starts a route from there
-    // instead of the usual select/drag. Holding Ctrl/Cmd additionally
-    // accepts any point along a busbar or an already-drawn connector's own
-    // line as a start too — without the modifier, a plain click on either
-    // of those still means select/drag (busbar) or select/reshape
-    // (connector), same as before, since a busbar/connector has no
-    // discrete pin of its own (every point along it would otherwise count,
-    // swallowing the click). A click anywhere else on the same element's
-    // body still falls through to the ordinary hit-test/select/drag logic
-    // below, since TERMINAL_HIT_RADIUS is deliberately tight.
-    const startTarget = findConnectionTarget(point, null, e.ctrlKey || e.metaKey)
+    // instead of the usual select/drag — but only while a wire kind is
+    // armed from the Elements palette's own "Wires" section
+    // (armedWireKind, shown pressed/highlighted there while active).
+    // With nothing armed, the default behavior is always select/drag,
+    // even for a click landing squarely on a terminal: drawing a
+    // connection is something explicitly opted into, not something that
+    // happens implicitly just from where the click landed. Holding
+    // Ctrl/Cmd additionally accepts any point along a busbar or an
+    // already-drawn connector's own line as a start too — without the
+    // modifier, a plain click on either of those still means select/drag
+    // (busbar) or select/reshape (connector), same as before, since a
+    // busbar/connector has no discrete pin of its own (every point along
+    // it would otherwise count, swallowing the click). A click anywhere
+    // else on the same element's body still falls through to the ordinary
+    // hit-test/select/drag logic below, since TERMINAL_HIT_RADIUS is
+    // deliberately tight.
+    const startTarget = armedWireKind ? findConnectionTarget(point, null, e.ctrlKey || e.metaKey) : null
     if (startTarget) {
       e.stopPropagation()
       setRouting({ from: startTarget, path: [startTarget.point] })
@@ -456,6 +610,33 @@ export function Canvas() {
 
     if (hit.dataset.editorKind === 'connector') {
       selectConnector(hitId)
+      return
+    }
+
+    if (hit.dataset.editorKind === 'label') {
+      const labelId = hitId
+      selectLabel(labelId)
+      const onMove = (ev: MouseEvent) => {
+        const p = toPoint(ev.clientX, ev.clientY)
+        const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
+        const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
+        setLabelDrag({ id: labelId, dx, dy })
+        dragLabelInDom(labelId, dx, dy)
+      }
+      const onUp = (ev: MouseEvent) => {
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+        const p = toPoint(ev.clientX, ev.clientY)
+        const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
+        const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
+        setLabelDrag(null)
+        if (dx !== 0 || dy !== 0) {
+          dragLabelInDom(labelId, dx, dy)
+          updateDiagram(d => diagramOps.moveLabel(d, labelId, dx, dy))
+        }
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
       return
     }
 
@@ -610,7 +791,8 @@ export function Canvas() {
   // would.
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault()
-    if (armedSymbol || newBusbar || pointDrag || ghost || routing || vertexDrag) return
+    if (armedSymbol || armedWireKind || armedLabel || newBusbar || pointDrag || ghost || routing || vertexDrag || labelDrag)
+      return
 
     const diagramPoint = snapPoint(toPoint(e.clientX, e.clientY))
     const hit = (e.target as HTMLElement).closest('[data-editor-kind]') as HTMLElement | null
@@ -622,6 +804,12 @@ export function Canvas() {
       if (hit.dataset.editorKind === 'connector') {
         connectorId = id
         selectConnector(id)
+      } else if (hit.dataset.editorKind === 'label') {
+        // No dedicated context-menu entries for a label yet (Delete/
+        // Backspace and Properties' own delete button already cover it) —
+        // just select it, same as a plain click would, rather than
+        // misreading its id as an element's and showing element-only items.
+        selectLabel(id)
       } else {
         elementId = id
         // Right-clicking an element that's already part of a multi-selection
@@ -688,6 +876,7 @@ export function Canvas() {
   const selectedElements = diagram.elements.filter(el => selectedElementIds.has(el.id))
   const selectedConnector =
     selectedConnectorId !== null ? diagram.connectors.find(c => c.id === selectedConnectorId) : null
+  const selectedLabel = selectedLabelId !== null ? diagram.labels.find(l => l.id === selectedLabelId) : null
 
   // The not-yet-anchored tail of an in-progress route: snaps exactly onto
   // connectTarget when one's detected (so the preview shows precisely
@@ -711,7 +900,10 @@ export function Canvas() {
         minScale={0.1}
         maxScale={8}
         limitToBounds={false}
-        disabled={!!armedSymbol || !!ghost || !!pointDrag || !!routing || !!vertexDrag}
+        disabled={
+          !!armedSymbol || !!armedWireKind || !!armedLabel || !!ghost || !!pointDrag || !!routing || !!vertexDrag || !!labelDrag
+        }
+        doubleClick={{ disabled: true }}
       >
         <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
           <div
@@ -724,7 +916,7 @@ export function Canvas() {
               position: 'relative',
               width: diagram.width,
               height: diagram.height,
-              cursor: armedSymbol || routing ? 'crosshair' : 'default',
+              cursor: armedSymbol || armedWireKind || armedLabel || routing ? 'crosshair' : 'default',
             }}
           >
             <div style={{ position: 'absolute', inset: 0 }} dangerouslySetInnerHTML={{ __html: svg }} />
@@ -814,6 +1006,21 @@ export function Canvas() {
                   stroke={HIGHLIGHT}
                   strokeWidth={6}
                   strokeOpacity={0.5}
+                />
+              )}
+              {/* A selected label gets a simple circle at its own anchor
+                  point (x,y — where text-anchor/the first line's baseline
+                  actually starts), the same minimal-marker convention a
+                  connector/busbar's own highlight uses, rather than
+                  measuring the rendered text's real DOM bounding box. */}
+              {selectedLabel && (
+                <circle
+                  cx={selectedLabel.x + (labelDrag?.id === selectedLabel.id ? labelDrag.dx : 0)}
+                  cy={selectedLabel.y + (labelDrag?.id === selectedLabel.id ? labelDrag.dy : 0)}
+                  r={6}
+                  fill="none"
+                  stroke={HIGHLIGHT}
+                  strokeWidth={1.5}
                 />
               )}
               {selectedConnector &&

@@ -172,12 +172,24 @@ var connectorKindName = map[string]string{
 // connectorTypeCode gives a Connector's data-type, mirroring an Element's
 // Shape-as-data-type: the xsde2svg type code for a generic object-to-object
 // connection (this schema's ClassObjectLink/KindBusWork — what
-// diagramOps.connectElements creates) is 21. Only that one kind is mapped
-// so far; a Kind absent from this map renders with no data-type, same as
-// before this existed.
+// diagramOps.connectElements creates) is 21, KindOverheadLine's is 22
+// (confirmed against sld-viewer/assets/sld/IEEE9bus.svg's own real
+// xsde2svg-catalog-code documentation), and KindCableLine's is 23. A Kind
+// absent from this map renders with no data-type, same as before this
+// existed.
 var connectorTypeCode = map[ConnectorKind]string{
-	KindBusWork: "21",
+	KindBusWork:      "21",
+	KindOverheadLine: "22",
+	KindCableLine:    "23",
 }
+
+// namedLineStrokeWidth is a KindOverheadLine/KindCableLine connector's
+// fixed stroke width — 1.5, heavier than an ordinary wire's 1px but
+// lighter than a busbar's 4px. Confirmed against a real xsde2svg-exported
+// overhead line exactly (same corpus file as connectorTypeCode's own
+// comment); applied to cable line too for consistency between the two
+// "named" connector kinds, absent its own corpus confirmation.
+const namedLineStrokeWidth = 1.5
 
 // typeComment writes a "<!-- Name:shape -->" line the first time shape is
 // seen or whenever it changes from the previous call, so consecutive
@@ -340,6 +352,10 @@ func Render(d *Diagram, lib *SymbolLibrary, w io.Writer, mode RenderMode, stateC
 	for _, c := range d.Connectors {
 		code, hasCode := connectorTypeCode[c.Kind]
 		typeComment(w, connectorKindName, string(c.Kind), code, &lastConnKind)
+		if c.Kind == KindOverheadLine || c.Kind == KindCableLine {
+			writeNamedLine(w, c, voltageColor[c.Voltage], code, mode)
+			continue
+		}
 		dataAttrs := ""
 		if hasCode {
 			dataAttrs = fmt.Sprintf(" data-type=\"%s\"", esc(code))
@@ -360,7 +376,7 @@ func Render(d *Diagram, lib *SymbolLibrary, w io.Writer, mode RenderMode, stateC
 	}
 
 	for _, l := range d.Labels {
-		writeLabel(w, l)
+		writeLabel(w, l, mode)
 	}
 
 	fmt.Fprint(w, "</svg>\n")
@@ -414,7 +430,44 @@ func writePolyline(w io.Writer, id int, kind string, pts []Point, color string, 
 		points, esc(color), dash, width, dataAttrs, idAttrs)
 }
 
-func writeLabel(w io.Writer, l Label) {
+// writeNamedLine draws a KindOverheadLine/KindCableLine connector as a
+// real xsde2svg-style <g id data-type data-name data-voltage> wrapping
+// its own polyline — unlike every other connector kind (and a busbar),
+// which writePolyline renders as a single flat polyline with no wrapping
+// <g>, and no data-name, at all. Overhead line confirmed against both a
+// real corpus file (sld-viewer/assets/sld/IEEE9bus.svg, id="302"
+// data-name="Line2") and a user-supplied example matching it exactly;
+// cable line given the same treatment for consistency between the two
+// "named" kinds, since both are meant to carry a real identity
+// (Connector.Name) a plain wire never does. code is
+// connectorTypeCode[c.Kind], passed in rather than looked up again since
+// the caller already has it from its own typeComment call.
+func writeNamedLine(w io.Writer, c Connector, color string, code string, mode RenderMode) {
+	if color == "" {
+		color = "black"
+	}
+	var sb strings.Builder
+	for i, p := range c.Points {
+		if i > 0 {
+			sb.WriteByte(' ')
+		}
+		sb.WriteString(fmtNum(p.X))
+		sb.WriteByte(',')
+		sb.WriteString(fmtNum(p.Y))
+	}
+	dash := ""
+	if c.Dashed {
+		dash = "stroke-dasharray: 14,9;"
+	}
+	editorAttr := ""
+	if mode == Interactive {
+		editorAttr = " data-editor-kind=\"connector\""
+	}
+	fmt.Fprintf(w, "<g id=\"%d\" data-type=\"%s\" data-name=\"%s\" data-voltage=\"%s\"%s>\n<polyline points=\"%s\" style=\"fill:none;stroke:%s;%sstroke-width:%s\" />\n</g>\n",
+		c.ID, esc(code), esc(c.Name), esc(color), editorAttr, esc(sb.String()), esc(color), dash, fmtNum(namedLineStrokeWidth))
+}
+
+func writeLabel(w io.Writer, l Label, mode RenderMode) {
 	anchor := l.Anchor
 	if anchor == "" {
 		anchor = "start"
@@ -423,11 +476,35 @@ func writeLabel(w io.Writer, l Label) {
 	if l.Bold {
 		weight = "font-weight: bold;"
 	}
-	style := fmt.Sprintf("fill:white;text-anchor:%s;font-size:%spx;font-family:Arial;%swhite-space: pre;",
-		anchor, fmtNum(l.Size), weight)
+	color := l.Color
+	if color == "" {
+		color = "white"
+	}
+	font := l.Font
+	if font == "" {
+		font = "Arial"
+	}
+	// dominant-baseline vertical-aligns the text block's own first line
+	// against Y — "top"/"middle" get a real value, the original
+	// baseline-at-Y behavior (VAlign empty, i.e. "bottom") gets none at
+	// all, so an already-saved label with no valign attribute keeps
+	// rendering exactly as before.
+	baseline := ""
+	switch l.VAlign {
+	case "top":
+		baseline = "dominant-baseline:hanging;"
+	case "middle":
+		baseline = "dominant-baseline:middle;"
+	}
+	style := fmt.Sprintf("fill:%s;text-anchor:%s;%sfont-size:%spx;font-family:%s;%swhite-space: pre;",
+		color, anchor, baseline, fmtNum(l.Size), font, weight)
+	editorAttr := ""
+	if mode == Interactive {
+		editorAttr = " data-editor-kind=\"label\""
+	}
 
 	lines := strings.Split(l.Text, "\n")
-	fmt.Fprintf(w, "<text x=\"%s\" y=\"%s\" style=\"%s\">%s", fmtNum(l.X), fmtNum(l.Y), esc(style), esc(lines[0]))
+	fmt.Fprintf(w, "<text id=\"%d\" x=\"%s\" y=\"%s\" style=\"%s\"%s>%s", l.ID, fmtNum(l.X), fmtNum(l.Y), esc(style), editorAttr, esc(lines[0]))
 	for _, ln := range lines[1:] {
 		fmt.Fprintf(w, "<tspan x=\"%s\" dy=\"%s\" style=\"%s\">%s</tspan>",
 			fmtNum(l.X), fmtNum(l.Size*1.4), esc(style), esc(ln))

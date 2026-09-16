@@ -155,11 +155,11 @@ func TestRender_AnnotatesTypeGroups(t *testing.T) {
 	if !strings.Contains(out, "<!-- Lamp:106 -->") {
 		t.Errorf("missing Lamp:106 header: %s", out)
 	}
-	if n := strings.Count(out, "<!-- Overhead line -->"); n != 1 {
-		t.Errorf("want exactly one Overhead line header for the two consecutive connectors, got %d:\n%s", n, out)
+	if n := strings.Count(out, "<!-- Overhead line:22 -->"); n != 1 {
+		t.Errorf("want exactly one Overhead line:22 header for the two consecutive connectors, got %d:\n%s", n, out)
 	}
-	if !strings.Contains(out, "<!-- Cable line -->") {
-		t.Errorf("missing Cable line header: %s", out)
+	if !strings.Contains(out, "<!-- Cable line:23 -->") {
+		t.Errorf("missing Cable line:23 header: %s", out)
 	}
 	if !strings.Contains(out, `r="8"`) {
 		t.Errorf("lamp radius placeholder not substituted: %s", out)
@@ -248,6 +248,7 @@ func TestRender_BusbarsAndConnectorsAreSelectable(t *testing.T) {
 		Connectors: []Connector{
 			{ID: 2, Points: []Point{{X: 0, Y: 10}, {X: 100, Y: 10}}},
 		},
+		Labels: []Label{{ID: 3, X: 5, Y: 5, Size: 10, Text: "Note"}},
 	}
 
 	var buf bytes.Buffer
@@ -261,6 +262,10 @@ func TestRender_BusbarsAndConnectorsAreSelectable(t *testing.T) {
 	}
 	if !strings.Contains(out, `id="2" data-editor-kind="connector"`) {
 		t.Errorf("connector should carry its bare id and a connector data-editor-kind marker: %s", out)
+	}
+	if !strings.Contains(out, `id="3" x="5" y="5" style="` /* label's own <text> attribute order */) ||
+		!strings.Contains(out, `data-editor-kind="label"`) {
+		t.Errorf("label should carry its bare id and a label data-editor-kind marker: %s", out)
 	}
 }
 
