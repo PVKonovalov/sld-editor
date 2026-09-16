@@ -4,8 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "node scripts/generate-active-locale.mjs en && vite",
+    "dev:en": "node scripts/generate-active-locale.mjs en && vite",
+    "dev:ru": "node scripts/generate-active-locale.mjs ru && vite",
+    "build": "node scripts/generate-active-locale.mjs en && tsc && vite build",
+    "build:en": "node scripts/generate-active-locale.mjs en && tsc && vite build --outDir dist-en",
+    "build:ru": "node scripts/generate-active-locale.mjs ru && tsc && vite build --outDir dist-ru",
     "preview": "vite preview"
   },
   "dependencies": {

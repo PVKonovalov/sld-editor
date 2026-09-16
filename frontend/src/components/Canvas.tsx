@@ -3,7 +3,7 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
 import { useDiagramContext } from '../state/useDiagramContext'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
-import { clientToDiagramPoint, nearestPointOnPolyline, nearestSegmentOnPolyline, snapValue } from '../lib/geometry'
+import { clientToDiagramPoint, nearestSegmentOnPolyline, snapPointOnSegment, snapValue } from '../lib/geometry'
 import { t } from '../i18n'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import type { Point } from '../types'
@@ -24,11 +24,24 @@ type Ghost = { ids: number[]; dx: number; dy: number }
 type NewBusbar = { start: Point; current: Point }
 type PointDrag = { elementId: number; pointIndex: number; point: Point }
 type ContextMenuState = { x: number; y: number; diagramPoint: Point; elementId: number | null; connectorId: number | null }
+// A valid place for a route to start or finish: either an element's own
+// terminal/busbar point ('element'), or a point along an already-drawn
+// connector's own line ('connector', tapping into it as a junction — see
+// diagramOps.drawConnectorPathToConnector/drawConnectorPathFromConnector/
+// drawConnectorBetweenConnectors/drawDanglingConnectorPathFromConnector).
+// Doubles as both the in-progress hover/finish indicator (connectTarget
+// state) and, once a route starts, its own fixed starting anchor
+// (Routing.from) — a plain element/busbar terminal only ever needs a
+// plain click to start from, while starting from a connector's own line
+// additionally requires Ctrl/Cmd (see handleMouseDown) since a plain click
+// there already means select/drag.
+type ConnectTarget =
+  | { kind: 'element'; elementId: number; point: Point }
+  | { kind: 'connector'; connectorId: number; segmentIndex: number; point: Point }
 // An in-progress click-to-route: path always holds at least the start
-// point (the from-element's own terminal/anchor), each further click
+// point (from's own terminal/anchor or connector tap), each further click
 // appending one more anchored vertex (see appendOrthogonalPoint).
-type Routing = { fromElementId: number; path: Point[] }
-type ConnectTarget = { elementId: number; point: Point }
+type Routing = { from: ConnectTarget; path: Point[] }
 // An in-progress drag of an already-drawn connector's own geometry: either
 // an existing interior vertex (kind 'vertex', index into its points array)
 // or a segment's midpoint (kind 'midpoint', the index of that segment's
@@ -44,11 +57,12 @@ type VertexDrag =
 type SelectedVertex = { connectorId: number; index: number }
 
 // A delta smaller than this (diagram units) counts as "no real difference"
-// rather than a genuine, if tiny, segment — needed because a busbar
-// connect-target's coordinate (nearestPointOnPolyline's projection, plain
-// floating-point arithmetic on wherever the cursor was) essentially never
-// lands on a clean whole number, so comparing it to the previous point
-// with exact equality would almost always see a "real" delta of a few
+// rather than a genuine, if tiny, segment — needed because a busbar/
+// connector connect-target's coordinate (nearestSegmentOnPolyline's raw
+// projection, before snapPointOnSegment grid-aligns the common orthogonal
+// case — a diagonal segment is left unsnapped) can still land off a clean
+// whole number, so comparing it to the previous point with exact equality
+// would almost always see a "real" delta of a few
 // hundredths of a unit and draw a practically-invisible spur segment
 // instead of recognizing the two points as the same one.
 const ALIGNMENT_EPSILON = 1
@@ -201,6 +215,7 @@ export function Canvas() {
   const gridSpacing = diagram.editor?.gridSpacing ?? config?.editor.gridSpacing ?? 20
   const snapEnabled = diagram.editor?.snap ?? config?.editor.snap ?? true
   const showGrid = diagram.editor?.showGrid ?? config?.editor.showGrid ?? true
+  const showNodes = diagram.editor?.showNodes ?? false
 
   function toPoint(clientX: number, clientY: number): Point {
     const rect = wrapperRef.current!.getBoundingClientRect()
@@ -213,24 +228,27 @@ export function Canvas() {
 
   // Finds the nearest terminal-like point to a raw (unsnapped) cursor
   // position, within TERMINAL_HIT_RADIUS — used both to decide whether a
-  // plain click should start a route (includeBusbars: false — a busbar
-  // has no discrete pin of its own, so clicking one still just
-  // selects/drags it as before) and, mid-route, to find a valid point to
-  // complete onto (includeBusbars: true, per "any point along a busbar
-  // counts as a terminal"). excludeId keeps a route from completing back
-  // onto its own starting element.
-  function findConnectionTarget(point: Point, excludeId: number | null, includeBusbars: boolean): ConnectTarget | null {
+  // plain (or, for a busbar/connector, Ctrl/Cmd-) click should start a
+  // route (includeBusbars: false for a plain click — a busbar or an
+  // existing connector has no discrete pin of its own, so clicking one
+  // still just selects/drags it as before; true when Ctrl/Cmd is held, or
+  // whenever already mid-route, per "any point along a busbar, or along an
+  // already-drawn connector, counts as a terminal") and, mid-route, to
+  // find a valid point to complete onto. exclude keeps a route from
+  // completing back onto its own starting element/connector.
+  function findConnectionTarget(point: Point, exclude: ConnectTarget | null, includeBusbars: boolean): ConnectTarget | null {
     let best: ConnectTarget | null = null
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
-      if (el.id === excludeId) continue
+      if (exclude?.kind === 'element' && el.id === exclude.elementId) continue
       if (el.class === 'BusBarSection' && el.points && el.points.length >= 2) {
         if (!includeBusbars) continue
-        const p = nearestPointOnPolyline(el.points, point)
+        const { index, point: nearest } = nearestSegmentOnPolyline(el.points, point)
+        const p = snapPointOnSegment(el.points[index], el.points[index + 1], nearest, gridSpacing, snapEnabled)
         const dist = Math.hypot(p.x - point.x, p.y - point.y)
         if (dist < bestDist) {
           bestDist = dist
-          best = { elementId: el.id, point: p }
+          best = { kind: 'element', elementId: el.id, point: p }
         }
         continue
       }
@@ -239,7 +257,19 @@ export function Canvas() {
         const dist = Math.hypot(term.x - point.x, term.y - point.y)
         if (dist < bestDist) {
           bestDist = dist
-          best = { elementId: el.id, point: term }
+          best = { kind: 'element', elementId: el.id, point: term }
+        }
+      }
+    }
+    if (includeBusbars) {
+      for (const c of diagram!.connectors) {
+        if (exclude?.kind === 'connector' && c.id === exclude.connectorId) continue
+        const { index, point: nearest } = nearestSegmentOnPolyline(c.points, point)
+        const p = snapPointOnSegment(c.points[index], c.points[index + 1], nearest, gridSpacing, snapEnabled)
+        const dist = Math.hypot(p.x - point.x, p.y - point.y)
+        if (dist < bestDist) {
+          bestDist = dist
+          best = { kind: 'connector', connectorId: c.id, segmentIndex: index, point: p }
         }
       }
     }
@@ -253,19 +283,40 @@ export function Canvas() {
   function handleWrapperMouseMove(e: React.MouseEvent) {
     if (armedSymbol || ghost || pointDrag || newBusbar) return
     const point = toPoint(e.clientX, e.clientY)
-    setConnectTarget(findConnectionTarget(point, routing?.fromElementId ?? null, !!routing))
+    setConnectTarget(findConnectionTarget(point, routing?.from ?? null, !!routing || e.ctrlKey || e.metaKey))
     if (routing) setRoutingCursor(point)
   }
 
   // A click while routing either completes the route (when connectTarget
-  // is a genuine target — any other element's terminal, or any point along
-  // a busbar) or anchors a new bend point and keeps routing.
+  // is a genuine target — any other element's terminal, any point along a
+  // busbar, or any point along an already-drawn connector, tapping into it
+  // as a junction) or anchors a new bend point and keeps routing. Four
+  // combinations of routing.from/target kind are possible; each maps to
+  // its own diagramOps creator (see their own doc comments).
   function handleRoutingClick(point: Point) {
     if (!routing) return
-    const target = findConnectionTarget(point, routing.fromElementId, true)
+    const target = findConnectionTarget(point, routing.from, true)
     if (target) {
       const path = appendOrthogonalPoint(routing.path, target.point)
-      updateDiagram(d => diagramOps.drawConnectorPath(d, routing.fromElementId, target.elementId, path, defaultVoltage))
+      const from = routing.from
+      updateDiagram(d => {
+        if (from.kind === 'element') {
+          return target.kind === 'element'
+            ? diagramOps.drawConnectorPath(d, from.elementId, target.elementId, path, defaultVoltage)
+            : diagramOps.drawConnectorPathToConnector(d, from.elementId, target.connectorId, target.segmentIndex, path, defaultVoltage)
+        }
+        return target.kind === 'element'
+          ? diagramOps.drawConnectorPathFromConnector(d, from.connectorId, from.segmentIndex, target.elementId, path, defaultVoltage)
+          : diagramOps.drawConnectorBetweenConnectors(
+              d,
+              from.connectorId,
+              from.segmentIndex,
+              target.connectorId,
+              target.segmentIndex,
+              path,
+              defaultVoltage,
+            )
+      })
       setRouting(null)
       setRoutingCursor(null)
       setConnectTarget(null)
@@ -287,7 +338,12 @@ export function Canvas() {
   function handleWrapperDoubleClick(e: React.MouseEvent) {
     if (routing) {
       e.stopPropagation()
-      updateDiagram(d => diagramOps.drawDanglingConnectorPath(d, routing.fromElementId, routing.path, defaultVoltage))
+      const from = routing.from
+      updateDiagram(d =>
+        from.kind === 'element'
+          ? diagramOps.drawDanglingConnectorPath(d, from.elementId, routing.path, defaultVoltage)
+          : diagramOps.drawDanglingConnectorPathFromConnector(d, from.connectorId, from.segmentIndex, routing.path, defaultVoltage),
+      )
       setRouting(null)
       setRoutingCursor(null)
       setConnectTarget(null)
@@ -370,15 +426,19 @@ export function Canvas() {
 
     // A plain click landing on an element's own terminal (or, for a shape
     // with none defined, its bare anchor) starts a route from there
-    // instead of the usual select/drag — busbars excluded here (they have
-    // no discrete pin), so clicking one is unaffected. A click anywhere
-    // else on the same element's body still falls through to the ordinary
-    // hit-test/select/drag logic below, since TERMINAL_HIT_RADIUS is
-    // deliberately tight.
-    const startTarget = findConnectionTarget(point, null, false)
+    // instead of the usual select/drag. Holding Ctrl/Cmd additionally
+    // accepts any point along a busbar or an already-drawn connector's own
+    // line as a start too — without the modifier, a plain click on either
+    // of those still means select/drag (busbar) or select/reshape
+    // (connector), same as before, since a busbar/connector has no
+    // discrete pin of its own (every point along it would otherwise count,
+    // swallowing the click). A click anywhere else on the same element's
+    // body still falls through to the ordinary hit-test/select/drag logic
+    // below, since TERMINAL_HIT_RADIUS is deliberately tight.
+    const startTarget = findConnectionTarget(point, null, e.ctrlKey || e.metaKey)
     if (startTarget) {
       e.stopPropagation()
-      setRouting({ fromElementId: startTarget.elementId, path: [startTarget.point] })
+      setRouting({ from: startTarget, path: [startTarget.point] })
       setRoutingCursor(startTarget.point)
       setConnectTarget(null)
       return
@@ -629,12 +689,6 @@ export function Canvas() {
   const selectedConnector =
     selectedConnectorId !== null ? diagram.connectors.find(c => c.id === selectedConnectorId) : null
 
-  // Which connectors have an end nothing else is actually attached to —
-  // ended in mid-air by the routing tool, or the cut side of a "Delete
-  // segment" split (diagramOps.usedNodeIds/danglingConnectorEnds) — so
-  // Canvas can flag them and offer a one-click way to clear them out.
-  const usedNodes = diagramOps.usedNodeIds(diagram)
-
   // The not-yet-anchored tail of an in-progress route: snaps exactly onto
   // connectTarget when one's detected (so the preview shows precisely
   // where a click would land), otherwise follows the grid-snapped cursor.
@@ -677,8 +731,8 @@ export function Canvas() {
             {/* Drawn as an overlay above the content, not behind it: the
                 backend-rendered SVG paints its own opaque background rect
                 (Diagram.Editor.Background), which would otherwise hide a
-                grid placed underneath it entirely. A low-opacity stroke
-                keeps it a subtle alignment guide rather than a distraction. */}
+                grid placed underneath it entirely. Low-opacity dots at each
+                intersection keep it a subtle alignment guide rather than a distraction. */}
             {showGrid && (
               <svg
                 width={diagram.width}
@@ -687,12 +741,7 @@ export function Canvas() {
               >
                 <defs>
                   <pattern id="grid" width={gridSpacing} height={gridSpacing} patternUnits="userSpaceOnUse">
-                    <path
-                      d={`M ${gridSpacing} 0 L 0 0 0 ${gridSpacing}`}
-                      fill="none"
-                      stroke="rgba(255,255,255,0.12)"
-                      strokeWidth={1}
-                    />
+                    <circle cx={0} cy={0} r={0.5} fill="rgba(255,255,255,0.25)" />
                   </pattern>
                 </defs>
                 <rect width="100%" height="100%" fill="url(#grid)" />
@@ -727,6 +776,22 @@ export function Canvas() {
                     />
                   ))
                 })}
+              {/* Debug overlay (Settings' "Show nodes"): a small red X at
+                  every Diagram.Node's own position, regardless of
+                  selection — unlike the selected-terminal marks above,
+                  which only show a symbol's own declared Terminals, this
+                  shows the real electrical graph (wherever a connector end
+                  or an element's Port actually lands), whether or not a
+                  symbol happens to draw anything there. */}
+              {showNodes &&
+                diagram.nodes.map(n => (
+                  <path
+                    key={`node-${n.id}`}
+                    d={`M ${n.x - TERMINAL_MARK_SIZE} ${n.y - TERMINAL_MARK_SIZE} L ${n.x + TERMINAL_MARK_SIZE} ${n.y + TERMINAL_MARK_SIZE} M ${n.x - TERMINAL_MARK_SIZE} ${n.y + TERMINAL_MARK_SIZE} L ${n.x + TERMINAL_MARK_SIZE} ${n.y - TERMINAL_MARK_SIZE}`}
+                    stroke="red"
+                    strokeWidth={0.25}
+                  />
+                ))}
               {!ghost &&
                 selectedElements.map(el =>
                   el.class === 'BusBarSection' && el.points ? (
@@ -908,44 +973,6 @@ export function Canvas() {
                   strokeWidth={1}
                 />
               )}
-              {/* A dangling connector (an end nothing's actually attached
-                  to — left mid-air by the routing tool, or the cut side of
-                  a "Delete segment" split) gets a thin dashed red outline
-                  the whole length of its line, plus a small filled X right
-                  at each such end — clicking it removes the whole
-                  connector in one step, the "quick cleanup" affordance for
-                  a wire that isn't really connected to anything there. */}
-              {diagram.connectors.flatMap(c => {
-                const ends = diagramOps.danglingConnectorEnds(c, usedNodes)
-                if (!ends.from && !ends.to) return []
-                const markers: Point[] = []
-                if (ends.from) markers.push(c.points[0])
-                if (ends.to) markers.push(c.points[c.points.length - 1])
-                return [
-                  <polyline
-                    key={`dangling-${c.id}`}
-                    points={c.points.map(p => `${p.x},${p.y}`).join(' ')}
-                    fill="none"
-                    stroke="red"
-                    strokeWidth={2}
-                    strokeOpacity={0.5}
-                    strokeDasharray="4 3"
-                  />,
-                  ...markers.map((p, i) => (
-                    <g
-                      key={`dangling-${c.id}-${i}`}
-                      style={{ pointerEvents: 'auto', cursor: 'pointer' }}
-                      onMouseDown={e => {
-                        e.stopPropagation()
-                        updateDiagram(d => diagramOps.removeConnector(d, c.id))
-                      }}
-                    >
-                      <circle cx={p.x} cy={p.y} r={8} fill="transparent" />
-                      <circle cx={p.x} cy={p.y} r={4} fill="red" />
-                    </g>
-                  )),
-                ]
-              })}
             </svg>
           </div>
         </TransformComponent>

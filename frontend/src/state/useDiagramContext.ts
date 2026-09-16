@@ -28,9 +28,12 @@ export interface DiagramContextValue {
   selectedElementIds: Set<number>
   toggleElementSelection: (id: number) => void
 
-  // The last voltage class the user picked in Properties, remembered for
-  // the lifetime of the session (not persisted with the diagram) so newly
-  // placed elements/busbars can default to it instead of starting unset.
+  // The last voltage class the user picked in Properties (or Settings, or
+  // the New Diagram dialog), remembered for the lifetime of the session
+  // (not persisted itself — see Diagram.editor.defaultVoltage for the
+  // persisted counterpart) so newly placed elements/busbars can default to
+  // it instead of starting unset. Seeded from the diagram's own
+  // editor.defaultVoltage whenever one is opened or created.
   defaultVoltage: number | undefined
   setDefaultVoltage: (voltage: number | undefined) => void
 
@@ -41,7 +44,12 @@ export interface DiagramContextValue {
 
   clearError: () => void
   refreshDiagrams: () => Promise<void>
-  newDiagram: (name: string, width?: number, height?: number) => Promise<void>
+  // defaultVoltageName: a server voltage-color preset's name (see
+  // EditorConfig.voltageColors) to seed the new diagram's own
+  // editor.defaultVoltage with — see DiagramProvider's own newDiagram doc
+  // comment for why this one writes to disk immediately rather than
+  // leaving the diagram merely dirty.
+  newDiagram: (name: string, width?: number, height?: number, defaultVoltageName?: string) => Promise<void>
   openDiagram: (name: string) => Promise<void>
   saveDiagram: () => Promise<void>
   saveDiagramAs: (name: string) => Promise<void>

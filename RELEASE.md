@@ -572,3 +572,307 @@ still carrying the old `"ObjectLink"` value to `"BusWork"` the moment it's
 read from disk — every diagram already saved with the old value keeps
 loading and rendering correctly, and simply picks up the new value for
 real the next time it's saved.
+
+2026-09-16: Grid dots instead of grid lines, and the click-to-route tool
+can now tap a new wire straight into an already-drawn connector's own
+line, not just onto a real BusBarSection.
+
+The grid overlay (`Canvas`'s `<pattern id="grid">`) now tiles a single
+0.25px-radius dot at each grid intersection instead of the previous
+crosshatched lines — a subtler alignment guide.
+
+Previously, finishing a route (`Canvas.findConnectionTarget`) only
+recognized another element's own terminal or any point along a real
+BusBarSection as a valid endpoint; an ordinary drawn connector (e.g. a
+buswork jumper already running to the bus) had no way to accept a new
+wire joining it partway along its length. `findConnectionTarget` now also
+searches every connector's own points polyline (`nearestSegmentOnPolyline`)
+when `includeBusbars` is set, reported as a new `ConnectTarget` variant
+(`kind: 'connector'`, carrying the target connector's id and the segment
+index the tap point falls on) alongside the existing `'element'` variant.
+Completing a route onto one now calls a new
+`diagramOps.drawConnectorPathToConnector`: it splits the target connector
+into up to two new ones at the tap point (mirroring
+`deleteConnectorSegment`'s own split, just inserting a junction instead of
+cutting one out) and gives all three connectors — both new halves and the
+freshly drawn tap wire — a shared Node there, so it's a real electrical
+junction rather than a merely-visual touch. `usedNodeIds` was updated to
+match: a Node referenced by two-or-more connector ends now counts as
+"attached" even with no element Port on it at all, so a tap's own junction
+node doesn't spuriously get flagged with the dangling-end marker.
+
+Verified via a backend `/api/render` smoke test (browser automation
+wasn't available in this environment): a hand-built diagram with the
+exact three-connectors-sharing-one-node shape this produces rendered
+cleanly with no warning, all three segments meeting at the junction point
+in the shared voltage color.
+
+2026-09-16: The click-to-route tool can now also *start* a route from a
+point along a busbar or an already-drawn connector, not just finish one
+there — closing the other half of the tap-into-buswork feature above
+(reported directly: a route could tap into an existing wire to finish,
+but couldn't be drawn starting from the bus/wire itself).
+
+A plain click on a busbar or connector still means select/drag or
+select/reshape, same as always — a busbar/connector has no discrete pin
+of its own, so treating every click along its length as a route start
+would swallow the ordinary interaction entirely. Holding Ctrl/Cmd is what
+disambiguates "start a route from this exact point" (`Canvas.
+handleMouseDown`'s `startTarget` check now passes `e.ctrlKey || e.metaKey`
+as `findConnectionTarget`'s `includeBusbars` flag, instead of always
+`false`); the live hover indicator (`connectTarget`) follows the same
+rule outside of an active route, so holding Ctrl/Cmd previews a valid
+start point before you click.
+
+`Routing` (`Canvas`) now stores its start as a full anchor (`from:
+ConnectTarget`, the same element-or-connector-tap union the finish target
+already used) instead of a bare element id, and `diagramOps` grew the two
+missing route-creator combinations to match: `drawConnectorPathFromConnector`
+(a connector-tap start, element finish — the mirror of the already-existing
+`drawConnectorPathToConnector`) and `drawConnectorBetweenConnectors` (both
+ends are taps into two different — guarded against the same one —
+connectors). Both are built on a new shared private helper,
+`spliceConnectorAt`, pulled out of `drawConnectorPathToConnector`'s own
+splitting logic so all three (plus the existing one, now rewritten against
+it) share one implementation of "cut a connector at a point and give the
+new junction Node to whoever needs it." A route that starts on a tap and
+still ends in mid-air (double-click) gets its own
+`drawDanglingConnectorPathFromConnector`, the connector-start counterpart
+of `drawDanglingConnectorPath`.
+
+One behavior change: Ctrl/Cmd-clicking a busbar while something else is
+selected previously ran the older instant `connectElements` (anchor-to-
+anchor); it now starts a route from that exact clicked point instead,
+which takes priority since the check runs first. `connectElements` itself
+is unchanged and still reachable for two ordinary elements.
+
+Verified via two backend `/api/render` smoke tests (browser automation
+still unavailable in this environment): one hand-built diagram matching
+`drawConnectorPathFromConnector`'s output (an element tied into a tap on
+an existing run), and one matching `drawConnectorBetweenConnectors`'s —
+two independent buswork runs joined by a new wire tapping into both, no
+elements involved at either end at all. Both rendered cleanly with every
+segment meeting exactly at its shared junction node.
+
+2026-09-16: A route's tap point onto a busbar or an existing connector is
+now grid-aligned when snapping is on, at both its start and its finish
+(reported directly: the very first point of a route tapped from the bus
+wasn't landing on the grid).
+
+Previously `Canvas.findConnectionTarget`'s busbar/connector branches used
+the cursor's raw projection onto the line (`nearestPointOnPolyline`/
+`nearestSegmentOnPolyline`) unchanged — essentially never a whole number —
+for both the finish-side tap (already the case before today) and the
+new start-side tap (added earlier today). New `geometry.snapPointOnSegment`
+snaps that projected point to the grid along whichever axis the tapped
+segment runs freely on (a horizontal segment snaps x and keeps y fixed at
+the segment's own y-coordinate; vertical is the reverse), re-clamping to
+the segment afterward so the point can't be snapped past whichever
+endpoint it was nearest to. A diagonal segment can't be grid-aligned while
+staying exactly on the line in general, so it's left as the raw
+projection — matching how the rest of the app already only grid-snaps
+orthogonal geometry. An element's own terminal is unaffected either way —
+it has to land exactly on the real pin, not wherever the nearest grid
+line happens to be.
+
+2026-09-16: Removed a duplicate "Disconnector" palette entry, and gave the
+remaining one real `<terminals>` matching the Breaker's own convention
+(reported directly: two identical-looking "Disconnector" buttons in the
+Elements palette, and separately, a Disconnector's terminal not lining up
+with its actual drawn pins).
+
+`backend/assets/elements/base.xml` had two shapes — `71` and `162` —
+both `class="Disconnector"`, both `name="Disconnector"`, both rendering
+byte-for-byte the same template; this was inherited as-is from
+`sld-svg/symbols.xml` (its own comment reads "71 / 162: Disconnector"),
+which the palette showed as two indistinguishable buttons. Shape `71` is
+now removed from `base.xml` at the user's direction (keeping only `162`)
+— its `shapeName` entry in `internal/slddoc/render.go` (used for the
+render-time type-comment/legend, not the palette) is deliberately left in
+place, so a diagram that already has an element on shape `71` — from
+before this change, or loaded from an external source — still renders
+with the right label.
+
+Shape `162`'s own template draws its stems ending at exactly `(0,-10)`/
+`(0,10)` in local coordinates — the same two points the Breaker (shape
+`41`) already declares as its own `<terminals>` — but had no `<terminals>`
+block of its own, so it fell back to a single terminal at its bare anchor
+(its own center) rather than its two real drawn pins. It now declares the
+same `<terminals>` pair the Breaker does, so routing/connecting to a
+Disconnector snaps to its actual pins instead of its center.
+
+Verified by loading `base.xml` directly in a scratch Go test (not
+`/api/elements` — the user's own already-running dev server has the old
+library cached in memory from before this change, and re-loading it
+myself would have collided with their listening port): shape `71` is gone,
+and shape `162` now parses `Terminals: [{0 -10} {0 10}]`, matching shape
+`41`'s own. The user needs to restart their backend dev server to pick
+this up, same as the earlier Disconnector-duplicate fix.
+
+2026-09-16: Fixed `slddoc: symbol library missing shape(s): 71`, hit after
+the shape-71 removal above — an already-saved diagram (`diagrams/test
+7.xml`, element id 61) still had a Disconnector on shape `71`, and once
+`base.xml` no longer carried that shape, every render of that diagram
+(the debounced `POST /api/render` the live canvas depends on) failed with
+this error.
+
+`slddoc.Load` already had exactly this kind of fixup for a renamed stored
+value — `kindObjectLinkLegacy`, rewriting a Connector's old `"ObjectLink"`
+Kind to `"BusWork"` on the way in. Added the same pattern for the shape
+removal: two new constants, `shapeDisconnector = "162"` and
+`shapeDisconnectorLegacy = "71"` (`internal/slddoc/model.go`), and `Load`
+now rewrites any Element still carrying the legacy shape to the current
+one, transparently, the moment a diagram is read from disk — an
+already-saved diagram keeps loading and rendering correctly, and picks up
+the new shape for real the next time it's saved (also matching the
+`ObjectLink` precedent exactly). This only fires on `Load` (i.e.
+`storage.Load`, opening a saved diagram) — the live canvas's own
+`POST /api/render` binds JSON straight into a `slddoc.Diagram` and never
+goes through `Load`, so a diagram already open in the browser with a
+stale shape `71` still needs reopening (or the backend restarting and the
+diagram being reopened) to pick this up, not just a backend restart alone.
+
+Verified against the real file: loading `diagrams/test 7.xml` in a
+scratch Go test now reports element 61 as `shape="162"` instead of `"71"`.
+
+2026-09-16: Removed the "dangling connector end" indicator entirely
+(reported directly: double-clicking to end a route in mid-air produced a
+jarring red dashed outline down the whole wire plus a big red dot at the
+end, and clicking that dot to "clean it up" felt like it deleted more
+than intended). Leaving a wire's end unconnected — to finish routing it
+later, or simply on purpose — turned out to be a normal, intentional
+thing to do in this editor's actual use, not something that needed a
+warning treatment at all.
+
+Removed `Canvas`'s whole dangling-marker render block (the dashed
+`<polyline>` plus the red-dot `onMouseDown` that called
+`removeConnector`) and the `usedNodes` computation feeding it, along with
+the two `diagramOps` functions that only existed to support it,
+`usedNodeIds` and `danglingConnectorEnds`. An unconnected connector end
+now looks exactly like any other — no outline, no dot — and is deleted
+the same ordinary way as always: select it and press Delete/Backspace, or
+right-click it for "Delete wire". Every connector-tap function added
+earlier today (`drawConnectorPathToConnector` and friends) is unaffected
+— the shared junction Node they give a tap is still correct data, just no
+longer double-duty as this now-removed indicator's own "is this attached"
+check.
+
+2026-09-16: A diagram now has its own persisted default voltage level,
+used to seed newly placed elements/wires instead of leaving them
+unassigned ("— none —"), and File > New is now a proper dialog asking for
+size and this default voltage up front, instead of just a name.
+
+`slddoc.EditorSettings` (`backend/internal/slddoc/model.go`) gained a
+`DefaultVoltage int` field (XML `defaultVoltage` attribute, JSON
+`defaultVoltage`) — a `VoltageClass.ID` reference, round-tripped exactly
+like `Diagram.LastID` (never assigned or interpreted by the backend
+itself). Mirrored on the frontend's own `EditorSettings` type.
+
+New `frontend/src/components/NewDiagramDialog.tsx` — a centered modal
+(File panel's "New" button now opens it instead of a bare name field)
+collecting name, width, height, and a default voltage picked from the
+server's voltage-color presets (`config.voltageColors`, the same list
+Settings' "Voltage classes" section already offers). `DiagramProvider`'s
+`newDiagram` (`state/DiagramContext.tsx`) grew an optional
+`defaultVoltageName` param: when given, it turns the chosen preset into
+the new diagram's first `VoltageClass` and its own `editor.defaultVoltage`
+— then, since the user asked for this to be "written while creating"
+rather than left dirty for a later Save, immediately does a second save
+call so the very first `.xml` written to disk already has it, not just an
+in-memory value waiting on the next explicit Save.
+
+The default voltage is also editable after creation — Settings gained its
+own "Default voltage" `<select>` (reusing `diagramOps.voltageClassOptions`/
+`resolveVoltageSelection`, the exact same preset-or-existing-class pattern
+Properties' own voltage select already uses), right above the existing
+"Voltage classes" section.
+
+To actually apply it to newly placed elements: `DiagramContext`'s
+`defaultVoltage` (the *session*-only "last voltage class picked" value
+`placeElement`/`placeBusbar`/`drawConnectorPath`/etc. already read from)
+is now seeded from the diagram's own persisted `editor.defaultVoltage`
+whenever a diagram is opened or created (`openDiagram`/`newDiagram`), so
+a fresh diagram's very first placed element already gets a real voltage
+instead of needing a trip to Properties/Settings first — while the
+session value it's seeding remains the one source of truth for what a
+placement actually uses, so a mid-session pick in Properties/Settings
+still overrides it exactly as before.
+
+Verified: a Go round-trip test (JSON → `Diagram` → XML `Save` → XML
+`Load`) confirms `defaultVoltage="1"` survives the full path unchanged.
+
+2026-09-16: Added a "Show nodes" toggle to Settings (a small red X, 0.25
+stroke width, at every `Diagram.Node`'s own position, regardless of
+selection) — a debug overlay showing the diagram's real electrical graph
+(wherever a connector end or an element's Port actually lands) rather
+than just a symbol's own drawn geometry or declared Terminals.
+
+`slddoc.EditorSettings` gained `ShowNodes bool` (XML/JSON `showNodes`,
+persisted per diagram, defaulting to off — no server-level default the
+way grid spacing/snap/etc. have, since this is a debug aid rather than an
+installation preference). While in that struct: also added `ShowGrid
+bool`, fixing a pre-existing bug spotted while adding `DefaultVoltage`
+earlier today — the Settings panel's "Show grid" checkbox has always
+written to `diagram.editor.showGrid`, but the Go struct had no matching
+field, so a diagram's own explicit "Show grid" choice was silently
+dropped on every save/reload (falling back to the server's config
+default instead). Both are now real, round-tripped fields.
+
+`Canvas` renders the new overlay unconditionally over every node when the
+setting's on (`diagram.nodes.map(...)`, the same red-X path shape the
+selected-terminal marks already use, just a thinner 0.25 stroke instead
+of 0.5, and with no selection/ghost-drag exclusion — a node's own
+position doesn't change mid-drag the way a symbol's drawn terminal would,
+so there's nothing here that could visibly lag behind a live drag the way
+the selected-terminal marks' own doc comment explains for themselves).
+
+Also, per a follow-up request mid-session: the grid-dot radius from
+earlier today's "dots instead of lines" change went from 0.25 to 0.5.
+
+Verified: a Go round-trip test confirms `showNodes="true"` survives
+JSON → XML `Save` → XML `Load` unchanged, the same way `defaultVoltage`
+was verified earlier.
+
+2026-09-16: Added a Russian UI locale, picked at build time (no runtime
+language switcher) — the same architecture a sibling project already uses
+for this, adapted to this app's existing `i18n/en.ts`+`i18n/index.ts`
+setup.
+
+New `frontend/src/i18n/ru.ts`: a full Russian translation, typed
+`Record<keyof Dictionary, string>` against `en.ts`'s own `Dictionary`
+type (not `Dictionary` itself — `en.ts`'s dictionary is `as const`, so its
+values are literal English strings a translation obviously can't reuse;
+only the key set needs to match) — every key `en.ts` currently has is
+translated, and a future key added there and left untranslated here is
+now a compile error (verified directly: temporarily deleting one
+translation from `ru.ts` and running `tsc --noEmit` fails with "Property
+... is missing", confirmed, then restored).
+
+New `frontend/scripts/generate-active-locale.mjs <locale>`: writes
+`src/i18n/active.ts` to re-export the requested locale's `dictionary`
+(always alongside `Dictionary`'s type from `en.ts`, the canonical
+source, regardless of which locale). `i18n/index.ts` now imports from
+`./active` instead of `./en` directly, so `TranslationKey` and the
+runtime `t()` lookup both follow whichever locale was last generated —
+the app never imports a specific locale file itself, so an unselected
+locale's strings never even reach the bundle (confirmed: a `build:ru`
+bundle greps for a Russian string but not the English one, and vice versa
+for `build:en`).
+
+`package.json` gained `dev:en`/`dev:ru` and `build:en`/`build:ru`
+alongside the existing bare `dev`/`build` (which stay English-only,
+unchanged in behavior/output path — `dist/`): each variant runs the
+generator for its own locale first. `build:en`/`build:ru` additionally
+write to their own `dist-en`/`dist-ru` output directories (`vite build
+--outDir`) rather than the shared `dist/`, so building both locales back
+to back for a dual-locale deployment doesn't have one overwrite the
+other — this detail, and the exact script names, came from a README.md
+edit the user made directly while this was in progress, which I
+reconciled the implementation against rather than my own initial (simpler,
+single-`dist/`) version.
+
+`active.ts` is committed with English as its checked-in default (the
+state left by the last `npm run build`), so the repo type-checks/builds
+even before anyone runs a locale-specific script first; both `dist-en/`
+and `dist-ru/` were added to `.gitignore` alongside the existing
+`frontend/dist/`.

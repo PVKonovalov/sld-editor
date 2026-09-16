@@ -67,3 +67,29 @@ export function nearestSegmentOnPolyline(points: Point[], p: Point): { index: nu
   }
   return { index: bestIndex, point: best }
 }
+
+/** Snaps a point already known to lie on the segment from a to b to the
+ * nearest grid line along whichever axis the segment runs freely on (a
+ * horizontal segment snaps x, keeping y fixed at the segment's own
+ * y-coordinate; vertical is the reverse) — used to grid-align a route's
+ * start/finish point when it taps into a busbar or an existing connector
+ * mid-line, where the tap point is otherwise wherever the cursor's raw
+ * projection happened to land, essentially never a whole number. A
+ * diagonal segment can't be grid-aligned while staying exactly on the
+ * line in general, so it's returned unchanged. Re-clamps to the segment
+ * afterward, since snapping can push the point past whichever endpoint it
+ * started closest to. */
+export function snapPointOnSegment(a: Point, b: Point, point: Point, spacing: number, enabled: boolean): Point {
+  if (!enabled || !spacing) return point
+  if (a.y === b.y) {
+    const min = Math.min(a.x, b.x)
+    const max = Math.max(a.x, b.x)
+    return { x: Math.max(min, Math.min(max, snapValue(point.x, spacing, true))), y: a.y }
+  }
+  if (a.x === b.x) {
+    const min = Math.min(a.y, b.y)
+    const max = Math.max(a.y, b.y)
+    return { x: a.x, y: Math.max(min, Math.min(max, snapValue(point.y, spacing, true))) }
+  }
+  return point
+}

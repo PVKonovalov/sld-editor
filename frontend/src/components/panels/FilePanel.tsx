@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import { PanelShell } from './PanelShell'
+import { NewDiagramDialog } from '../NewDiagramDialog'
 import { t } from '../../i18n'
 
 export function FilePanel({ onClose }: { onClose: () => void }) {
-  const { diagrams, diagramName, dirty, newDiagram, openDiagram, saveDiagram, saveDiagramAs, error, clearError } =
+  const { diagrams, diagramName, dirty, openDiagram, saveDiagram, saveDiagramAs, error, clearError } =
     useDiagramContext()
-  const [newName, setNewName] = useState('')
+  const [newDialogOpen, setNewDialogOpen] = useState(false)
   const [saveAsName, setSaveAsName] = useState('')
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -29,27 +30,15 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
       <div className="space-y-4">
         <section>
           <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{t('file.new')}</h3>
-          <div className="flex gap-1">
-            <input
-              className="flex-1 min-w-0 bg-surface-800 border border-surface-600 rounded px-2 py-1 text-xs"
-              placeholder={t('file.namePlaceholder')}
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-            />
-            <button
-              type="button"
-              disabled={busy || !newName.trim()}
-              onClick={() =>
-                run(async () => {
-                  await newDiagram(newName.trim())
-                  setNewName('')
-                })
-              }
-              className="px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white shrink-0"
-            >
-              {t('file.create')}
-            </button>
-          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setNewDialogOpen(true)}
+            className="w-full px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
+          >
+            {t('file.new')}
+          </button>
+          {newDialogOpen && <NewDiagramDialog onClose={() => setNewDialogOpen(false)} />}
         </section>
 
         <section>

@@ -502,6 +502,212 @@ export function drawConnectorPath(
   }
 }
 
+/** Splits connectorId into up to two connectors at tapPoint, along its own
+ * segmentIndex..segmentIndex+1 span, introducing a shared junction Node
+ * there — the core operation behind tapping a new route into an existing
+ * wire, on whichever end(s) of the new route the tap lands (see
+ * drawConnectorPathToConnector/drawConnectorPathFromConnector/
+ * drawConnectorBetweenConnectors below). Mirrors deleteConnectorSegment's
+ * own split, just inserting a junction instead of cutting one out. Doesn't
+ * touch diagram itself — the caller folds the returned nodes/connectors
+ * into whatever diagram it eventually returns, and ids is an IdSequence
+ * already open on that diagram (so two splices in the same edit, one per
+ * end, share one counter). Returns null if connectorId/segmentIndex don't
+ * resolve to a real span to split. */
+function spliceConnectorAt(
+  diagram: Diagram,
+  connectorId: number,
+  segmentIndex: number,
+  tapPoint: Point,
+  ids: IdSequence,
+): { connectors: Connector[]; nodes: DiagramNode[]; junctionNode: DiagramNode } | null {
+  const connector = diagram.connectors.find(c => c.id === connectorId)
+  if (!connector) return null
+  if (segmentIndex < 0 || segmentIndex >= connector.points.length - 1) return null
+
+  const junctionNode: DiagramNode = { id: ids.take(), x: tapPoint.x, y: tapPoint.y }
+  const beforePoints = simplifyOrthogonalPath([...connector.points.slice(0, segmentIndex + 1), tapPoint])
+  const afterPoints = simplifyOrthogonalPath([tapPoint, ...connector.points.slice(segmentIndex + 1)])
+
+  const connectors: Connector[] = []
+  if (beforePoints.length >= 2) {
+    connectors.push({
+      id: ids.take(),
+      kind: connector.kind,
+      voltage: connector.voltage,
+      layer: connector.layer,
+      dashed: connector.dashed,
+      from: connector.from,
+      to: junctionNode.id,
+      points: beforePoints,
+    })
+  }
+  if (afterPoints.length >= 2) {
+    connectors.push({
+      id: ids.take(),
+      kind: connector.kind,
+      voltage: connector.voltage,
+      layer: connector.layer,
+      dashed: connector.dashed,
+      from: junctionNode.id,
+      to: connector.to,
+      points: afterPoints,
+    })
+  }
+
+  return { connectors, nodes: [junctionNode], junctionNode }
+}
+
+/** Like drawConnectorPath, but the target is a point along an *existing*
+ * connector's own line (targetConnectorId, at segmentIndex — see
+ * geometry.nearestSegmentOnPolyline) rather than a second element's
+ * terminal — lets the routing tool tap a new wire straight into an
+ * already-drawn run (e.g. a breaker tying into a buswork jumper that's
+ * itself headed to the bus), the same way it can already land on any point
+ * along a real BusBarSection. Splits the target connector (spliceConnectorAt)
+ * and gives all three connectors — both new halves and the new path drawn
+ * here — a shared Node there, so it's a real electrical junction rather
+ * than a merely-visual touch. */
+export function drawConnectorPathToConnector(
+  diagram: Diagram,
+  fromId: number,
+  targetConnectorId: number,
+  segmentIndex: number,
+  points: Point[],
+  defaultVoltage?: number,
+): Diagram {
+  if (points.length < 2) return diagram
+  const from = diagram.elements.find(e => e.id === fromId)
+  const target = diagram.connectors.find(c => c.id === targetConnectorId)
+  if (!from || !target) return diagram
+
+  const ids = new IdSequence(diagram)
+  const start = points[0]
+  const tapPoint = points[points.length - 1]
+  const splice = spliceConnectorAt(diagram, targetConnectorId, segmentIndex, tapPoint, ids)
+  if (!splice) return diagram
+  const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
+
+  const tapConnector: Connector = {
+    id: ids.take(),
+    kind: 'BusWork',
+    layer: from.layer,
+    voltage: from.voltage ?? target.voltage ?? defaultVoltage,
+    from: fromNode.id,
+    to: splice.junctionNode.id,
+    points,
+  }
+
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    nodes: [...diagram.nodes, fromNode, ...splice.nodes],
+    elements: diagram.elements.map(e =>
+      e.id === fromId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: fromNode.id }] } : e,
+    ),
+    connectors: [...diagram.connectors.filter(c => c.id !== targetConnectorId), ...splice.connectors, tapConnector],
+  }
+}
+
+/** Like drawConnectorPathToConnector, but the roles are swapped: the
+ * *source* end of the new path (points[0]) is the tap, into
+ * sourceConnectorId at sourceSegmentIndex, and the far end
+ * (points[points.length-1]) lands on a second element's terminal — used
+ * when a route is *started* by Ctrl/Cmd-clicking a point along an existing
+ * connector rather than clicking an element's own pin (see Canvas's
+ * routing-start handling). */
+export function drawConnectorPathFromConnector(
+  diagram: Diagram,
+  sourceConnectorId: number,
+  sourceSegmentIndex: number,
+  toId: number,
+  points: Point[],
+  defaultVoltage?: number,
+): Diagram {
+  if (points.length < 2) return diagram
+  const source = diagram.connectors.find(c => c.id === sourceConnectorId)
+  const to = diagram.elements.find(e => e.id === toId)
+  if (!source || !to) return diagram
+
+  const ids = new IdSequence(diagram)
+  const tapPoint = points[0]
+  const end = points[points.length - 1]
+  const splice = spliceConnectorAt(diagram, sourceConnectorId, sourceSegmentIndex, tapPoint, ids)
+  if (!splice) return diagram
+  const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
+
+  const tapConnector: Connector = {
+    id: ids.take(),
+    kind: 'BusWork',
+    layer: to.layer,
+    voltage: source.voltage ?? to.voltage ?? defaultVoltage,
+    from: splice.junctionNode.id,
+    to: toNode.id,
+    points,
+  }
+
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    nodes: [...diagram.nodes, ...splice.nodes, toNode],
+    elements: diagram.elements.map(e =>
+      e.id === toId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: toNode.id }] } : e,
+    ),
+    connectors: [...diagram.connectors.filter(c => c.id !== sourceConnectorId), ...splice.connectors, tapConnector],
+  }
+}
+
+/** Like drawConnectorPathToConnector/drawConnectorPathFromConnector, but
+ * *both* ends of the new path are taps into an existing connector — a
+ * route Ctrl/Cmd-started on one wire and finished on a different one.
+ * Splices both (each independently, off the same original diagram, since
+ * they're necessarily two different connectors — guarded below) and joins
+ * their two junction Nodes. */
+export function drawConnectorBetweenConnectors(
+  diagram: Diagram,
+  sourceConnectorId: number,
+  sourceSegmentIndex: number,
+  targetConnectorId: number,
+  targetSegmentIndex: number,
+  points: Point[],
+  defaultVoltage?: number,
+): Diagram {
+  if (points.length < 2 || sourceConnectorId === targetConnectorId) return diagram
+  const source = diagram.connectors.find(c => c.id === sourceConnectorId)
+  const target = diagram.connectors.find(c => c.id === targetConnectorId)
+  if (!source || !target) return diagram
+
+  const ids = new IdSequence(diagram)
+  const startTap = points[0]
+  const endTap = points[points.length - 1]
+  const sourceSplice = spliceConnectorAt(diagram, sourceConnectorId, sourceSegmentIndex, startTap, ids)
+  if (!sourceSplice) return diagram
+  const targetSplice = spliceConnectorAt(diagram, targetConnectorId, targetSegmentIndex, endTap, ids)
+  if (!targetSplice) return diagram
+
+  const tapConnector: Connector = {
+    id: ids.take(),
+    kind: 'BusWork',
+    layer: source.layer,
+    voltage: source.voltage ?? target.voltage ?? defaultVoltage,
+    from: sourceSplice.junctionNode.id,
+    to: targetSplice.junctionNode.id,
+    points,
+  }
+
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    nodes: [...diagram.nodes, ...sourceSplice.nodes, ...targetSplice.nodes],
+    connectors: [
+      ...diagram.connectors.filter(c => c.id !== sourceConnectorId && c.id !== targetConnectorId),
+      ...sourceSplice.connectors,
+      ...targetSplice.connectors,
+      tapConnector,
+    ],
+  }
+}
+
 /** Like drawConnectorPath, but ends "in mid-air" instead of on a second
  * element — a Node is still created at the far end (points[points.length -
  * 1]) so the Connector has somewhere to point its own `to`, but no
@@ -542,6 +748,46 @@ export function drawDanglingConnectorPath(diagram: Diagram, fromId: number, poin
   }
 }
 
+/** Like drawDanglingConnectorPath, but the source end is a tap into an
+ * existing connector (sourceConnectorId/sourceSegmentIndex) rather than an
+ * element's own terminal — double-clicking to end a route in mid-air when
+ * it was itself started by Ctrl/Cmd-clicking a busbar or wire. */
+export function drawDanglingConnectorPathFromConnector(
+  diagram: Diagram,
+  sourceConnectorId: number,
+  sourceSegmentIndex: number,
+  points: Point[],
+  defaultVoltage?: number,
+): Diagram {
+  if (points.length < 2) return diagram
+  const source = diagram.connectors.find(c => c.id === sourceConnectorId)
+  if (!source) return diagram
+
+  const ids = new IdSequence(diagram)
+  const tapPoint = points[0]
+  const end = points[points.length - 1]
+  const splice = spliceConnectorAt(diagram, sourceConnectorId, sourceSegmentIndex, tapPoint, ids)
+  if (!splice) return diagram
+  const endNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
+
+  const tapConnector: Connector = {
+    id: ids.take(),
+    kind: 'BusWork',
+    layer: source.layer,
+    voltage: source.voltage ?? defaultVoltage,
+    from: splice.junctionNode.id,
+    to: endNode.id,
+    points,
+  }
+
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    nodes: [...diagram.nodes, ...splice.nodes, endNode],
+    connectors: [...diagram.connectors.filter(c => c.id !== sourceConnectorId), ...splice.connectors, tapConnector],
+  }
+}
+
 /** Removes an element, and any connector left dangling because it was the
  * element's own node's only remaining user (a node still ported into by
  * another element is left alone, along with any connector touching it). */
@@ -570,31 +816,6 @@ export function removeElement(diagram: Diagram, id: number): Diagram {
 
 export function removeConnector(diagram: Diagram, id: number): Diagram {
   return { ...diagram, connectors: diagram.connectors.filter(c => c.id !== id) }
-}
-
-/** Every Node id some element's own Port actually references — the
- * complement of this is what "dangling" means for a connector's own
- * `from`/`to` (see danglingConnectorEnds): a route ended in mid-air
- * (drawDanglingConnectorPath) or the cut side of a deleteConnectorSegment
- * split are the two ways a connector ends up pointing at a Node nothing
- * else uses. removeElement already deletes a connector outright rather
- * than leaving it dangling when an element it was attached to goes away
- * (see that function's own doc comment), so this never needs to account
- * for that case. */
-export function usedNodeIds(diagram: Diagram): Set<number> {
-  const used = new Set<number>()
-  for (const e of diagram.elements) {
-    for (const p of e.ports ?? []) used.add(p.node)
-  }
-  return used
-}
-
-/** Which end(s) of a connector are dangling — its `from` and/or `to` Node
- * isn't referenced by any element's Port, so that end isn't really
- * attached to anything. usedNodeIds should be computed once per diagram
- * (not per connector) and passed in. */
-export function danglingConnectorEnds(connector: Connector, used: Set<number>): { from: boolean; to: boolean } {
-  return { from: !used.has(connector.from), to: !used.has(connector.to) }
 }
 
 /** Removes just one segment of a connector — points[segmentIndex] to

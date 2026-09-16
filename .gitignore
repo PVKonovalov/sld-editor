@@ -40,3 +40,5 @@ go.work.sum
 # Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/dist-en/
+frontend/dist-ru/

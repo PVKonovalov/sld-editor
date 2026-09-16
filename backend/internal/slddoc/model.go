@@ -49,11 +49,31 @@ type Diagram struct {
 
 // EditorSettings is a diagram's own saved editing preferences. It has no
 // effect on rendering an already-placed Element/Connector — only on the
-// canvas UI (grid overlay, snapping, background).
+// canvas UI (grid overlay, snapping, background), and, for DefaultVoltage,
+// on what a *newly* placed one starts out with.
 type EditorSettings struct {
 	GridSpacing float64 `xml:"gridSpacing,attr,omitempty" json:"gridSpacing,omitempty"`
 	Snap        bool    `xml:"snap,attr,omitempty" json:"snap,omitempty"`
-	Background  string  `xml:"background,attr,omitempty" json:"background,omitempty"`
+	// ShowGrid was previously frontend-only (read/written via this same
+	// JSON shape, but with no matching Go field) — silently lost on every
+	// save/reload despite the Settings panel's own checkbox for it. Added
+	// here so it actually round-trips like every other field on this
+	// struct.
+	ShowGrid   bool   `xml:"showGrid,attr,omitempty" json:"showGrid,omitempty"`
+	Background string `xml:"background,attr,omitempty" json:"background,omitempty"`
+	// DefaultVoltage references a VoltageClass.ID (0 means unset) this
+	// diagram's own newly placed elements/connectors should start out
+	// with, instead of no voltage at all — set from the New Diagram
+	// dialog, or changed later in the Settings panel. Never assigned or
+	// interpreted by the backend itself; purely round-tripped, the same
+	// way Diagram.LastID is.
+	DefaultVoltage int `xml:"defaultVoltage,attr,omitempty" json:"defaultVoltage,omitempty"`
+	// ShowNodes toggles a debug overlay (Canvas: a small red X at every
+	// Diagram.Node's own position, not just a symbol's declared
+	// Terminals) — lets a diagram author see the real electrical graph
+	// (where connectors/ports actually land) independent of what a
+	// symbol's drawn geometry suggests.
+	ShowNodes bool `xml:"showNodes,attr,omitempty" json:"showNodes,omitempty"`
 }
 
 // Layer is one entry of a diagram's visibility layers. A viewer toggles
@@ -157,6 +177,19 @@ type Element struct {
 	Points []Point `xml:"geometry>point,omitempty" json:"points,omitempty"`
 }
 
+// shapeDisconnector is the Disconnector's own current Shape key.
+// shapeDisconnectorLegacy was a second, byte-for-byte identical shape the
+// element library used to carry alongside it (sld-svg/symbols.xml's own
+// comment reads "71 / 162: Disconnector") — removed from the library as a
+// confusing duplicate palette entry, but kept understood here so Load can
+// still make sense of an element saved by an older version of this editor
+// (or loaded from an external source) rather than erroring or rendering
+// with a missing-symbol warning.
+const (
+	shapeDisconnector       = "162"
+	shapeDisconnectorLegacy = "71"
+)
+
 // ConnectorKind names a Connector's real-world wire kind.
 type ConnectorKind string
 
@@ -239,6 +272,11 @@ func Load(r io.Reader) (*Diagram, error) {
 	for i, c := range d.Connectors {
 		if c.Kind == kindObjectLinkLegacy {
 			d.Connectors[i].Kind = KindBusWork
+		}
+	}
+	for i, e := range d.Elements {
+		if e.Shape == shapeDisconnectorLegacy {
+			d.Elements[i].Shape = shapeDisconnector
 		}
 	}
 	return &d, nil

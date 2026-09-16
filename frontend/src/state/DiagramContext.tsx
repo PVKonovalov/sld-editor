@@ -80,17 +80,36 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [selectedElementIds],
   )
 
+  // defaultVoltageName: an optional server voltage-color preset (by name,
+  // from the New Diagram dialog) to seed this brand-new diagram with —
+  // added as its first VoltageClass and recorded as Editor.DefaultVoltage,
+  // then saved immediately (a second write right after the initial create)
+  // so the very first .xml on disk already carries it, not just an
+  // in-memory, still-dirty value waiting on the user's next explicit Save.
   const newDiagram = useCallback(
-    async (name: string, width?: number, height?: number) => {
-      const { diagram: d, warning } = await api.createDiagram(name, width, height)
+    async (name: string, width?: number, height?: number, defaultVoltageName?: string) => {
+      const { diagram: created, warning } = await api.createDiagram(name, width, height)
+      let d = created
+      const preset = defaultVoltageName ? config?.voltageColors.find(v => v.name === defaultVoltageName) : undefined
+      if (preset) {
+        d = diagramOps.addVoltageClass(d, preset.name, preset.color)
+        const voltageClass = d.voltageClasses[d.voltageClasses.length - 1]
+        d = { ...d, editor: { ...d.editor, defaultVoltage: voltageClass.id } }
+      }
       setDiagramName(name)
       setDiagram(d)
       setDirty(false)
+      setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
       setError(warning ?? null)
       await refreshDiagrams()
+      if (preset) {
+        const saved = await api.saveDiagram(name, d)
+        setDiagram(saved.diagram)
+        setError(saved.warning ?? null)
+      }
     },
-    [refreshDiagrams, clearSelection],
+    [refreshDiagrams, clearSelection, config],
   )
 
   const openDiagram = useCallback(
@@ -99,6 +118,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setDiagramName(name)
       setDiagram(d)
       setDirty(false)
+      setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
     },
     [clearSelection],

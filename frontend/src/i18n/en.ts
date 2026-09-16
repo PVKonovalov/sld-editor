@@ -4,6 +4,7 @@
 // sibling dictionary, not hunting down hardcoded text.
 export const dictionary = {
   'common.close': 'Close',
+  'common.cancel': 'Cancel',
   'common.none': '— none —',
   'common.idLabel': 'ID: {{id}}',
 
@@ -19,6 +20,12 @@ export const dictionary = {
   'file.noDiagrams': 'No saved diagrams yet.',
   'file.save': 'Save',
   'file.saveAs': 'Save As',
+  'file.newDiagramTitle': 'New diagram',
+  'file.name': 'Name',
+  'file.width': 'Width',
+  'file.height': 'Height',
+  'file.defaultVoltage': 'Default voltage',
+  'file.defaultVoltageHint': 'Newly placed elements and wires start at this voltage instead of none.',
 
   'elements.uncategorized': 'Other',
   'elements.empty': 'No element libraries configured.',
@@ -29,7 +36,9 @@ export const dictionary = {
   'settings.gridSpacing': 'Grid spacing',
   'settings.snapToGrid': 'Snap to grid',
   'settings.showGrid': 'Show grid',
+  'settings.showNodes': 'Show nodes',
   'settings.background': 'Background color',
+  'settings.defaultVoltage': 'Default voltage',
   'settings.voltageClasses': 'Voltage classes',
   'settings.noVoltageClasses': 'No voltage classes yet — add one below to assign it to elements.',
   'settings.pickVoltage': 'Pick a voltage level…',

@@ -43,6 +43,13 @@ export interface EditorSettings {
   snap?: boolean
   showGrid?: boolean
   background?: string
+  // References a VoltageClass.id (0/absent = unset) a newly placed
+  // element/connector in this diagram should start out with instead of no
+  // voltage at all.
+  defaultVoltage?: number
+  // Debug overlay: a small red X at every Diagram.Node's own position (not
+  // just a symbol's declared Terminals) — see Canvas's own render of it.
+  showNodes?: boolean
 }
 
 // Matches backend/internal/slddoc.Class.
