@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"sld-editor/internal/slddoc"
+	"github.com/PVKonovalov/slddoc"
 )
 
 // ErrExists is returned by Create when a diagram with that name already

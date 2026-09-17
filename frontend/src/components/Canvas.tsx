@@ -12,6 +12,18 @@ import type { Point } from '../types'
 const BUSBAR_SHAPE = '24'
 const HIGHLIGHT = '#3b82f6'
 const CONNECT_TARGET_COLOR = '#22c55e'
+// How many grid cells, per side, get batched into one grid-dot pattern
+// tile — see the grid overlay's own comment, below, for why (a Chromium
+// rendering quirk with a densely-tiled SVG <pattern> under a live CSS
+// scale). 10 keeps each tile's own dot count (100) trivial while cutting
+// the number of tile boundaries roughly 100-fold versus one dot per tile.
+const GRID_TILE_FACTOR = 10
+// Every (row, col) dot position within one batched tile, in grid-cell
+// units (multiply by gridSpacing for actual coordinates) — computed once
+// at module load rather than per render, since GRID_TILE_FACTOR is fixed.
+const GRID_TILE_DOTS: [number, number][] = Array.from({ length: GRID_TILE_FACTOR }, (_, row) =>
+  Array.from({ length: GRID_TILE_FACTOR }, (_, col) => [row, col] as [number, number]),
+).flat()
 // Half-length of a terminal marker's "X", in diagram units.
 const TERMINAL_MARK_SIZE = 4 / 3
 // How close (diagram units) a click/hover needs to be to an element's own
@@ -1003,7 +1015,21 @@ export function Canvas() {
                 backend-rendered SVG paints its own opaque background rect
                 (Diagram.Editor.Background), which would otherwise hide a
                 grid placed underneath it entirely. Low-opacity dots at each
-                intersection keep it a subtle alignment guide rather than a distraction. */}
+                intersection keep it a subtle alignment guide rather than a
+                distraction. Dots are batched GRID_TILE_FACTOR-per-side into
+                one larger pattern tile, rather than one dot per tile at
+                gridSpacing itself: a diagram this size (thousands of units)
+                at the default 10-unit spacing tiles a single-dot pattern
+                tens of thousands of times, and re-zooming this whole layer
+                via react-zoom-pan-pinch's own CSS transform (rather than a
+                native SVG viewBox zoom) hits a real Chromium quirk where a
+                densely-tiled <pattern> under a live scale shows hairline
+                seams at scattered tile boundaries — worse mid-gesture, since
+                the scale changes every frame. Batching many dots into fewer,
+                bigger tiles (same dots, same spacing, identical static
+                appearance) cuts the number of tile boundaries by roughly
+                GRID_TILE_FACTOR², which is what actually reduces how often a
+                seam has a boundary to appear on. */}
             {showGrid && (
               <svg
                 width={diagram.width}
@@ -1011,8 +1037,21 @@ export function Canvas() {
                 style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
               >
                 <defs>
-                  <pattern id="grid" width={gridSpacing} height={gridSpacing} patternUnits="userSpaceOnUse">
-                    <circle cx={0} cy={0} r={0.5} fill="rgba(255,255,255,0.25)" />
+                  <pattern
+                    id="grid"
+                    width={gridSpacing * GRID_TILE_FACTOR}
+                    height={gridSpacing * GRID_TILE_FACTOR}
+                    patternUnits="userSpaceOnUse"
+                  >
+                    {GRID_TILE_DOTS.map(([row, col]) => (
+                      <circle
+                        key={`${row}-${col}`}
+                        cx={col * gridSpacing}
+                        cy={row * gridSpacing}
+                        r={0.5}
+                        fill="rgba(255,255,255,0.25)"
+                      />
+                    ))}
                   </pattern>
                 </defs>
                 <rect width="100%" height="100%" fill="url(#grid)" />

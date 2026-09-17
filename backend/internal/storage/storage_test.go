@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"sld-editor/internal/slddoc"
+	"github.com/PVKonovalov/slddoc"
 )
 
 func newTestStore(t *testing.T) *Store {

@@ -3,10 +3,10 @@ package main
 import (
 	"flag"
 
+	"github.com/PVKonovalov/slddoc"
 	"sld-editor/internal/api"
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
-	"sld-editor/internal/slddoc"
 	"sld-editor/internal/storage"
 	"sld-editor/pkg/configuration"
 	"sld-editor/pkg/llog"

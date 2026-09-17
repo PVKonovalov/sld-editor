@@ -19,7 +19,7 @@ import (
 	"os"
 	"strings"
 
-	"sld-editor/internal/slddoc"
+	"github.com/PVKonovalov/slddoc"
 )
 
 // Symbol is one equipment shape a library defines: how to render it

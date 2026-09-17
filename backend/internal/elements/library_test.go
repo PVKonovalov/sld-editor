@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"sld-editor/internal/slddoc"
+	"github.com/PVKonovalov/slddoc"
 )
 
 const baseFixture = `<symbols>

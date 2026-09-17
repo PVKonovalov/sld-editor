@@ -1,11 +1,14 @@
 module sld-editor
 
-go 1.26
+go 1.26.5
 
 require (
+	github.com/PVKonovalov/slddoc v0.0.0
 	github.com/gin-gonic/gin v1.10.1
 	gopkg.in/yaml.v3 v3.0.1
 )
+
+replace github.com/PVKonovalov/slddoc => ../../slddoc
 
 require (
 	github.com/bytedance/sonic v1.11.6 // indirect

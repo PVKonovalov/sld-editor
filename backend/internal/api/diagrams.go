@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"sld-editor/internal/slddoc"
+	"github.com/PVKonovalov/slddoc"
 	"sld-editor/internal/storage"
 )
 

@@ -10,9 +10,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/PVKonovalov/slddoc"
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
-	"sld-editor/internal/slddoc"
 	"sld-editor/internal/storage"
 )
 

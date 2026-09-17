@@ -1577,3 +1577,44 @@ transform="rotate({counterRotate})">` — a new `render.go` placeholder,
 the negated Orient, that cancels the outer element-level rotation for
 just that one fragment — keeping the label upright at any Orientation
 while the ring and its terminals still rotate normally.
+
+2026-09-17: Canvas's own grid-dot overlay (`Canvas.tsx`) now batches
+`GRID_TILE_FACTOR` (10) grid cells per side into one SVG `<pattern>` tile
+instead of one dot per tile — same dots, same spacing, identical static
+appearance, just ~100x fewer pattern-tile boundaries for a diagram at the
+default 10-unit spacing. A single-dot-per-tile pattern this densely tiled
+(tens of thousands of tiles for a diagram thousands of units across) hit a
+real Chromium rendering quirk: stray hairline seams at scattered tile
+boundaries while the whole canvas is under a live CSS scale
+(`react-zoom-pan-pinch`'s own zoom mechanism), worst while actively
+zooming since the scale changes every frame. Batching dots into fewer,
+bigger tiles doesn't eliminate the underlying quirk, but cuts how often a
+seam has a boundary to appear on by roughly `GRID_TILE_FACTOR²`.
+
+2026-09-17: `backend/internal/slddoc` is no longer this editor's own
+package — it's replaced by a new standalone Go module,
+`github.com/PVKonovalov/slddoc` (sibling repo at `../slddoc`, required
+via a local `replace` in `backend/go.mod` for now), shared with `sld-svg`
+(which owns `Extract`, reconstructing a `Diagram` from a real
+xsde2svg-exported SVG). This editor's own model/render code — JSON tags,
+`Diagram.LastID`/`Editor`, `Element.Position`, `Connector.Name`/
+`LineStyle`, `Label.ID`/`Color`/`VAlign`/`Font`, the `RenderMode`
+(Static/Interactive) mechanism, the configurable `StateColor`/`fpiColor`
+legends, `positionAttr`/`positionOffset`/`{counterRotate}`, and
+`writeNamedLine` for `OverheadLine`/`CableLine` — became the shared
+module's own model/render code verbatim, since it was already a strict
+superset of `sld-svg`'s simpler, corpus-fidelity-only version; `sld-svg`'s
+own `extract.go` picked up the one real rename this required
+(`KindObjectLink` → `KindBusWork`) and its CLI (`cmd/svg-sld`) now passes
+an explicit `RenderMode`/`StateColor` legend to `Render` instead of
+relying on that behavior being hardcoded in the package. Nothing about
+this editor's own behavior changes — every caller (`internal/storage`,
+`internal/api`, `internal/elements`, `cmd/sld-editor`) just imports the
+new module path instead; `go build`/`vet`/`test` all pass unchanged, and
+several already-saved diagrams (`test1`, `test 11-`,
+`overhead-line-demo`) render byte-identical SVG through the API before
+and after the switch (two other saved diagrams did come back different,
+but only because their own on-disk `.svg` predates later feature commits
+— the Fault Passage Indicator's counter-rotate wrapper, the
+shape-71-to-162 disconnector migration — unrelated to this module
+switch).
