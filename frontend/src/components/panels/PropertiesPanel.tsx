@@ -23,17 +23,24 @@ const CABLE_LINE_STYLES: { value: ConnectorLineStyle | ''; labelKey: Translation
 
 // Classes whose base.xml template reacts to {state:...}/{fill} — every
 // switching device with an Open/Close/Intermediate position, and so the
-// only ones that get a State dropdown in Properties.
-const SWITCHING_DEVICE_CLASSES = new Set(['Breaker', 'Disconnector', 'LoadBreakSwitch', 'GroundSwitch'])
+// only ones that get a State dropdown in Properties. Starter (76) also
+// reacts to {state:...} for its own moving-part orientation, but — unlike
+// every other class here — has no {fill}/data-fill color legend of its
+// own (the real source never gave it one); it's included anyway since the
+// dropdown itself is just "which of the three template variants to draw".
+const SWITCHING_DEVICE_CLASSES = new Set(['Breaker', 'Disconnector', 'LoadBreakSwitch', 'GroundSwitch', 'Starter'])
 
 // Shapes whose base.xml template also reacts to {positionAttr}/
 // {positionOffset} (a withdrawable device's own Service/Normal/Test
-// racking position, independent of its own State) — Breaker/Disconnector
-// share a Class with their non-withdrawable siblings (41/162), so this has
-// to be keyed by Shape, not Class, unlike SWITCHING_DEVICE_CLASSES above.
-// Shown alongside State, whose own label switches to "Operational Status"
-// for these two so it isn't confused with the new "Position status" field.
-const WITHDRAWABLE_SHAPES = new Set(['43', '49'])
+// racking position, independent of its own State) — Breaker/Disconnector/
+// Fuse each share a Class with a non-withdrawable sibling (41/162, 203),
+// so this has to be keyed by Shape, not Class, unlike
+// SWITCHING_DEVICE_CLASSES above. Shown alongside State, whose own label
+// switches to "Operational Status" for these so it isn't confused with the
+// new "Position status" field — Fuse (154) has no State field at all
+// (SWITCHING_DEVICE_CLASSES doesn't include Fuse), so it only ever shows
+// Position status, never that relabeling.
+const WITHDRAWABLE_SHAPES = new Set(['43', '49', '154'])
 
 // A Lamp reads its own two fixed FillOff/FillOn colors (see
 // diagramOps.LAMP_DEFAULTS/render.go's lampColor), not a voltage class

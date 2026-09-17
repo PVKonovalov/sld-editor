@@ -163,15 +163,15 @@ const GROUND_SWITCH_DEFAULT_ORIENT = 180
 // placed one still looks the same as it always has.
 const GROUND_SWITCH_DEFAULT_STATE = 0
 
-// Breaker/Disconnector (withdrawable) — shapes 43/49, keyed by Shape since
-// they share a Class with their non-withdrawable siblings (41/162) — get
-// their own Position default too: base.xml's {positionOffset} already
-// treats nil the same as 1 (Normal, no offset), so this doesn't change how
-// a freshly placed one renders, but it does mean Properties' Position
-// status dropdown starts on a real, explicit value instead of "— none —",
-// matching the racked-in/connected position every such device starts
-// service in.
-const WITHDRAWABLE_SHAPES = new Set(['43', '49'])
+// Breaker/Disconnector/Fuse (withdrawable) — shapes 43/49/154, keyed by
+// Shape since each shares a Class with a non-withdrawable sibling (41/162,
+// 203) — get their own Position default too: base.xml's {positionOffset}
+// already treats nil the same as 1 (Normal, no offset), so this doesn't
+// change how a freshly placed one renders, but it does mean Properties'
+// Position status dropdown starts on a real, explicit value instead of
+// "— none —", matching the racked-in/connected position every such device
+// starts service in.
+const WITHDRAWABLE_SHAPES = new Set(['43', '49', '154'])
 const POSITION_NORMAL = 1
 
 // A freshly placed Lamp starts unlit (state 0) with a real fillOff/fillOn/

@@ -1661,3 +1661,63 @@ the original corpus instance's own drawn path. `sld-svg`'s own
 `symbols.xml` (its independent, simpler reference library) picked up
 matching templates for both shapes too, so `svg-sld render` doesn't
 regress against a diagram containing either.
+
+2026-09-17: Added 7 more equipment shapes to the palette, all stateless
+except Starter — Surge arrester (29, a body-box-with-diagonal variant of
+35), Starter (76, uses the existing `{state:...}` mechanism for its own
+moving contact, no `{fill}`/data-fill legend of its own), Fuse
+(withdrawable) (154, reuses the existing Service/Normal/Test Position
+mechanism built for Breaker (43)/Disconnector (49) — `WITHDRAWABLE_SHAPES`
+in both `PropertiesPanel.tsx` and `diagramOps.ts` now include it), Surge
+arrester (grounded) (168, a one-port variant of 29/35 with the same
+three-bar earth fan as Ground terminal/Ground switch/Reactor shunt),
+Capacitor bank (172, one-port, the "БСК" default-CustomView geometry only
+— this schema doesn't model that per-instance variant switch), Generator
+(173, one-port, a circle-and-sine-wave symbol), and Non-intersection /
+"Wire jump" (14, a purely decorative wire-crossing hop mark — modeled with
+two real ports anyway, one on each side, since each is still a genuine
+node a wire can land on). All of them also picked up `Extract` support in
+the shared `slddoc` module (previously only Reactor/Reactor shunt had
+it) — Surge arrester/Starter/Fuse/Wire jump reuse the existing
+`parseTwoPortDevice`; Surge arrester (grounded)/Capacitor bank/Generator
+share a new `parseOnePortDevice`, alongside Reactor shunt (whose own
+dedicated parser was folded into it).
+
+Fixed a real anchor bug this surfaced: `parseOnePortDevice` (and Reactor
+shunt's own prior parser) used to treat a found `rotate()` transform's own
+center *as* the anchor directly — correct for Ground (31), where the
+transform's center and the path's own first point are always the same
+value, but wrong for these four shapes, whose real source rotates around
+a different reference point than the drawn terminal (confirmed against a
+real corpus instance, `vres.svg` id 148791225: a Generator's own
+`rotate(-270,3630,600)` pivots on its circle's center, 25 units from its
+own terminal at `M 3630 575`). Fixed by always reading the path's own
+first point first, then rotating *that* through the found transform — the
+same thing `parseTwoPortDevice` already does for its own two ports —
+rather than substituting the transform's center in its place.
+
+Chasing that fix down also exposed a real gap in `parseSubpaths` (the
+shared module's own minimal SVG path parser): it didn't understand SVG's
+own shorthand repeated-parameter convention (e.g. `h -15 0` is two
+implicit horizontal linetos, not one command followed by a stray `0`),
+which several real Reactor shunt (`397`) instances use for their own
+earth-fan geometry — previously this either raised a "no <path> geometry"
+tokenizing error or, worse, corrupted the anchor computation, since it
+silently misinterpreted the parser's own internal state instead. Fixed
+generally (any command's parameters now repeat for as long as another
+group follows without a fresh command letter — not just `397`'s own case)
+rather than special-cased; also had to teach the tokenizer to recognize
+curve commands (C/S/Q/T) explicitly as unsupported, so the new
+repeat-until-next-command-letter logic doesn't silently swallow one's own
+numeric arguments as extra points instead of raising the same
+"unsupported command" error it always has.
+
+Verified all of this against the full `sld-svg/examples/sld` corpus (145
+files): every one of the 7 new shapes' data-type codes is gone from
+`Report.Skipped`, `Report.Failed`'s own total count went *down* (from 362
+before this session's reactor work to 359 now — the anchor/parser fixes
+above resolved 3 pre-existing failures along the way, after briefly
+regressing to 367 mid-fix), and a full extract-then-render round trip
+produces no missing-shape errors anywhere in the corpus. Spot-checked
+several real rotated instances (a Generator, a Reactor shunt) by hand
+against the fixed anchor math and confirmed exact agreement.

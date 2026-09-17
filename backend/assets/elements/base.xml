@@ -72,6 +72,23 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_14.go (element14) — drawn where
+       two crossing wires visually "hop" over each other without
+       connecting. Unlike Junction point (7) above, which marks a real
+       explicit node, this is purely decorative — but it still gets two
+       real electrical ports, one on each side (±10, already grid-aligned),
+       since each side is still a genuine node a wire's own end can land
+       on; nothing about the hop itself joins the two together. -->
+  <symbol shape="14" class="NonIntersection" name="Wire jump" category="Wiring">
+    <terminals>
+      <terminal x="-10" y="0"/>
+      <terminal x="10" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 10 0 L 3 0 A 3 3 0 0 0 -3 0 L -10 0" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <symbol shape="41" class="Breaker" name="Breaker" category="Switching devices">
     <terminals>
       <terminal x="0" y="-10"/>
@@ -189,6 +206,30 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_76.go (element76): unlike every
+       other switching device here, its own {state:...} indicator isn't a
+       fixed-length diagonal/perpendicular/parallel line drawn *inside* a
+       body outline — it *is* the entire moving part, on its own, between
+       two fixed top/bottom bars (no state-driven {fill}/data-fill either;
+       the real source has no such color legend for this shape, just the
+       line's own orientation). The bars' own two ends (±10, already
+       grid-aligned) are the real electrical connection points, same
+       convention as every other vertical-stem symbol's terminals; the
+       diagonal ("Intermediate") case has no real-source equivalent, same
+       gap as every other switching device's own diagonal — invented at the
+       same length as the parallel/perpendicular cases (±8, hence the
+       ±5.7 ≈ 8·cos45°), not corpus-confirmed. -->
+  <symbol shape="76" class="Starter" name="Starter" category="Switching devices">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M -5 -10 h 10 m 0 20 h -10" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -8 v 16|M 8 0 h -16|M -5.7 -5.7 l 11.4 11.4}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <!-- The stem's own far tip (y=-10) is the one real electrical connection
        point — already grid-aligned, unlike Ground switch's own stub, so no
        shortening is needed here. The plate fan below is a dead end, same
@@ -210,6 +251,29 @@
 <circle cx="-18" cy="0" r="22" style="fill:none;stroke:{color};stroke-width:2" />
 <path d="M -40 0 h -13" style="fill:none;stroke:{color};stroke-width:2" />
 <path d="M -18 0 l -7 -7 M -18 0 l 7 -7 M -18 0 l 0 7" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_173.go (element173, non-mirrored
+       case), re-anchored on its own top terminal rather than the circle's
+       center: the real source's own sde.Origin *is* the circle's center
+       (the stem is drawn from y-25 down *to* it), but this shape has
+       exactly one real electrical connection — the stem's own far tip —
+       so it follows the same "anchor = the combined path's own first
+       point" convention every other single-port symbol here does (see
+       parseOnePortDevice in the shared slddoc module), rather than
+       ChokeCoil/Reactor's own "anchor = midpoint of two ports" one. The
+       circle itself (radius 16) sits 9 units below the terminal, and the
+       inner "∿" sine-wave mark (a generator's own textbook symbol) is
+       drawn across its own center; stroke-width 2, matching the real
+       source's own minimum for this shape (every other symbol here uses
+       1, its own minimum). -->
+  <symbol shape="173" class="Generator" name="Generator" category="Generation">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 9 m -16 16 a 16 16 0 0 1 32 0 a 16 16 0 0 1 -32 0 M -9 25 c 3 -3 6 -3 9 0 s 6 3 9 0" style="fill:none;stroke:{color};stroke-width:2" />
 ]]></template>
   </symbol>
 
@@ -311,6 +375,46 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_29.go (element29, non-mirrored
+       case) — a distinct real-world surge-arrester symbol from 35 above (a
+       body box with a diagonal "discharge" mark through it, rather than a
+       bowtie), sharing its own Class since it's the same equipment kind.
+       The body box's own top/bottom edges sit at ±10 (a stem's length in
+       from each terminal); the diagonal mark deliberately pokes out a
+       little past the box on both ends, matching the real source exactly.
+       The stems' own far ends (±20, already grid-aligned) are the real
+       electrical connection points, same convention as every other
+       vertical-stem symbol's terminals. -->
+  <symbol shape="29" class="SurgeArrester" name="Surge arrester" category="Protection">
+    <terminals>
+      <terminal x="0" y="-20"/>
+      <terminal x="0" y="20"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 -20 v 10 h 5 v 20 h -5 v 10 v -10 h -5 v -20 h 5 z M -10 18 v -6 l 20 -24" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_168.go (element168, non-mirrored
+       case) — another real-world surge-arrester variant, this one
+       explicitly grounded (a body box with its own diagonal discharge
+       mark, plus the same three-decreasing-width earth fan Ground
+       terminal (31)/Ground switch (54)/Reactor shunt (397) already use,
+       just 16/10/4 wide here instead of 16/12/8, 3 units apart instead of
+       4). Anchor is the top terminal itself, matching parseOnePortDevice's
+       own convention (the real source's combined path starts drawing
+       there) — not a centered anchor like 29/35 above, since this variant
+       only has one real electrical connection; the earthed bottom is a
+       dead end, same convention as every other one-port symbol here. -->
+  <symbol shape="168" class="SurgeArrester" name="Surge arrester (grounded)" category="Protection">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 8 m -6 0 h 12 v 26 h -12 z m 6 26 v 13 M -11 39 v -5 l 22 -26 M -8 47 h 16 m -13 3 h 10 m -7 3 h 4" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <!-- The main line's own two ends (±10, already grid-aligned) are the real
        electrical connection points, same convention as every other
        vertical-stem symbol's terminals. -->
@@ -324,6 +428,29 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_154.go (element154, the
+       Test/default-position geometry — this schema's own {positionOffset}
+       doesn't distinguish Service from Test, same simplification already
+       made for Breaker (43)/Disconnector (49), so there's no separate
+       geometry to pick for Service specifically). Same withdrawable
+       convention as those two: the two real terminals sit at the far
+       chevron tips (y=±31, fixed, outside the position-shifted group), not
+       the fuse body itself (y=±22, inside the movable <g
+       data-trolley="{Position}">, translated by {positionOffset}). -->
+  <symbol shape="154" class="Fuse" name="Fuse (withdrawable)" category="Protection">
+    <terminals>
+      <terminal x="0" y="-31"/>
+      <terminal x="0" y="31"/>
+    </terminals>
+    <template><![CDATA[
+<g transform="translate({positionOffset},0)"{positionAttr}>
+<path d="M 0 -22 v 12 h 5 v 20 h -5 v -20 h -5 v 20 h 5 v 12" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -22 l -4 4 m 4 -4 l 4 4 M 0 22 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
+</g>
+<path d="M 0 -31 l -4 4 m 4 -4 l 4 4 M 0 31 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <!-- The stem's own two ends (±10, already grid-aligned) are the real
        electrical connection points, same convention as every other
        vertical-stem symbol's terminals. -->
@@ -334,6 +461,22 @@
     </terminals>
     <template><![CDATA[
 <path d="M 0 -10 v 5 m -12 0 h 24 m -24 10 h 24 m -12 0 v 5" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_172.go (element172), the default
+       (non-"БСК_1_"CustomView) geometry — this schema has no per-instance
+       CustomView field to pick the other layout. Anchor is the top
+       terminal itself, matching parseOnePortDevice's own convention (the
+       combined path's own first point) — the closed triangle plus its own
+       two short accent bars near its base have no wire-connection point
+       of their own, only the top stem does. -->
+  <symbol shape="172" class="CapacitorBank" name="Capacitor bank" category="Other equipment">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 l 0 8 l -14 24 m 14 -24 l 14 24 h -28 z M 0 27 h 5 m -5 0 h -5 M 0 31 h 5 m -5 0 h -5" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 

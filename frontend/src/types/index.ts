@@ -52,7 +52,7 @@ export interface EditorSettings {
   showNodes?: boolean
 }
 
-// Matches backend/internal/slddoc.Class.
+// Matches the shared slddoc module's Class (github.com/PVKonovalov/slddoc).
 export type ElementClass =
   | 'Breaker'
   | 'Disconnector'
@@ -62,11 +62,17 @@ export type ElementClass =
   | 'PowerTransformer'
   | 'CurrentTransformer'
   | 'ChokeCoil'
+  | 'Reactor'
+  | 'ReactorShunt'
   | 'SurgeArrester'
   | 'Fuse'
   | 'Capacitor'
+  | 'CapacitorBank'
+  | 'Starter'
+  | 'Generator'
   | 'BusBarSection'
   | 'JunctionPoint'
+  | 'NonIntersection'
   | 'Lamp'
   | 'FaultPassageIndicator'
 
