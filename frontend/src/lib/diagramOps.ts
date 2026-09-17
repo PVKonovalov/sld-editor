@@ -134,16 +134,45 @@ function defaultLayer(diagram: Diagram): number {
  * seeds the new element's voltage class from whichever one the user last
  * picked in Properties, so placing several elements in a row doesn't
  * require re-assigning the same voltage each time. */
-// A Breaker/Disconnector (either the fixed or withdrawable shape — both
-// share the same Class) starts out placed in service, not open, so a
-// freshly drawn one-line reads correctly without a separate trip to
-// Properties for every single device: 1 is "Close" in the state->color
-// legend (config.stateColors). LoadBreakSwitch/GroundSwitch — the other
-// two SWITCHING_DEVICE_CLASSES PropertiesPanel gives a State dropdown —
-// deliberately keep starting unset; only breakers/disconnectors were
-// asked for.
-const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector'])
+// A Breaker/Disconnector/LoadBreakSwitch (either the fixed or withdrawable
+// shape — both share the same Class) starts out placed in service, not
+// open, so a freshly drawn one-line reads correctly without a separate
+// trip to Properties for every single device: 1 is "Close" in the
+// state->color legend (config.stateColors). GroundSwitch gets its own
+// default below instead, since leaving it unset now has a different
+// visual consequence (see GROUND_SWITCH_DEFAULT_STATE's own comment).
+const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector', 'LoadBreakSwitch'])
 const STATE_CLOSE = 1
+
+// GroundSwitch's own template (base.xml shape 54) draws earth-plates-up/
+// stub-down at orient 0 — confirmed against a real xsde2svg corpus export,
+// which always places this shape pre-rotated (90/180, never 0), so the
+// template itself is left as-is. A freshly placed one defaults to 180°
+// instead of unset/0 so it already reads the conventional way (stub up
+// toward whatever it's tapped off of, earth symbol dangling below) without
+// a separate trip to Properties' Orientation field first.
+const GROUND_SWITCH_DEFAULT_ORIENT = 180
+
+// GroundSwitch's blade is now state-driven too (base.xml's {state:...},
+// matching Breaker/Disconnector's own mechanism), and an unset State reads
+// as Close (applyStateLine's own nil-maps-to-first-option rule) — so
+// leaving it unset would make a freshly placed one default to the
+// grounded/closed look. 0 (Open) instead matches both the real corpus
+// (~92% of a real substation export's own GroundSwitch elements are Open)
+// and this template's own pre-{state:...} fixed appearance, so a freshly
+// placed one still looks the same as it always has.
+const GROUND_SWITCH_DEFAULT_STATE = 0
+
+// Breaker/Disconnector (withdrawable) — shapes 43/49, keyed by Shape since
+// they share a Class with their non-withdrawable siblings (41/162) — get
+// their own Position default too: base.xml's {positionOffset} already
+// treats nil the same as 1 (Normal, no offset), so this doesn't change how
+// a freshly placed one renders, but it does mean Properties' Position
+// status dropdown starts on a real, explicit value instead of "— none —",
+// matching the racked-in/connected position every such device starts
+// service in.
+const WITHDRAWABLE_SHAPES = new Set(['43', '49'])
+const POSITION_NORMAL = 1
 
 // A freshly placed Lamp starts unlit (state 0) with a real fillOff/fillOn/
 // radius instead of all three left empty — unset radius renders as an
@@ -154,6 +183,20 @@ const LAMP_DEFAULTS: Pick<DiagramElement, 'state' | 'fillOff' | 'fillOn' | 'radi
   fillOff: 'none',
   fillOn: 'red',
   radius: 11,
+}
+
+// A freshly placed FaultPassageIndicator starts at State 0 (Open) — same
+// reasoning as GroundSwitch's own default, since an unrecorded State would
+// otherwise still read as Open here too (render.go's fpiColor defaults nil
+// the same way), so this just gives Properties' own dropdown a real
+// starting value — with a real radius instead of unset, which (like an
+// unset Lamp radius) renders as an invisible r="0" circle; 10 also matches
+// where base.xml's own <terminals> for this shape are fixed, and the
+// default 10-unit grid (its own "FPI" text is sized down to fit inside a
+// ring this small).
+const FPI_DEFAULTS: Pick<DiagramElement, 'state' | 'radius'> = {
+  state: 0,
+  radius: 10,
 }
 
 export function placeElement(
@@ -174,12 +217,19 @@ export function placeElement(
     // A Lamp is a plain indicator, not something carrying its own primary
     // voltage — it reads its two fixed FillOff/FillOn colors, not a voltage
     // class color, so it shouldn't inherit whatever the user last picked in
-    // Properties the way every other symbol does.
-    ...(elementClass === 'Lamp' ? {} : { voltage: defaultVoltage }),
+    // Properties the way every other symbol does. A FaultPassageIndicator
+    // isn't either — its own {color} is a fixed background fill, never a
+    // voltage class color (see base.xml's own header comment).
+    ...(elementClass === 'Lamp' || elementClass === 'FaultPassageIndicator' ? {} : { voltage: defaultVoltage }),
     x: point.x,
     y: point.y,
     ...(DEFAULT_CLOSED_CLASSES.has(elementClass) ? { state: STATE_CLOSE } : {}),
     ...(elementClass === 'Lamp' ? LAMP_DEFAULTS : {}),
+    ...(elementClass === 'GroundSwitch'
+      ? { orient: GROUND_SWITCH_DEFAULT_ORIENT, state: GROUND_SWITCH_DEFAULT_STATE }
+      : {}),
+    ...(WITHDRAWABLE_SHAPES.has(symbol.shape) ? { position: POSITION_NORMAL } : {}),
+    ...(elementClass === 'FaultPassageIndicator' ? FPI_DEFAULTS : {}),
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -631,6 +681,7 @@ function spliceConnectorAt(
       voltage: connector.voltage,
       layer: connector.layer,
       dashed: connector.dashed,
+      lineStyle: connector.lineStyle,
       from: connector.from,
       to: junctionNode.id,
       points: beforePoints,
@@ -643,6 +694,7 @@ function spliceConnectorAt(
       voltage: connector.voltage,
       layer: connector.layer,
       dashed: connector.dashed,
+      lineStyle: connector.lineStyle,
       from: junctionNode.id,
       to: connector.to,
       points: afterPoints,
@@ -1176,6 +1228,7 @@ export function deleteConnectorSegment(diagram: Diagram, connectorId: number, se
       voltage: connector.voltage,
       layer: connector.layer,
       dashed: connector.dashed,
+      lineStyle: connector.lineStyle,
       from: connector.from,
       to: endNode.id,
       points: beforePoints,
@@ -1191,6 +1244,7 @@ export function deleteConnectorSegment(diagram: Diagram, connectorId: number, se
       voltage: connector.voltage,
       layer: connector.layer,
       dashed: connector.dashed,
+      lineStyle: connector.lineStyle,
       from: startNode.id,
       to: connector.to,
       points: afterPoints,
@@ -1289,6 +1343,73 @@ export function moveConnectorVertex(diagram: Diagram, connectorId: number, verte
   return {
     ...diagram,
     connectors: diagram.connectors.map(c => (c.id === connectorId ? { ...c, points: simplifyOrthogonalPath(newPoints) } : c)),
+  }
+}
+
+/** True when a connector's own from/to Node (whichever end points at) is
+ * genuinely dangling: not referenced by any Element's own Port, and not
+ * shared with any other connector's own from/to (a real junction). Both
+ * of those mean the endpoint is a real electrical connection, not a
+ * free-floating point — Canvas only offers a drag handle for one where
+ * this is true, and moveConnectorEndpoint itself re-checks it as a
+ * defensive guard. */
+export function isConnectorEndpointDangling(diagram: Diagram, connector: Connector, end: 'from' | 'to'): boolean {
+  const nodeId = end === 'from' ? connector.from : connector.to
+  for (const e of diagram.elements) {
+    for (const p of e.ports ?? []) if (p.node === nodeId) return false
+  }
+  for (const c of diagram.connectors) {
+    if (c.id === connector.id) continue
+    if (c.from === nodeId || c.to === nodeId) return false
+  }
+  return true
+}
+
+/** Drags one of a connector's two true endpoints (points[0] for 'from',
+ * points[length - 1] for 'to') to point — but only when
+ * isConnectorEndpointDangling says that end is genuinely free; moving an
+ * attached or shared one would silently tear it away from what it's
+ * actually wired to, so this is a no-op otherwise (Canvas only offers a
+ * handle for a dangling one in the first place — this check is a
+ * defensive backstop, not the primary gate). Keeps the touching segment
+ * orthogonal via the same projection-lock rule moveConnectorVertex uses
+ * for an interior vertex, just with a single neighbor instead of two:
+ * that neighbor slides along whichever axis preserves its own segment's
+ * orientation when it's itself free to move, or gets a new bend inserted
+ * next to it instead when it's the connector's other true endpoint (a
+ * straight two-point wire) and can't. The corresponding Node is moved to
+ * match, same as every other connector-endpoint edit in this file. */
+export function moveConnectorEndpoint(diagram: Diagram, connectorId: number, end: 'from' | 'to', point: Point): Diagram {
+  const connector = diagram.connectors.find(c => c.id === connectorId)
+  if (!connector) return diagram
+  if (!isConnectorEndpointDangling(diagram, connector, end)) return diagram
+
+  const points = connector.points
+  const lastIndex = points.length - 1
+  const endIndex = end === 'from' ? 0 : lastIndex
+  const neighborIndex = end === 'from' ? 1 : lastIndex - 1
+  const neighbor = points[neighborIndex]
+  const old = points[endIndex]
+  const neighborIsFixed = neighborIndex === 0 || neighborIndex === lastIndex
+  const wasHorizontal = neighbor.y === old.y
+
+  const newPoints = [...points]
+  newPoints[endIndex] = point
+
+  if (neighborIsFixed) {
+    const bend = wasHorizontal ? { x: point.x, y: neighbor.y } : { x: neighbor.x, y: point.y }
+    newPoints.splice(end === 'from' ? 1 : lastIndex, 0, bend)
+  } else {
+    newPoints[neighborIndex] = wasHorizontal ? { ...neighbor, y: point.y } : { ...neighbor, x: point.x }
+  }
+
+  const nodeId = end === 'from' ? connector.from : connector.to
+  return {
+    ...diagram,
+    connectors: diagram.connectors.map(c =>
+      c.id === connectorId ? { ...c, points: simplifyOrthogonalPath(newPoints) } : c,
+    ),
+    nodes: diagram.nodes.map(n => (n.id === nodeId ? { ...n, x: point.x, y: point.y } : n)),
   }
 }
 

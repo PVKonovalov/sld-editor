@@ -89,6 +89,22 @@ func (s stateColorSet) fill(state *int) string {
 	return "none"
 }
 
+// fpiColor resolves a FaultPassageIndicator's own ring/text color from its
+// State, using a separate legend from switching devices' own fill (see
+// config.Config.FPIStateColors) — its ring is always colored, unlike a
+// switching device's {fill}, so an unrecorded State defaults to 0 (Open)
+// rather than "none".
+func (s stateColorSet) fpiColor(state *int) string {
+	st := 0
+	if state != nil {
+		st = *state
+	}
+	if c, ok := s.colors[st]; ok {
+		return c
+	}
+	return "none"
+}
+
 // stateAttr is a real xsde2svg breaker/switch's data-state attribute on its
 // state-indicator path: the element's own raw State value, or no attribute
 // at all when State was never recorded (fill's "none" case has no
@@ -98,6 +114,32 @@ func stateAttr(state *int) string {
 		return ""
 	}
 	return fmt.Sprintf(` data-state="%d"`, *state)
+}
+
+// positionAttr is a withdrawable device's own data-trolley attribute on the
+// inner <g> wrapping its movable body (see base.xml shapes 43/49) — the
+// element's own raw Position value, or no attribute at all when Position
+// was never recorded, matching stateAttr's own convention.
+func positionAttr(position *int) string {
+	if position == nil {
+		return ""
+	}
+	return fmt.Sprintf(` data-trolley="%d"`, *position)
+}
+
+// positionOffset is the x-shift (in local template units) applied to a
+// withdrawable device's own movable body: 0 for the default/Normal
+// position (1, or unrecorded), matching this editor's own reference
+// (sld-viewer's applyTrolleyState) rather than the real xsde2svg exporter's
+// own per-shape behavior, which only shifts for Service and leaves Test at
+// the same x-origin — sld-viewer's simplified, direction-agnostic offset
+// (both Service and Test eject the same way) is what this editor's own
+// Position status mechanism was modeled on.
+func positionOffset(position *int) string {
+	if position == nil || *position == 1 {
+		return "0"
+	}
+	return "10"
 }
 
 // stateLineRe matches a template's {state:parallel|perpendicular|diagonal}
@@ -191,17 +233,34 @@ var connectorTypeCode = map[ConnectorKind]string{
 // "named" connector kinds, absent its own corpus confirmation.
 const namedLineStrokeWidth = 1.5
 
-// cableLineDash is a KindCableLine connector's own default
-// stroke-dasharray — a real xsde2svg cable line (element23, "type 23")
-// always renders dashed to read as an underground run rather than a
-// solid overhead one, defaulting to this exact pattern absent any
-// per-instance line-style override (which this schema has no equivalent
-// of yet, so it's applied unconditionally); confirmed against
-// xsde2svg/internal/modus/element_23.go's own "штриховая"
-// stroke-dasharray value. KindOverheadLine gets no such default — it
-// stays solid unless the general Connector.Dashed flag is set, same as
-// an ordinary wire.
-const cableLineDash = "stroke-dasharray: 6,5;"
+// cableLineDashPatterns maps a KindCableLine connector's own LineStyle to
+// its real stroke-dasharray value, matching xsde2svg's own line-style
+// switch (xsde2svg/internal/modus/element_23.go) exactly — LineStyleSolid
+// resolves to "", same as every other kind's default. KindOverheadLine
+// gets no such per-instance style — it stays solid unless the general
+// Connector.Dashed flag is set, same as an ordinary wire.
+var cableLineDashPatterns = map[ConnectorLineStyle]string{
+	LineStyleSolid:   "",
+	LineStyleDashed:  "stroke-dasharray: 6,5;",
+	LineStyleDashDot: "stroke-dasharray: 70 20 25 20;",
+	LineStyleDotted:  "stroke-dasharray: 3,2;",
+}
+
+// resolveCableLineDash resolves a KindCableLine connector's own dash
+// pattern: an empty/unset LineStyle defaults to LineStyleDashed (this
+// editor's original hardcoded cable-line dash, before this field
+// existed, so an already-saved diagram keeps rendering the same way),
+// and any value this editor doesn't recognize falls back to that same
+// default rather than silently rendering solid.
+func resolveCableLineDash(style ConnectorLineStyle) string {
+	if style == "" {
+		style = LineStyleDashed
+	}
+	if dash, ok := cableLineDashPatterns[style]; ok {
+		return dash
+	}
+	return cableLineDashPatterns[LineStyleDashed]
+}
 
 // typeComment writes a "<!-- Name:shape -->" line the first time shape is
 // seen or whenever it changes from the previous call, so consecutive
@@ -241,7 +300,7 @@ var elementZOrder = map[Class]int{
 // drawn polyline), recording its Shape in missing/seenMissing when lib has
 // no template for it. lastShape tracks the running type-comment header, the
 // same way across whichever pass of Render calls it.
-func renderElement(w io.Writer, lib *SymbolLibrary, voltageColor map[int]string, stateColors stateColorSet, e Element, missing *[]string, seenMissing map[string]bool, lastShape *string, mode RenderMode) {
+func renderElement(w io.Writer, lib *SymbolLibrary, voltageColor map[int]string, stateColors, fpiColors stateColorSet, e Element, missing *[]string, seenMissing map[string]bool, lastShape *string, mode RenderMode) {
 	typeComment(w, shapeName, e.Shape, e.Shape, lastShape)
 
 	var color string
@@ -250,8 +309,10 @@ func renderElement(w io.Writer, lib *SymbolLibrary, voltageColor map[int]string,
 		// VoltageClass — it isn't part of the electrical network.
 		color = lampColor(e)
 	} else if e.Class == ClassFaultPassageIndicator {
-		// Every real instance draws the same fixed dark fill regardless
-		// of state; it isn't part of the electrical network either.
+		// {color} is only its own fixed background fill (the ring reads
+		// as hollow against the canvas) — it isn't part of the electrical
+		// network, so this never varies. Its own State instead drives
+		// {fpiColor}, the ring/text color, via fpiColors below.
 		color = defaultBackground
 	} else {
 		color = voltageColor[e.Voltage]
@@ -284,12 +345,23 @@ func renderElement(w io.Writer, lib *SymbolLibrary, voltageColor map[int]string,
 		return
 	}
 	body := applyStateLine(tmpl, e.State)
+	// {counterRotate} is the negated Orient — wrapping a template fragment
+	// in <g transform="rotate({counterRotate})"> cancels the outer <g
+	// transform="...rotate(Orient)"> this function itself emits below, so
+	// that fragment (e.g. FaultPassageIndicator's own "FPI" label) stays
+	// upright regardless of the element's own rotation, while everything
+	// else in the template (and the element's own terminals) still rotates
+	// normally.
 	body = strings.NewReplacer(
 		"{color}", esc(color),
 		"{fill}", stateColors.fill(e.State),
 		"{radius}", fmtNum(e.Radius),
 		"{fillAttr}", stateColors.fillAttr,
 		"{stateAttr}", stateAttr(e.State),
+		"{positionAttr}", positionAttr(e.Position),
+		"{positionOffset}", positionOffset(e.Position),
+		"{fpiColor}", fpiColors.fpiColor(e.State),
+		"{counterRotate}", fmtNum(float64(-e.Orient)),
 	).Replace(body)
 	// Most symbol templates are drawn quite small (a breaker's box is only
 	// 14 local units per side) — in Interactive mode, an invisible,
@@ -326,17 +398,27 @@ func renderElement(w io.Writer, lib *SymbolLibrary, voltageColor map[int]string,
 // (data-editor-kind, wider hit targets) is added on top of the otherwise
 // xsde2svg-faithful output — see RenderMode's doc comment.
 //
+// fpiStateColorLegend is the install-wide Open/Close/Intermediate legend a
+// FaultPassageIndicator's own ring/text color is drawn from (see
+// config.Config.FPIStateColors) — a separate legend from stateColorLegend
+// since an FPI's own Open/Close meaning (and thus color) is inverted from a
+// switching device's (see config.Config.FPIStateColors's own doc comment).
+// Pass nil for a caller that hasn't wired one up (every FPI then renders
+// with an unresolved "none" ring/text color, same as a switching device
+// with no stateColorLegend).
+//
 // stateColorLegend is the install-wide Open/Close/Intermediate legend a
 // switching device's state-driven fill is drawn from (see
 // config.Config.StateColors) — omit it to render every such device with an
 // unresolved ("none") fill and no data-fill attribute, e.g. from a caller
 // that hasn't wired up a legend.
-func Render(d *Diagram, lib *SymbolLibrary, w io.Writer, mode RenderMode, stateColorLegend ...StateColor) error {
+func Render(d *Diagram, lib *SymbolLibrary, w io.Writer, mode RenderMode, fpiStateColorLegend []StateColor, stateColorLegend ...StateColor) error {
 	voltageColor := map[int]string{}
 	for _, vc := range d.VoltageClasses {
 		voltageColor[vc.ID] = vc.Color
 	}
 	stateColors := newStateColorSet(stateColorLegend)
+	fpiColors := newStateColorSet(fpiStateColorLegend)
 
 	background := defaultBackground
 	if d.Editor != nil && d.Editor.Background != "" {
@@ -357,7 +439,7 @@ func Render(d *Diagram, lib *SymbolLibrary, w io.Writer, mode RenderMode, stateC
 			elevated[z] = append(elevated[z], e)
 			continue
 		}
-		renderElement(w, lib, voltageColor, stateColors, e, &missing, seenMissing, &lastShape, mode)
+		renderElement(w, lib, voltageColor, stateColors, fpiColors, e, &missing, seenMissing, &lastShape, mode)
 	}
 
 	var lastConnKind string
@@ -383,7 +465,7 @@ func Render(d *Diagram, lib *SymbolLibrary, w io.Writer, mode RenderMode, stateC
 	for _, z := range tiers {
 		var lastTierShape string
 		for _, e := range elevated[z] {
-			renderElement(w, lib, voltageColor, stateColors, e, &missing, seenMissing, &lastTierShape, mode)
+			renderElement(w, lib, voltageColor, stateColors, fpiColors, e, &missing, seenMissing, &lastTierShape, mode)
 		}
 	}
 
@@ -452,10 +534,10 @@ func writePolyline(w io.Writer, id int, kind string, pts []Point, color string, 
 // cable line given the same <g>-wrapping treatment for consistency
 // between the two "named" kinds, since both are meant to carry a real
 // identity (Connector.Name) a plain wire never does — though its own
-// stroke is dashed by default (see cableLineDash), where an overhead
-// line's is solid. code is connectorTypeCode[c.Kind], passed in rather
-// than looked up again since the caller already has it from its own
-// typeComment call.
+// stroke defaults to dashed rather than solid (see
+// resolveCableLineDash/Connector.LineStyle). code is
+// connectorTypeCode[c.Kind], passed in rather than looked up again since
+// the caller already has it from its own typeComment call.
 func writeNamedLine(w io.Writer, c Connector, color string, code string, mode RenderMode) {
 	if color == "" {
 		color = "black"
@@ -471,7 +553,7 @@ func writeNamedLine(w io.Writer, c Connector, color string, code string, mode Re
 	}
 	dash := ""
 	if c.Kind == KindCableLine {
-		dash = cableLineDash
+		dash = resolveCableLineDash(c.LineStyle)
 	} else if c.Dashed {
 		dash = "stroke-dasharray: 14,9;"
 	}

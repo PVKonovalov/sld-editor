@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
-import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch'
+import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
@@ -58,15 +59,18 @@ type RouteStart = ConnectTarget | { kind: 'point'; point: Point }
 // point), each further click appending one more anchored vertex (see
 // appendOrthogonalPoint).
 type Routing = { from: RouteStart; path: Point[] }
-// An in-progress drag of an already-drawn connector's own geometry: either
-// an existing interior vertex (kind 'vertex', index into its points array)
-// or a segment's midpoint (kind 'midpoint', the index of that segment's
-// first endpoint) — dragging a midpoint speculatively inserts a new vertex
-// there, only committed to the diagram on mouseup (see
-// handleMidpointMouseDown).
+// An in-progress drag of an already-drawn connector's own geometry: an
+// existing interior vertex (kind 'vertex', index into its points array), a
+// segment's midpoint (kind 'midpoint', the index of that segment's first
+// endpoint) — dragging a midpoint speculatively inserts a new vertex there,
+// only committed to the diagram on mouseup (see handleMidpointMouseDown) —
+// or one of the connector's own two true endpoints (kind 'endpoint',
+// 'from'/'to'), offered only while that particular end is genuinely
+// dangling (see diagramOps.isConnectorEndpointDangling).
 type VertexDrag =
   | { connectorId: number; kind: 'vertex'; index: number; point: Point }
   | { connectorId: number; kind: 'midpoint'; segmentIndex: number; point: Point }
+  | { connectorId: number; kind: 'endpoint'; end: 'from' | 'to'; point: Point }
 // A specific bend point the user clicked (without dragging) on a selected
 // connector, distinct from selecting the connector itself — lets
 // Delete/Backspace remove just that one vertex instead of the whole wire.
@@ -108,6 +112,55 @@ function appendOrthogonalPoint(path: Point[], end: Point): Point[] {
     return [...path, corner, end]
   }
   return [...path, end]
+}
+
+// Zoom in/out/fit-to-view buttons overlaid on the canvas, mirroring
+// sld-viewer's own ZoomControls (SldPanel.tsx) — mounted as a sibling of
+// TransformComponent, inside TransformWrapper, since useControls() only
+// works within that context. "Reset view" is really a fit-to-content
+// action, not a fixed-scale reset: it scales to whichever of
+// width/height-to-wrapper ratio is smaller (a "contain" fit) and centers
+// the result, rather than snapping back to scale 1. Unlike sld-viewer
+// (which injects a raw SVG string and reads its own natural size via
+// width.baseVal/height.baseVal), the diagram's real size is already known
+// exactly from diagram.width/height, so no DOM measurement of the content
+// itself is needed. animationTime is always 0 — react-zoom-pan-pinch's
+// default rAF-driven animation never completes in a backgrounded tab,
+// which would otherwise leave the transform stuck mid-animation.
+function ZoomControls({ width, height }: { width: number; height: number }) {
+  const { zoomIn, zoomOut, setTransform, instance } = useControls()
+
+  const fitToView = useCallback(() => {
+    const wrapper = instance.wrapperComponent
+    if (!wrapper || !wrapper.clientWidth || !wrapper.clientHeight) return
+    const scale = Math.min(wrapper.clientWidth / width, wrapper.clientHeight / height)
+    const x = (wrapper.clientWidth - width * scale) / 2
+    const y = (wrapper.clientHeight - height * scale) / 2
+    setTransform(x, y, scale, 0)
+  }, [instance, setTransform, width, height])
+
+  const buttons = [
+    { icon: ZoomIn, onClick: () => zoomIn(), title: t('canvas.zoomIn') },
+    { icon: ZoomOut, onClick: () => zoomOut(), title: t('canvas.zoomOut') },
+    { icon: Maximize2, onClick: fitToView, title: t('canvas.resetView') },
+  ]
+
+  return (
+    <div className="absolute bottom-4 right-4 flex flex-col gap-1 z-10">
+      {buttons.map(({ icon: Icon, onClick, title }) => (
+        <button
+          key={title}
+          type="button"
+          title={title}
+          aria-label={title}
+          onClick={onClick}
+          className="flex items-center justify-center w-8 h-8 rounded bg-surface-700 border border-surface-500 text-gray-300 hover:text-white hover:bg-surface-600 shadow transition-colors"
+        >
+          <Icon size={15} />
+        </button>
+      ))}
+    </div>
+  )
 }
 
 // Renders the current in-memory diagram by asking the backend to render it
@@ -242,7 +295,7 @@ export function Canvas() {
     )
   }
 
-  const gridSpacing = diagram.editor?.gridSpacing ?? config?.editor.gridSpacing ?? 20
+  const gridSpacing = diagram.editor?.gridSpacing ?? config?.editor.gridSpacing ?? 10
   const snapEnabled = diagram.editor?.snap ?? config?.editor.snap ?? true
   const showGrid = diagram.editor?.showGrid ?? config?.editor.showGrid ?? true
   const showNodes = diagram.editor?.showNodes ?? true
@@ -767,9 +820,30 @@ export function Canvas() {
     window.addEventListener('mouseup', onUp)
   }
 
-  // The live shape of a connector while one of its own vertices/midpoints
-  // is being dragged: runs the same pure functions the eventual mouseup
-  // will commit, purely to compute what to draw right now — no
+  // Drags one of a connector's own two true endpoints — offered only while
+  // Canvas has already confirmed (via diagramOps.isConnectorEndpointDangling)
+  // that this particular end isn't wired to anything, so there's nothing to
+  // silently tear loose. diagramOps.moveConnectorEndpoint keeps the touching
+  // segment orthogonal the same projection-lock way a vertex drag does.
+  function handleEndpointMouseDown(e: React.MouseEvent, connectorId: number, end: 'from' | 'to') {
+    e.stopPropagation()
+    const onMove = (ev: MouseEvent) => {
+      setVertexDrag({ connectorId, kind: 'endpoint', end, point: snapPoint(toPoint(ev.clientX, ev.clientY)) })
+    }
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setVertexDrag(null)
+      const point = snapPoint(toPoint(ev.clientX, ev.clientY))
+      updateDiagram(d => diagramOps.moveConnectorEndpoint(d, connectorId, end, point))
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // The live shape of a connector while one of its own vertices/midpoints/
+  // endpoints is being dragged: runs the same pure functions the eventual
+  // mouseup will commit, purely to compute what to draw right now — no
   // updateDiagram call, so nothing (lastId included) actually changes
   // until the drag ends. Falls back to the connector's real points
   // whenever it isn't the one currently being dragged.
@@ -777,6 +851,10 @@ export function Canvas() {
     if (!vertexDrag || vertexDrag.connectorId !== connectorId) return points
     if (vertexDrag.kind === 'vertex') {
       const preview = diagramOps.moveConnectorVertex(diagram!, connectorId, vertexDrag.index, vertexDrag.point)
+      return preview.connectors.find(c => c.id === connectorId)?.points ?? points
+    }
+    if (vertexDrag.kind === 'endpoint') {
+      const preview = diagramOps.moveConnectorEndpoint(diagram!, connectorId, vertexDrag.end, vertexDrag.point)
       return preview.connectors.find(c => c.id === connectorId)?.points ?? points
     }
     const inserted = diagramOps.insertConnectorVertex(diagram!, connectorId, vertexDrag.segmentIndex, vertexDrag.point)
@@ -905,6 +983,7 @@ export function Canvas() {
         }
         doubleClick={{ disabled: true }}
       >
+        <ZoomControls width={diagram.width} height={diagram.height} />
         <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
           <div
             ref={wrapperRef}
@@ -1048,9 +1127,11 @@ export function Canvas() {
                           both adjoining segments orthogonal), or a plain
                           click selects just that vertex for
                           Delete/Backspace instead of the whole wire. The
-                          two true endpoints aren't handles here at all —
-                          they're what the connector's own Nodes/Ports
-                          point at, not free-floating. */}
+                          two true endpoints get no handle here at all when
+                          they're a real electrical connection (an element's
+                          own Port, or a junction shared with another
+                          connector) — only a genuinely dangling one gets
+                          the separate unfilled-square handle below. */}
                       {points.slice(1, -1).map((p, i) => {
                         const index = i + 1
                         const isSelected =
@@ -1091,6 +1172,27 @@ export function Canvas() {
                           >
                             <circle cx={mid.x} cy={mid.y} r={7} fill="transparent" />
                             <circle cx={mid.x} cy={mid.y} r={3} fill={HIGHLIGHT} fillOpacity={0.5} />
+                          </g>
+                        )
+                      })}
+                      {/* An unfilled square handle at either true endpoint,
+                          but only while diagramOps.isConnectorEndpointDangling
+                          says that end isn't a real electrical connection —
+                          dragging it moves the endpoint itself (see
+                          handleEndpointMouseDown/moveConnectorEndpoint),
+                          unlike the filled squares above which only ever
+                          move an interior bend. */}
+                      {(['from', 'to'] as const).map(end => {
+                        if (!diagramOps.isConnectorEndpointDangling(diagram!, selectedConnector, end)) return null
+                        const p = end === 'from' ? points[0] : points[points.length - 1]
+                        return (
+                          <g
+                            key={`endpoint-${end}`}
+                            style={{ pointerEvents: 'auto', cursor: 'move' }}
+                            onMouseDown={e => handleEndpointMouseDown(e, selectedConnector.id, end)}
+                          >
+                            <circle cx={p.x} cy={p.y} r={9} fill="transparent" />
+                            <rect x={p.x - 4} y={p.y - 4} width={8} height={8} fill="none" stroke={HIGHLIGHT} strokeWidth={1.5} />
                           </g>
                         )
                       })}

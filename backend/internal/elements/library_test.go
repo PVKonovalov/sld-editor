@@ -113,7 +113,7 @@ func TestSymbolLibrary_RendersConfiguredShapes(t *testing.T) {
 		},
 	}
 	var buf bytes.Buffer
-	if err := slddoc.Render(d, lib.SymbolLibrary(), &buf, slddoc.Static); err != nil {
+	if err := slddoc.Render(d, lib.SymbolLibrary(), &buf, slddoc.Static, nil); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), `id="1"`) {

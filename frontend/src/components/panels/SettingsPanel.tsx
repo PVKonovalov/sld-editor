@@ -10,7 +10,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const [presetName, setPresetName] = useState('')
 
   const defaults = config?.editor
-  const gridSpacing = diagram?.editor?.gridSpacing ?? defaults?.gridSpacing ?? 20
+  const gridSpacing = diagram?.editor?.gridSpacing ?? defaults?.gridSpacing ?? 10
   const snap = diagram?.editor?.snap ?? defaults?.snap ?? true
   const showGrid = diagram?.editor?.showGrid ?? defaults?.showGrid ?? true
   const showNodes = diagram?.editor?.showNodes ?? true

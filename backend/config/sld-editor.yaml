@@ -19,7 +19,7 @@ elements:
 
 editor:
   # Settings-panel defaults for a diagram that hasn't saved its own.
-  grid_spacing: 20
+  grid_spacing: 10
   snap: true
   show_grid: true
   background: "#12161d"
@@ -58,3 +58,29 @@ state_colors:
   - state: 2
     label: "Intermediate"
     color: "yellow"
+
+fpi_state_colors:
+  - state: 0
+    label: "Open"
+    color: "lawngreen"
+  - state: 1
+    label: "Close"
+    color: "red"
+  - state: 2
+    label: "Intermediate"
+    color: "yellow"
+
+# Global Service/Normal/Test legend a withdrawable device's own racking
+# position is labeled from (internal/slddoc.Render's data-trolley attribute)
+# and the Properties panel's Position status dropdown offers — only Breaker/
+# Disconnector (withdrawable), shapes 43/49, currently use it. Unlike
+# state_colors, position carries no color of its own, only a label — it
+# drives a geometric offset (the withdrawable body sliding out of its cell),
+# not a fill.
+position_states:
+  - position: 0
+    label: "Service"
+  - position: 1
+    label: "Normal"
+  - position: 2
+    label: "Test"

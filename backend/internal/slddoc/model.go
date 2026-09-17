@@ -159,6 +159,13 @@ type Element struct {
 	// State carries an element's status (e.g. breaker open/closed), when
 	// one applies to this class.
 	State *int `xml:"state,attr,omitempty" json:"state,omitempty"`
+	// Position carries a withdrawable device's own racking position
+	// (Service/Normal/Test — see config.Config's PositionStates), a status
+	// axis independent of State: a withdrawable breaker/disconnector can be
+	// closed-and-racked-in, open-and-racked-in, or racked-out/test entirely
+	// regardless of its own open/closed State. Only shapes 43/49 (Breaker/
+	// Disconnector, withdrawable) currently use it.
+	Position *int `xml:"position,attr,omitempty" json:"position,omitempty"`
 	// FillOff/FillOn are a Lamp's (shape 106) two display colors, chosen by
 	// State. Unlike the switch-like devices' state indicator (a fixed
 	// red/lawngreen/yellow convention), a lamp's colors are chosen per
@@ -200,6 +207,22 @@ const (
 	KindBusWork      ConnectorKind = "BusWork"
 )
 
+// ConnectorLineStyle is a KindCableLine connector's own dash pattern
+// choice, mirroring xsde2svg's own line-style switch
+// (xsde2svg/internal/modus/element_23.go) exactly. Meaningless for every
+// other Kind — see Connector.LineStyle's own doc comment. Empty/unset
+// resolves to LineStyleDashed (render.go's resolveCableLineDash), the
+// same fixed dash this editor used before this field existed, so an
+// already-saved diagram keeps rendering exactly as it did before.
+type ConnectorLineStyle string
+
+const (
+	LineStyleSolid   ConnectorLineStyle = "solid"
+	LineStyleDashed  ConnectorLineStyle = "dashed"
+	LineStyleDashDot ConnectorLineStyle = "dashDot"
+	LineStyleDotted  ConnectorLineStyle = "dotted"
+)
+
 // kindObjectLinkLegacy is KindBusWork's old stored value, from before this
 // editor renamed it — kept only so Load can still make sense of a
 // connector saved by an older version of this editor rather than erroring
@@ -219,8 +242,15 @@ type Connector struct {
 	Voltage int    `xml:"voltage,attr,omitempty" json:"voltage,omitempty"`
 	Layer   int    `xml:"layer,attr" json:"layer"`
 	Dashed  bool   `xml:"dashed,attr,omitempty" json:"dashed,omitempty"`
-	From    int    `xml:"from,attr" json:"from"`
-	To      int    `xml:"to,attr" json:"to"`
+	// LineStyle is a KindCableLine connector's own dash pattern — see
+	// ConnectorLineStyle's own doc comment. Ignored for every other Kind
+	// (render.go's writeNamedLine only reads it when Kind is
+	// KindCableLine), left as a plain unvalidated field the same way an
+	// Element's State is meaningless for a non-switching-device Class but
+	// still just a plain field.
+	LineStyle ConnectorLineStyle `xml:"lineStyle,attr,omitempty" json:"lineStyle,omitempty"`
+	From      int                `xml:"from,attr" json:"from"`
+	To        int                `xml:"to,attr" json:"to"`
 
 	Points []Point `xml:"point" json:"points"`
 }

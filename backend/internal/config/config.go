@@ -52,6 +52,22 @@ type Config struct {
 	// color, so there is nothing for a diagram to have "already saved"
 	// here to fall back to.
 	StateColors []StateColor `yaml:"state_colors"`
+
+	// FPIStateColors is the install-wide Open/Close/Intermediate legend a
+	// FaultPassageIndicator's own ring/text color (internal/slddoc.Render's
+	// {fpiColor}) is drawn from — a separate legend from StateColors since
+	// an FPI's Open/Close meaning is inverted from a switching device's own:
+	// a switching device defaults to Close/lawngreen (in service, current
+	// flowing), while an FPI defaults to Open/lawngreen (no fault detected)
+	// and turns red on Close (a fault passed through it).
+	FPIStateColors []StateColor `yaml:"fpi_state_colors"`
+
+	// PositionStates is the install-wide Service/Normal/Test legend a
+	// withdrawable device's own racking position (Element.Position, its own
+	// data-trolley attribute — see internal/slddoc.Render) is labeled from.
+	// Unlike State, position carries no color of its own — it only drives a
+	// geometric offset — so there's no Color field here, just a label.
+	PositionStates []PositionState `yaml:"position_states"`
 }
 
 // VoltageColor is one default palette entry.
@@ -69,4 +85,13 @@ type StateColor struct {
 	State int    `yaml:"state" json:"state"`
 	Label string `yaml:"label" json:"label"`
 	Color string `yaml:"color" json:"color"`
+}
+
+// PositionState is one entry of the global withdrawable-position legend:
+// Position is the raw value an Element's own Position field records
+// (0/1/2), and Label is what the Properties panel's Position status
+// dropdown shows for it.
+type PositionState struct {
+	Position int    `yaml:"position" json:"position"`
+	Label    string `yaml:"label" json:"label"`
 }

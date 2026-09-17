@@ -38,8 +38,12 @@ func main() {
 	for i, sc := range cfg.StateColors {
 		stateColors[i] = slddoc.StateColor{State: sc.State, Label: sc.Label, Color: sc.Color}
 	}
+	fpiColors := make([]slddoc.StateColor, len(cfg.FPIStateColors))
+	for i, sc := range cfg.FPIStateColors {
+		fpiColors[i] = slddoc.StateColor{State: sc.State, Label: sc.Label, Color: sc.Color}
+	}
 
-	store, err := storage.New(cfg.Diagrams.Dir, lib.SymbolLibrary(), stateColors...)
+	store, err := storage.New(cfg.Diagrams.Dir, lib.SymbolLibrary(), fpiColors, stateColors...)
 	if err != nil {
 		llog.Logger.Fatalf("opening diagrams directory (%s): %v", cfg.Diagrams.Dir, err)
 	}

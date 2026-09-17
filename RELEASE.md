@@ -1315,3 +1315,265 @@ unless the general `Connector.Dashed` flag is set. The Elements panel's
 own "Cable line" wire-kind icon (`wireKindIcon.ts`) is updated to the
 same `6 5` dasharray so the palette preview now matches the real render
 exactly, rather than a placeholder dash pattern.
+
+2026-09-17: A `KindCableLine` connector's dash pattern is now a real,
+per-instance choice instead of the single hardcoded default from
+earlier today. Added `Connector.LineStyle` (`ConnectorLineStyle`: empty/
+unset, `solid`, `dashed`, `dashDot`, `dotted`), mirroring xsde2svg's own
+line-style switch (`xsde2svg/internal/modus/element_23.go`) exactly —
+`render.go`'s `resolveCableLineDash` maps it to the real
+stroke-dasharray value, with unset/unrecognized falling back to
+`dashed` (6,5) so an already-saved diagram keeps rendering the same way
+it did before this field existed. Meaningless for every other
+`ConnectorKind`, which keeps its old behavior untouched (the legacy
+`Dashed` boolean still governs `KindOverheadLine`/`KindBusWork`, exactly
+as before). The Properties panel now shows a "Line style" dropdown for
+a selected connector, but only when its Kind is Cable line — the four
+choices carry plain English labels (Solid/Dashed/Dash-dot/Dotted), not
+the Russian names the reference implementation itself uses internally.
+`diagramOps.ts`'s two connector-splitting functions (`spliceConnectorAt`,
+`deleteConnectorSegment`) now carry `lineStyle` over to each half, the
+same way they already do for `dashed`.
+
+2026-09-17: The Elements panel's own equipment/wire/text palette buttons
+now use a 10%-tighter padding around each preview icon (`p-1` → the
+Tailwind arbitrary value `p-[3.6px]`) so the icon sits a little closer
+to its button's border.
+
+2026-09-17: A selected element's own type line in Properties
+(`PropertiesPanel.tsx`) now reads "Name:shape" (e.g. "Breaker:41",
+"Load-break switch:42") for every element, not just the ones — Breaker,
+Disconnector — whose palette name already happened to distinguish a
+withdrawable variant from a plain one. Matches render.go's own
+`typeComment`/`shapeName` "Breaker:41"-style SVG comment convention
+exactly, just surfaced in the UI too.
+
+2026-09-17: The Elements panel's "Wires" section renames its plain/
+default `KindBusWork` button from "Wire" to "Buswork" (English locale
+only, `connectorKind.BusWork` in `en.ts`) — matching the name
+`render.go`'s own `connectorKindName` map has always used for this kind
+internally (its SVG comment already reads `<!-- Buswork:21 -->`).
+
+2026-09-17: A selected connector's own two true endpoints can now be
+dragged directly — but only when genuinely dangling (not an element's
+own Port, and not shared with another connector as a junction; see
+`diagramOps.isConnectorEndpointDangling`) — closing a real gap where a
+wire's length/position could previously only change by moving whatever
+it was attached to, or by deleting and redrawing it. New
+`diagramOps.moveConnectorEndpoint` keeps the touching segment orthogonal
+via the same projection-lock rule `moveConnectorVertex` already uses for
+an interior vertex, just with a single neighbor: that neighbor slides to
+match when it's itself free to move, or gets a new bend inserted next to
+it when it's the connector's other true endpoint (a straight two-point
+wire) and can't. Canvas shows the new handle as an unfilled square
+(`handleEndpointMouseDown`), distinct from an interior vertex's filled
+one and a segment midpoint's translucent circle, appearing only on a
+dangling end.
+
+2026-09-17: Added zoom in/zoom out/fit-to-view buttons overlaid on the
+canvas, bottom-right (`Canvas.tsx`'s new `ZoomControls`), matching
+sld-viewer's own control layout and styling. "Fit to view" scales and
+centers the whole diagram to the wrapper's current size (a "contain" fit
+computed from `diagram.width`/`height`, with `animationTime: 0` on the
+underlying `setTransform` call to avoid `react-zoom-pan-pinch`'s default
+rAF-driven animation getting stuck on a backgrounded tab) rather than
+resetting to a fixed scale.
+
+2026-09-17: Ground switch (shape 54) read backwards at its raw, unrotated
+default — earth/ground plates at the top, switch stub at the bottom —
+confirmed by comparing byte-for-byte against a real xsde2svg corpus
+export (`sld-viewer/assets/sld/*.svg`, 497 occurrences), which always
+places this shape pre-rotated (orient 90/180, never 0); the template
+geometry itself is correct and was left untouched. Fixed two things that
+sat on top of it instead: the Elements panel's own preview icon for
+Ground switch is now spun 180° just for display (`elementIcon.ts`'s new
+`ICON_ROTATION`, keyed by shape, wraps the icon body in a `rotate(180)`
+group — doesn't touch the real render template), and a freshly placed
+Ground switch now defaults to `orient: 180` instead of unset/0
+(`diagramOps.placeElement`), so it already reads the conventional way —
+stub up toward whatever it taps off of, earth symbol dangling below —
+without a separate trip to Properties' Orientation field.
+
+2026-09-17: Ground switch's own State is no longer inert — Properties
+already offered a State dropdown for it, but `base.xml`'s shape-54
+template never consumed the value, so nothing visually changed when it
+was set. Its moving-blade path now uses the same `{state:a|b|c}`/
+`{stateAttr}` mechanism Breaker/Disconnector already use, reusing
+Disconnector's own Close(vertical)/Open(horizontal)/Intermediate(diagonal)
+convention — Open is the template's own existing fixed line
+(`M 6 -8 h -12`), Close (`M 0 -2 v -12`) was cross-checked byte-for-byte
+against real corpus exports actually carrying `data-state="1"` for this
+shape (`PS_110kV_Lubnisa.svg`, `Shema PO VES.svg`), and Intermediate
+(`M -4.6 -12.6 l 9.2 9.2`) borrows Disconnector's own diagonal
+proportions, recentered to Ground switch's blade pivot, since no real
+corpus example of that state exists for this shape. Since an unset State
+now renders as Close (`applyStateLine`'s own nil-maps-to-first-option
+rule), `placeElement` also gives a freshly placed Ground switch a default
+State of 0/Open (`GROUND_SWITCH_DEFAULT_STATE`) — matching both the real
+corpus (~92% of a real substation export's own Ground switch elements are
+Open) and the template's own pre-existing fixed appearance, so nothing
+about a freshly placed one's default look actually changes. Every existing
+saved Ground switch already carries an explicit `state="0"` (confirmed:
+all local diagrams, and 92% of the reference corpus), so this is a pure
+render-side addition with no visual regression for anything already
+saved.
+
+Ground switch also gained a real `<terminals>` entry — `<terminal x="0"
+y="10"/>` — the first it's ever had; previously the click-to-route tool
+and Ctrl/Cmd-click-to-connect could only fall back to its bare anchor
+(`el.x`/`el.y`), which sits in the middle of the switch mechanism, not
+where a wire actually belongs. Only one terminal, not two like Breaker/
+Disconnector: a real xsde2svg corpus diagram's own Ground switch elements
+each carry exactly one `<port>`, since the symbol's other end is the
+earth/ground-plate symbol — a dead end representing "connected to the
+physical earth", not a node anything else can attach to. The terminal is
+placed at the grid-aligned y=10 rather than the drawn stub's own true tip
+(y=12), so a wire landing on it stays exactly on a 10-unit grid, matching
+Breaker/Disconnector's own ±10 terminals.
+
+2026-09-17: The default grid spacing is now 10 units (was 20) — the
+server config default (`grid_spacing` in `sld-editor.yaml`) and both
+frontend fallback constants (`Canvas.tsx`, `SettingsPanel.tsx`) that apply
+before a diagram's own `editor.gridSpacing` or the server config loads.
+
+2026-09-17: Ground switch's own stub is now shortened to end exactly at
+its terminal (y=10) instead of overshooting 2 units past it to the real
+corpus's own y=12 tip — visible on selection as the drawn line sticking
+out past the terminal's own red "X" marker (a deliberate, minor deviation
+from that byte-for-byte corpus match, this time on purpose, since the
+terminal itself is already grid-aligned to y=10 rather than the corpus's
+y=12). Every downstream coordinate (contact bars, ground plates) is
+unchanged, since they're all relative moves from the same point the stub
+still ends at.
+
+2026-09-17: Load-break switch (shape 42) now defaults to State Close on
+placement, same as Breaker/Disconnector (`diagramOps`'s
+`DEFAULT_CLOSED_CLASSES` now includes it), and gained a real `<terminals>`
+entry — `<terminal x="0" y="-10"/>`/`<terminal x="0" y="10"/>` — matching
+Breaker/Disconnector's own convention exactly, since its template's stem
+already ends at precisely those two points (no geometry change needed,
+unlike Ground switch). Previously Canvas's click-to-route tool and
+Ctrl/Cmd-click-to-connect could only fall back to its bare anchor for a
+Load-break switch; now both real terminals show as selection markers and
+are proper wiring targets.
+
+2026-09-17: Breaker/Disconnector (withdrawable) — shapes 43/49 — gained a
+second, independent status axis: Position status (Service/Normal/Test),
+their own racking position, alongside their existing Operational Status
+(open/closed/intermediate — the Properties State dropdown, now relabeled
+"Operational Status" for these two shapes specifically so it isn't
+confused with the new field). Modeled on `sld-viewer`'s own Pattern D
+(`applyTrolleyState`/`data-trolley`), not the real xsde2svg exporter's own
+per-shape behavior — a deliberate choice: the real source only offsets the
+body for "Service" and leaves "Test" at the same x-origin (a per-element
+`xMirror`-aware nuance), where this editor (and sld-viewer's own live
+telemetry handler) offsets both the same simple way, since there's no
+per-instance mirroring concept here.
+
+New `Element.Position *int` (`model.go`, mirrors `State` exactly), a new
+`config.PositionStates`/`position_states` legend (Service/Normal/Test —
+no color, since Position drives a geometric offset, not a fill), and two
+new `render.go` placeholders, `{positionAttr}` (a live `data-trolley="N"`
+on the movable body's own wrapping `<g>`) and `{positionOffset}` (the
+x-shift applied via that `<g>`'s own `transform`). `base.xml`'s shape
+43/49 templates now wrap everything except their own fixed far
+isolating-throw chevrons in that `<g>` — those chevrons stay in place
+outside it, matching both a real xsde2svg export's own fixed disconnect-
+contact stubs and sld-viewer's own Pattern D DOM shape. Both shapes also
+gained real `<terminals>` for the first time — `(0,-30)`/`(0,30)`, the far
+chevron tips, which the file's own preexisting comment already identified
+as the true connection points (the gap out to them is "the isolating
+throw distance," not a missing connector) — previously neither had any
+terminals at all. Shape 49's own `{state:...}` blade options were
+re-derived from the real xsde2svg source
+(`xsde2svg/internal/modus/element_49.go`): the symbol's pre-existing
+geometry turned out to already be that source's exact "Normal position,
+Closed" output, confirmed byte-for-byte by re-deriving the formula from
+the source's own constants; Open was derived the same way, and
+Intermediate (which the real exporter doesn't model for this shape at
+all) was invented for consistency with every other switching device's own
+3-way State — the same kind of deliberate deviation Ground switch's own
+Intermediate option already is. Existing saved diagrams are unaffected:
+every already-placed shape-43/49 element carries no Position, which
+renders as offset 0 with no `data-trolley` attribute — visually identical
+to before this change (confirmed against `PS_110kV_Example.xml`'s own 30
+such elements).
+
+2026-09-17: Breaker/Disconnector (withdrawable) — shapes 43/49 — now
+default to Position status Normal on placement (`diagramOps.placeElement`'s
+new `WITHDRAWABLE_SHAPES`/`POSITION_NORMAL`), the same racked-in/connected
+position every such device starts service in. Doesn't change how a freshly
+placed one renders (base.xml's `{positionOffset}` already treats nil the
+same as 1/Normal), just gives Properties' own Position status dropdown a
+real starting value instead of "— none —".
+
+2026-09-17: Disconnector (withdrawable):49's own invented Intermediate
+Operational Status animation is now the plain Disconnector's (162) own
+diagonal, verbatim — `l 9.2 9.2`, the exact same segment 162 itself uses —
+instead of a separately-invented diagonal shape. The surrounding
+"m -8.6 5.4"/"m -8.6 5.4" stubs are shape 49's own (its contact gap is
+bigger than 162's), chosen so that diagonal still runs from (-4.6,-4.6) to
+(4.6,4.6) relative to the switch's own gap center, exactly like 162's own
+diagonal does relative to its center, while still meeting the fixed
+contact bars on either side.
+
+2026-09-17: Ground terminal (shape 31) gained a real `<terminals>` entry —
+a single `<terminal x="0" y="-10"/>` — its stem's own far tip, which was
+already exactly grid-aligned (unlike Ground switch's own stub, this needed
+no shortening). Only one terminal, same reasoning as Ground switch: the
+plate fan below is a dead end representing the physical earth, not a node
+anything else attaches to.
+
+2026-09-17: Current transformer (shape 34) shortened from height 22 (its
+primary-conductor line spanning ±11) to height 20 (±10), so it's
+grid-aligned, and gained two real `<terminals>` — `(0,-10)`/`(0,10)`, the
+line's own new tips — its coil-loop geometry (already ±8, height 16) was
+left as-is.
+
+2026-09-17: Choke coil (shape 33) and Capacitor (shape 388) each gained
+two real `<terminals>` at their own stem's two ends — `(0,-20)`/`(0,20)`
+for Choke coil, `(0,-10)`/`(0,10)` for Capacitor — both already exactly
+grid-aligned, so no geometry change was needed for either.
+
+2026-09-17: Fuse (shape 203) and Surge arrester (shape 35) each gained two
+real `<terminals>` at `(0,-10)`/`(0,10)` — both symbols' own stems already
+ended exactly there, so no geometry change was needed for either.
+
+2026-09-17: Fault passage indicator (shape 320003) — its own circle+"FPI"
+text template already existed, but its ring/text color now tracks State
+via a brand new, separate config legend, `fpi_state_colors`
+(`config.Config.FPIStateColors`, served as `GET /api/config`'s
+`fpiStateColors`) — deliberately its own legend rather than reusing
+`state_colors`, since an FPI's Open/Close meaning is inverted from a
+switching device's own (Open/lawngreen = no fault, Close/red = fault
+passed, vs. a breaker's Open/red, Close/lawngreen). New `render.go`
+placeholder `{fpiColor}` (a `stateColorSet.fpiColor` method, defaulting an
+unrecorded State to 0/Open rather than the generic `{fill}`'s "none",
+since the ring is always colored) replaces the template's own previously
+hardcoded `stroke:lime`/`fill:lime`. `slddoc.Render`'s own signature grew
+a new `fpiStateColorLegend []StateColor` parameter (before the existing
+variadic `stateColorLegend`), threaded through `storage.Store` the same
+way the switching-device legend already was. Gained two real `<terminals>`
+at `(0,-10)`/`(0,10)` and, in Properties, its own State dropdown (sourced
+from `fpiStateColors`, not `stateColors`) — previously not shown at all,
+since FaultPassageIndicator wasn't in `SWITCHING_DEVICE_CLASSES`. A
+freshly placed one now also defaults to State 0 (Open) and Radius 10
+(`diagramOps`'s `FPI_DEFAULTS`, matching the terminals above and the
+default 10-unit grid) instead of leaving both unset — an unset Radius
+rendered as an invisible `r="0"` circle, the same gap Lamp had before its
+own defaults were added; existing saved diagrams with an already-placed,
+radius-less FaultPassageIndicator are unaffected by this (their own
+circle stays invisible, only their "FPI" text — never radius-dependent —
+picks up the new default-Open color). The template's own "FPI" text also
+shrank from 13px to 8px, so it fits inside a ring this size. Also stopped
+offering a Voltage class field for it in Properties, matching Lamp's own
+treatment (neither reads a voltage color) — but, unlike Lamp, it keeps
+Orientation: Lamp's template has no terminals at all, so rotating it does
+nothing either way, while a FaultPassageIndicator's own two real terminals
+(top/bottom by default) do need Orientation to land on a horizontal wire
+instead of only ever a vertical one. Rotating it would have carried its
+own "FPI" text sideways too, so that text is now wrapped in its own `<g
+transform="rotate({counterRotate})">` — a new `render.go` placeholder,
+the negated Orient, that cancels the outer element-level rotation for
+just that one fragment — keeping the label upright at any Orientation
+while the ring and its terminals still rotate normally.

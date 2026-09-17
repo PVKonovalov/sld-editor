@@ -13,7 +13,7 @@ func newTestStore(t *testing.T) *Store {
 	lib := slddoc.NewSymbolLibrary(map[string]string{
 		"41": `<path d="M 0 0" style="stroke:{color}"/>`,
 	})
-	s, err := New(t.TempDir(), lib)
+	s, err := New(t.TempDir(), lib, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

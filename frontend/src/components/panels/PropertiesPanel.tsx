@@ -2,15 +2,38 @@ import { Trash2 } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { PanelShell } from './PanelShell'
-import { t } from '../../i18n'
-import type { DiagramElement } from '../../types'
+import { t, type TranslationKey } from '../../i18n'
+import type { DiagramElement, ConnectorLineStyle } from '../../types'
 
 const ORIENTATIONS = [0, 90, 180, -90]
+
+// A Cable line connector's own dash-pattern choices, mirroring xsde2svg's
+// own line-style switch (xsde2svg/internal/modus/element_23.go) exactly —
+// meaningless for every other ConnectorKind, so this dropdown only shows
+// when the selected connector's kind is 'CableLine'. An empty value
+// (Default) leaves LineStyle unset, which render.go's
+// resolveCableLineDash then treats as 'dashed'.
+const CABLE_LINE_STYLES: { value: ConnectorLineStyle | ''; labelKey: TranslationKey }[] = [
+  { value: '', labelKey: 'properties.lineStyleDefault' },
+  { value: 'solid', labelKey: 'properties.lineStyleSolid' },
+  { value: 'dashed', labelKey: 'properties.lineStyleDashed' },
+  { value: 'dashDot', labelKey: 'properties.lineStyleDashDot' },
+  { value: 'dotted', labelKey: 'properties.lineStyleDotted' },
+]
 
 // Classes whose base.xml template reacts to {state:...}/{fill} — every
 // switching device with an Open/Close/Intermediate position, and so the
 // only ones that get a State dropdown in Properties.
 const SWITCHING_DEVICE_CLASSES = new Set(['Breaker', 'Disconnector', 'LoadBreakSwitch', 'GroundSwitch'])
+
+// Shapes whose base.xml template also reacts to {positionAttr}/
+// {positionOffset} (a withdrawable device's own Service/Normal/Test
+// racking position, independent of its own State) — Breaker/Disconnector
+// share a Class with their non-withdrawable siblings (41/162), so this has
+// to be keyed by Shape, not Class, unlike SWITCHING_DEVICE_CLASSES above.
+// Shown alongside State, whose own label switches to "Operational Status"
+// for these two so it isn't confused with the new "Position status" field.
+const WITHDRAWABLE_SHAPES = new Set(['43', '49'])
 
 // A Lamp reads its own two fixed FillOff/FillOn colors (see
 // diagramOps.LAMP_DEFAULTS/render.go's lampColor), not a voltage class
@@ -179,6 +202,31 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               ))}
             </select>
           </label>
+          {connector.kind === 'CableLine' && (
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.lineStyle')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={connector.lineStyle ?? ''}
+                onChange={e =>
+                  updateDiagram(d => ({
+                    ...d,
+                    connectors: d.connectors.map(c =>
+                      c.id === connector.id
+                        ? { ...c, lineStyle: e.target.value === '' ? undefined : (e.target.value as ConnectorLineStyle) }
+                        : c,
+                    ),
+                  }))
+                }
+              >
+                {CABLE_LINE_STYLES.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {t(opt.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: connector.id })}</p>
           <DeleteButton label={t('properties.deleteConnector')} onDelete={deleteSelected} />
         </div>
@@ -294,7 +342,16 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // library that no longer has that Shape (e.g. shapeDisconnectorLegacy's
   // own kind of gap), so this never just renders blank.
   const typeName = elements.find(s => s.shape === el.shape)?.name ?? el.class
+  // "Name:shape" — the same "Breaker:41" convention render.go's own
+  // typeComment annotates the rendered SVG with (see shapeName), shown
+  // here for every element, not just the ones whose name happens to
+  // already read as distinctive (e.g. "Breaker (withdrawable)").
+  const typeLabel = `${typeName}:${el.shape}`
   const isLamp = el.class === 'Lamp'
+  // Neither a Lamp nor a FaultPassageIndicator reads a Voltage class color
+  // (see diagramOps.placeElement's own matching exclusion) — both get a
+  // fixed color of their own instead.
+  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator'
 
   function patch(fields: Partial<DiagramElement>) {
     updateDiagram(d => ({
@@ -306,7 +363,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   return (
     <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
       <div className="space-y-3">
-        <p className="text-xs text-gray-400">{typeName}</p>
+        <p className="text-xs text-gray-400">{typeLabel}</p>
         <label className="block text-xs">
           <span className="block text-gray-400 mb-1">{t('properties.name')}</span>
           <input
@@ -316,7 +373,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           />
         </label>
 
-        {!isLamp && (
+        {!hasNoVoltage && (
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.voltageClass')}</span>
             <select
@@ -393,7 +450,9 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
 
         {SWITCHING_DEVICE_CLASSES.has(el.class) && (
           <label className="block text-xs">
-            <span className="block text-gray-400 mb-1">{t('properties.state')}</span>
+            <span className="block text-gray-400 mb-1">
+              {t(WITHDRAWABLE_SHAPES.has(el.shape) ? 'properties.operationalStatus' : 'properties.state')}
+            </span>
             <select
               className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
               value={el.state ?? ''}
@@ -401,6 +460,42 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             >
               <option value="">{t('common.none')}</option>
               {(config?.stateColors ?? []).map(sc => (
+                <option key={sc.state} value={sc.state}>
+                  {sc.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {WITHDRAWABLE_SHAPES.has(el.shape) && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.positionStatus')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.position ?? ''}
+              onChange={e => patch({ position: e.target.value === '' ? undefined : Number(e.target.value) })}
+            >
+              <option value="">{t('common.none')}</option>
+              {(config?.positionStates ?? []).map(ps => (
+                <option key={ps.position} value={ps.position}>
+                  {ps.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        {el.class === 'FaultPassageIndicator' && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.state')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.state ?? ''}
+              onChange={e => patch({ state: e.target.value === '' ? undefined : Number(e.target.value) })}
+            >
+              <option value="">{t('common.none')}</option>
+              {(config?.fpiStateColors ?? []).map(sc => (
                 <option key={sc.state} value={sc.state}>
                   {sc.label}
                 </option>
@@ -446,9 +541,14 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         ) : (
-          // A Lamp's own template is a plain circle — rotating it changes
-          // nothing visually, so Orientation is skipped for it the same
-          // way Voltage class is above.
+          // Lamp's own template is a plain circle with no terminals at
+          // all — rotating it changes nothing, visually or functionally,
+          // so Orientation is skipped for it alone. FaultPassageIndicator
+          // looks the same rotated too, but unlike Lamp it does have real
+          // terminals (top/bottom) — Orientation is what lets one of those
+          // land on a horizontal wire instead of only ever a vertical one,
+          // so it still needs the field even though nothing visually
+          // changes.
           !isLamp && (
             <label className="block text-xs">
               <span className="block text-gray-400 mb-1">{t('properties.orientation')}</span>

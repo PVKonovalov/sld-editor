@@ -33,19 +33,22 @@ type Store struct {
 	dir         string
 	lib         *slddoc.SymbolLibrary
 	stateColors []slddoc.StateColor
+	fpiColors   []slddoc.StateColor
 }
 
 // New opens (creating if necessary) dir as a diagram store. lib is used to
-// render each saved diagram's companion .svg. stateColors, when given, is
-// the install-wide state->color legend (config.Config.StateColors,
-// converted) every render carries through to internal/slddoc.Render —
-// omit it for a store that doesn't need one (e.g. a test not exercising
-// switching-device state).
-func New(dir string, lib *slddoc.SymbolLibrary, stateColors ...slddoc.StateColor) (*Store, error) {
+// render each saved diagram's companion .svg. fpiColors, when given, is the
+// install-wide FaultPassageIndicator color legend (config.Config.
+// FPIStateColors, converted); stateColors, when given, is the install-wide
+// switching-device state->color legend (config.Config.StateColors,
+// converted) — both are carried through to every internal/slddoc.Render
+// call. Pass nil for fpiColors, or omit stateColors entirely, for a store
+// that doesn't need one (e.g. a test not exercising that state).
+func New(dir string, lib *slddoc.SymbolLibrary, fpiColors []slddoc.StateColor, stateColors ...slddoc.StateColor) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("storage: creating diagrams directory %s: %w", dir, err)
 	}
-	return &Store{dir: dir, lib: lib, stateColors: stateColors}, nil
+	return &Store{dir: dir, lib: lib, stateColors: stateColors, fpiColors: fpiColors}, nil
 }
 
 // Info describes one stored diagram, for the File > Open listing.
@@ -148,7 +151,7 @@ func (s *Store) Save(name string, d *slddoc.Diagram) (renderWarning, err error) 
 	// Always Static: the saved .svg is a downloadable artifact, meant to
 	// stay a clean, xsde2svg-faithful document — never carries this
 	// editor's own interactivity-only markup.
-	renderWarning = slddoc.Render(d, s.lib, sf, slddoc.Static, s.stateColors...)
+	renderWarning = slddoc.Render(d, s.lib, sf, slddoc.Static, s.fpiColors, s.stateColors...)
 	return renderWarning, nil
 }
 
@@ -157,7 +160,7 @@ func (s *Store) Save(name string, d *slddoc.Diagram) (renderWarning, err error) 
 // Interactive for the in-app canvas, Static for anything served as if it
 // were the saved artifact (e.g. a download link).
 func (s *Store) Render(d *slddoc.Diagram, w io.Writer, mode slddoc.RenderMode) error {
-	return slddoc.Render(d, s.lib, w, mode, s.stateColors...)
+	return slddoc.Render(d, s.lib, w, mode, s.fpiColors, s.stateColors...)
 }
 
 // safeName rejects a diagram name that could escape the store's directory

@@ -81,6 +81,7 @@ export interface DiagramElement {
   y: number
   orient?: number
   state?: number | null
+  position?: number | null
   fillOff?: string
   fillOn?: string
   radius?: number
@@ -90,6 +91,13 @@ export interface DiagramElement {
 
 // Matches backend/internal/slddoc.ConnectorKind.
 export type ConnectorKind = 'BusbarWire' | 'OverheadLine' | 'CableLine' | 'BusWork'
+
+// Matches backend/internal/slddoc.ConnectorLineStyle — a CableLine
+// connector's own dash pattern, mirroring xsde2svg's own line-style
+// switch (xsde2svg/internal/modus/element_23.go). Meaningless for every
+// other ConnectorKind; unset/empty resolves to 'dashed' server-side (see
+// render.go's resolveCableLineDash).
+export type ConnectorLineStyle = 'solid' | 'dashed' | 'dashDot' | 'dotted'
 
 export interface Connector {
   id: number
@@ -101,6 +109,9 @@ export interface Connector {
   voltage?: number
   layer: number
   dashed?: boolean
+  // Only meaningful when kind === 'CableLine' — see ConnectorLineStyle's
+  // own doc comment.
+  lineStyle?: ConnectorLineStyle
   from: number
   to: number
   points: Point[]
@@ -196,6 +207,16 @@ export interface StateColor {
   color: string
 }
 
+// One entry of the install-wide Service/Normal/Test legend a withdrawable
+// device's Position status dropdown (Properties) offers — global, not
+// stored per diagram (see backend/internal/config.PositionState). Unlike
+// StateColor, there's no color: Position drives a geometric offset
+// (data-trolley), not a fill.
+export interface PositionState {
+  position: number
+  label: string
+}
+
 export interface EditorDefaults {
   gridSpacing: number
   snap: boolean
@@ -207,4 +228,6 @@ export interface EditorConfig {
   editor: EditorDefaults
   voltageColors: VoltageColor[]
   stateColors: StateColor[]
+  positionStates: PositionState[]
+  fpiStateColors: StateColor[]
 }

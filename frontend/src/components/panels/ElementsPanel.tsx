@@ -57,7 +57,7 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
                   title={t(WIRE_KIND_LABELS[kind])}
                   disabled={!diagram}
                   onClick={() => armWireKind(active ? null : kind)}
-                  className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-1 text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
+                  className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
                     active
                       ? 'border-accent bg-accent/20 text-white'
                       : 'border-surface-600 bg-surface-800 text-gray-300 hover:border-surface-500'
@@ -84,7 +84,7 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
               title={t('elements.text')}
               disabled={!diagram}
               onClick={() => armLabel(!armedLabel)}
-              className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-1 text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
+              className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
                 armedLabel
                   ? 'border-accent bg-accent/20 text-white'
                   : 'border-surface-600 bg-surface-800 text-gray-300 hover:border-surface-500'
@@ -108,7 +108,7 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
                     title={el.name}
                     disabled={!diagram}
                     onClick={() => armSymbol(active ? null : el)}
-                    className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-1 text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
                       active
                         ? 'border-accent bg-accent/20 text-white'
                         : 'border-surface-600 bg-surface-800 text-gray-300 hover:border-surface-500'

@@ -23,7 +23,7 @@ func newTestServer(t *testing.T) *Server {
 	lib := &elements.Library{Symbols: []elements.Symbol{
 		{Shape: "41", Class: "Breaker", Name: "Breaker", Category: "Switching devices", Template: `<path style="stroke:{color}"/>`},
 	}}
-	store, err := storage.New(t.TempDir(), lib.SymbolLibrary())
+	store, err := storage.New(t.TempDir(), lib.SymbolLibrary(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

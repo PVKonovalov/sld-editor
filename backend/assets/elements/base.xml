@@ -18,10 +18,12 @@
   Placeholders: {color} is the voltage class's display color, except for a
   Lamp (106) and FaultPassageIndicator (320003), which aren't part of the
   electrical network — there {color} comes from the element's own
-  fillOn/fillOff (Lamp) or is fixed (FaultPassageIndicator). {fill} is a
-  state-dependent fill (breakers/switches only — red/lawngreen/yellow for
-  open/closed/unknown, "none" when no state was recorded). {radius} is a
-  Lamp's or FaultPassageIndicator's own recorded circle radius.
+  fillOn/fillOff (Lamp) or is a fixed background fill, always the same
+  regardless of State (FaultPassageIndicator — see {fpiColor} below for
+  what its own State actually drives). {fill} is a state-dependent fill
+  (breakers/switches only — red/lawngreen/yellow for open/closed/unknown,
+  "none" when no state was recorded). {radius} is a Lamp's or
+  FaultPassageIndicator's own recorded circle radius.
   {state:parallel|perpendicular|diagonal} picks one of the three given path
   "d" fragments by the element's State: parallel (drawn along the device's
   own vertical axis) for closed (1) or unrecorded, perpendicular for open
@@ -31,7 +33,20 @@
   raw State value) attributes — each expands to nothing when it doesn't
   apply (data-state has no recorded State to publish), so they can sit
   directly after the "d" attribute on whichever path carries {fill} or
-  {state:...} without leaving a stray empty attribute behind.
+  {state:...} without leaving a stray empty attribute behind. {fpiColor}
+  is a FaultPassageIndicator's own ring/text color, driven by its State
+  through a separate config legend (fpi_state_colors, not state_colors) —
+  unlike {fill}, it defaults an unrecorded State to 0 (Open) rather than
+  "none", since the ring is always colored. {positionAttr}/{positionOffset}
+  are a withdrawable device's (Breaker/Disconnector shapes 43/49) own live
+  data-trolley attribute and the x-shift it applies to the movable body's
+  own wrapping <g>, driven by its Position (Service/Normal/Test) rather
+  than State. {counterRotate} is the negated Orient — wrapping a fragment
+  in <g transform="rotate({counterRotate})"> cancels the outer <g
+  transform="...rotate(Orient)"> Render itself always emits, so that one
+  fragment stays upright (e.g. FaultPassageIndicator's own "FPI" label)
+  regardless of the element's own rotation, while the rest of the
+  template — and the element's own terminals — still rotate normally.
 
   A <terminals> block (optional — a shape with none, like a busbar, simply
   isn't offered one) lists the local, unrotated points on a symbol where a
@@ -72,17 +87,36 @@
   <!-- The line+chevron pair close to the box on each side is the
        withdrawable "trolley" isolating contact; the small gap out to the
        far chevron is the isolating throw distance, drawn as a gap by
-       design, not a missing connector. -->
+       design, not a missing connector — which is also why the two real
+       terminals sit at the far chevron tips (y=±30), not at the box itself:
+       that's where a wire actually attaches. The box/state-indicator/near
+       chevrons are the movable body — wrapped in its own <g
+       data-trolley="{Position}"> so Position status (Service/Normal/Test)
+       can slide it sideways ({positionOffset}) independent of Operational
+       Status (State), matching sld-viewer's own Pattern D convention
+       (applyTrolleyState) — the far chevrons stay fixed outside that group,
+       same as a real xsde2svg export's own fixed disconnect-contact
+       stubs. -->
   <symbol shape="43" class="Breaker" name="Breaker (withdrawable)" category="Switching devices">
+    <terminals>
+      <terminal x="0" y="-30"/>
+      <terminal x="0" y="30"/>
+    </terminals>
     <template><![CDATA[
+<g transform="translate({positionOffset},0)"{positionAttr}>
 <path d="M -8 -8 h 17 v 17 h -17 z"{fillAttr} style="fill:{fill};stroke:{color};stroke-width:1" />
 <path d="{state:M 0 -5 v 11|M -5 0 h 11|M -3.9 -3.9 l 7.8 7.8}"{stateAttr} style="stroke:{color};stroke-width:1" />
 <path d="M 0 -8 v -13 m 0 0 l -4 4 m 4 -4 l 4 4 M 0 8 v 13 m 0 0 l -4 -4 m 4 4 l 4 -4" style="stroke:{color};stroke-width:1" />
+</g>
 <path d="M 0 -30 l -4 4 m 8 0 l -4 -4 M 0 30 l -4 -4 m 8 0 l -4 4" style="stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
   <symbol shape="42" class="LoadBreakSwitch" name="Load-break switch" category="Switching devices">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
     <template><![CDATA[
 <path d="M 0 -10 v 2 m 0 16 v 2 m -8 -2 h 16 m -16 -16 h 16" style="fill:none;stroke:{color};stroke-width:1" />
 <path d="M 0 -8 l 8 8 l -8 8 l -8 -8 l 8 -8"{fillAttr} style="fill:{fill};stroke:{color};stroke-width:1" />
@@ -102,21 +136,67 @@
 ]]></template>
   </symbol>
 
+  <!-- Same withdrawable convention as shape 43 above: the two real
+       terminals sit at the far chevron tips (y=±30), not the switch body
+       itself, and the movable body (near chevrons/contact bars/blade) is
+       wrapped in its own <g data-trolley="{Position}"> so Position status
+       can slide it ({positionOffset}) independent of Operational Status
+       (State) — see shape 43's own comment for the full rationale. The
+       {state:...} blade options (closed/open/intermediate) were re-derived
+       from the real xsde2svg source (internal/modus/element_49.go: this
+       symbol's own pre-existing geometry, before this comment, was already
+       confirmed to be that source's exact "Normal position, Closed" output
+       byte-for-byte) — Intermediate has no real-source equivalent (the
+       real exporter only models open/closed for this shape), so it instead
+       reuses the plain Disconnector's (shape 162) own diagonal verbatim,
+       "l 9.2 9.2" — the surrounding "m -8.6 5.4"/"m -8.6 5.4" stubs are
+       this shape's own (chosen so the diagonal still runs from (-4.6,-4.6)
+       to (4.6,4.6) relative to the switch's own gap center, exactly like
+       162's own diagonal does relative to its center, while still meeting
+       up with the fixed contact bars on either side — unlike Ground
+       switch's own Intermediate, which had to invent a diagonal from
+       scratch since it isn't built around the same symmetric gap). -->
   <symbol shape="49" class="Disconnector" name="Disconnector (withdrawable)" category="Switching devices">
+    <terminals>
+      <terminal x="0" y="-30"/>
+      <terminal x="0" y="30"/>
+    </terminals>
     <template><![CDATA[
-<path d="M 0 -22 l -4 4 m 4 -4 l 4 4 m -4 -4 v 12 m -4 0 h 8 m -4 2 v 16 m -4 2 h 8 m -4 0 v 12 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
+<g transform="translate({positionOffset},0)"{positionAttr}>
+<path d="M 0 -22 l -4 4 m 4 -4 l 4 4 m -4 -4 v 12 m -4 0 h 8 {state:m -4 2 v 16 m -4 2|m -12 10 h 16 m -12 10|m -8.6 5.4 l 9.2 9.2 m -8.6 5.4} h 8 m -4 0 v 12 l -4 -4 m 4 4 l 4 -4"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+</g>
 <path d="M 0 30 l -4 -4 m 4 4 l 4 -4 M 0 -30 l -4 4 m 4 -4 l 4 4" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
+  <!-- Only the stub end is a real electrical connection point — the other
+       end is the earth/ground-plate symbol, a dead end representing
+       "connected to the physical earth", not a node another element/wire
+       can attach to (confirmed against a real xsde2svg corpus diagram,
+       whose GroundSwitch elements each carry exactly one <port>). The
+       terminal is grid-aligned to y=10, matching Breaker/Disconnector's
+       own ±10 terminals; the stub itself was shortened from the real
+       corpus's own y=12 tip to end exactly at y=10 too (a deliberate,
+       minor deviation from that byte-for-byte match), so the drawn line
+       stops right at the terminal instead of overshooting past it. -->
   <symbol shape="54" class="GroundSwitch" name="Ground switch" category="Switching devices">
+    <terminals>
+      <terminal x="0" y="10"/>
+    </terminals>
     <template><![CDATA[
-<path d="M 0 12 v -9 m -4 0 h 8 m -8 -20 h 8 m -4 0 v -8 m -8 0 h 16 m -2 -3 h -12 m 2 -3 h 8" style="fill:none;stroke:{color};stroke-width:1" />
-<path d="M 6 -8 h -12" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 10 v -7 m -4 0 h 8 m -8 -20 h 8 m -4 0 v -8 m -8 0 h 16 m -2 -3 h -12 m 2 -3 h 8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -2 v -12|M 6 -8 h -12|M -4.6 -12.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
+  <!-- The stem's own far tip (y=-10) is the one real electrical connection
+       point — already grid-aligned, unlike Ground switch's own stub, so no
+       shortening is needed here. The plate fan below is a dead end, same
+       as Ground switch's own earth symbol — no terminal there either. -->
   <symbol shape="31" class="Ground" name="Ground terminal" category="Grounding">
+    <terminals>
+      <terminal x="0" y="-10"/>
+    </terminals>
     <template><![CDATA[
 <path d="M 0 0 v -10 m -8 10 h 16 m -2 3 h -12 m 2 3 h 8" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
@@ -133,33 +213,72 @@
 ]]></template>
   </symbol>
 
+  <!-- The vertical line is the primary conductor threaded through the CT's
+       own coil loops (the two arcs) — its own two ends, at ±10, are the
+       real electrical connection points; shortened from the original
+       ±11 (height 22) to ±10 (height 20) so it's grid-aligned and its
+       terminals sit exactly on its drawn tips, matching every other
+       already-grid-aligned symbol's own terminals (e.g. Ground
+       terminal's). -->
   <symbol shape="34" class="CurrentTransformer" name="Current transformer" category="Measurement">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
     <template><![CDATA[
 <path d="M -8 -8 h 8 a 6 4 0 0 1 0 8 a 6 4 0 0 1 0 8 h -8" style="fill:none;stroke:{color};stroke-width:1" />
-<path d="M 0 -11 v 22" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -10 v 20" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
+  <!-- The stem's own two ends (±20, already grid-aligned) are the real
+       electrical connection points, same convention as every other
+       vertical-stem symbol's terminals. -->
   <symbol shape="33" class="ChokeCoil" name="Choke coil" category="Other equipment">
+    <terminals>
+      <terminal x="0" y="-20"/>
+      <terminal x="0" y="20"/>
+    </terminals>
     <template><![CDATA[
 <path d="M 0 -20 v 5 h 1 m 0 0 a 5 5 0 1 1 0 10 a 5 5 0 1 1 0 10 a 5 5 0 1 1 0 10 h -1 v 5" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
+  <!-- The two stems' own far ends (±10, already grid-aligned) are the real
+       electrical connection points, same convention as every other
+       vertical-stem symbol's terminals. -->
   <symbol shape="35" class="SurgeArrester" name="Surge arrester" category="Protection">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
     <template><![CDATA[
 <path d="M 0 -10 v 8 M 0 10 v -8" style="fill:none;stroke:{color};stroke-width:1" />
 <path d="M 0 -2 l -3 -6 l 6 0 z M 0 2 l -3 6 l 6 0 z" style="fill:{color};stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
+  <!-- The main line's own two ends (±10, already grid-aligned) are the real
+       electrical connection points, same convention as every other
+       vertical-stem symbol's terminals. -->
   <symbol shape="203" class="Fuse" name="Fuse" category="Protection">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
     <template><![CDATA[
 <path d="M 0 -10 v 20 m 0 -20 h 5 v 20 h -10 v -20 h 5" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
+  <!-- The stem's own two ends (±10, already grid-aligned) are the real
+       electrical connection points, same convention as every other
+       vertical-stem symbol's terminals. -->
   <symbol shape="388" class="Capacitor" name="Capacitor" category="Other equipment">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
     <template><![CDATA[
 <path d="M 0 -10 v 5 m -12 0 h 24 m -24 10 h 24 m -12 0 v 5" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
@@ -171,10 +290,22 @@
 ]]></template>
   </symbol>
 
+  <!-- Terminals sit at the default radius (10, diagramOps' own
+       FPI_DEFAULTS, matching the default 10-unit grid) — a real instance's
+       own Radius can differ, in which case these no longer land exactly on
+       the drawn ring, the same static-terminals-vs-variable-geometry
+       tradeoff already accepted elsewhere (nothing here adjusts a terminal
+       for a resized symbol). -->
   <symbol shape="320003" class="FaultPassageIndicator" name="Fault passage indicator" category="Indicators">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
     <template><![CDATA[
-<circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:lime;stroke-width:0.80" />
-<text x="0" y="0" style="fill:lime;text-anchor:middle;dominant-baseline:middle;font-size:13px;font-family:Arial" >FPI</text>
+<circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:{fpiColor};stroke-width:0.80" />
+<g transform="rotate({counterRotate})">
+<text x="0" y="0" style="fill:{fpiColor};text-anchor:middle;dominant-baseline:middle;font-size:8px;font-family:Arial" >FPI</text>
+</g>
 ]]></template>
   </symbol>
 </symbols>
