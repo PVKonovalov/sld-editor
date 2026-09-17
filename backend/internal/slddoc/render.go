@@ -191,6 +191,18 @@ var connectorTypeCode = map[ConnectorKind]string{
 // "named" connector kinds, absent its own corpus confirmation.
 const namedLineStrokeWidth = 1.5
 
+// cableLineDash is a KindCableLine connector's own default
+// stroke-dasharray — a real xsde2svg cable line (element23, "type 23")
+// always renders dashed to read as an underground run rather than a
+// solid overhead one, defaulting to this exact pattern absent any
+// per-instance line-style override (which this schema has no equivalent
+// of yet, so it's applied unconditionally); confirmed against
+// xsde2svg/internal/modus/element_23.go's own "штриховая"
+// stroke-dasharray value. KindOverheadLine gets no such default — it
+// stays solid unless the general Connector.Dashed flag is set, same as
+// an ordinary wire.
+const cableLineDash = "stroke-dasharray: 6,5;"
+
 // typeComment writes a "<!-- Name:shape -->" line the first time shape is
 // seen or whenever it changes from the previous call, so consecutive
 // same-shape elements/connectors get one header rather than a redundant
@@ -437,11 +449,13 @@ func writePolyline(w io.Writer, id int, kind string, pts []Point, color string, 
 // <g>, and no data-name, at all. Overhead line confirmed against both a
 // real corpus file (sld-viewer/assets/sld/IEEE9bus.svg, id="302"
 // data-name="Line2") and a user-supplied example matching it exactly;
-// cable line given the same treatment for consistency between the two
-// "named" kinds, since both are meant to carry a real identity
-// (Connector.Name) a plain wire never does. code is
-// connectorTypeCode[c.Kind], passed in rather than looked up again since
-// the caller already has it from its own typeComment call.
+// cable line given the same <g>-wrapping treatment for consistency
+// between the two "named" kinds, since both are meant to carry a real
+// identity (Connector.Name) a plain wire never does — though its own
+// stroke is dashed by default (see cableLineDash), where an overhead
+// line's is solid. code is connectorTypeCode[c.Kind], passed in rather
+// than looked up again since the caller already has it from its own
+// typeComment call.
 func writeNamedLine(w io.Writer, c Connector, color string, code string, mode RenderMode) {
 	if color == "" {
 		color = "black"
@@ -456,7 +470,9 @@ func writeNamedLine(w io.Writer, c Connector, color string, code string, mode Re
 		sb.WriteString(fmtNum(p.Y))
 	}
 	dash := ""
-	if c.Dashed {
+	if c.Kind == KindCableLine {
+		dash = cableLineDash
+	} else if c.Dashed {
 		dash = "stroke-dasharray: 14,9;"
 	}
 	editorAttr := ""

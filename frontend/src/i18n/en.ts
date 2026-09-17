@@ -53,6 +53,10 @@ export const dictionary = {
   'settings.deleteVoltageClass': 'Delete voltage class',
 
   'properties.noSelection': 'Select an element on the canvas to edit its properties.',
+  'properties.diagram': 'Diagram',
+  'properties.fileName': 'File name',
+  'properties.width': 'Width',
+  'properties.height': 'Height',
   'properties.name': 'Name',
   'properties.voltageClass': 'Voltage class',
   'properties.state': 'State',

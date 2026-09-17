@@ -51,6 +51,7 @@ function DeleteButton({ label, onDelete }: { label: string; onDelete: () => void
 
 export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const {
+    diagramName,
     diagram,
     config,
     elements,
@@ -67,10 +68,55 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const label = diagram?.labels.find(l => l.id === selectedLabelId) ?? null
   const voltageOptions = diagram ? diagramOps.voltageClassOptions(diagram, config) : []
 
-  if (!diagram || (!element && !connector && !label && selectedElementIds.size === 0)) {
+  if (!diagram) {
     return (
       <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
         <p className="text-xs text-gray-500">{t('properties.noSelection')}</p>
+      </PanelShell>
+    )
+  }
+
+  // Nothing on the canvas is selected, but a diagram is open (e.g. it was
+  // just picked from the File panel) — show its own width/height instead
+  // of just "nothing selected", since those otherwise have no home to be
+  // edited from after creation (NewDiagramDialog is the only other place
+  // that sets them, and only at creation time).
+  if (!element && !connector && !label && selectedElementIds.size === 0) {
+    return (
+      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
+        <div className="space-y-3">
+          <p className="text-xs text-gray-400">{t('properties.diagram')}</p>
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.fileName')}</span>
+            <input
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1 opacity-50"
+              value={diagramName ?? ''}
+              readOnly
+            />
+          </label>
+          <div className="flex gap-2">
+            <label className="block text-xs flex-1">
+              <span className="block text-gray-400 mb-1">{t('properties.width')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={diagram.width}
+                onChange={e => updateDiagram(d => ({ ...d, width: Number(e.target.value) }))}
+              />
+            </label>
+            <label className="block text-xs flex-1">
+              <span className="block text-gray-400 mb-1">{t('properties.height')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={diagram.height}
+                onChange={e => updateDiagram(d => ({ ...d, height: Number(e.target.value) }))}
+              />
+            </label>
+          </div>
+        </div>
       </PanelShell>
     )
   }

@@ -13,10 +13,9 @@
 // Name) a plain wire never does. Drawn in the same viewBox="-32 -32 64
 // 64" frame elementIconMarkup's icons use, styled to hint at how each
 // kind actually differs once drawn (OverheadLine's real render is a
-// heavier, tower-to-tower-looking line; CableLine currently renders the
-// same weight but with no corpus-confirmed dash, so its icon leans on the
-// conventional SLD symbology instead — dashed for an underground cable)
-// rather than a literal preview.
+// heavier, tower-to-tower-looking line; CableLine's is dashed at
+// "6 5" — its icon matches Render's own cableLineDash exactly, not just
+// a conventional stand-in) rather than a literal preview.
 export const WIRE_KIND_ICONS: Record<'BusWork' | 'OverheadLine' | 'CableLine', string> = {
   BusWork: `
     <line x1="-26" y1="0" x2="26" y2="0" stroke="currentColor" stroke-width="1.5" />
@@ -27,7 +26,7 @@ export const WIRE_KIND_ICONS: Record<'BusWork' | 'OverheadLine' | 'CableLine', s
     <line x1="24" y1="-8" x2="24" y2="8" stroke="currentColor" stroke-width="2" />
   `,
   CableLine: `
-    <line x1="-26" y1="0" x2="26" y2="0" stroke="currentColor" stroke-width="2" stroke-dasharray="7 6" />
+    <line x1="-26" y1="0" x2="26" y2="0" stroke="currentColor" stroke-width="2" stroke-dasharray="6 5" />
   `,
 }
 

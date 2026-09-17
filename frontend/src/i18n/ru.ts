@@ -58,6 +58,10 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'settings.deleteVoltageClass': 'Удалить класс напряжения',
 
   'properties.noSelection': 'Выберите элемент на схеме, чтобы изменить его свойства.',
+  'properties.diagram': 'Схема',
+  'properties.fileName': 'Имя файла',
+  'properties.width': 'Ширина',
+  'properties.height': 'Высота',
   'properties.name': 'Имя',
   'properties.voltageClass': 'Класс напряжения',
   'properties.state': 'Состояние',

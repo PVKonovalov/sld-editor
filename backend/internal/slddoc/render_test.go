@@ -166,6 +166,34 @@ func TestRender_AnnotatesTypeGroups(t *testing.T) {
 	}
 }
 
+func TestRender_CableLineIsDashedByDefaultOverheadLineIsNot(t *testing.T) {
+	lib, err := LoadSymbolLibrary(strings.NewReader(testSymbols))
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := &Diagram{
+		Width: 100, Height: 100,
+		Connectors: []Connector{
+			{ID: 1, Kind: KindOverheadLine, Points: []Point{{X: 0, Y: 0}, {X: 1, Y: 1}}},
+			{ID: 2, Kind: KindCableLine, Points: []Point{{X: 2, Y: 2}, {X: 3, Y: 3}}},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := Render(d, lib, &buf, Static); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+
+	if !strings.Contains(out, "stroke-dasharray: 6,5;") {
+		t.Errorf("cable line should default to a 6,5 dasharray: %s", out)
+	}
+	overhead := out[:strings.Index(out, `id="2"`)]
+	if strings.Contains(overhead, "dasharray") {
+		t.Errorf("overhead line should render solid by default: %s", overhead)
+	}
+}
+
 func TestRender_ElevatedClassesDrawnAfterConnectors(t *testing.T) {
 	lib, err := LoadSymbolLibrary(strings.NewReader(testSymbols))
 	if err != nil {

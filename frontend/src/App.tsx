@@ -17,8 +17,9 @@ function Shell() {
   // independently rather than sharing one "active panel" slot with them.
   const [activeLeftPanel, setActiveLeftPanel] = useState<LeftPanelId | null>('file')
   const [propertiesOpen, setPropertiesOpen] = useState(false)
-  const { selectedElementId, selectedConnectorId, selectedLabelId } = useDiagramContext()
+  const { diagramName, selectedElementId, selectedConnectorId, selectedLabelId } = useDiagramContext()
   const hadSelection = useRef(false)
+  const hadDiagram = useRef(false)
 
   // Selecting something on the canvas brings the Properties panel forward
   // automatically, without fighting a panel the user deliberately closed:
@@ -31,6 +32,18 @@ function Shell() {
     }
     hadSelection.current = hasSelection
   }, [selectedElementId, selectedConnectorId, selectedLabelId])
+
+  // Picking a diagram from the File panel (or creating one) surfaces its
+  // own width/height in Properties the same way selecting something on the
+  // canvas does, so opening one lands directly on editable diagram
+  // properties instead of an empty "no selection" panel.
+  useEffect(() => {
+    const hasDiagram = diagramName !== null
+    if (hasDiagram && !hadDiagram.current) {
+      setPropertiesOpen(true)
+    }
+    hadDiagram.current = hasDiagram
+  }, [diagramName])
 
   function togglePanel(id: PanelId) {
     if (id === 'properties') {

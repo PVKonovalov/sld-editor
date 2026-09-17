@@ -1294,3 +1294,24 @@ bar and Save button both picked up the dirty flag on open, without any
 further edit; saved, and confirmed the `.xml` on disk now carries a
 unique `id="…"` on every one of its 303 `<label>` elements, with
 `lastId` bumped to cover them.
+
+2026-09-17: The right Properties panel now shows and lets you edit a
+diagram's own Width/Height (plus its read-only file name) whenever a
+diagram is open and nothing else is selected — before this, those two
+fields could only ever be set once, at creation time, in the New Diagram
+dialog. Selecting/opening a diagram from the File panel now also brings
+the Properties panel forward automatically, the same null -> non-null
+transition trick already used for canvas selection (`App.tsx`'s
+`hadDiagram` ref), so the fields are visible immediately without an extra
+click.
+
+2026-09-17: A `KindCableLine` connector ("Cable line", data-type 23) now
+renders dashed by default (`stroke-dasharray: 6,5`, `render.go`'s new
+`cableLineDash`), matching the real xsde2svg cable-line renderer
+(`xsde2svg/internal/modus/element_23.go`'s own "штриховая" dash pattern)
+instead of the plain solid stroke it shared with `KindOverheadLine`
+before this — overhead line itself is untouched and still renders solid
+unless the general `Connector.Dashed` flag is set. The Elements panel's
+own "Cable line" wire-kind icon (`wireKindIcon.ts`) is updated to the
+same `6 5` dasharray so the palette preview now matches the real render
+exactly, rather than a placeholder dash pattern.
