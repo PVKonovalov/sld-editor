@@ -1618,3 +1618,46 @@ but only because their own on-disk `.svg` predates later feature commits
 — the Fault Passage Indicator's counter-rotate wrapper, the
 shape-71-to-162 disconnector migration — unrelated to this module
 switch).
+
+2026-09-17: Added two new equipment shapes to the palette, both
+stateless (no `{fill}`/`{state:...}`, unlike the switching devices):
+Reactor (37) and Reactor (shunt) (397), ported from xsde2svg's own
+`element_37.go`/`element_397.go`. Reactor's own template (`M 0 -20 v 9 a
+11 11 0 1 1 -11 11 h 11 v 20`, terminals at ±20) is confirmed
+byte-for-byte against a real corpus instance's own drawn path once
+re-centered on the coil's own midpoint the way every other two-port
+symbol here is (xsde2svg's own anchor for this shape is its top
+terminal, not the center). Reactor (shunt) only exists here in its
+grounded form (`FReactorShuntType != "NoGround"` in the source; this
+schema doesn't model that type switch or the source's own mirroring flag
+as per-instance fields, and a shunt reactor is, in practice, essentially
+always earthed on one side) — its own earth symbol reuses the exact same
+three-bar (16/12/8-wide) fan Ground terminal (31) and Ground switch (54)
+already draw, so it gets only one real terminal (top, ±20), the earthed
+side being a dead end the same way theirs is. Both added under the
+existing "Other equipment" category, next to Choke coil (33).
+
+2026-09-17: `Extract` (the shared `slddoc` module, sld-svg's own
+side) now also recognizes Reactor (37) and Reactor (shunt) (397) — they
+were previously silently counted in `Report.Skipped`, which is why
+`svg-sld extract` never picked them up from a real corpus SVG even
+though `sld-editor` could already draw them. Reactor drops straight
+into the existing generic `parseTwoPortDevice` (its two ports are just
+the extremes along its own dominant axis, same as Choke coil); Reactor
+(shunt) got its own new one-port parser, `parseReactorShunt`, mirroring
+`parseGround`'s own fallback convention (rotate() center when present,
+else the combined path's own first point) since real instances appear
+both rotated and unrotated. That surfaced a real anchor mismatch in
+`base.xml`'s own Reactor (shunt) template, fixed here: it had been
+centered on the coil's own midpoint like Reactor (37) is, but
+`parseReactorShunt` reports the coil's own *top* as the anchor (matching
+where the real source's combined path starts drawing) — so the
+template's local origin (0,0) is now that top terminal itself, not a
+centered point 20 units below it; its one `<terminal>` moved from
+`(0,-20)` to `(0,0)` to match. Verified with a real extract→render round
+trip against `sld-svg/examples/sld/Examples.svg`: the re-rendered
+Reactor's path lands byte-for-byte on the same absolute coordinates as
+the original corpus instance's own drawn path. `sld-svg`'s own
+`symbols.xml` (its independent, simpler reference library) picked up
+matching templates for both shapes too, so `svg-sld render` doesn't
+regress against a diagram containing either.

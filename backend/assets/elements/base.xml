@@ -244,6 +244,59 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_37.go (element37, the non-double,
+       non-mirrored case — this schema has no per-instance "double reactor"
+       or mirroring flag), re-centered on the coil's own midpoint the way
+       every other two-port symbol here is (xsde2svg's own Origin for this
+       shape is its top terminal, not the center: a real corpus instance's
+       own drawn path, `M 2182 1480 l 0 9 a 11 11 0 1 1 -11 11 l 11 0 l 0
+       20`, matches this template's own "M 0 -20 v 9 a 11 11 0 1 1 -11 11 h
+       11 v 20" exactly once shifted so the M point sits at local y=-20
+       instead of y=0). The stem's own two ends (±20, already grid-aligned)
+       are the real electrical connection points, same convention as every
+       other vertical-stem symbol's terminals. -->
+  <symbol shape="37" class="Reactor" name="Reactor" category="Other equipment">
+    <terminals>
+      <terminal x="0" y="-20"/>
+      <terminal x="0" y="20"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 -20 v 9 a 11 11 0 1 1 -11 11 h 11 v 20" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_397.go (element397, the grounded
+       — FReactorShuntType != "NoGround" — non-mirrored case; this schema
+       models neither that type switch nor mirroring as a per-instance
+       field, so the grounded form was picked as the default since a shunt
+       reactor is, in practice, essentially always earthed on one side).
+       Unlike every other two-port-turned-one-port symbol here, the local
+       origin (0,0) is the top terminal itself, not a centered anchor: the
+       real source's own combined path starts drawing exactly there (`M x
+       y v 9 a ...`), and extract.go's parseReactorShunt reports that same
+       first point as both the element's anchor and its one port — the
+       same convention parseGround already uses for Ground (31) — so this
+       template has to start there too for an extract/render round-trip to
+       land the coil at the right place. The coil itself is the same bump
+       geometry as Reactor (37) above, just narrower at the bottom (stops
+       at y=31, not y=40 measuring from this origin) since the earth
+       symbol's own stub picks up from y=40 back up to y=29 — a deliberate
+       2-unit overlap in the original source, not a gap. That earth
+       symbol's own three decreasing-width bars (16/12/8, 4 units apart)
+       reuse the exact same proportions as Ground terminal's (31) and
+       Ground switch's (54) own fan, just spaced 4 units apart instead of
+       3. Only the top terminal (0,0) is a real electrical connection
+       point — the earth side is a dead end, same convention as Ground
+       terminal's/Ground switch's own single terminal. -->
+  <symbol shape="397" class="ReactorShunt" name="Reactor (shunt)" category="Other equipment">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 9 a 11 11 0 1 0 11 11 h -11 v 11 M 0 40 v -11 m -8 11 h 16 m -2 4 h -12 m 2 4 h 8" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <!-- The two stems' own far ends (±10, already grid-aligned) are the real
        electrical connection points, same convention as every other
        vertical-stem symbol's terminals. -->
