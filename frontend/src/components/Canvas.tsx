@@ -26,16 +26,37 @@ const GRID_TILE_DOTS: [number, number][] = Array.from({ length: GRID_TILE_FACTOR
 ).flat()
 // Half-length of a terminal marker's "X", in diagram units.
 const TERMINAL_MARK_SIZE = 4 / 3
+// Half-length of a selected Label/DigitalDevice's own anchor-point "X"
+// marker — same shape convention as TERMINAL_MARK_SIZE, just larger since
+// it's a standalone selection indicator rather than a small always-drawn
+// terminal mark.
+const SELECTION_MARK_SIZE = 6
 // How close (diagram units) a click/hover needs to be to an element's own
 // terminal (or, mid-route, any point along a busbar) to count as hitting
 // it, rather than the element's ordinary body — deliberately tight (a
 // Breaker's terminals sit 10 units out from a ±7-unit box) so it doesn't
 // swallow the rest of the element and break plain select/drag there.
 const TERMINAL_HIT_RADIUS = 5
+// Padding (diagram units) added around a symbol element's own real
+// computed bounding box — see elementBoxes' own doc comment — for its
+// selection-highlight rect, and, separately (and more tightly), for the
+// click-tolerance fallback in findElementBoxHit. Matches sld-viewer's own
+// equivalent constants (its own highlight pad and BBOX_HIT_PAD), the
+// reference this project's UI/UX follows.
+const BOX_HIGHLIGHT_PAD = 6
+const BOX_HIT_PAD = 2
 
 type Ghost = { ids: number[]; dx: number; dy: number }
 type NewBusbar = { start: Point; current: Point }
 type PointDrag = { elementId: number; pointIndex: number; point: Point }
+// A symbol element's own real rendered bounding box, in diagram-space
+// (post rotate+translate), top-left + size. Computed from the backend-
+// rendered SVG's own <g> node (getBBox(), which returns local pre-transform
+// geometry) mapped through the same rotate/translate math
+// diagramOps.placeLocalPoint already uses for a shape's declared
+// Terminals — see elementBoxes' own doc comment for why a fixed-radius
+// circle (this editor's previous approach) doesn't work here.
+type ElementBox = { x: number; y: number; width: number; height: number }
 // An in-progress drag of a selected Label's own anchor — mirrors Ghost's
 // dx/dy-offset convention (single label, not a set, so no ids array), kept
 // separate from Ghost so an element drag's own selectedElements-hiding
@@ -232,6 +253,7 @@ export function Canvas() {
   const [connectTarget, setConnectTarget] = useState<ConnectTarget | null>(null)
   const [vertexDrag, setVertexDrag] = useState<VertexDrag | null>(null)
   const [selectedVertex, setSelectedVertex] = useState<SelectedVertex | null>(null)
+  const [elementBoxes, setElementBoxes] = useState<Map<number, ElementBox>>(new Map())
   const wrapperRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -258,6 +280,77 @@ export function Canvas() {
       clearTimeout(handle)
     }
   }, [diagram])
+
+  // Recomputes every symbol element's own real bounding box straight from
+  // the backend-rendered markup, once it's actually in the DOM — the fix
+  // for a fixed-radius circle (this editor's previous approach, both for
+  // the backend's own invisible hit-target circle and this component's own
+  // selection-highlight circle) not working for a shape that's large,
+  // small, or — like VoltageTransformer's own terminal-at-the-top — has
+  // its anchor sitting nowhere near its own drawn body's center. A <g>'s
+  // own getBBox() returns its geometry in local, pre-transform coordinates
+  // (the same space a shape's template/Terminals are authored in), so its
+  // 4 corners are pushed through diagramOps.placeLocalPoint — the same
+  // rotate-by-orient-then-translate-by-anchor math internal/slddoc.Render
+  // itself used to place that same geometry — to get the element's real
+  // diagram-space footprint. BusBarSection is skipped: it renders as a
+  // bare <polyline> (see writePolyline), not a <g>, and already has its
+  // own points-based highlight/hit-testing that doesn't need a box at all.
+  useEffect(() => {
+    const root = wrapperRef.current
+    if (!root || !diagram) {
+      setElementBoxes(new Map())
+      return
+    }
+    const boxes = new Map<number, ElementBox>()
+    for (const el of diagram.elements) {
+      if (el.class === 'BusBarSection') continue
+      const node = root.querySelector(`g[data-editor-kind="element"][id="${el.id}"]`) as SVGGraphicsElement | null
+      if (!node) continue
+      let local: DOMRect
+      try {
+        local = node.getBBox()
+      } catch {
+        continue // an element with no drawn geometry at all (getBBox can throw)
+      }
+      const corners = [
+        { x: local.x, y: local.y },
+        { x: local.x + local.width, y: local.y },
+        { x: local.x, y: local.y + local.height },
+        { x: local.x + local.width, y: local.y + local.height },
+      ].map(p => diagramOps.placeLocalPoint(el, p))
+      const xs = corners.map(p => p.x)
+      const ys = corners.map(p => p.y)
+      const minX = Math.min(...xs)
+      const minY = Math.min(...ys)
+      boxes.set(el.id, { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY })
+    }
+    setElementBoxes(boxes)
+  }, [svg, diagram])
+
+  /** Finds the smallest (by area) symbol element whose own real bounding
+   * box — padded by BOX_HIT_PAD for click tolerance — contains point;
+   * null if none does. The smallest-wins tie-break matches sld-viewer's
+   * own equivalent fallback, favoring the more precise match on overlap. */
+  function findElementBoxHit(point: Point): number | null {
+    let bestId: number | null = null
+    let bestArea = Infinity
+    for (const [id, box] of elementBoxes) {
+      if (
+        point.x < box.x - BOX_HIT_PAD ||
+        point.x > box.x + box.width + BOX_HIT_PAD ||
+        point.y < box.y - BOX_HIT_PAD ||
+        point.y > box.y + box.height + BOX_HIT_PAD
+      )
+        continue
+      const area = box.width * box.height
+      if (area < bestArea) {
+        bestArea = area
+        bestId = id
+      }
+    }
+    return bestId
+  }
 
   // Delete/Backspace removes the current selection, except while focus is
   // in a text field (e.g. editing the Name field in Properties) — there it
@@ -702,20 +795,32 @@ export function Canvas() {
 
     const target = e.target as HTMLElement
     const hit = target.closest('[data-editor-kind]') as HTMLElement | null
+    // A plain click that doesn't land on any real rendered node (e.g. a
+    // thin unfilled stroke, or a shape whose anchor sits far from its own
+    // drawn body, like VoltageTransformer's terminal-at-the-top) still
+    // counts as an element hit if it falls within that element's own real
+    // computed bounding box — see elementBoxes' own doc comment. Elements
+    // only: a connector/label/digital device's own click area is already
+    // its real drawn geometry, no fallback needed.
+    let hitKind = hit?.dataset.editorKind
+    let hitId = hit ? Number(hit.id) : NaN
     if (!hit) {
-      selectElement(null)
-      return
+      const boxHit = findElementBoxHit(point)
+      if (boxHit === null) {
+        selectElement(null)
+        return
+      }
+      hitKind = 'element'
+      hitId = boxHit
     }
     e.stopPropagation()
 
-    const hitId = Number(hit.id)
-
-    if (hit.dataset.editorKind === 'connector') {
+    if (hitKind === 'connector') {
       selectConnector(hitId)
       return
     }
 
-    if (hit.dataset.editorKind === 'label') {
+    if (hitKind === 'label') {
       const labelId = hitId
       selectLabel(labelId)
       const onMove = (ev: MouseEvent) => {
@@ -742,7 +847,7 @@ export function Canvas() {
       return
     }
 
-    if (hit.dataset.editorKind === 'digitaldevice') {
+    if (hitKind === 'digitaldevice') {
       const digitalDeviceId = hitId
       selectDigitalDevice(digitalDeviceId)
       const onMove = (ev: MouseEvent) => {
@@ -960,7 +1065,8 @@ export function Canvas() {
     )
       return
 
-    const diagramPoint = snapPoint(toPoint(e.clientX, e.clientY))
+    const point = toPoint(e.clientX, e.clientY)
+    const diagramPoint = snapPoint(point)
     const hit = (e.target as HTMLElement).closest('[data-editor-kind]') as HTMLElement | null
 
     let elementId: number | null = null
@@ -986,6 +1092,15 @@ export function Canvas() {
         // matching the usual desktop convention; right-clicking anything
         // else replaces the selection with just that one element.
         if (!(selectedElementIds.has(id) && selectedElementIds.size > 1)) selectElement(id)
+      }
+    } else {
+      // Same real-bounding-box fallback handleMouseDown's own plain click
+      // uses — a right-click that misses the real drawn geometry but still
+      // lands within the element's own computed footprint still selects it.
+      const boxHit = findElementBoxHit(point)
+      if (boxHit !== null) {
+        elementId = boxHit
+        if (!(selectedElementIds.has(boxHit) && selectedElementIds.size > 1)) selectElement(boxHit)
       }
     }
     setContextMenu({ x: e.clientX, y: e.clientY, diagramPoint, elementId, connectorId })
@@ -1198,20 +1313,49 @@ export function Canvas() {
                   />
                 ))}
               {!ghost &&
-                selectedElements.map(el =>
-                  el.class === 'BusBarSection' && el.points ? (
-                    <polyline
+                selectedElements.map(el => {
+                  if (el.class === 'BusBarSection' && el.points) {
+                    return (
+                      <polyline
+                        key={el.id}
+                        points={el.points.map(p => `${p.x},${p.y}`).join(' ')}
+                        fill="none"
+                        stroke={HIGHLIGHT}
+                        strokeWidth={6}
+                        strokeOpacity={0.5}
+                      />
+                    )
+                  }
+                  const box = elementBoxes.get(el.id)
+                  // Falls back to the old fixed circle only for the brief
+                  // window before elementBoxes' own effect has run for a
+                  // just-placed element (e.g. the very first render after
+                  // placement) — every other case has a real box.
+                  return box ? (
+                    <rect
                       key={el.id}
-                      points={el.points.map(p => `${p.x},${p.y}`).join(' ')}
+                      x={box.x - BOX_HIGHLIGHT_PAD}
+                      y={box.y - BOX_HIGHLIGHT_PAD}
+                      width={box.width + BOX_HIGHLIGHT_PAD * 2}
+                      height={box.height + BOX_HIGHLIGHT_PAD * 2}
                       fill="none"
-                      stroke={HIGHLIGHT}
-                      strokeWidth={6}
-                      strokeOpacity={0.5}
+                      stroke="red"
+                      strokeWidth={0.5}
+                      strokeDasharray="4 2"
                     />
                   ) : (
-                    <circle key={el.id} cx={el.x} cy={el.y} r={24} fill="none" stroke={HIGHLIGHT} strokeWidth={1} />
-                  ),
-                )}
+                    <circle
+                      key={el.id}
+                      cx={el.x}
+                      cy={el.y}
+                      r={24}
+                      fill="none"
+                      stroke="red"
+                      strokeWidth={0.5}
+                      strokeDasharray="4 2"
+                    />
+                  )
+                })}
               {selectedConnector && (
                 <polyline
                   points={selectedConnector.points.map(p => `${p.x},${p.y}`).join(' ')}
@@ -1221,39 +1365,41 @@ export function Canvas() {
                   strokeOpacity={0.5}
                 />
               )}
-              {/* A selected label gets a simple circle at its own anchor
-                  point (x,y — where text-anchor/the first line's baseline
-                  actually starts), the same minimal-marker convention a
-                  connector/busbar's own highlight uses, rather than
-                  measuring the rendered text's real DOM bounding box. */}
-              {selectedLabel && (
-                <circle
-                  cx={selectedLabel.x + (labelDrag?.id === selectedLabel.id ? labelDrag.dx : 0)}
-                  cy={selectedLabel.y + (labelDrag?.id === selectedLabel.id ? labelDrag.dy : 0)}
-                  r={6}
-                  fill="none"
-                  stroke={HIGHLIGHT}
-                  strokeWidth={1.5}
-                />
-              )}
-              {/* Same minimal anchor-point marker convention as a selected
+              {/* A selected label gets a red X at its own anchor point (x,y
+                  — where text-anchor/the first line's baseline actually
+                  starts), the same X-mark shape a terminal/node uses
+                  (TERMINAL_MARK_SIZE), rather than measuring the rendered
+                  text's real DOM bounding box. */}
+              {selectedLabel &&
+                (() => {
+                  const lx = selectedLabel.x + (labelDrag?.id === selectedLabel.id ? labelDrag.dx : 0)
+                  const ly = selectedLabel.y + (labelDrag?.id === selectedLabel.id ? labelDrag.dy : 0)
+                  return (
+                    <path
+                      d={`M ${lx - SELECTION_MARK_SIZE} ${ly - SELECTION_MARK_SIZE} L ${lx + SELECTION_MARK_SIZE} ${ly + SELECTION_MARK_SIZE} M ${lx - SELECTION_MARK_SIZE} ${ly + SELECTION_MARK_SIZE} L ${lx + SELECTION_MARK_SIZE} ${ly - SELECTION_MARK_SIZE}`}
+                      stroke="red"
+                      strokeWidth={1}
+                    />
+                  )
+                })()}
+              {/* Same red X anchor-point marker convention as a selected
                   label. */}
-              {selectedDigitalDevice && (
-                <circle
-                  cx={
+              {selectedDigitalDevice &&
+                (() => {
+                  const dx =
                     selectedDigitalDevice.x +
                     (digitalDeviceDrag?.id === selectedDigitalDevice.id ? digitalDeviceDrag.dx : 0)
-                  }
-                  cy={
+                  const dy =
                     selectedDigitalDevice.y +
                     (digitalDeviceDrag?.id === selectedDigitalDevice.id ? digitalDeviceDrag.dy : 0)
-                  }
-                  r={6}
-                  fill="none"
-                  stroke={HIGHLIGHT}
-                  strokeWidth={1.5}
-                />
-              )}
+                  return (
+                    <path
+                      d={`M ${dx - SELECTION_MARK_SIZE} ${dy - SELECTION_MARK_SIZE} L ${dx + SELECTION_MARK_SIZE} ${dy + SELECTION_MARK_SIZE} M ${dx - SELECTION_MARK_SIZE} ${dy + SELECTION_MARK_SIZE} L ${dx + SELECTION_MARK_SIZE} ${dy - SELECTION_MARK_SIZE}`}
+                      stroke="red"
+                      strokeWidth={1}
+                    />
+                  )
+                })()}
               {selectedConnector &&
                 (() => {
                   const points = connectorPreviewPoints(selectedConnector.id, selectedConnector.points)

@@ -1809,3 +1809,49 @@ colors; a genuinely invalid value (e.g. `LAMP_DEFAULTS`' own `fillOff:
 'none'`) still falls back to the plain swatch as before. Verified live
 against `diagrams/Examples.xml`'s own `id="148701988"` digital device: the
 color picker now shows yellow instead of white.
+
+2026-09-18: Voltage transformer (shape 55) added to the palette —
+`ClassVoltageTransformer` (`slddoc` module). Ported from xsde2svg's own
+`element_55.go`, 2-winding case only: a real instance's own winding count
+(2, 3, or 4 circles) is a source-config detail the rendered SVG doesn't
+otherwise distinguish by shape/data-type code, so this picks the classic
+2-circle look (user's own choice over the 3-circle alternative), the same
+simplification already made for Power transformer's own 2-winding-only
+case. A one-port "drop" device (single terminal at its own stub's free
+end, `(0,0)`) hanging off a bus, same convention as Capacitor bank's
+single terminal; the primary winding (top circle) takes the element's
+voltage color, the secondary (bottom circle) a fixed `#D2D2D2` gray,
+matching a real corpus instance exactly (`sld-viewer/assets/sld/
+PS_110kV_Example.svg`, `id="4473"`) — verified live via `/api/render`.
+Also wired into the shared module's `Extract` (SVG import) path the same
+way every prior shape addition was (`elementDataTypes`, a `parseOnePortDevice`
+case, `shapeName`'s own `<!-- Name:code -->` comment entry): verified
+against the real source (`sld-svg/examples/sld/Examples.svg`) that all 10
+of its own Voltage transformers now extract as real elements instead of
+landing in `Report.Skipped["55"]`.
+
+2026-09-18: Replaced element selection/click-tolerance's fixed-radius-circle
+approach with each element's own real computed bounding box — surfaced by
+the new Voltage transformer (whose anchor sits at its own terminal, far
+from where its actual body is drawn) but a real gap for any shape that's
+large, small, or off-center from its own anchor, since a single global
+circle radius can't fit all of them. Backend (`slddoc`): removed the
+invisible `<circle r="18">` `Render` used to add around every symbol
+element in Interactive mode as a click-target workaround. Frontend
+(`Canvas.tsx`): after each render, computes and caches a real diagram-space
+bounding box per symbol element from the backend-rendered `<g>`'s own
+`getBBox()` (local, pre-transform geometry) pushed through
+`diagramOps.placeLocalPoint`'s existing rotate-then-translate math (now
+exported — the same math a shape's own declared `Terminals` already use);
+BusBarSection is skipped since it already has its own points-based
+highlight. This real box now drives both the selection-highlight rect
+(replacing the old fixed `r=24` circle centered on the raw anchor) and a
+click-tolerance fallback (`findElementBoxHit`, smallest-box-wins on
+overlap, both `handleMouseDown` and the right-click context menu) for a
+plain click that lands within a shape's own real footprint but not on any
+actually-drawn geometry (e.g. the empty interior of an unfilled stroke-only
+shape). Verified live: Voltage transformer's own highlight now tightly
+wraps its real two-circle body instead of floating near its anchor, an
+existing shape (Breaker) still highlights/selects/drags correctly, and
+clicking dead-center in an unfilled circle's own empty interior (no real
+geometry there) now correctly selects it via the new fallback.

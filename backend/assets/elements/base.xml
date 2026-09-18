@@ -295,6 +295,29 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_55.go (element55) — the 2-winding
+       case only: a real instance's own winding count (2, 3, or 4 circles)
+       is a source-config detail the rendered SVG doesn't otherwise
+       distinguish by shape/data-type code, so this picks the classic
+       2-circle look, the same simplification already made for Power
+       transformer's own 2-winding-only case. The single terminal sits at
+       the stub's own free end (0,0) — a one-port "drop" device hanging off
+       a bus, same convention as Capacitor bank's own single terminal —
+       with the primary winding (top circle) taking the element's voltage
+       color and the secondary (bottom circle) a fixed gray, matching a
+       real corpus instance exactly (e.g. sld-viewer's
+       PS_110kV_Example.svg, id="4473"). -->
+  <symbol shape="55" class="VoltageTransformer" name="Voltage transformer" category="Measurement">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 5" style="fill:none;stroke:{color};stroke-width:1" />
+<circle cx="0" cy="17" r="12" style="fill:none;stroke:{color};stroke-width:1" />
+<circle cx="0" cy="34" r="12" style="fill:none;stroke:#D2D2D2;stroke-width:1" />
+]]></template>
+  </symbol>
+
   <!-- The stem's own two ends (±20, already grid-aligned) are the real
        electrical connection points, same convention as every other
        vertical-stem symbol's terminals. -->

@@ -503,8 +503,11 @@ function defaultConnectorName(kind: ConnectorKind, id: number): string | undefin
 /** Rotates a local (unrotated) point by an element's own orient (degrees)
  * and translates it by the element's own anchor — matching exactly how
  * internal/slddoc.Render places a symbol's template, via
- * transform="translate(x,y) rotate(orient)". */
-function placeLocalPoint(el: DiagramElement, p: Point): Point {
+ * transform="translate(x,y) rotate(orient)". Exported for Canvas.tsx's own
+ * elementBoxes, which maps a symbol's real rendered-DOM local bounding box
+ * (getBBox(), still in that same pre-transform local space) through this
+ * same math to get its true diagram-space footprint. */
+export function placeLocalPoint(el: DiagramElement, p: Point): Point {
   const rad = ((el.orient ?? 0) * Math.PI) / 180
   const cos = Math.cos(rad)
   const sin = Math.sin(rad)
