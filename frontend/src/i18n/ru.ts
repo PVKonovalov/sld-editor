@@ -31,6 +31,14 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'file.defaultVoltage': 'Напряжение по умолчанию',
   'file.defaultVoltageHint':
     'Вновь размещаемые элементы и связи будут иметь этот класс напряжения вместо отсутствующего.',
+  'file.export': 'Экспорт',
+  'file.downloadXml': 'Скачать XML',
+  'file.downloadSvg': 'Скачать SVG',
+  'file.import': 'Импорт',
+  'file.loadFromFile': 'Загрузить из файла…',
+  'file.dropHint': 'Либо перетащите файл .xml в любое место окна приложения.',
+  'file.dropOverlay': 'Отпустите файл .xml для загрузки',
+  'file.invalidXmlFile': 'Не файл .xml: {{name}}',
 
   'elements.uncategorized': 'Прочее',
   'elements.empty': 'Библиотеки элементов не настроены.',

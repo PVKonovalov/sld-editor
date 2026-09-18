@@ -1,7 +1,11 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/PVKonovalov/slddoc"
 	"sld-editor/internal/api"
@@ -48,9 +52,17 @@ func main() {
 		llog.Logger.Fatalf("opening diagrams directory (%s): %v", cfg.Diagrams.Dir, err)
 	}
 
+	// SIGTERM is what systemd/Docker/`kill` send by default; SIGINT is
+	// Ctrl-C in an interactive terminal. Either cancels ctx, which Run
+	// treats as "shut down gracefully" rather than aborting in-flight
+	// requests.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	srv := api.NewServer(store, lib, &cfg)
 	llog.Logger.Infof("sld-editor listening on %s", cfg.Server.Bind)
-	if err := srv.Run(cfg.Server.Bind); err != nil {
+	if err := srv.Run(ctx, cfg.Server.Bind); err != nil {
 		llog.Logger.Fatalf("server error: %v", err)
 	}
+	llog.Logger.Infof("sld-editor shut down")
 }

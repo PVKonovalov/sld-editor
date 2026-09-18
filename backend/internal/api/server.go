@@ -3,9 +3,12 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"io/fs"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -14,6 +17,12 @@ import (
 	"sld-editor/internal/storage"
 	"sld-editor/internal/webui"
 )
+
+// shutdownTimeout bounds how long Run waits for in-flight requests to
+// finish once its context is cancelled, before forcing the listener
+// closed — a diagram save/render is fast, so this only ever matters for a
+// request that's genuinely stuck.
+const shutdownTimeout = 10 * time.Second
 
 // Server holds every dependency the HTTP handlers need.
 type Server struct {
@@ -36,9 +45,34 @@ func NewServer(store *storage.Store, lib *elements.Library, cfg *config.Config) 
 	return s
 }
 
-// Run starts the HTTP server, blocking until it stops or fails.
-func (s *Server) Run(addr string) error {
-	return s.router.Run(addr)
+// Run starts the HTTP server, blocking until ctx is cancelled (a caught
+// SIGINT/SIGTERM — see main.go) or the server fails to start. On
+// cancellation it shuts down gracefully, letting any in-flight request
+// finish (up to shutdownTimeout) rather than dropping it, and returns once
+// the listener is fully closed. Builds its own *http.Server rather than
+// using Gin's own router.Run convenience wrapper, since that wrapper blocks
+// on http.ListenAndServe directly and exposes no way to call Shutdown.
+func (s *Server) Run(ctx context.Context, addr string) error {
+	httpServer := &http.Server{Addr: addr, Handler: s.router}
+
+	errCh := make(chan error, 1)
+	go func() {
+		if err := httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+			return
+		}
+		errCh <- nil
+	}()
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-ctx.Done():
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	return httpServer.Shutdown(shutdownCtx)
 }
 
 // Handler exposes the underlying http.Handler, for tests that want to drive
@@ -55,6 +89,9 @@ func (s *Server) routes() {
 	grp.PUT("/diagrams/:name", s.saveDiagram)
 	grp.GET("/diagrams/:name/svg", s.renderDiagramSVG)
 	grp.POST("/render", s.renderPreview)
+	grp.POST("/export/xml", s.exportDiagramXML)
+	grp.POST("/export/svg", s.exportDiagramSVG)
+	grp.POST("/import/xml", s.importDiagramXML)
 	grp.GET("/elements", s.listElements)
 	grp.GET("/config", s.getConfig)
 

@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"errors"
+	"io"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -134,6 +135,62 @@ func (s *Server) renderPreview(c *gin.Context) {
 		resp["warning"] = renderErr.Error()
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+// exportDiagramXML renders a not-yet-saved (or already-modified-in-editor)
+// diagram to XML for the browser to download directly to the user's own
+// machine — the same slddoc.Diagram.Save format Save/Save As write to
+// disk, just handed back over HTTP instead of persisted server-side.
+func (s *Server) exportDiagramXML(c *gin.Context) {
+	var d slddoc.Diagram
+	if err := c.ShouldBindJSON(&d); err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+
+	var buf bytes.Buffer
+	if err := d.Save(&buf); err != nil {
+		errJSON(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.Data(http.StatusOK, "application/xml", buf.Bytes())
+}
+
+// exportDiagramSVG mirrors exportDiagramXML for a Static-mode SVG (the same
+// xsde2svg-faithful rendering the companion .svg Save writes to disk, not
+// the live canvas's own Interactive markup) — a direct download of the
+// current, possibly-unsaved diagram.
+func (s *Server) exportDiagramSVG(c *gin.Context) {
+	var d slddoc.Diagram
+	if err := c.ShouldBindJSON(&d); err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+
+	var buf bytes.Buffer
+	renderErr := s.store.Render(&d, &buf, slddoc.Static)
+	if renderErr != nil {
+		c.Header("X-Render-Warning", renderErr.Error())
+	}
+	c.Data(http.StatusOK, "image/svg+xml", buf.Bytes())
+}
+
+// importDiagramXML parses a raw .xml file dropped/picked on the client
+// (see Load's own doc comment) and hands back the same JSON shape
+// getDiagram does, so the frontend can treat a locally loaded file exactly
+// like one opened from the server's own diagrams list.
+func (s *Server) importDiagramXML(c *gin.Context) {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+	d, err := slddoc.Load(bytes.NewReader(body))
+	if err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+	c.JSON(http.StatusOK, d)
 }
 
 func diagramResponse(d *slddoc.Diagram, renderWarning error) gin.H {

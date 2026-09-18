@@ -2511,3 +2511,57 @@ marker is present and the *other* locale's own marker is absent, and by
 actually running the native `macos-arm64-en` binary end to end (isolated
 port, the user's own dev servers untouched) — API calls, and the real
 UI loading in a browser — from that one binary alone.
+
+2026-09-18: Save/load a diagram directly to/from the user's own machine,
+independent of the server's own diagrams directory. Backend: three new
+endpoints alongside the existing `/api/render` (all operate on the posted
+diagram JSON directly, not a name in server storage, so they work on the
+current in-memory — possibly unsaved — diagram): `POST /api/export/xml`
+(raw XML via `slddoc.Diagram.Save`), `POST /api/export/svg` (raw
+Static-mode SVG, the same xsde2svg-faithful rendering the on-disk `.svg`
+gets, not the canvas's own Interactive markup), and `POST /api/import/xml`
+(raw XML body -> parsed diagram JSON via `slddoc.Load`, 400 on malformed
+XML). Frontend: `FilePanel`'s new "Export" section (Download XML/Download
+SVG — a client-side blob download, no navigation away from the app) and
+"Import" section (a "Load from file…" picker restricted to `.xml`), plus a
+window-wide drag-and-drop zone (`App.tsx`'s `Shell`, with a visual overlay
+while dragging) so a `.xml` file can be dropped anywhere in the app, not
+just onto a specific control. Both routes into the app funnel through one
+new `DiagramContext` action, `loadDiagramFromXML` — parses via the new
+import endpoint, runs the result through the same `ensureLastId` backfill
+`openDiagram` already applies, and makes it the working diagram (named
+after the source file, marked dirty so Save persists it server-side under
+that name — the same upsert semantics Save As already has, not a separate
+"import" concept the rest of the app needs to know about). New i18n keys
+in both `en.ts`/`ru.ts`. Verified: a Go test round-trips export XML ->
+import XML end to end and checks both export content types; live browser
+verification against an isolated instance (the user's own dev servers
+untouched) confirmed the File panel's buttons render/enable correctly,
+Download XML/SVG each fire their own request and return 200 with no
+console errors, and picking a file through the hidden file input
+(drag-and-drop's own event simulation isn't reachable through the
+available browser automation tools, but it shares the same
+`loadDiagramFromXML` code path the file-picker button already exercised)
+correctly loads it as a new, dirty, correctly-named working diagram with
+its element rendered on canvas.
+
+2026-09-18: Graceful shutdown for the backend, since it's a long-running
+service (systemd unit, Docker container, etc.), not a one-shot script —
+being killed mid-request previously just dropped the connection.
+`api.Server.Run` now takes a `context.Context` and builds its own
+`*http.Server` (instead of Gin's own `router.Run`, which blocks on
+`http.ListenAndServe` directly with no way to call `Shutdown`): on context
+cancellation it calls `Shutdown`, letting any in-flight request finish (up
+to a 10s `shutdownTimeout`) before returning, rather than aborting it.
+`main.go` derives that context with `signal.NotifyContext(...,
+os.Interrupt, syscall.SIGTERM)`, so both Ctrl-C and a `kill`/systemd
+stop (SIGTERM) now shut the process down cleanly instead of the OS just
+tearing down open connections. `Run` had exactly one caller (`main.go`),
+so this was a contained signature change. New test:
+`TestRun_GracefulShutdown` starts the real server on a free port, confirms
+a request succeeds, cancels the context, and asserts `Run` returns
+(without error) within the shutdown timeout and the port stops accepting
+new connections afterward. Also manually verified against a real built
+binary: sent it a real `SIGTERM` and confirmed the "sld-editor shut down"
+log line and a clean process exit, on an isolated port, the user's own dev
+server untouched.
