@@ -96,7 +96,7 @@ export interface DiagramElement {
 }
 
 // Matches backend/internal/slddoc.ConnectorKind.
-export type ConnectorKind = 'BusbarWire' | 'OverheadLine' | 'CableLine' | 'BusWork'
+export type ConnectorKind = 'BusbarWire' | 'OverheadLine' | 'CableLine' | 'BusWork' | 'LinkToObject'
 
 // Matches backend/internal/slddoc.ConnectorLineStyle — a CableLine
 // connector's own dash pattern, mirroring xsde2svg's own line-style

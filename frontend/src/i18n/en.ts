@@ -40,6 +40,7 @@ export const dictionary = {
   'connectorKind.BusWork': 'Buswork',
   'connectorKind.OverheadLine': 'Overhead line',
   'connectorKind.CableLine': 'Cable line',
+  'connectorKind.LinkToObject': 'Object link',
 
   'settings.noDiagram': 'Open or create a diagram to edit its settings.',
   'settings.gridSpacing': 'Grid spacing',

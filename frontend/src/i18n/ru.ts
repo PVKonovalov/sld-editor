@@ -45,6 +45,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'connectorKind.BusWork': 'Провод',
   'connectorKind.OverheadLine': 'Воздушная линия',
   'connectorKind.CableLine': 'Кабельная линия',
+  'connectorKind.LinkToObject': 'Связь с объектом',
 
   'settings.noDiagram': 'Откройте или создайте схему, чтобы изменить её настройки.',
   'settings.gridSpacing': 'Шаг сетки',

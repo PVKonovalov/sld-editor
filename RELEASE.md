@@ -1946,3 +1946,70 @@ switching it to Service visibly shifts the inner body sideways relative to
 the fixed outer terminals; a full extract-then-render round trip on the
 real corpus reproduces the source geometry with byte-exact math (confirmed
 by hand) and no missing-shape errors.
+
+2026-09-18: Object link (shape 28, "Связь с объектом" in the xsde2svg
+catalog) added as a placeable connector kind — full scope (backend render
+fix plus frontend palette placement), per the user's own request after
+describing it as "just line with an arrow" and supplying a real xsde2svg
+instance to match. New `KindLinkToObject` `ConnectorKind` (`slddoc` module)
+— deliberately *not* reusing the string `"ObjectLink"`, since that value is
+already `kindObjectLinkLegacy`, silently rewritten to `KindBusWork` on
+every `Load()` for backward compatibility with diagrams saved before this
+editor's own Connector.Kind convention existed; reusing it here would have
+made every freshly drawn Object link connector revert itself to a plain
+Buswork the next time its diagram loaded. `connectorKindByType["28"]` fixed
+to map to the new kind instead of `KindBusWork` (`elements.go`), so
+`Extract`ing a real xsde2svg document now correctly classifies this shape
+rather than silently downgrading it. Renders (`render.go`'s new
+`writeObjectLink`) as the same flat, un-wrapped `<polyline>` convention as
+Buswork, just at a heavier 2px stroke, plus a separate triangular arrowhead
+`<path>` at the connector's own final point, rotated to continue pointing
+in the direction its last segment was travelling
+(`atan2(from.X-to.X, dy)`, reverse-engineered from the real instance's own
+effective angle — computed as `from.X-to.X` rather than the more obvious
+`-(to.X-from.X)` specifically so IEEE754's sign-of-zero doesn't flip a
+straight run into the wrong 180° twin of the correct angle). The arrowhead
+is placed via this codebase's own `translate(x,y) rotate(angle)` local-
+origin convention (matching every symbol template's own transform, the one
+`renderElement` already uses everywhere else) rather than literally
+reproducing the real source's own single `rotate(angle,cx,cy)` around an
+absolute-coordinate path — those two aren't interchangeable once the path
+data itself is local rather than pre-rotation-absolute, and an earlier
+version of this function, written to match the real markup literally, was
+caught rendering the arrowhead thousands of units away from its own wire; a
+regression test (`TestRender_ObjectLinkMatchesXsde2svgFormat`) now
+independently recomputes the arrowhead's own on-screen corner positions
+from its rendered transform and checks them against the real instance's
+own known screen coordinates, rather than trusting a hand-derived expected
+string the way an earlier, passing-but-wrong version of this same test did.
+Frontend: `LinkToObject` added to `ConnectorKind` (`types/index.ts`), a new
+palette icon (`wireKindIcon.ts`, a short line plus a filled triangle
+arrowhead) and `WIRE_KIND_LABELS` entry (`ElementsPanel.tsx`) put an
+"Object link" button in the Elements panel's own "Wires" section alongside
+Buswork/Overhead line/Cable line — arming it and drawing a route with the
+click-to-route tool now produces a real `LinkToObject` connector the same
+way the other three kinds already work, with no special-casing needed
+elsewhere (it taps/targets/reroutes exactly like an ordinary Buswork
+connector; only its own rendering differs). i18n keys added to both
+`en.ts` ("Object link") and `ru.ts` ("Связь с объектом"). Verified live in
+an isolated instance (backend :8099, frontend :5183 — the user's own
+:8090/:5173 dev servers were left untouched throughout): placed two
+Breakers, armed Object link, drew a route from one's terminal to the
+other's — the heavy black line and its arrowhead rendered with the
+arrowhead's apex landing exactly on the target terminal, pointing in the
+direction of the route; selecting the connector highlighted it and showed
+the expected Properties fields (Name/Voltage class/ID/Delete, no Kind
+field, matching every other connector kind); saved and reopened the
+diagram to confirm the XML round-trip persists `kind="LinkToObject"`
+verbatim rather than falling into the legacy `"ObjectLink"`-rewrite path.
+
+2026-09-18: A freshly drawn Object link connector now gets an
+auto-generated Name ("Object link-12"), matching Overhead line/Cable
+line's own existing convention — added `LinkToObject: 'Object link'` to
+`diagramOps.ts`'s `NAMED_CONNECTOR_KIND_LABEL`. Unlike Overhead line/Cable
+line, this Name is editor-only bookkeeping: a real xsde2svg Object link
+instance (`element_28.go`) never carries a `data-name` attribute the way
+an Overhead/Cable line does (`writeNamedLine`'s own `<g id data-type
+data-name data-voltage>` wrapper), so `writeObjectLink` still never reads
+`Connector.Name` back out — it only shows up in Properties and round-trips
+through the saved XML.

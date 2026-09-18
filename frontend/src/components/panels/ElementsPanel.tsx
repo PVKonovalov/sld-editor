@@ -9,10 +9,11 @@ import type { ElementSymbol } from '../../types'
 
 // Labels for WIRE_KINDS' own palette buttons/hint text ('BusbarWire' was
 // removed as a palette entry — see wireKindIcon.ts's own doc comment).
-const WIRE_KIND_LABELS: Record<'BusWork' | 'OverheadLine' | 'CableLine', TranslationKey> = {
+const WIRE_KIND_LABELS: Record<'BusWork' | 'OverheadLine' | 'CableLine' | 'LinkToObject', TranslationKey> = {
   BusWork: 'connectorKind.BusWork',
   OverheadLine: 'connectorKind.OverheadLine',
   CableLine: 'connectorKind.CableLine',
+  LinkToObject: 'connectorKind.LinkToObject',
 }
 
 export function ElementsPanel({ onClose }: { onClose: () => void }) {

@@ -16,7 +16,7 @@
 // heavier, tower-to-tower-looking line; CableLine's is dashed at
 // "6 5" — its icon matches Render's own cableLineDash exactly, not just
 // a conventional stand-in) rather than a literal preview.
-export const WIRE_KIND_ICONS: Record<'BusWork' | 'OverheadLine' | 'CableLine', string> = {
+export const WIRE_KIND_ICONS: Record<'BusWork' | 'OverheadLine' | 'CableLine' | 'LinkToObject', string> = {
   BusWork: `
     <line x1="-26" y1="0" x2="26" y2="0" stroke="currentColor" stroke-width="1.5" />
   `,
@@ -28,6 +28,10 @@ export const WIRE_KIND_ICONS: Record<'BusWork' | 'OverheadLine' | 'CableLine', s
   CableLine: `
     <line x1="-26" y1="0" x2="26" y2="0" stroke="currentColor" stroke-width="2" stroke-dasharray="6 5" />
   `,
+  LinkToObject: `
+    <line x1="-26" y1="0" x2="18" y2="0" stroke="currentColor" stroke-width="2" />
+    <path d="M 26 0 L 14 -7 L 14 7 z" fill="currentColor" stroke="none" />
+  `,
 }
 
-export const WIRE_KINDS = Object.keys(WIRE_KIND_ICONS) as ('BusWork' | 'OverheadLine' | 'CableLine')[]
+export const WIRE_KINDS = Object.keys(WIRE_KIND_ICONS) as ('BusWork' | 'OverheadLine' | 'CableLine' | 'LinkToObject')[]
