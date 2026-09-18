@@ -3,6 +3,7 @@ import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { PanelShell } from './PanelShell'
 import { t, type TranslationKey } from '../../i18n'
+import { elementDisplayName } from '../../lib/elementCatalogI18n'
 import type { DiagramElement, ConnectorLineStyle, TransformerWinding, WindingScheme, TerminalDirection } from '../../types'
 
 const ORIENTATIONS = [0, 90, 180, -90]
@@ -591,7 +592,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // Class. Falls back to the bare Class for an element loaded from a
   // library that no longer has that Shape (e.g. shapeDisconnectorLegacy's
   // own kind of gap), so this never just renders blank.
-  const typeName = elements.find(s => s.shape === el.shape)?.name ?? el.class
+  const typeSymbol = elements.find(s => s.shape === el.shape)
+  const typeName = typeSymbol ? elementDisplayName(typeSymbol) : el.class
   // "Name:shape" — the same "Breaker:41" convention render.go's own
   // typeComment annotates the rendered SVG with (see shapeName), shown
   // here for every element, not just the ones whose name happens to

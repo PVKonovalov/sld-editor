@@ -5,6 +5,7 @@ import { PanelShell } from './PanelShell'
 import { t, type TranslationKey } from '../../i18n'
 import { elementIconMarkup } from '../../lib/elementIcon'
 import { WIRE_KIND_ICONS, WIRE_KINDS } from '../../lib/wireKindIcon'
+import { categoryDisplayName, elementDisplayName } from '../../lib/elementCatalogI18n'
 import type { ElementSymbol } from '../../types'
 
 // Labels for WIRE_KINDS' own palette buttons/hint text ('BusbarWire' was
@@ -47,7 +48,7 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
       {diagram && (
         <p className="text-xs text-gray-400 mb-2">
           {armedSymbol
-            ? t('elements.armedHint', { name: armedSymbol.name })
+            ? t('elements.armedHint', { name: elementDisplayName(armedSymbol) })
             : armedWireKind
               ? t('elements.wireArmedHint', { name: t(WIRE_KIND_LABELS[armedWireKind as keyof typeof WIRE_KIND_LABELS]) })
               : armedLabel
@@ -124,15 +125,16 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
         </div>
         {groups.map(([category, items]) => (
           <div key={category}>
-            <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{category}</h3>
+            <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{categoryDisplayName(category)}</h3>
             <div className="grid grid-cols-3 gap-1">
               {items.map(el => {
                 const active = armedSymbol?.shape === el.shape
+                const label = elementDisplayName(el)
                 return (
                   <button
                     key={el.shape}
                     type="button"
-                    title={el.name}
+                    title={label}
                     disabled={!diagram}
                     onClick={() => armSymbol(active ? null : el)}
                     className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
@@ -148,7 +150,7 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
                       className="shrink-0"
                       dangerouslySetInnerHTML={{ __html: elementIconMarkup(el) }}
                     />
-                    <span className="line-clamp-2 text-center leading-tight">{el.name}</span>
+                    <span className="line-clamp-2 text-center leading-tight">{label}</span>
                   </button>
                 )
               })}

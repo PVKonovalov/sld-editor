@@ -2565,3 +2565,45 @@ new connections afterward. Also manually verified against a real built
 binary: sent it a real `SIGTERM` and confirmed the "sld-editor shut down"
 log line and a clean process exit, on an isolated port, the user's own dev
 server untouched.
+
+2026-09-18: Elements palette category headings and per-element names are
+now translated in the Russian build — previously they were the bundled
+`backend/assets/elements/base.xml` catalog's own raw English `name`/
+`category` XML attributes, shown as-is regardless of locale, since they
+come from the backend's `/api/elements` response rather than through the
+frontend's own build-time i18n dictionary at all. New dictionary keys,
+`elementCatalog.name.<shape>` (per-symbol; two shapes can share a `class`
+but never a `shape`, so this is a safe stable key — e.g. `Breaker` (41) vs
+`Breaker (withdrawable)` (43) both being `class="Breaker"`) and
+`elementCatalog.category.<category>` (there are 10, e.g. `Switching
+devices` -> `Коммутационные аппараты`), added for all 29 bundled shapes in
+both `en.ts`/`ru.ts` — `ru.ts`'s own `Record<keyof Dictionary, string>`
+typing means a 30th bundled shape added later without its own Russian
+translation is a compile error, same guarantee every other UI string
+already has. A new `lib/elementCatalogI18n.ts`
+(`elementDisplayName`/`categoryDisplayName`) and `i18n/index.ts`'s new
+`tOrFallback` helper look these up by a runtime-built key (not a literal
+`TranslationKey`, since the shape comes from server data) and fall back to
+the server's own raw string unchanged when no key matches — which is what
+happens for anything from a site's own config-added element library file
+(`elements.libraries` in config): this app's own translations were only
+ever going to cover the bundled default catalog, and a site adding its own
+equipment shapes gets its own raw label rather than a build error. Wired
+into `ElementsPanel.tsx` (category headings, each palette button's own
+label/tooltip, and the "click the canvas to place a {{name}}" armed hint)
+and `PropertiesPanel.tsx` (the "TypeName:shape" label shown above a
+selected element's own editable Name field) — deliberately *not* into
+`diagramOps.placeElement`'s own default-name generator
+(`` `${symbol.name}-${id}` ``, which stays the raw English catalog name),
+since that becomes the persisted `Element.Name` written to the diagram's
+own XML, and a diagram saved under one locale's build should read
+identically when later opened under the other's, not have its actual data
+follow whichever locale happened to place it. Verified: both `build:en`
+and `build:ru` type-check clean (confirming `ru.ts`'s exhaustiveness
+check), and a live browser pass against an isolated Russian-locale
+instance (the user's own dev servers untouched) confirmed every one of
+the 10 category headings and all ~29 element labels render in Russian
+with no leftover English, the armed-hint interpolates the Russian name
+correctly, the Properties type label shows the Russian name while the
+underlying persisted `Name` field correctly stays the raw English
+`"Breaker-1"`-style default, and no console errors.

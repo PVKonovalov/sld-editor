@@ -50,6 +50,54 @@ export const dictionary = {
   'connectorKind.CableLine': 'Cable line',
   'connectorKind.LinkToObject': 'Object link',
 
+  // The bundled backend/assets/elements/base.xml catalog's own name/
+  // category strings, keyed by shape (elementCatalog.name.<shape>, a
+  // stable per-symbol id — two shapes can share a class but never a shape)
+  // and by the raw category string (elementCatalog.category.<category>) —
+  // see lib/elementCatalogI18n.ts, which looks these up with a raw-string
+  // fallback for anything from a site's own config-added element library
+  // file (elements.libraries in config), which has no key here at all.
+  'elementCatalog.category.Busbars': 'Busbars',
+  'elementCatalog.category.Wiring': 'Wiring',
+  'elementCatalog.category.Switching devices': 'Switching devices',
+  'elementCatalog.category.Grounding': 'Grounding',
+  'elementCatalog.category.Transformers': 'Transformers',
+  'elementCatalog.category.Generation': 'Generation',
+  'elementCatalog.category.Measurement': 'Measurement',
+  'elementCatalog.category.Other equipment': 'Other equipment',
+  'elementCatalog.category.Protection': 'Protection',
+  'elementCatalog.category.Indicators': 'Indicators',
+
+  'elementCatalog.name.24': 'Busbar section',
+  'elementCatalog.name.7': 'Junction point',
+  'elementCatalog.name.14': 'Wire jump',
+  'elementCatalog.name.41': 'Breaker',
+  'elementCatalog.name.43': 'Breaker (withdrawable)',
+  'elementCatalog.name.42': 'Load-break switch',
+  'elementCatalog.name.162': 'Disconnector',
+  'elementCatalog.name.49': 'Disconnector (withdrawable)',
+  'elementCatalog.name.51': 'Chassis',
+  'elementCatalog.name.54': 'Ground switch',
+  'elementCatalog.name.76': 'Starter',
+  'elementCatalog.name.31': 'Ground terminal',
+  'elementCatalog.name.47': 'Power transformer',
+  'elementCatalog.name.173': 'Generator',
+  'elementCatalog.name.34': 'Current transformer',
+  'elementCatalog.name.55': 'Voltage transformer',
+  'elementCatalog.name.33': 'Choke coil',
+  'elementCatalog.name.37': 'Reactor',
+  'elementCatalog.name.397': 'Reactor (shunt)',
+  'elementCatalog.name.35': 'Surge arrester',
+  'elementCatalog.name.29': 'Surge arrester',
+  'elementCatalog.name.168': 'Surge arrester (grounded)',
+  'elementCatalog.name.203': 'Fuse',
+  'elementCatalog.name.154': 'Fuse (withdrawable)',
+  'elementCatalog.name.388': 'Capacitor',
+  'elementCatalog.name.172': 'Capacitor bank',
+  'elementCatalog.name.52': 'Half-chassis',
+  'elementCatalog.name.106': 'Lamp',
+  'elementCatalog.name.320003': 'Fault passage indicator',
+
   'settings.noDiagram': 'Open or create a diagram to edit its settings.',
   'settings.gridSpacing': 'Grid spacing',
   'settings.snapToGrid': 'Snap to grid',

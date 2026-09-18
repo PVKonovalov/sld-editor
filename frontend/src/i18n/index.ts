@@ -15,3 +15,13 @@ export function t(key: TranslationKey, params?: Record<string, string | number>)
   if (!params) return template
   return template.replace(/\{\{(\w+)\}\}/g, (_, name) => String(params[name] ?? `{{${name}}}`))
 }
+
+/** t()'s counterpart for a key built at runtime from server-provided data
+ * (see lib/elementCatalogI18n.ts) rather than a literal known at compile
+ * time — falls back to `fallback` unchanged when the active dictionary has
+ * no such key, for data (e.g. a site's own config-added element library
+ * file) this app's own translations were never expected to cover. */
+export function tOrFallback(key: string, fallback: string, params?: Record<string, string | number>): string {
+  if (!Object.prototype.hasOwnProperty.call(dictionary, key)) return fallback
+  return t(key as TranslationKey, params)
+}
