@@ -1881,3 +1881,21 @@ surfaced this. Re-extracted `diagrams/Examples.xml`/`.svg` from the real
 source (`sld-svg/examples/sld/Examples.svg`) to pick up the fix: all 10 of
 its own Voltage transformers now resolve to their real voltage class
 (previously all unset) and render in their true color instead of gray.
+
+2026-09-18: Half-chassis (shape 52) added to the palette —
+`ClassHalfChassis` (`slddoc` module). Ported from xsde2svg's own
+`element_52.go`: a withdrawable device's own racking indicator, a short
+stem topped by an arrow-chevron at its own free end (the real electrical
+connection point, and this shape's own single terminal, at local `(0,0)`
+— same one-port convention as Capacitor bank's own terminal), plus a
+second chevron floating disconnected further down with no drawn line
+reaching it, representing the coupling's other half now racked out.
+Unlike Voltage transformer, a real instance does carry a normal
+`data-voltage` attribute, so `Extract`'s shape-52 case reuses the shared
+`parseOnePortDevice` unchanged. Verified against the real corpus
+(`sld-svg/examples/sld/PS_110kV_Valdai.svg`): the anchor `parseOnePortDevice`
+computes for a real rotated instance (`id="4346"`, `x="782" y="1340"
+orient="180"`) was hand-derived and confirmed to exactly match this
+symbol's own local template coordinates before choosing them, and a full
+extract-then-render round trip on that file reproduces all 3 of its own
+instances with no missing-shape errors.

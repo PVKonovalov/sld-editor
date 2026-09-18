@@ -503,6 +503,24 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_52.go (element52) — a withdrawable
+       device's own "half chassis" racking indicator: a short stem with an
+       arrow-chevron at its own free end, plus a second chevron floating
+       disconnected further down (no drawn line reaches it) representing
+       the other half of the coupling, now racked out. Anchor is the top
+       stem's own free end, matching parseOnePortDevice's own convention
+       (the combined path's own first point) — the same one-port
+       convention Capacitor bank's own terminal above uses; the floating
+       lower chevron has no wire-connection point of its own. -->
+  <symbol shape="52" class="HalfChassis" name="Half-chassis" category="Other equipment">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 12 l -4 -4 m 4 4 l 4 -4 m -4 12 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <symbol shape="106" class="Lamp" name="Lamp" category="Indicators">
     <template><![CDATA[
 <circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:slategray;stroke-width:2" />
