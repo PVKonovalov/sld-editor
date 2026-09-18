@@ -1855,3 +1855,29 @@ wraps its real two-circle body instead of floating near its anchor, an
 existing shape (Breaker) still highlights/selects/drags correctly, and
 clicking dead-center in an unfilled circle's own empty interior (no real
 geometry there) now correctly selects it via the new fallback.
+
+2026-09-18: Selection marker styling tweaks (`Canvas.tsx`). A selected
+symbol element's own real-bounding-box highlight rect is now a thin dashed
+red line (0.5px, `stroke-dasharray: 4 2`) instead of the previous solid
+blue — the fixed-radius fallback circle (for the brief window before an
+element's own box has been computed) matches. A selected Label/
+DigitalDevice's own anchor-point marker is now a red "X" (the same shape
+convention `TERMINAL_MARK_SIZE` already uses for a terminal/node mark, at
+its own larger `SELECTION_MARK_SIZE`) instead of a plain blue circle.
+
+2026-09-18: Fixed Voltage transformer (shape 55)'s own voltage color never
+extracting — every real instance came out gray regardless of its true
+color. `Extract`'s shape-55 case reused the shared `parseOnePortDevice`,
+which reads voltage from a `data-voltage` attribute — but confirmed against
+the full `sld-svg/examples/sld` corpus, a real shape-55 instance never
+carries one anywhere on its own `<g>` or descendants (unlike every other
+one-port device, e.g. Capacitor bank's own `data-voltage` directly on its
+`<path>`); its true color only ever lives in the primary winding's own
+`style="stroke:..."`. Added a dedicated `parseVoltageTransformer` that
+reads voltage from that same first `<path>`'s own stroke instead (the
+same path whose first point already served as the anchor), covered by a
+new `TestParseVoltageTransformer` using the exact real markup that
+surfaced this. Re-extracted `diagrams/Examples.xml`/`.svg` from the real
+source (`sld-svg/examples/sld/Examples.svg`) to pick up the fix: all 10 of
+its own Voltage transformers now resolve to their real voltage class
+(previously all unset) and render in their true color instead of gray.
