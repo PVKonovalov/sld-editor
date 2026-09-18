@@ -76,6 +76,46 @@ export type ElementClass =
   | 'Lamp'
   | 'FaultPassageIndicator'
 
+// Matches slddoc.WindingScheme — a PowerTransformer winding's own
+// connection scheme. Only the three values with a real connection glyph in
+// writePowerTransformer are offered (see TransformerWinding.scheme's own
+// doc comment).
+export type WindingScheme = 'wye' | 'wyeN' | 'delta'
+
+// Matches slddoc.NeutralGrounding — only meaningful when a winding's own
+// scheme is 'wyeN'. All three get their own distinct mark in
+// writePowerTransformer (solid draws a real xsde2svg-style ground
+// pictogram; isolated/resistor are this editor's own invented marks, since
+// real xsde2svg has no glyph for either).
+export type NeutralGrounding = 'solid' | 'isolated' | 'resistor'
+
+// Matches slddoc.TerminalDirection — which side of a winding's own circle
+// its lead (and real electrical Port) is drawn on, in the transformer's
+// own local (pre-rotation) frame.
+export type TerminalDirection = 'top' | 'bottom' | 'left' | 'right'
+
+// Matches slddoc.TransformerWinding — one winding of a PowerTransformer
+// element (see DiagramElement.windings), HV/MV/LV1/LV2 in declaration
+// order.
+export interface TransformerWinding {
+  // References a VoltageClass.id (0/absent = unset) — this winding's own
+  // rated voltage/color; unlike every other element class, a
+  // PowerTransformer's windings can each carry a genuinely different one.
+  voltage?: number
+  // Empty draws no connection glyph at all.
+  scheme?: WindingScheme
+  grounding?: NeutralGrounding
+  // Marks this as the regulated winding (OLTC/off-circuit tap changer) —
+  // draws the diagonal regulation arrow. Real xsde2svg (and
+  // writePowerTransformer) only ever draws one such arrow per transformer
+  // regardless of how many windings request it — the last one set wins.
+  tapChanger?: boolean
+  // Empty falls back to this winding's own conventional default for the
+  // transformer's own winding count (writePowerTransformer's own
+  // defaultTerminal).
+  terminal?: TerminalDirection
+}
+
 export interface DiagramElement {
   id: number
   class: ElementClass
@@ -93,6 +133,17 @@ export interface DiagramElement {
   radius?: number
   ports?: Port[]
   points?: Point[]
+  // PowerTransformer (shape 47) only — see TransformerWinding's own doc
+  // comment for what each winding records. len(windings) is the
+  // transformer's own winding count (2, 3, or 4).
+  autotransformer?: boolean
+  windings?: TransformerWinding[]
+  // Freeform connection-diagram label (e.g. "Yn/Δ-11"); empty means
+  // "Show connection diagram label" is off. Real xsde2svg never computes
+  // this string anywhere (the clock-hour number needs a phase-
+  // displacement input the format doesn't carry), so it's typed in and
+  // stored verbatim, not derived from the windings' own scheme.
+  vectorGroupLabel?: string
 }
 
 // Matches backend/internal/slddoc.ConnectorKind.

@@ -3,7 +3,7 @@ import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { PanelShell } from './PanelShell'
 import { t, type TranslationKey } from '../../i18n'
-import type { DiagramElement, ConnectorLineStyle } from '../../types'
+import type { DiagramElement, ConnectorLineStyle, TransformerWinding, WindingScheme, TerminalDirection } from '../../types'
 
 const ORIENTATIONS = [0, 90, 180, -90]
 
@@ -20,6 +20,32 @@ const CABLE_LINE_STYLES: { value: ConnectorLineStyle | ''; labelKey: Translation
   { value: 'dashDot', labelKey: 'properties.lineStyleDashDot' },
   { value: 'dotted', labelKey: 'properties.lineStyleDotted' },
 ]
+
+// A PowerTransformer's per-winding Scheme/Grounding/Terminal choices —
+// mirrors slddoc's own WindingScheme/NeutralGrounding/TerminalDirection
+// enums exactly.
+const TRANSFORMER_SCHEMES: { value: WindingScheme | ''; labelKey: TranslationKey }[] = [
+  { value: '', labelKey: 'properties.transformerSchemeNone' },
+  { value: 'wye', labelKey: 'properties.transformerSchemeWye' },
+  { value: 'wyeN', labelKey: 'properties.transformerSchemeWyeN' },
+  { value: 'delta', labelKey: 'properties.transformerSchemeDelta' },
+]
+const TRANSFORMER_GROUNDINGS: { value: TransformerWinding['grounding'] | ''; labelKey: TranslationKey }[] = [
+  { value: '', labelKey: 'common.none' },
+  { value: 'solid', labelKey: 'properties.transformerGroundingSolid' },
+  { value: 'isolated', labelKey: 'properties.transformerGroundingIsolated' },
+  { value: 'resistor', labelKey: 'properties.transformerGroundingResistor' },
+]
+const TRANSFORMER_TERMINALS: { value: TerminalDirection; labelKey: TranslationKey }[] = [
+  { value: 'top', labelKey: 'properties.transformerTerminalTop' },
+  { value: 'bottom', labelKey: 'properties.transformerTerminalBottom' },
+  { value: 'left', labelKey: 'properties.transformerTerminalLeft' },
+  { value: 'right', labelKey: 'properties.transformerTerminalRight' },
+]
+// A freshly added winding (growing Number of windings) starts as a plain
+// wye, the same default placeElement seeds a freshly placed transformer's
+// own first two windings with.
+const BLANK_WINDING: TransformerWinding = { scheme: 'wye' }
 
 // Classes whose base.xml template reacts to {state:...}/{fill} — every
 // switching device with an Open/Close/Intermediate position, and so the
@@ -82,6 +108,98 @@ function swatchColor(value: string | undefined, fallback: string): string {
   if (!value) return fallback
   if (HEX_COLOR_RE.test(value)) return value
   return resolveCssColor(value) ?? fallback
+}
+
+function WindingEditor({
+  winding,
+  index,
+  voltageOptions,
+  onChange,
+  onVoltageChange,
+}: {
+  winding: TransformerWinding
+  index: number
+  voltageOptions: { value: string; label: string }[]
+  onChange: (fields: Partial<TransformerWinding>) => void
+  // Separate from onChange: a voltageOptions value can be a server preset's
+  // raw "preset:<name>" string, not yet a numeric VoltageClass id — turning
+  // that into a real id (creating the class on the diagram first, if it's
+  // not there yet) needs diagramOps.resolveVoltageSelection, which needs
+  // the whole Diagram/config, not just this one winding's own fields — see
+  // this same pattern on the plain Element/Connector Voltage class selects.
+  onVoltageChange: (rawValue: string) => void
+}) {
+  return (
+    <div className="border border-surface-700 rounded p-2 space-y-2">
+      <p className="text-[11px] text-gray-400">{t('properties.transformerWinding', { n: index + 1 })}</p>
+      <label className="block text-xs">
+        <span className="block text-gray-500 mb-0.5">{t('properties.voltageClass')}</span>
+        <select
+          className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+          value={winding.voltage ?? ''}
+          onChange={e => onVoltageChange(e.target.value)}
+        >
+          <option value="">{t('common.none')}</option>
+          {voltageOptions.map(opt => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block text-xs">
+        <span className="block text-gray-500 mb-0.5">{t('properties.transformerScheme')}</span>
+        <select
+          className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+          value={winding.scheme ?? ''}
+          onChange={e => onChange({ scheme: e.target.value === '' ? undefined : (e.target.value as WindingScheme) })}
+        >
+          {TRANSFORMER_SCHEMES.map(opt => (
+            <option key={opt.value} value={opt.value}>
+              {t(opt.labelKey)}
+            </option>
+          ))}
+        </select>
+      </label>
+      {winding.scheme === 'wyeN' && (
+        <label className="block text-xs">
+          <span className="block text-gray-500 mb-0.5">{t('properties.transformerGrounding')}</span>
+          <select
+            className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+            value={winding.grounding ?? ''}
+            onChange={e =>
+              onChange({ grounding: e.target.value === '' ? undefined : (e.target.value as TransformerWinding['grounding']) })
+            }
+          >
+            {TRANSFORMER_GROUNDINGS.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {t(opt.labelKey)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <label className="block text-xs">
+        <span className="block text-gray-500 mb-0.5">{t('properties.transformerTerminal')}</span>
+        <select
+          className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+          value={winding.terminal ?? ''}
+          onChange={e => onChange({ terminal: e.target.value === '' ? undefined : (e.target.value as TerminalDirection) })}
+        >
+          <option value="">{t('common.none')}</option>
+          {TRANSFORMER_TERMINALS.map(opt => (
+            <option key={opt.value} value={opt.value}>
+              {t(opt.labelKey)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-center gap-1.5 text-xs">
+        <input type="checkbox" checked={winding.tapChanger ?? false} onChange={e => onChange({ tapChanger: e.target.checked || undefined })} />
+        {t('properties.transformerTapChanger')}
+      </label>
+    </div>
+  )
 }
 
 function DeleteButton({ label, onDelete }: { label: string; onDelete: () => void }) {
@@ -577,6 +695,84 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 onChange={e => patch({ radius: Number(e.target.value) })}
               />
             </label>
+          </>
+        )}
+
+        {el.class === 'PowerTransformer' && (
+          <>
+            <label className="flex items-center gap-1.5 text-xs">
+              <input
+                type="checkbox"
+                checked={el.autotransformer ?? false}
+                onChange={e => patch({ autotransformer: e.target.checked || undefined })}
+              />
+              {t('properties.transformerAutotransformer')}
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.transformerWindingCount')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.windings?.length ?? 2}
+                onChange={e => {
+                  const n = Number(e.target.value)
+                  const current = el.windings ?? []
+                  const windings =
+                    n <= current.length ? current.slice(0, n) : [...current, ...Array(n - current.length).fill(BLANK_WINDING)]
+                  patch({ windings })
+                }}
+              >
+                {[2, 3, 4].map(n => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {(el.windings ?? []).map((w, i) => (
+              <WindingEditor
+                key={i}
+                winding={w}
+                index={i}
+                voltageOptions={voltageOptions}
+                onChange={fields => {
+                  const windings = (el.windings ?? []).map((existing, idx) => (idx === i ? { ...existing, ...fields } : existing))
+                  patch({ windings })
+                }}
+                onVoltageChange={rawValue =>
+                  updateDiagram(d => {
+                    const { diagram: withClass, voltage } = diagramOps.resolveVoltageSelection(d, config, rawValue)
+                    const windings = (el.windings ?? []).map((existing, idx) => (idx === i ? { ...existing, voltage } : existing))
+                    return {
+                      ...withClass,
+                      elements: withClass.elements.map(x => (x.id === el.id ? { ...x, windings } : x)),
+                    }
+                  })
+                }
+              />
+            ))}
+            {/* Checked <=> vectorGroupLabel is non-empty (empty means "off",
+                same as render.go treats it) — a bare click needs some
+                non-empty value to check itself with before any text is
+                typed, so it uses a single space as a "checked but still
+                blank" placeholder rather than introducing component-local
+                state this panel otherwise never needs (see below, where
+                that same placeholder reads back as an empty text field). */}
+            <label className="flex items-center gap-1.5 text-xs">
+              <input
+                type="checkbox"
+                checked={(el.vectorGroupLabel ?? '') !== ''}
+                onChange={e => patch({ vectorGroupLabel: e.target.checked ? el.vectorGroupLabel || ' ' : undefined })}
+              />
+              {t('properties.transformerShowVectorGroup')}
+            </label>
+            {(el.vectorGroupLabel ?? '') !== '' && (
+              <input
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1 text-xs"
+                placeholder={t('properties.transformerVectorGroupPlaceholder')}
+                value={el.vectorGroupLabel === ' ' ? '' : (el.vectorGroupLabel ?? '')}
+                onChange={e => patch({ vectorGroupLabel: e.target.value })}
+              />
+            )}
           </>
         )}
 

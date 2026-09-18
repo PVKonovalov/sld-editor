@@ -2013,3 +2013,402 @@ an Overhead/Cable line does (`writeNamedLine`'s own `<g id data-type
 data-name data-voltage>` wrapper), so `writeObjectLink` still never reads
 `Connector.Name` back out — it only shows up in Properties and round-trips
 through the saved XML.
+
+2026-09-18: Power transformer (shape 47) rebuilt into a full nameplate/
+winding properties model, at the user's own request quoting a detailed
+real-world requirements list (designation, autotransformer flag,
+2/3/4-winding, per-winding voltage/connection scheme/neutral grounding/
+regulation/terminal orientation, vector-group label) and asking that it
+"use all from element_47.go" — the real xsde2svg source, ~835 lines of
+procedural geometry. Read that source end to end and cross-checked it
+against 105 real Power transformer instances across 9 `sld-viewer` corpus
+files, plus a dedicated `xsde2svg/examples/test/{xsde,svg}` test suite
+covering autotransformer/4-winding/connection-scheme/size variants with
+real input-XML/output-SVG pairs — this is what made confidently
+implementing the autotransformer and 4-winding cases possible at all
+(0 of the 105 corpus instances were autotransformers, so without that
+second test suite they'd have shipped unverified). Old v1 support (a
+single hardcoded 2-winding wye/wye base.xml template, `parsePowerTransformer`
+capped at exactly 2 leads) is replaced by a fully procedural renderer,
+matching how `writeObjectLink`/connector kinds already work rather than
+template substitution — `renderElement` now special-cases
+`ClassPowerTransformer` the same way it already does `ClassBusBarSection`,
+bypassing the template lookup entirely (base.xml's own shape-47 template
+is kept, but only for the Elements panel's own static preview icon).
+
+New `slddoc` types: `WindingScheme` (wye/wyeN/delta — the three real
+`TransformerWinding.WindingType` values with an actual connection glyph in
+element_47.go; rarer ones like zigzag/open_delta aren't offered),
+`NeutralGrounding` (solid/isolated/resistor), `TerminalDirection`
+(top/bottom/left/right), and `TransformerWinding` (voltage/scheme/
+grounding/tapChanger/terminal) — `Element.Windings []TransformerWinding`
+(length = winding count), `Element.Autotransformer bool`, and
+`Element.VectorGroupLabel string` round out `Element`. Several of these
+are this editor's own deliberate simplifications over the real source,
+each a considered tradeoff rather than an oversight:
+- `TerminalDirection` replaces real xsde2svg's own opaque `Chassis` 1-7
+  switch (leg direction tied combinatorially to winding index/count/
+  mirroring) with a clean per-winding "pick a side" control — every leg
+  now draws at one consistent length (13 units) regardless of direction,
+  rather than porting the real source's differing h/hLegs/hLegsTop
+  constants per position.
+- The real `Size` 11-24 magic lookup table (named presets silently
+  overriding baseRadius/hLegs/hLegsTop) isn't ported at all — every
+  transformer always uses the true `sde.Size==0` default geometry
+  (confirmed against the source directly, since most of the real corpus
+  turned out to use non-default Size presets and so couldn't serve as a
+  default-path reference — one corpus instance was traced to Size 24's own
+  override to explain why its own hLegs/hLegsTop didn't match the naive
+  default assumption at first).
+- A 2-real-winding autotransformer needs only 2 `Windings` entries here,
+  each with a real circle — real xsde2svg's own convention is 3
+  `TransformerWinding` entries for a WindingNo=3 autotransformer, the
+  first never drawn as a circle at all (only supplying the tap
+  decoration's own color). Reusing that would force this editor's own
+  Properties UI to always show one more winding than physically exists.
+  `writeAutotransformerTap` instead draws a simplified tap stub+arc
+  directly on `Windings[0]`'s own real circle.
+- The real source's regulation arrow is drawn with a literal no-op
+  `translate(0,0)`, so it never actually rotates with its own transformer
+  even when Orient is 90/180/270 (confirmed by reading the source — this
+  reads as an unintentional quirk, not deliberate). This editor's own
+  arrow is drawn inside the same rotated `<g>` as everything else, so it
+  rotates naturally with the symbol — a deliberate improvement over the
+  source, not a byte-for-byte port.
+- `GroundingIsolated`/`GroundingResistor` get invented marks (a small ring;
+  a resistor zigzag) next to the wye-with-neutral glyph's own neutral
+  spoke — real xsde2svg has no glyph for either state at all, only for
+  `GroundingSolid` (its own "neutral_ground" WindingType, its own separate
+  ground-hatch marks, approximated here with a plain IEC earth pictogram
+  rather than ported stroke-for-stroke). The choice to invent marks for
+  all three rather than leave two of them visually identical was the
+  user's own, after being told the real source draws no distinction.
+- "Show connection diagram label" is a plain freeform text field, not an
+  auto-computed string — real xsde2svg never computes a vector-group
+  label like "Yn/Δ-11" anywhere, and the schema's own `<TransformerWinding>`
+  elements carry no phase-displacement/clock-hour data to compute one
+  from even in principle (confirmed by reading the real `.xsde` test
+  files directly), so there's nothing to derive it from.
+
+A real regression was caught during live verification and fixed before
+this shipped: `Windings`' own `xml:"windings>winding,omitempty"` tag hit
+the same long-standing `encoding/xml` limitation `Element.Points`
+("geometry>point") was already worked around for (golang/go#4256 —
+omitempty is silently ignored for a chained "parent>child" tag) — every
+*non*-transformer element was briefly saving a meaningless empty
+`<windings></windings>` wrapper (caught by opening a saved diagram's own
+XML and finding it on a plain `Breaker`). Fixed by adding `windings` to
+`model.go`'s existing `emptyPathWrapperLine` regex (the same mechanism
+`geometry` already used), with a new assertion added to
+`TestSave_OmitsEmptyPathWrapperTags` guarding against a repeat.
+
+Frontend: `frontend/src/types/index.ts` mirrors the new slddoc types;
+`diagramOps.ts` gets `powerTransformerDefaults` (a freshly placed
+transformer starts 2-winding wye/wye, matching the palette icon's own
+static preview) and a from-scratch TypeScript port of the backend's own
+winding-offset/default-terminal/leg-endpoint math
+(`transformerWindingOffset`/`defaultTransformerTerminal`/
+`transformerLegEndpoint`, hand-kept in sync with render.go's own constants
+of the same name) — `symbolTerminals` now special-cases
+`ClassPowerTransformer` to compute its own per-instance terminal positions
+this way instead of the static per-shape `Symbol.Terminals` every other
+class uses, since a transformer's own terminal count/positions depend on
+its own Windings, not anything base.xml can declare once per shape;
+without this, the click-to-route tool would only ever find a
+transformer's own bare center anchor as a connection target. The
+Properties panel gets a full winding editor (Autotransformer checkbox,
+Number-of-windings selector that grows/shrinks the Windings array, one
+`WindingEditor` block per winding with Voltage class/Connection scheme/
+(wyeN-only) Neutral grounding/Terminal orientation/Regulation checkbox,
+and the vector-group checkbox+text field) plus matching i18n keys in both
+`en.ts` and `ru.ts`.
+
+Verified live in an isolated instance (backend :8099, frontend :5183 —
+the user's own :8090/:5173 dev servers were left untouched throughout, as
+in every prior shape's own verification this session): placed a
+transformer (2-winding wye/wye default), confirmed its own terminal
+markers render at the correct dynamic positions and a Buswork route drawn
+from one to a nearby Breaker created a real Port/Node/Connector, correct
+in the saved XML down to the exact expected coordinates; grew it to 3
+windings live and confirmed the new top/right/left circles and their own
+default terminals render correctly; enabled Autotransformer and a
+winding's own Regulation checkbox and confirmed the tap decoration and a
+single centered regulation arrow both rendered; set a winding to
+Star-with-neutral plus Isolated grounding and confirmed the invented ring
+mark rendered next to the wye-with-neutral glyph; checked "Show connection
+diagram label," typed "Yn/Δ-11," and confirmed it rendered as a text label
+under the symbol; saved, reloaded the diagram fresh, and confirmed every
+field (Autotransformer, all three Windings' own Scheme/Grounding/
+TapChanger, VectorGroupLabel, the drawn connector) round-tripped exactly,
+and that the Breaker element's own saved XML carried no `<windings/>`
+regression.
+
+2026-09-18: Power transformer extraction/Properties bug fixes, reported by
+the user against a real corpus diagram (`diagrams/PS_110kV_Valdai.xml`,
+whose own already-extracted `PowerTransformer` elements carry 2 or 3
+`<port>` entries each but no `<windings>` tag at all — exactly what these
+fixes address):
+- **`parsePowerTransformer` never populated `Element.Windings` at all**,
+  only `Ports` — and `writePowerTransformer` derives its own drawn circle
+  count from `len(Windings)`, not `len(Ports)`, defaulting to 2 whenever
+  it's empty. A real 3-winding transformer therefore silently re-rendered
+  as 2-winding after every import, regardless of how many real leads
+  extraction had actually found. Fixed: `Windings` now always has one
+  entry per real lead.
+- **Per-winding voltage color was never resolved into a `VoltageClass`
+  id.** Each real xsde2svg winding circle already carries its own
+  `data-voltage` color (confirmed straight from `element_47.go`'s own
+  `canvas.Circle(..., dataVoltage)` call) — `extract.go` gets a new
+  `windingColors` side-channel (parallel to the existing
+  `elementVoltage`/`connectorVoltage` one) so each winding's own raw color
+  now participates in `buildVoltageClasses` and resolves to its own real
+  class id, the same as every other shape's single color already did.
+- **Connection scheme (wye/wyeN/delta) is now recovered from the glyph
+  geometry** already present in real markup — matched structurally (three
+  2-point subpaths / four 2-point subpaths / one closed 4-point subpath),
+  not by exact coordinates, since a real instance's own shift constant can
+  vary with its `Size` preset. Only the one path slot immediately
+  following a winding's own lead is ever inspected, which is what keeps a
+  regulation arrow's own closed-triangle arrowhead — the same "one
+  subpath, four points, closed" shape a delta glyph has — from being
+  misread as the last winding's own delta scheme.
+- **Autotransformer is now recovered too**, from the one reliable signal
+  real xsde2svg's own markup gives without a dedicated attribute: its tap
+  arc+stub for the (uncircled) first winding entry is drawn *before* the
+  transformer's first `<circle>` at all.
+- **A transformer at 0° (no `rotate()` transform at all — real xsde2svg
+  omits it, same as every other shape)** previously failed extraction
+  outright (`parsePowerTransformer` required a `rotate()` match
+  unconditionally, unlike `parseTwoPortDevice`/`parseOnePortDevice`, which
+  already handle a missing one). Fixed the same way those two do: when no
+  `rotate()` is present, the untransformed anchor is now recovered by
+  reversing `transformerWindingOffset` against the first circle's own
+  absolute center once the real winding count is known.
+- **Properties' own per-winding Voltage class `<select>` was silently
+  broken** for any option that was a server preset not yet on the diagram
+  (`voltageClassOptions`' own `"preset:<name>"` values) — `WindingEditor`
+  called `Number(e.target.value)` directly instead of going through
+  `diagramOps.resolveVoltageSelection` the way the plain Element/Connector
+  Voltage class selects already do, so picking a preset silently stored
+  `NaN` and the field appeared to do nothing. `WindingEditor` now takes a
+  separate `onVoltageChange(rawValue)` prop wired through
+  `resolveVoltageSelection`, same pattern as everywhere else.
+
+New regression tests: `TestExtract_PowerTransformerAutotransformerAndVoltages`
+(real `xsde2svg/examples/test/svg/Test_47_AutoTransformer2-1.svg` markup,
+run through the full `Extract()` pipeline — checks winding count,
+Autotransformer, and that each winding's own distinct color resolves to
+its own distinct voltage class) and
+`TestParsePowerTransformer_SkipsTrailingDecoration`'s own assertions
+extended to cover scheme detection; `TestParsePowerTransformer` extended
+to check colors/schemes/Autotransformer on its own existing fixture.
+
+Known remaining gap, not fixable by better geometry-matching alone (see
+`parsePowerTransformer`'s own doc comment): which winding has TapChanger
+set, and a wye-with-neutral winding's own NeutralGrounding, aren't
+recovered from rendered markup at all — genuinely closing these would mean
+adding dedicated `data-*` attributes to xsde2svg's own SVG output
+(`data-autotransformer`, `data-tap-changer`, `data-winding-type`), a
+cross-repo change discussed but not yet started.
+
+2026-09-18: `parsePowerTransformer` extraction made robust against real
+document-order quirks, found by the user comparing a real xsde2svg
+rendering byte-for-byte against this package's own extract-then-render
+round trip on the same source file
+(`xsde2svg/examples/test/svg/Test_47_AutoTransformer3Text.svg`) and
+noticing a visibly different third winding:
+- **A strict "circle, then its own trailing lead" document-order grouping
+  was wrong.** Real xsde2svg's own `element_47.go` (its case-3 branch, the
+  last real winding of a `WindingNo==4` autotransformer) draws that one
+  winding's own leg *before* its own `<circle>`, unlike every other
+  winding of every other shape. The previous grouping silently
+  under-counted that winding's own real lead entirely and misread the
+  next real lead as a (non-matching, discarded) connection-scheme glyph
+  instead — exactly the "different autowinding curve" the user spotted.
+  Replaced with a two-pass, distance-based match instead: every
+  lead-shaped candidate `<path>` in the whole element is collected first,
+  then assigned to whichever `<circle>` its own start point is closest to
+  (a lead always starts within about one radius of its own circle's own
+  edge) — correct regardless of document order, not just for this one
+  known quirk.
+- That same distance-based matcher initially mis-bound leads on some real
+  instances by including an autotransformer's own tap arc+stub as a lead
+  candidate too (its own endpoint can land closer to a winding's circle
+  than that winding's real lead does) — fixed by excluding every
+  candidate before the transformer's first `<circle>` (already the same
+  signal Autotransformer detection uses) from lead-candidate
+  consideration entirely.
+- The lead-to-circle distance threshold was also hardcoded to this
+  package's own default `transformerRadius` (22), rejecting a real
+  instance found using a much larger real `Size` preset (radius 62,
+  nearly 3× the default) as "too far to be a real lead." Now scales with
+  each candidate circle's own real `r` attribute instead of a fixed
+  constant.
+- Verified by running `Extract` against every real corpus `.svg` file
+  under both `sld-viewer/assets/sld` and `xsde2svg/examples/test/svg`
+  (105+ real Power transformer instances, including the file that
+  surfaced this bug — all 51 of its own 3-real-winding autotransformers
+  now extract with the correct winding count and no `report.Failed`
+  entries). Two categories of real corpus instance remain genuinely
+  unsupported, both pre-existing limitations rather than new regressions:
+  a real single-winding transformer (`WindingNo==1` — this package, like
+  its own v1 predecessor, only ever supported 2-4), and a handful of
+  extreme-miniature-icon test instances whose own circles (radius 2-4
+  units) sit so close together that "nearest circle" genuinely can't
+  disambiguate which lead belongs to which winding.
+
+Also, at the user's own request ("fit/align transformer nodes/connectors
+to the grid 10x10"): a transformer's own extracted anchor and each
+winding's own extracted lead tip are now snapped to this editor's own
+10-unit default grid (`EditorSettings.GridSpacing`'s own default).
+Real xsde2svg source diagrams place an element's own anchor on a grid
+this fine almost universally already, but a lead tip's own position is
+derived from that anchor by fixed, non-grid-multiple internal offsets
+(`transformerRadius`, the leg-length/shift constants, ...), so it
+essentially never lands on the grid on its own even when the anchor does.
+The resulting shift (at most half the grid spacing, so ≤5 units here) is
+well within `topology.go`'s own existing `snapTolerance` — its own doc
+comment already specifically cites "observed on a PowerTransformer's
+leads" as the reason that 5-unit connectivity tolerance exists at all —
+so this doesn't risk a wire failing to bind to its own newly-snapped
+port.
+
+New regression tests: `TestExtract_PowerTransformerLeadBeforeCircle` (the
+real lead-before-circle markup, checking the third winding's own lead
+lands on the third winding, not discarded as a false glyph on the
+second); manual, ad hoc full-corpus verification runs (not checked in as
+tests, since they read real files from sibling repos outside this
+module) confirmed the fix and the grid-snap change against every real
+`.svg` file in both corpora.
+
+2026-09-18: A *freshly placed* (not just extracted) PowerTransformer's own
+lead tips now land on the 10-unit grid too — the user's own screenshot
+showed a hand-placed transformer connected to a Breaker producing a short
+non-orthogonal jog right at the transformer's own terminal, since its
+anchor was grid-snapped (the editor's own generic click-to-place snap,
+same as every other shape) but the lead tip itself wasn't: it's computed
+as anchor + a fixed offset (transformerXShift/TopShift/SideShift/
+VertShift) + transformerRadius(22) + one shared leg length (13), and
+none of that combination was a multiple of 10.
+
+`transformerLegLength` (`render.go`) replaces the old flat 13-unit
+constant with a value chosen *per winding position* (8, 9, 10, or 13,
+depending on winding count and index) so that
+offset+transformerRadius+length is always an exact multiple of 10 for
+that winding's own default TerminalDirection — e.g. a 2-winding
+transformer's own legs now measure 10 units (18+22+10=50) instead of 13
+(18+22+13=53); a 3-winding one's own top winding still measures 13
+(25+22+13=60, already a coincidental multiple of 10) while its own
+side windings drop to 10; a 4-winding one uses 8/10/9/9 for its own
+top/bottom/left/right windings. `diagramOps.ts`'s own TypeScript mirror
+(`transformerLegLength`) was updated to match by hand, the same way its
+sibling functions already are. A winding whose own Terminal is
+explicitly overridden away from its own default direction can still land
+off-grid on the axis perpendicular to its own chosen direction (that axis
+inherits the winding's own raw, non-grid-multiple position offset
+instead) — a real but narrower residual gap than the one this fixes,
+matching the same caveat already noted for extraction's own grid-snap.
+
+While auditing every shape's own base.xml `<terminals>` for the user's
+own broader "every element's connectors, regardless of source, should
+land on the grid" request, found that every other shape's own declared
+terminal offsets already are exact multiples of 10 — except Fuse
+(withdrawable, shape 154), whose own terminals sit at y=±31 to match a
+real xsde2svg chevron-tip position exactly (documented in base.xml's own
+comment there). Left as-is rather than rounding to ±30, since unlike
+PowerTransformer's own from-scratch geometry, base.xml's declared value
+is a deliberate real-source match, not an accidental one — flagged here
+rather than silently changed, in case the 1-unit-off grid alignment
+still matters enough to trade that fidelity away.
+
+Verified live in an isolated instance (backend :8099, frontend :5183 —
+the user's own :8090/:5173 dev servers were left untouched throughout):
+placed a fresh 2-winding transformer and a Breaker from the palette,
+drew a Buswork route between them, and confirmed the routed wire is
+fully orthogonal with no jog at either end — the saved XML's own Node
+for the transformer's own lead landed at exactly anchor+50 on both axes,
+an exact multiple of the diagram's own 10-unit grid.
+
+Updated regression tests (`TestRender_PowerTransformer2Winding`,
+`...3WindingAutotransformer`, `...4Winding`) to assert the new
+per-position leg lengths directly, rather than only checking circle
+positions.
+
+2026-09-18: An autotransformer's own tap arc now ends in a real,
+connectable terminal — the user pointed out (with a real xsde2svg
+reference image and a genuine source snippet, `<path d="M 450 80 a 40 40
+0 0 1 41 40" .../><path d="M 450 68 v 12" .../>`) that the arc must end
+with a connector; until now `writeAutotransformerTap`'s own stub+arc was
+pure decoration with no terminal at all, so a wire could never actually
+be drawn to it, even though a real autotransformer's own tap point is a
+genuine, separate electrical connection (real xsde2svg source models it
+as its own `TransformerWinding` entry, distinct from every circle-drawing
+one — see `writeAutotransformerTap`'s own doc comment, already updated
+for this shape's earlier work, for why this package still doesn't add a
+matching extra `Windings` entry for it).
+
+New `transformerTapOffsetY` (`render.go`, `-50`): the tap's own real
+terminal, always directly above the transformer's own *anchor* (local
+x=0) — not `Windings[0]`'s own circle position, which the real source's
+own tap isn't anchored to either (confirmed by reading `element_47.go`'s
+own `isAutoTrans` `i==0` branch: its own `dX`/`dY` default to 0 regardless
+of which real winding ends up at `Windings[0]`). Anchoring the terminal to
+the anchor rather than the circle is also what keeps it grid-aligned by
+construction for every winding count, including a 2-winding
+transformer's own `Windings[0]` (`dX=18` — not itself grid-safe on its
+own). `writeAutotransformerTap` now draws a short stub down to the
+terminal's own connection point, then a real SVG elliptical arc curving
+from there to `Windings[0]`'s own circle edge — radius derived from the
+horizontal distance to that circle (floored at 20 so a directly-below
+target, e.g. a 3/4-winding transformer's own top-positioned `Windings[0]`,
+doesn't collapse into a degenerate zero-width arc), sweep direction
+mirroring which side the circle sits on.
+
+`diagramOps.ts`'s `transformerLocalTerminals` gets a matching
+`TRANSFORMER_TAP_OFFSET_Y` and appends this same point (only when
+`el.autotransformer` is set) after the per-winding leads — without this,
+the click-to-route tool would still never find the tap as a valid
+target, even with the backend now drawing it correctly, since terminal
+hit-testing is computed independently on the frontend.
+
+New test `TestRender_PowerTransformer2WindingAutotransformerTap` checks
+the terminal's own exact position and the arc's own endpoint/sweep for
+the 2-winding (off-center `Windings[0]`) case specifically, since that's
+the one that actually exercises the anchor-vs-circle distinction; the
+existing 3-winding autotransformer test's own assertions were updated to
+match the new stub+arc shape.
+
+Verified live in an isolated instance (backend :8099, frontend :5183 —
+the user's own :8090/:5173 dev servers were left untouched): enabled
+Autotransformer on a fresh 2-winding transformer, confirmed a real red
+terminal marker now renders at the tap's own stub tip (matching the
+reference screenshot's own convention), drew a Buswork route from it,
+and confirmed the saved XML carries a real `<port>`/`<node>` at exactly
+anchor+(0,-50) with a real `<connector>` attached — not just a
+decoration.
+
+2026-09-18: Tap arc visual polish, from the user's own hand-annotated
+screenshot of the previous version's own tight, awkward loop: drawn at
+`stroke-width:1` (thinner than every regular winding lead's own `2`,
+making it read as a lesser/decorative line rather than a real electrical
+one) and landing dead-center on `Windings[0]`'s own circle top via a
+small, distance-floored radius that produced a cramped loop rather than a
+smooth curve, especially for an off-center winding (the 2-winding
+default, `dX=18`).
+
+Fixed both in `writeAutotransformerTap`: the stub+arc now draws at
+`stroke-width:2`, matching every regular lead; and the arc's own radius
+is now a fixed, generous 40 units (matching real xsde2svg's own `r3`
+constant for this same decoration, rather than this package's own
+ad hoc distance-based floor), landing on a point 50° around
+`Windings[0]`'s own circle rim — offset toward whichever side the circle
+sits on, not dead-center-top — for a broad, natural-reading sweep instead
+of a tight loop, closer to both the user's own hand-drawn reference curve
+and real xsde2svg's own visual style. New/updated assertions in
+`TestRender_PowerTransformer2WindingAutotransformerTap` and
+`...3WindingAutotransformer` check the new stroke-width and the arc's own
+exact landing coordinates for both the off-center (2-winding) and
+directly-above (3-winding top winding) cases. Verified live in an
+isolated instance (:8099/:5183, the user's own :8090/:5173 dev servers
+untouched) that the new curve reads as a smooth, natural sweep rather
+than the earlier version's own cramped loop.

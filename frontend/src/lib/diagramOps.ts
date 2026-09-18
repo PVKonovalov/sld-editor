@@ -11,6 +11,7 @@ import type {
   EditorConfig,
   Label,
   DigitalDevice,
+  TerminalDirection,
 } from '../types'
 
 // A voltage-class <select>'s option value is either an existing class's own
@@ -203,6 +204,21 @@ const FPI_DEFAULTS: Pick<DiagramElement, 'state' | 'radius'> = {
   radius: 10,
 }
 
+// A freshly placed PowerTransformer starts as a plain 2-winding wye/wye
+// unit — matching the palette icon's own static preview (base.xml's own
+// shape-47 template, used only for that preview, not the real diagram
+// render — see writePowerTransformer) — rather than a blank Windings
+// list, which would render two circles with no connection glyph at all
+// until a trip to Properties.
+function powerTransformerDefaults(defaultVoltage?: number): Pick<DiagramElement, 'windings'> {
+  return {
+    windings: [
+      { voltage: defaultVoltage, scheme: 'wye' },
+      { voltage: defaultVoltage, scheme: 'wye' },
+    ],
+  }
+}
+
 export function placeElement(
   diagram: Diagram,
   symbol: ElementSymbol,
@@ -234,6 +250,7 @@ export function placeElement(
       : {}),
     ...(WITHDRAWABLE_SHAPES.has(symbol.shape) ? { position: POSITION_NORMAL } : {}),
     ...(elementClass === 'FaultPassageIndicator' ? FPI_DEFAULTS : {}),
+    ...(elementClass === 'PowerTransformer' ? powerTransformerDefaults(defaultVoltage) : {}),
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -523,13 +540,157 @@ export function placeLocalPoint(el: DiagramElement, p: Point): Point {
   return { x: el.x + p.x * cos - p.y * sin, y: el.y + p.x * sin + p.y * cos }
 }
 
+// Power transformer (shape 47) geometry constants — mirrors
+// backend/internal/slddoc's own render.go constants of the same name
+// exactly (see writePowerTransformer's own doc comment for why these, not
+// real xsde2svg's own Size 11-24 table, are the only numbers this editor
+// ever uses). Kept in sync by hand, like every other JSON-shape mirror in
+// this file — there's no codegen linking the two.
+const TRANSFORMER_RADIUS = 22
+const TRANSFORMER_X_SHIFT = 18
+const TRANSFORMER_TOP_SHIFT = 25
+const TRANSFORMER_SIDE_SHIFT = 29
+const TRANSFORMER_VERT_SHIFT = 20
+
+/** Winding index i's own leg length, for a transformer with the given
+ * real winding count — mirrors render.go's transformerLegLength exactly
+ * (see its own doc comment for why this varies by position: each value is
+ * chosen so offset+TRANSFORMER_RADIUS+length is a multiple of the
+ * editor's own default 10-unit grid, for that winding's own *default*
+ * TerminalDirection). Kept in sync by hand like everything else here. */
+function transformerLegLength(count: number, i: number): number {
+  switch (count) {
+    case 2:
+      return 10
+    case 3:
+      return i === 0 ? 13 : 10
+    case 4:
+      switch (i) {
+        case 0:
+          return 8
+        case 1:
+          return 10
+        default:
+          return 9
+      }
+    default:
+      return 10
+  }
+}
+
+/** Real winding index i's own local (pre-rotation) circle-center offset,
+ * for a PowerTransformer with the given real winding count — mirrors
+ * render.go's transformerWindingOffset exactly. */
+function transformerWindingOffset(count: number, i: number): Point {
+  switch (count) {
+    case 2:
+      return i === 0 ? { x: TRANSFORMER_X_SHIFT, y: 0 } : { x: -TRANSFORMER_X_SHIFT, y: 0 }
+    case 3:
+      if (i === 0) return { x: 0, y: -TRANSFORMER_TOP_SHIFT }
+      return i === 1 ? { x: TRANSFORMER_X_SHIFT, y: 0 } : { x: -TRANSFORMER_X_SHIFT, y: 0 }
+    case 4:
+      switch (i) {
+        case 0:
+          return { x: 0, y: -TRANSFORMER_VERT_SHIFT }
+        case 1:
+          return { x: 0, y: TRANSFORMER_X_SHIFT }
+        case 2:
+          return { x: -TRANSFORMER_SIDE_SHIFT, y: 0 }
+        default:
+          return { x: TRANSFORMER_SIDE_SHIFT, y: 0 }
+      }
+    default:
+      return { x: 0, y: 0 }
+  }
+}
+
+/** Real winding index i's own conventional lead direction for a
+ * transformer with the given real winding count, used when that winding's
+ * own `terminal` field is empty — mirrors render.go's defaultTerminal
+ * exactly. */
+function defaultTransformerTerminal(count: number, i: number): TerminalDirection {
+  switch (count) {
+    case 2:
+      return i === 0 ? 'right' : 'left'
+    case 3:
+      if (i === 0) return 'top'
+      return i === 1 ? 'right' : 'left'
+    case 4:
+      switch (i) {
+        case 0:
+          return 'top'
+        case 1:
+          return 'bottom'
+        case 2:
+          return 'left'
+        default:
+          return 'right'
+      }
+    default:
+      return 'right'
+  }
+}
+
+/** A winding's own lead tip — its real electrical terminal — given its own
+ * circle center, lead direction, and own leg length (transformerLegLength);
+ * mirrors render.go's transformerLegEndpoint exactly. */
+function transformerLegEndpoint(cx: number, cy: number, dir: TerminalDirection, legLen: number): Point {
+  switch (dir) {
+    case 'top':
+      return { x: cx, y: cy - TRANSFORMER_RADIUS - legLen }
+    case 'bottom':
+      return { x: cx, y: cy + TRANSFORMER_RADIUS + legLen }
+    case 'left':
+      return { x: cx - TRANSFORMER_RADIUS - legLen, y: cy }
+    default:
+      return { x: cx + TRANSFORMER_RADIUS + legLen, y: cy }
+  }
+}
+
+// An autotransformer's own extra "line" terminal — the tap arc's own far
+// tip (see render.go's writeAutotransformerTap and its own
+// transformerTapOffsetY), a real electrical connection distinct from
+// every winding's own regular lead. Always directly above the anchor
+// (local x=0) regardless of winding count or Windings[0]'s own dX, so it
+// stays grid-aligned the same way every other fixed-offset terminal here
+// does.
+const TRANSFORMER_TAP_OFFSET_Y = -50
+
+/** A PowerTransformer's own local (pre-rotation) lead-tip positions, one
+ * per winding, in Windings order, plus (autotransformer only) the tap's
+ * own extra terminal last — the dynamic counterpart to a static shape's
+ * own catalog Terminals, since a transformer's own terminal count and
+ * positions depend on its own Windings (winding count, each one's own
+ * terminal direction) and Autotransformer flag, not anything base.xml can
+ * declare once per shape. Without the tap terminal here, the click-to-
+ * route tool could never find it as a connection target at all — a real
+ * gap a user hit, since the tap arc used to be purely cosmetic. */
+function transformerLocalTerminals(el: DiagramElement): Point[] {
+  const count = Math.max(2, el.windings?.length ?? 2)
+  const points: Point[] = []
+  for (let i = 0; i < count; i++) {
+    const offset = transformerWindingOffset(count, i)
+    const dir = el.windings?.[i]?.terminal || defaultTransformerTerminal(count, i)
+    points.push(transformerLegEndpoint(offset.x, offset.y, dir, transformerLegLength(count, i)))
+  }
+  if (el.autotransformer) {
+    points.push({ x: 0, y: TRANSFORMER_TAP_OFFSET_Y })
+  }
+  return points
+}
+
 /** An element's own real terminal positions — where a wire would actually
  * meet it — or null when its shape carries no <terminals> (most shapes,
- * for now; see base.xml's own doc comment). Purely a visual aid: Canvas
- * draws a marker at each one for the current selection. Ctrl/Cmd-click-
- * to-connect (connectElements, below) does not use this — it still joins
- * two elements' bare anchors regardless of any terminals a shape defines. */
+ * for now; see base.xml's own doc comment) and it isn't a PowerTransformer
+ * (whose own terminals are computed dynamically instead — see
+ * transformerLocalTerminals). Purely a visual aid: Canvas draws a marker
+ * at each one for the current selection. Ctrl/Cmd-click-to-connect
+ * (connectElements, below) does not use this — it still joins two
+ * elements' bare anchors regardless of any terminals a shape defines. */
 export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): Point[] | null {
+  if (el.class === 'PowerTransformer') {
+    return transformerLocalTerminals(el).map(t => placeLocalPoint(el, t))
+  }
   const symbol = symbols.find(s => s.shape === el.shape)
   if (!symbol?.terminals || symbol.terminals.length === 0) return null
   return symbol.terminals.map(t => placeLocalPoint(el, t))
