@@ -2412,3 +2412,31 @@ directly-above (3-winding top winding) cases. Verified live in an
 isolated instance (:8099/:5183, the user's own :8090/:5173 dev servers
 untouched) that the new curve reads as a smooth, natural sweep rather
 than the earlier version's own cramped loop.
+
+2026-09-18: A winding's own connection-scheme glyph (and its grounding
+mark) no longer rotates along with the rest of the transformer when its
+own Orientation is changed, at the user's own request. Real electrical
+leads/circles still rotate normally — only the Y/Δ/Yn glyph itself now
+stays visually upright, the same `{counterRotate}` idea already used
+elsewhere in this codebase (a FaultPassageIndicator's own "FPI" label
+inside its base.xml template), reimplemented directly in `writePowerTransformer`
+since a transformer has no template to add a placeholder to: the glyph
+(plus its own grounding mark, when present) is now wrapped in a
+`<g transform="rotate(-Orient,cx,cy)">`, canceling the outer `<g>`'s own
+`rotate(Orient)` for anything drawn at an offset from the winding's own
+circle center, while the center itself — the rotation's own pivot — is
+untouched and still moves with the winding exactly as before. Omitted
+entirely (no wrapper `<g>` at all) when Orient is 0, so the common case
+emits no extra markup.
+
+New `TestRender_PowerTransformerGlyphStaysUprightWhenRotated` checks the
+wrapper's own exact transform string, and — rather than trusting that
+string is correct by construction, the same lesson learned from an
+earlier bug in this shape's own regulation-arrow rendering — independently
+recomputes a wye glyph's own first spoke tip through both composed
+rotations by hand and confirms it lands exactly on the winding's own
+global circle center plus its own *unrotated* local offset. Verified
+directly against the render API (`POST /api/render`) with a 90°-rotated
+2-winding transformer: the circles/legs rotate with the transformer as
+expected, while each winding's own Y/Δ glyph renders inside its own
+counter-rotating `<g>`, keeping the glyph itself upright.
