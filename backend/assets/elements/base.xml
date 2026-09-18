@@ -186,6 +186,37 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_51.go (element51) — a withdrawable
+       device's own full racking carriage/chassis symbol (Half-chassis,
+       shape 52, is just one end of this same idea with the other end left
+       disconnected). Own two terminals sit at ±30, matching Breaker
+       (withdrawable)/Disconnector (withdrawable)'s own convention exactly
+       (confirmed against two real corpus instances, one rotated one not:
+       the true anchor/pivot always lands exactly at the midpoint between
+       the two outer marker chevrons, ±30 from it either way). Same
+       {positionOffset}/{positionAttr} withdrawable-racking mechanism as
+       those two shapes (the real source's own "trolley" concept these
+       placeholders were originally named after) — the movable body (the
+       inner chevron-stem-chevron path, carrying the real xsde2svg source's
+       own data-trolley attribute) slides sideways while the two outer
+       marker chevrons stay fixed, same real-disconnect-gap convention.
+       Unlike Breaker/Disconnector, this shape has no {state:...} concept
+       of its own (real corpus instances never carry a data-state) — Position
+       status is its only own real per-instance behavior, the same as
+       Fuse (withdrawable)'s (154) own precedent. -->
+  <symbol shape="51" class="Chassis" name="Chassis" category="Switching devices">
+    <terminals>
+      <terminal x="0" y="-30"/>
+      <terminal x="0" y="30"/>
+    </terminals>
+    <template><![CDATA[
+<g transform="translate({positionOffset},0)"{positionAttr}>
+<path d="M 0 -22 l -4 4 m 4 -4 l 4 4  m -4 0 v 36 m 0 4 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
+</g>
+<path d="M 0 30 l -4 -4 m 4 4 l 4 -4 M 0 -30 l -4 4 m 4 -4 l 4 4" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <!-- Only the stub end is a real electrical connection point — the other
        end is the earth/ground-plate symbol, a dead end representing
        "connected to the physical earth", not a node another element/wire

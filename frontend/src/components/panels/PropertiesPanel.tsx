@@ -37,10 +37,10 @@ const SWITCHING_DEVICE_CLASSES = new Set(['Breaker', 'Disconnector', 'LoadBreakS
 // so this has to be keyed by Shape, not Class, unlike
 // SWITCHING_DEVICE_CLASSES above. Shown alongside State, whose own label
 // switches to "Operational Status" for these so it isn't confused with the
-// new "Position status" field — Fuse (154) has no State field at all
-// (SWITCHING_DEVICE_CLASSES doesn't include Fuse), so it only ever shows
-// Position status, never that relabeling.
-const WITHDRAWABLE_SHAPES = new Set(['43', '49', '154'])
+// new "Position status" field — Fuse (154) and Chassis (51) have no State
+// field at all (SWITCHING_DEVICE_CLASSES doesn't include either), so they
+// only ever show Position status, never that relabeling.
+const WITHDRAWABLE_SHAPES = new Set(['43', '49', '154', '51'])
 
 // A Lamp reads its own two fixed FillOff/FillOn colors (see
 // diagramOps.LAMP_DEFAULTS/render.go's lampColor), not a voltage class

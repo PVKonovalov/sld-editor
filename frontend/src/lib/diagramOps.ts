@@ -172,8 +172,10 @@ const GROUND_SWITCH_DEFAULT_STATE = 0
 // change how a freshly placed one renders, but it does mean Properties'
 // Position status dropdown starts on a real, explicit value instead of
 // "— none —", matching the racked-in/connected position every such device
-// starts service in.
-const WITHDRAWABLE_SHAPES = new Set(['43', '49', '154'])
+// starts service in. Chassis (51) has no non-withdrawable sibling of its
+// own — every real instance has this same mechanism — but is still keyed
+// here by Shape for consistency with the other three.
+const WITHDRAWABLE_SHAPES = new Set(['43', '49', '154', '51'])
 const POSITION_NORMAL = 1
 
 // A freshly placed Lamp starts unlit (state 0) with a real fillOff/fillOn/

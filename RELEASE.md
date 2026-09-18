@@ -1899,3 +1899,50 @@ orient="180"`) was hand-derived and confirmed to exactly match this
 symbol's own local template coordinates before choosing them, and a full
 extract-then-render round trip on that file reproduces all 3 of its own
 instances with no missing-shape errors.
+
+2026-09-18: Upgraded `react-zoom-pan-pinch` from `^3.4.4` (installed 3.7.0)
+to `^4.2.0`, to fix an intermittent bug where ordinary zoom/pan/select
+interaction could suddenly push the whole diagram far off-screen (a wildly
+wrong `translate()`, appearing as a black/blank canvas — Reset View
+recovers it, confirming nothing was actually lost). Root cause: a known
+class of gesture/position bug in the pre-4.x library — GitHub issue #408
+("rapid interaction causes the element to pan to a random position",
+closed as Released) and the v4.0.x changelog's own "prevented NaN
+propagation from invalid mouse/touch positions" among 30+ other
+gesture/bounds/pointer fixes. `Canvas.tsx`'s own usage
+(`useControls()`'s `zoomIn`/`zoomOut`/`setTransform`/`instance.
+wrapperComponent`, `TransformWrapper`'s `disabled`/`doubleClick={{disabled:
+true}}`) needed no changes — it already type-checked and built cleanly
+against v4's only named breaking change (a `wheel` options restructuring
+this app doesn't use). Smoke-tested zoom/pan/drag/select in the browser
+post-upgrade with sane transform values throughout; the bug's own
+intermittent nature means it can't be proven fully gone in one session, but
+this upgrades past the versions containing the matching fixes. The same
+upgrade (plus one required source fix — see `sld-viewer`'s own RELEASE.md)
+was applied to the sibling `sld-viewer` project, which shares this same
+pre-4.x version.
+
+2026-09-18: Chassis (shape 51) added to the palette — `ClassChassis`
+(`slddoc` module), Half-chassis's (52) own full-sized sibling: both ends of
+the same withdrawable racking-carriage symbol connected by a continuous
+stem, instead of one end left disconnected. Own two terminals sit at ±30
+(confirmed against two real corpus instances, one rotated one not — the
+true anchor always lands exactly at the midpoint between the two outer
+marker chevrons), matching Breaker (withdrawable)/Disconnector
+(withdrawable)'s own convention exactly. Reuses the same
+`{positionOffset}`/`{positionAttr}` withdrawable-racking mechanism those
+two shapes already have (the real xsde2svg source's own "trolley" concept
+these placeholders were originally named after) — the movable body (the
+inner chevron-stem-chevron path, carrying the real source's own
+`data-trolley` attribute) slides sideways while the two outer marker
+chevrons stay fixed. Added `'51'` to `WITHDRAWABLE_SHAPES` in both
+`PropertiesPanel.tsx` (shows "Position status", no State — matching Fuse
+(withdrawable)'s (154) own precedent, since a real instance never carries
+`data-state`) and `diagramOps.ts` (defaults a freshly placed one to
+Position "Normal"). Wired into `Extract` via the shared `parseTwoPortDevice`
+the same way as every other two-port withdrawable shape. Verified live:
+placing one from the palette shows Position status defaulting to Normal;
+switching it to Service visibly shifts the inner body sideways relative to
+the fixed outer terminals; a full extract-then-render round trip on the
+real corpus reproduces the source geometry with byte-exact math (confirmed
+by hand) and no missing-shape errors.
