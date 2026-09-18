@@ -42,6 +42,9 @@ type PointDrag = { elementId: number; pointIndex: number; point: Point }
 // logic isn't affected by dragging a label at the same time (they're
 // mutually exclusive selections anyway, but the state itself stays scoped).
 type LabelDrag = { id: number; dx: number; dy: number }
+// The same drag convention as LabelDrag, for a selected DigitalDevice's own
+// anchor instead of a Label's.
+type DigitalDeviceDrag = { id: number; dx: number; dy: number }
 type ContextMenuState = { x: number; y: number; diagramPoint: Point; elementId: number | null; connectorId: number | null }
 // A valid place for a route to start or finish: either an element's own
 // terminal/busbar point ('element'), or a point along an already-drawn
@@ -197,16 +200,20 @@ export function Canvas() {
     toggleElementSelection,
     selectedConnectorId,
     selectedLabelId,
+    selectedDigitalDeviceId,
     armedSymbol,
     armedWireKind,
     armedLabel,
+    armedDigitalDevice,
     defaultVoltage,
     selectElement,
     selectConnector,
     selectLabel,
+    selectDigitalDevice,
     armSymbol,
     armWireKind,
     armLabel,
+    armDigitalDevice,
     deleteSelected,
     updateDiagram,
   } = useDiagramContext()
@@ -217,6 +224,7 @@ export function Canvas() {
   const [newBusbar, setNewBusbar] = useState<NewBusbar | null>(null)
   const [pointDrag, setPointDrag] = useState<PointDrag | null>(null)
   const [labelDrag, setLabelDrag] = useState<LabelDrag | null>(null)
+  const [digitalDeviceDrag, setDigitalDeviceDrag] = useState<DigitalDeviceDrag | null>(null)
   const [clipboard, setClipboard] = useState<diagramOps.ClipboardEntry[]>([])
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [routing, setRouting] = useState<Routing | null>(null)
@@ -263,7 +271,12 @@ export function Canvas() {
           e.preventDefault()
           updateDiagram(d => diagramOps.removeConnectorVertex(d, selectedVertex.connectorId, selectedVertex.index))
           setSelectedVertex(null)
-        } else if (selectedElementId !== null || selectedConnectorId !== null || selectedLabelId !== null) {
+        } else if (
+          selectedElementId !== null ||
+          selectedConnectorId !== null ||
+          selectedLabelId !== null ||
+          selectedDigitalDeviceId !== null
+        ) {
           e.preventDefault()
           deleteSelected()
         }
@@ -276,6 +289,7 @@ export function Canvas() {
         else if (armedSymbol) armSymbol(null)
         else if (armedWireKind) armWireKind(null)
         else if (armedLabel) armLabel(false)
+        else if (armedDigitalDevice) armDigitalDevice(false)
         else selectElement(null)
       }
     }
@@ -285,13 +299,16 @@ export function Canvas() {
     selectedElementId,
     selectedConnectorId,
     selectedLabelId,
+    selectedDigitalDeviceId,
     armedSymbol,
     armedWireKind,
     armedLabel,
+    armedDigitalDevice,
     deleteSelected,
     armSymbol,
     armWireKind,
     armLabel,
+    armDigitalDevice,
     selectElement,
     contextMenu,
     routing,
@@ -404,7 +421,7 @@ export function Canvas() {
   // select/drag, so highlighting a "connect here" target with no way to
   // act on it would be misleading.
   function handleWrapperMouseMove(e: React.MouseEvent) {
-    if (armedSymbol || ghost || pointDrag || newBusbar || labelDrag) return
+    if (armedSymbol || ghost || pointDrag || newBusbar || labelDrag || digitalDeviceDrag) return
     const point = toPoint(e.clientX, e.clientY)
     if (routing) {
       setConnectTarget(findConnectionTarget(point, routing.from, true))
@@ -587,6 +604,19 @@ export function Canvas() {
     node.querySelectorAll('tspan').forEach(tspan => tspan.setAttribute('x', String(x)))
   }
 
+  // Same instant-DOM-first move as dragLabelInDom, for a selected
+  // DigitalDevice's own <text> instead of a Label's.
+  function dragDigitalDeviceInDom(id: number, dx: number, dy: number) {
+    const root = wrapperRef.current
+    const digitalDevice = diagram!.digitalDevices.find(dd => dd.id === id)
+    const node = root?.querySelector(`[data-editor-kind="digitaldevice"][id="${id}"]`)
+    if (!digitalDevice || !node) return
+    const x = digitalDevice.x + dx
+    const y = digitalDevice.y + dy
+    node.setAttribute('x', String(x))
+    node.setAttribute('y', String(y))
+  }
+
   function handleMouseDown(e: React.MouseEvent) {
     if (e.button !== 0) return
     const point = toPoint(e.clientX, e.clientY)
@@ -633,6 +663,13 @@ export function Canvas() {
       e.stopPropagation()
       updateDiagram(d => diagramOps.placeLabel(d, snapPoint(point)))
       armLabel(false)
+      return
+    }
+
+    if (armedDigitalDevice) {
+      e.stopPropagation()
+      updateDiagram(d => diagramOps.placeDigitalDevice(d, snapPoint(point)))
+      armDigitalDevice(false)
       return
     }
 
@@ -698,6 +735,33 @@ export function Canvas() {
         if (dx !== 0 || dy !== 0) {
           dragLabelInDom(labelId, dx, dy)
           updateDiagram(d => diagramOps.moveLabel(d, labelId, dx, dy))
+        }
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+      return
+    }
+
+    if (hit.dataset.editorKind === 'digitaldevice') {
+      const digitalDeviceId = hitId
+      selectDigitalDevice(digitalDeviceId)
+      const onMove = (ev: MouseEvent) => {
+        const p = toPoint(ev.clientX, ev.clientY)
+        const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
+        const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
+        setDigitalDeviceDrag({ id: digitalDeviceId, dx, dy })
+        dragDigitalDeviceInDom(digitalDeviceId, dx, dy)
+      }
+      const onUp = (ev: MouseEvent) => {
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+        const p = toPoint(ev.clientX, ev.clientY)
+        const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
+        const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
+        setDigitalDeviceDrag(null)
+        if (dx !== 0 || dy !== 0) {
+          dragDigitalDeviceInDom(digitalDeviceId, dx, dy)
+          updateDiagram(d => diagramOps.moveDigitalDevice(d, digitalDeviceId, dx, dy))
         }
       }
       window.addEventListener('mousemove', onMove)
@@ -881,7 +945,19 @@ export function Canvas() {
   // would.
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault()
-    if (armedSymbol || armedWireKind || armedLabel || newBusbar || pointDrag || ghost || routing || vertexDrag || labelDrag)
+    if (
+      armedSymbol ||
+      armedWireKind ||
+      armedLabel ||
+      armedDigitalDevice ||
+      newBusbar ||
+      pointDrag ||
+      ghost ||
+      routing ||
+      vertexDrag ||
+      labelDrag ||
+      digitalDeviceDrag
+    )
       return
 
     const diagramPoint = snapPoint(toPoint(e.clientX, e.clientY))
@@ -900,6 +976,9 @@ export function Canvas() {
         // just select it, same as a plain click would, rather than
         // misreading its id as an element's and showing element-only items.
         selectLabel(id)
+      } else if (hit.dataset.editorKind === 'digitaldevice') {
+        // Same treatment as a label — no dedicated context-menu entries yet.
+        selectDigitalDevice(id)
       } else {
         elementId = id
         // Right-clicking an element that's already part of a multi-selection
@@ -967,6 +1046,10 @@ export function Canvas() {
   const selectedConnector =
     selectedConnectorId !== null ? diagram.connectors.find(c => c.id === selectedConnectorId) : null
   const selectedLabel = selectedLabelId !== null ? diagram.labels.find(l => l.id === selectedLabelId) : null
+  const selectedDigitalDevice =
+    selectedDigitalDeviceId !== null
+      ? diagram.digitalDevices.find(dd => dd.id === selectedDigitalDeviceId)
+      : null
 
   // The not-yet-anchored tail of an in-progress route: snaps exactly onto
   // connectTarget when one's detected (so the preview shows precisely
@@ -991,7 +1074,16 @@ export function Canvas() {
         maxScale={8}
         limitToBounds={false}
         disabled={
-          !!armedSymbol || !!armedWireKind || !!armedLabel || !!ghost || !!pointDrag || !!routing || !!vertexDrag || !!labelDrag
+          !!armedSymbol ||
+          !!armedWireKind ||
+          !!armedLabel ||
+          !!armedDigitalDevice ||
+          !!ghost ||
+          !!pointDrag ||
+          !!routing ||
+          !!vertexDrag ||
+          !!labelDrag ||
+          !!digitalDeviceDrag
         }
         doubleClick={{ disabled: true }}
       >
@@ -1007,7 +1099,10 @@ export function Canvas() {
               position: 'relative',
               width: diagram.width,
               height: diagram.height,
-              cursor: armedSymbol || armedWireKind || armedLabel || routing ? 'crosshair' : 'default',
+              cursor:
+                armedSymbol || armedWireKind || armedLabel || armedDigitalDevice || routing
+                  ? 'crosshair'
+                  : 'default',
             }}
           >
             <div style={{ position: 'absolute', inset: 0 }} dangerouslySetInnerHTML={{ __html: svg }} />
@@ -1135,6 +1230,24 @@ export function Canvas() {
                 <circle
                   cx={selectedLabel.x + (labelDrag?.id === selectedLabel.id ? labelDrag.dx : 0)}
                   cy={selectedLabel.y + (labelDrag?.id === selectedLabel.id ? labelDrag.dy : 0)}
+                  r={6}
+                  fill="none"
+                  stroke={HIGHLIGHT}
+                  strokeWidth={1.5}
+                />
+              )}
+              {/* Same minimal anchor-point marker convention as a selected
+                  label. */}
+              {selectedDigitalDevice && (
+                <circle
+                  cx={
+                    selectedDigitalDevice.x +
+                    (digitalDeviceDrag?.id === selectedDigitalDevice.id ? digitalDeviceDrag.dx : 0)
+                  }
+                  cy={
+                    selectedDigitalDevice.y +
+                    (digitalDeviceDrag?.id === selectedDigitalDevice.id ? digitalDeviceDrag.dy : 0)
+                  }
                   r={6}
                   fill="none"
                   stroke={HIGHLIGHT}

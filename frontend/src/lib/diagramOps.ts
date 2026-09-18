@@ -10,6 +10,7 @@ import type {
   ElementSymbol,
   EditorConfig,
   Label,
+  DigitalDevice,
 } from '../types'
 
 // A voltage-class <select>'s option value is either an existing class's own
@@ -110,6 +111,7 @@ export function ensureLastId(diagram: Diagram): Diagram {
     d.connectors.forEach(c => consider(c.id))
     d.voltageClasses.forEach(vc => consider(vc.id))
     d.labels.forEach(l => consider(l.id))
+    d.digitalDevices.forEach(dd => consider(dd.id))
     if (max > 0) d = { ...d, lastId: max }
   }
 
@@ -1148,6 +1150,54 @@ export function updateLabel(diagram: Diagram, id: number, patch: Partial<Label>)
 
 export function removeLabel(diagram: Diagram, id: number): Diagram {
   return { ...diagram, labels: diagram.labels.filter(l => l.id !== id) }
+}
+
+/** Places a new shape-134 SCADA readout at point, with a placeholder
+ * default value and no unit — Properties fills in Name/Unit/Value
+ * afterward, the same as any other freshly placed element. */
+export function placeDigitalDevice(diagram: Diagram, point: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const digitalDevice: DigitalDevice = {
+    id,
+    layer: defaultLayer(diagram),
+    x: point.x,
+    y: point.y,
+    size: 16,
+    value: '0.00',
+  }
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    digitalDevices: [...diagram.digitalDevices, digitalDevice],
+  }
+}
+
+/** Translates a digital device's own anchor by (dx, dy). */
+export function moveDigitalDevice(diagram: Diagram, id: number, dx: number, dy: number): Diagram {
+  return {
+    ...diagram,
+    digitalDevices: diagram.digitalDevices.map(dd =>
+      dd.id === id ? { ...dd, x: dd.x + dx, y: dd.y + dy } : dd,
+    ),
+  }
+}
+
+/** Applies a partial edit (Name/Value/Unit/Size/Anchor/Bold/Color/VAlign/Font,
+ * from Properties) to a digital device. */
+export function updateDigitalDevice(
+  diagram: Diagram,
+  id: number,
+  patch: Partial<DigitalDevice>,
+): Diagram {
+  return {
+    ...diagram,
+    digitalDevices: diagram.digitalDevices.map(dd => (dd.id === id ? { ...dd, ...patch } : dd)),
+  }
+}
+
+export function removeDigitalDevice(diagram: Diagram, id: number): Diagram {
+  return { ...diagram, digitalDevices: diagram.digitalDevices.filter(dd => dd.id !== id) }
 }
 
 /** Removes a connector, and either of its own from/to Nodes that becomes

@@ -17,13 +17,17 @@ export interface DiagramContextValue {
   // completed route uses it, then Canvas clears it back to null itself,
   // single-shot like armedSymbol); armedLabel is the Elements panel's own
   // "Text" button, click-to-place a standalone Label the same way armedSymbol
-  // places an element; selecting anything cancels the others.
+  // places an element; armedDigitalDevice is its "Digital device" button,
+  // click-to-place a shape-134 SCADA readout the same way; selecting
+  // anything cancels the others.
   selectedElementId: number | null
   selectedConnectorId: number | null
   selectedLabelId: number | null
+  selectedDigitalDeviceId: number | null
   armedSymbol: ElementSymbol | null
   armedWireKind: ConnectorKind | null
   armedLabel: boolean
+  armedDigitalDevice: boolean
 
   // The full element multi-selection — always a superset of
   // selectedElementId (a plain click collapses it to that one id; a
@@ -48,9 +52,11 @@ export interface DiagramContextValue {
   selectElement: (id: number | null) => void
   selectConnector: (id: number | null) => void
   selectLabel: (id: number | null) => void
+  selectDigitalDevice: (id: number | null) => void
   armSymbol: (symbol: ElementSymbol | null) => void
   armWireKind: (kind: ConnectorKind | null) => void
   armLabel: (armed: boolean) => void
+  armDigitalDevice: (armed: boolean) => void
   deleteSelected: () => void
 
   clearError: () => void

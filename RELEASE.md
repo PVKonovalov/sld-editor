@@ -1721,3 +1721,91 @@ regressing to 367 mid-fix), and a full extract-then-render round trip
 produces no missing-shape errors anywhere in the corpus. Spot-checked
 several real rotated instances (a Generator, a Reactor shunt) by hand
 against the fixed anchor math and confirmed exact agreement.
+
+2026-09-18: Digital device (shape 134) — a live SCADA-style analog readout,
+distinct from both a plain equipment symbol and a Label. Backend
+(`slddoc` module): a new `DigitalDevice` entity (`Diagram.DigitalDevices`)
+shares Label's own text-styling fields (Anchor/Bold/Color/VAlign/Font/Size)
+but adds `Name` (the SCADA tag, written as `data-name`), `Value` (a
+placeholder/default display value, e.g. `"0.00"` — this editor has no live
+data source, only the layout), and an optional `Unit` (`data-unit`, plus
+its own inline `<tspan>` right after Value on the same line — unlike
+Label's own tspans, which each start a new stacked line). `writeDigitalDevice`
+renders it as a bare `<text data-type="134" ...>`, no wrapping `<g>` or
+transform, matching a real xsde2svg-exported one exactly; the unit
+attribute/tspan are omitted entirely when Unit is empty. Also added
+`parseDigitalDevice`/`Report.DigitalDevices` to the shared module's
+`Extract` (SVG import) path for `data-type="134"`, mirroring `parseLabel`'s
+own scope, so a real xsde2svg file's digital-device readouts round-trip
+instead of landing in `Report.Skipped`. Frontend: a `DigitalDevice` type,
+`placeDigitalDevice`/`moveDigitalDevice`/`updateDigitalDevice`/
+`removeDigitalDevice` in `diagramOps.ts`, a new mutually-exclusive
+selection/arm pair (`selectedDigitalDeviceId`/`armedDigitalDevice`) in
+`DiagramContext` alongside the existing element/connector/label/symbol/
+wire-kind ones, a "Digital device" click-to-place button in the Elements
+panel's own "Text" section (next to "Text"/Label), full hit-test/select/
+drag support in `Canvas.tsx` (`data-editor-kind="digitaldevice"`, following
+the same DOM-first-move pattern as a Label's own `dragLabelInDom`), and a
+Properties editor (SCADA tag name/Default value/Unit/Size/Anchor/Vertical
+anchor/Bold/Color/Font/delete). New i18n keys added to both `en.ts`/`ru.ts`.
+
+2026-09-18: Two `slddoc` (shared module) fixes surfaced by inspecting
+`sld-svg/cmd/svg-sld`'s own `extract` output on real corpus files. (1)
+`Extract`'s `parseLabel`/`parseDigitalDevice` never parsed a real source
+`id="..."` attribute at all, so every extracted Label/DigitalDevice always
+carried `id="0"` (only the frontend's own client-side `ensureLastId`
+backfill masked this for a diagram opened through the editor UI — the
+standalone `svg-sld` CLI, which saves `Extract`'s output directly with no
+such fixup, wrote `id="0"` for all of them). Added `parseOptionalID`
+(lenient — 0 only when the source truly has no numeric id, unlike
+`parseElementID`'s hard error for an Element/Connector/Node) and wired it
+into both; confirmed against a real corpus file that every extracted label
+now keeps its own real source id (e.g. `id="2674"`), matching how an
+Element/Connector already did. (2) `Diagram.Save` was writing a
+meaningless empty wrapper tag (e.g. `<geometry/>` for any non-BusBarSection
+Element, since only a busbar populates `Points`) for every "parent>child"
+xml-tagged slice field whenever it was empty — a long-standing
+`encoding/xml` limitation where `omitempty` is silently ignored for such
+chained tags (Go issue #4256), affecting `Element.Points`
+("geometry>point") and every one of `Diagram`'s own list wrappers
+(`layers`/`voltageClasses`/`nodes`/`elements`/`connectors`/`labels`/
+`digitalDevices`). Added `emptyPathWrapperLine`, a second regex pass in
+`Save` (before the existing empty-tag-to-self-closing collapse) that
+strips these specific always-attribute-less wrapper lines entirely when
+they have no children, rather than merely collapsing them to self-closing
+— confirmed against the same real corpus file (no more `<geometry/>` on
+any non-busbar element) and covered by new round-trip tests, including
+one confirming a genuinely populated `<geometry>` (a real busbar's own
+points) still round-trips untouched.
+
+2026-09-18: `Extract`'s `parseLabel`/`parseDigitalDevice` (`slddoc` module)
+never read a source `<text>`'s own `fill`/`font-family`/`dominant-baseline`
+style properties at all, so every extracted Label/DigitalDevice silently
+lost its own real color/font/vertical-alignment and rendered with
+`writeLabel`/`writeDigitalDevice`'s own hardcoded defaults instead (white/
+Arial/baseline) — caught on a real digital device (`id="148701988"`,
+`U 2СШ 35`) that's `fill:yellow;dominant-baseline:middle` in the source
+SVG but came out white/baseline in the extracted XML, which matters a lot
+more for a DigitalDevice than a Label since its whole point is a
+per-instance status color. Added `parseVAlign` (reverses
+`dominant-baseline` back into the model's own "top"/"middle"/""
+convention) and wired `Color`/`Font`/`VAlign` extraction into both
+functions via the existing `styleProp` helper. Verified against the real
+source (`sld-svg/examples/sld/Examples.svg`) that `id="148701988"` now
+extracts as `color="yellow" valign="middle" font="Arial"`, and added
+corresponding assertions to `TestExtract_EndToEnd`.
+
+2026-09-18: `PropertiesPanel`'s `swatchColor` (the Label/DigitalDevice/Lamp
+color-picker fallback) only recognized an already-`#rrggbb` value —
+anything else, including a real CSS named color like `"yellow"` or
+`"darkturquoise"` (exactly what the previous fix now correctly extracts
+from a real xsde2svg source), fell back to a plain white/black swatch,
+misrepresenting the stored color as unset even though rendering it was
+already correct. Added `resolveCssColor`, which normalizes any
+browser-parseable CSS color into its `#rrggbb` form via a detached
+`<canvas>`'s 2D context (whose `fillStyle` getter always serializes a
+fully-opaque color that way) rather than hardcoding the 147 CSS named
+colors; a genuinely invalid value (e.g. `LAMP_DEFAULTS`' own `fillOff:
+'none'`) still falls back to the plain swatch as before. Verified live
+against `diagrams/Examples.xml`'s own `id="148701988"` digital device: the
+color picker now shows yellow instead of white.

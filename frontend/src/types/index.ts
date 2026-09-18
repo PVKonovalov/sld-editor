@@ -138,6 +138,27 @@ export interface Label {
   text: string
 }
 
+// A shape-134 SCADA-style analog readout — shares Label's own text-styling
+// fields, but its content isn't free text: value is a placeholder/default
+// display value (this editor never binds to a live data source), name is
+// the SCADA tag/point name (informational only, rendered as data-name), and
+// unit is an optional suffix rendered as its own inline tspan.
+export interface DigitalDevice {
+  id: number
+  layer: number
+  x: number
+  y: number
+  size: number
+  anchor?: string
+  bold?: boolean
+  color?: string
+  valign?: string
+  font?: string
+  name?: string
+  value: string
+  unit?: string
+}
+
 // The wire shape (a Go nil slice serializes as JSON null): use
 // normalizeDiagram in lib/api.ts to get the array-always shape below
 // everywhere else in the app.
@@ -153,6 +174,7 @@ export interface DiagramWire {
   elements: DiagramElement[] | null
   connectors: Connector[] | null
   labels: Label[] | null
+  digitalDevices: DigitalDevice[] | null
 }
 
 export interface Diagram {
@@ -172,6 +194,7 @@ export interface Diagram {
   elements: DiagramElement[]
   connectors: Connector[]
   labels: Label[]
+  digitalDevices: DigitalDevice[]
 }
 
 export interface DiagramInfo {

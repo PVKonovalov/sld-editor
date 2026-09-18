@@ -27,6 +27,7 @@ function normalizeDiagram(d: DiagramWire): Diagram {
     elements: d.elements ?? [],
     connectors: d.connectors ?? [],
     labels: d.labels ?? [],
+    digitalDevices: d.digitalDevices ?? [],
   }
 }
 

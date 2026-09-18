@@ -56,14 +56,32 @@ const LAMP_STATE_ON = 1
 const LABEL_FONTS = ['Arial', 'Times New Roman', 'Courier New', 'Verdana', 'Georgia']
 
 // <input type="color"> only ever shows/produces a #rrggbb value — it can't
-// represent a non-hex CSS color/keyword (e.g. LAMP_DEFAULTS' own
-// fillOff: 'none'), so an existing FillOff/FillOn that isn't one falls
-// back to this swatch purely for display; picking a color always commits
-// a real #rrggbb hex regardless; a "none" fillOff already read as fully
-// transparent, same as this swatch's own black.
+// display a non-hex CSS color/keyword directly (e.g. LAMP_DEFAULTS' own
+// fillOff: 'none', or a real xsde2svg-exported Label/DigitalDevice's own
+// named color like "yellow"/"darkturquoise" — see slddoc's own
+// parseLabel/parseDigitalDevice doc comments). resolveCssColor converts any
+// value the browser's own CSS color parser accepts (named color, hex,
+// rgb(), ...) into its #rrggbb form via a detached <canvas>'s 2D context,
+// whose fillStyle getter always normalizes a fully-opaque color to that
+// exact form — rather than this maintaining its own list of the 147 CSS
+// named colors. A value the browser rejects too (like "none") returns
+// null, since canvas silently keeps the previous fillStyle on an invalid
+// assignment; INVALID_COLOR_SENTINEL is set first so that "previous value"
+// is always distinguishable from a real result.
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
+const INVALID_COLOR_SENTINEL = '#010203'
+function resolveCssColor(value: string): string | null {
+  const ctx = document.createElement('canvas').getContext('2d')
+  if (!ctx) return null
+  ctx.fillStyle = INVALID_COLOR_SENTINEL
+  ctx.fillStyle = value
+  const resolved = ctx.fillStyle
+  return resolved === INVALID_COLOR_SENTINEL ? null : resolved
+}
 function swatchColor(value: string | undefined, fallback: string): string {
-  return value && HEX_COLOR_RE.test(value) ? value : fallback
+  if (!value) return fallback
+  if (HEX_COLOR_RE.test(value)) return value
+  return resolveCssColor(value) ?? fallback
 }
 
 function DeleteButton({ label, onDelete }: { label: string; onDelete: () => void }) {
@@ -89,6 +107,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     selectedElementIds,
     selectedConnectorId,
     selectedLabelId,
+    selectedDigitalDeviceId,
     updateDiagram,
     deleteSelected,
     setDefaultVoltage,
@@ -96,6 +115,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const element = diagram?.elements.find(e => e.id === selectedElementId) ?? null
   const connector = diagram?.connectors.find(c => c.id === selectedConnectorId) ?? null
   const label = diagram?.labels.find(l => l.id === selectedLabelId) ?? null
+  const digitalDevice = diagram?.digitalDevices.find(dd => dd.id === selectedDigitalDeviceId) ?? null
   const voltageOptions = diagram ? diagramOps.voltageClassOptions(diagram, config) : []
 
   if (!diagram) {
@@ -111,7 +131,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // of just "nothing selected", since those otherwise have no home to be
   // edited from after creation (NewDiagramDialog is the only other place
   // that sets them, and only at creation time).
-  if (!element && !connector && !label && selectedElementIds.size === 0) {
+  if (!element && !connector && !label && !digitalDevice && selectedElementIds.size === 0) {
     return (
       <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
         <div className="space-y-3">
@@ -335,6 +355,111 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: label.id })}</p>
           <DeleteButton label={t('properties.deleteLabel')} onDelete={deleteSelected} />
+        </div>
+      </PanelShell>
+    )
+  }
+
+  if (digitalDevice) {
+    const patchDigitalDevice = (fields: Partial<typeof digitalDevice>) => {
+      updateDiagram(d => diagramOps.updateDigitalDevice(d, digitalDevice.id, fields))
+    }
+    return (
+      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
+        <div className="space-y-3">
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.digitalDeviceName')}</span>
+            <input
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={digitalDevice.name ?? ''}
+              onChange={e => patchDigitalDevice({ name: e.target.value || undefined })}
+            />
+          </label>
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.digitalDeviceValue')}</span>
+            <input
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={digitalDevice.value}
+              onChange={e => patchDigitalDevice({ value: e.target.value })}
+            />
+          </label>
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.digitalDeviceUnit')}</span>
+            <input
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={digitalDevice.unit ?? ''}
+              onChange={e => patchDigitalDevice({ unit: e.target.value || undefined })}
+            />
+          </label>
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.labelSize')}</span>
+            <input
+              type="number"
+              min={1}
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={digitalDevice.size}
+              onChange={e => patchDigitalDevice({ size: Number(e.target.value) })}
+            />
+          </label>
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.labelAnchor')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={digitalDevice.anchor ?? 'start'}
+              onChange={e => patchDigitalDevice({ anchor: e.target.value })}
+            >
+              <option value="start">{t('properties.anchorStart')}</option>
+              <option value="middle">{t('properties.anchorMiddle')}</option>
+              <option value="end">{t('properties.anchorEnd')}</option>
+            </select>
+          </label>
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.labelVAlign')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={digitalDevice.valign ?? 'bottom'}
+              onChange={e => patchDigitalDevice({ valign: e.target.value === 'bottom' ? undefined : e.target.value })}
+            >
+              <option value="top">{t('properties.vAlignTop')}</option>
+              <option value="middle">{t('properties.vAlignMiddle')}</option>
+              <option value="bottom">{t('properties.vAlignBottom')}</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={!!digitalDevice.bold}
+              onChange={e => patchDigitalDevice({ bold: e.target.checked })}
+            />
+            <span className="text-gray-400">{t('properties.labelBold')}</span>
+          </label>
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.labelColor')}</span>
+            <input
+              type="color"
+              className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+              value={swatchColor(digitalDevice.color, '#ffffff')}
+              onChange={e => patchDigitalDevice({ color: e.target.value })}
+            />
+          </label>
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.labelFont')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={digitalDevice.font ?? LABEL_FONTS[0]}
+              onChange={e =>
+                patchDigitalDevice({ font: e.target.value === LABEL_FONTS[0] ? undefined : e.target.value })
+              }
+            >
+              {LABEL_FONTS.map(f => (
+                <option key={f} value={f}>
+                  {f}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: digitalDevice.id })}</p>
+          <DeleteButton label={t('properties.deleteDigitalDevice')} onDelete={deleteSelected} />
         </div>
       </PanelShell>
     )

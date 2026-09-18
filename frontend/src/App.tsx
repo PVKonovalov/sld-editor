@@ -17,7 +17,8 @@ function Shell() {
   // independently rather than sharing one "active panel" slot with them.
   const [activeLeftPanel, setActiveLeftPanel] = useState<LeftPanelId | null>('file')
   const [propertiesOpen, setPropertiesOpen] = useState(false)
-  const { diagramName, selectedElementId, selectedConnectorId, selectedLabelId } = useDiagramContext()
+  const { diagramName, selectedElementId, selectedConnectorId, selectedLabelId, selectedDigitalDeviceId } =
+    useDiagramContext()
   const hadSelection = useRef(false)
   const hadDiagram = useRef(false)
 
@@ -26,12 +27,16 @@ function Shell() {
   // this only fires on the null -> non-null transition, not on every
   // selection change.
   useEffect(() => {
-    const hasSelection = selectedElementId !== null || selectedConnectorId !== null || selectedLabelId !== null
+    const hasSelection =
+      selectedElementId !== null ||
+      selectedConnectorId !== null ||
+      selectedLabelId !== null ||
+      selectedDigitalDeviceId !== null
     if (hasSelection && !hadSelection.current) {
       setPropertiesOpen(true)
     }
     hadSelection.current = hasSelection
-  }, [selectedElementId, selectedConnectorId, selectedLabelId])
+  }, [selectedElementId, selectedConnectorId, selectedLabelId, selectedDigitalDeviceId])
 
   // Picking a diagram from the File panel (or creating one) surfaces its
   // own width/height in Properties the same way selecting something on the

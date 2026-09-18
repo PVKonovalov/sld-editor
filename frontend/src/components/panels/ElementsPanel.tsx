@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Type } from 'lucide-react'
+import { Type, Gauge } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import { PanelShell } from './PanelShell'
 import { t, type TranslationKey } from '../../i18n'
@@ -16,8 +16,18 @@ const WIRE_KIND_LABELS: Record<'BusWork' | 'OverheadLine' | 'CableLine', Transla
 }
 
 export function ElementsPanel({ onClose }: { onClose: () => void }) {
-  const { elements, diagram, armedSymbol, armSymbol, armedWireKind, armWireKind, armedLabel, armLabel } =
-    useDiagramContext()
+  const {
+    elements,
+    diagram,
+    armedSymbol,
+    armSymbol,
+    armedWireKind,
+    armWireKind,
+    armedLabel,
+    armLabel,
+    armedDigitalDevice,
+    armDigitalDevice,
+  } = useDiagramContext()
 
   const groups = useMemo(() => {
     const byCategory = new Map<string, ElementSymbol[]>()
@@ -41,7 +51,9 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
               ? t('elements.wireArmedHint', { name: t(WIRE_KIND_LABELS[armedWireKind as keyof typeof WIRE_KIND_LABELS]) })
               : armedLabel
                 ? t('elements.labelArmedHint')
-                : t('elements.pickHint')}
+                : armedDigitalDevice
+                  ? t('elements.digitalDeviceArmedHint')
+                  : t('elements.pickHint')}
         </p>
       )}
       <div className="space-y-3">
@@ -92,6 +104,20 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
             >
               <Type size={20} className="shrink-0" />
               <span className="line-clamp-2 text-center leading-tight">{t('elements.text')}</span>
+            </button>
+            <button
+              type="button"
+              title={t('elements.digitalDevice')}
+              disabled={!diagram}
+              onClick={() => armDigitalDevice(!armedDigitalDevice)}
+              className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
+                armedDigitalDevice
+                  ? 'border-accent bg-accent/20 text-white'
+                  : 'border-surface-600 bg-surface-800 text-gray-300 hover:border-surface-500'
+              }`}
+            >
+              <Gauge size={20} className="shrink-0" />
+              <span className="line-clamp-2 text-center leading-tight">{t('elements.digitalDevice')}</span>
             </button>
           </div>
         </div>

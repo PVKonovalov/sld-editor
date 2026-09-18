@@ -15,9 +15,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [selectedElementIds, setSelectedElementIds] = useState<Set<number>>(new Set())
   const [selectedConnectorId, setSelectedConnectorIdState] = useState<number | null>(null)
   const [selectedLabelId, setSelectedLabelIdState] = useState<number | null>(null)
+  const [selectedDigitalDeviceId, setSelectedDigitalDeviceIdState] = useState<number | null>(null)
   const [armedSymbol, setArmedSymbolState] = useState<ElementSymbol | null>(null)
   const [armedWireKind, setArmedWireKindState] = useState<ConnectorKind | null>(null)
   const [armedLabel, setArmedLabelState] = useState(false)
+  const [armedDigitalDevice, setArmedDigitalDeviceState] = useState(false)
   const [defaultVoltage, setDefaultVoltage] = useState<number | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
 
@@ -46,6 +48,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setSelectedElementIds(new Set())
     setSelectedConnectorIdState(null)
     setSelectedLabelIdState(null)
+    setSelectedDigitalDeviceIdState(null)
   }, [])
 
   // Deliberately doesn't touch armedWireKind (unlike armedSymbol): a route
@@ -62,6 +65,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setSelectedElementIds(id === null ? new Set() : new Set([id]))
     setSelectedConnectorIdState(null)
     setSelectedLabelIdState(null)
+    setSelectedDigitalDeviceIdState(null)
     setArmedSymbolState(null)
   }, [])
 
@@ -70,6 +74,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setSelectedElementIdState(null)
     setSelectedElementIds(new Set())
     setSelectedLabelIdState(null)
+    setSelectedDigitalDeviceIdState(null)
     setArmedSymbolState(null)
   }, [])
 
@@ -78,6 +83,16 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setSelectedElementIdState(null)
     setSelectedElementIds(new Set())
     setSelectedConnectorIdState(null)
+    setSelectedDigitalDeviceIdState(null)
+    setArmedSymbolState(null)
+  }, [])
+
+  const selectDigitalDevice = useCallback((id: number | null) => {
+    setSelectedDigitalDeviceIdState(id)
+    setSelectedElementIdState(null)
+    setSelectedElementIds(new Set())
+    setSelectedConnectorIdState(null)
+    setSelectedLabelIdState(null)
     setArmedSymbolState(null)
   }, [])
 
@@ -85,10 +100,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedSymbolState(symbol)
     setArmedWireKindState(null)
     setArmedLabelState(false)
+    setArmedDigitalDeviceState(false)
     setSelectedElementIdState(null)
     setSelectedElementIds(new Set())
     setSelectedConnectorIdState(null)
     setSelectedLabelIdState(null)
+    setSelectedDigitalDeviceIdState(null)
   }, [])
 
   // A wire kind "armed" from the Elements palette's own Wires section
@@ -100,23 +117,43 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedWireKindState(kind)
     setArmedSymbolState(null)
     setArmedLabelState(false)
+    setArmedDigitalDeviceState(false)
     setSelectedElementIdState(null)
     setSelectedElementIds(new Set())
     setSelectedConnectorIdState(null)
     setSelectedLabelIdState(null)
+    setSelectedDigitalDeviceIdState(null)
   }, [])
 
   // The Elements panel's own "Text" button — click-to-place a standalone
-  // Label, mutually exclusive with armedSymbol/armedWireKind/selection the
-  // same way arming either of those already is.
+  // Label, mutually exclusive with armedSymbol/armedWireKind/armedDigitalDevice/
+  // selection the same way arming either of those already is.
   const armLabel = useCallback((armed: boolean) => {
     setArmedLabelState(armed)
     setArmedSymbolState(null)
     setArmedWireKindState(null)
+    setArmedDigitalDeviceState(false)
     setSelectedElementIdState(null)
     setSelectedElementIds(new Set())
     setSelectedConnectorIdState(null)
     setSelectedLabelIdState(null)
+    setSelectedDigitalDeviceIdState(null)
+  }, [])
+
+  // The Elements panel's own "Digital device" button — click-to-place a
+  // shape-134 SCADA readout, mutually exclusive with
+  // armedSymbol/armedWireKind/armedLabel/selection the same way arming any
+  // of those already is.
+  const armDigitalDevice = useCallback((armed: boolean) => {
+    setArmedDigitalDeviceState(armed)
+    setArmedSymbolState(null)
+    setArmedWireKindState(null)
+    setArmedLabelState(false)
+    setSelectedElementIdState(null)
+    setSelectedElementIds(new Set())
+    setSelectedConnectorIdState(null)
+    setSelectedLabelIdState(null)
+    setSelectedDigitalDeviceIdState(null)
   }, [])
 
   // Shift-click: toggles one element in/out of the multi-selection instead
@@ -137,6 +174,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setSelectedElementIdState(next.size === 1 ? [...next][0] : next.size === 0 ? null : id)
       setSelectedConnectorIdState(null)
       setSelectedLabelIdState(null)
+      setSelectedDigitalDeviceIdState(null)
       setArmedSymbolState(null)
     },
     [selectedElementIds],
@@ -240,8 +278,19 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       const id = selectedLabelId
       updateDiagram(d => diagramOps.removeLabel(d, id))
       clearSelection()
+    } else if (selectedDigitalDeviceId !== null) {
+      const id = selectedDigitalDeviceId
+      updateDiagram(d => diagramOps.removeDigitalDevice(d, id))
+      clearSelection()
     }
-  }, [selectedElementIds, selectedConnectorId, selectedLabelId, updateDiagram, clearSelection])
+  }, [
+    selectedElementIds,
+    selectedConnectorId,
+    selectedLabelId,
+    selectedDigitalDeviceId,
+    updateDiagram,
+    clearSelection,
+  ])
 
   const clearError = useCallback(() => setError(null), [])
 
@@ -259,17 +308,21 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       toggleElementSelection,
       selectedConnectorId,
       selectedLabelId,
+      selectedDigitalDeviceId,
       armedSymbol,
       armedWireKind,
       armedLabel,
+      armedDigitalDevice,
       defaultVoltage,
       setDefaultVoltage,
       selectElement,
       selectConnector,
       selectLabel,
+      selectDigitalDevice,
       armSymbol,
       armWireKind,
       armLabel,
+      armDigitalDevice,
       deleteSelected,
       clearError,
       refreshDiagrams,
@@ -293,17 +346,21 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       toggleElementSelection,
       selectedConnectorId,
       selectedLabelId,
+      selectedDigitalDeviceId,
       armedSymbol,
       armedWireKind,
       armedLabel,
+      armedDigitalDevice,
       defaultVoltage,
       setDefaultVoltage,
       selectElement,
       selectConnector,
       selectLabel,
+      selectDigitalDevice,
       armSymbol,
       armWireKind,
       armLabel,
+      armDigitalDevice,
       deleteSelected,
       clearError,
       refreshDiagrams,
