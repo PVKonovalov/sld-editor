@@ -2440,3 +2440,74 @@ directly against the render API (`POST /api/render`) with a 90°-rotated
 2-winding transformer: the circles/legs rotate with the transformer as
 expected, while each winding's own Y/Δ glyph renders inside its own
 counter-rotating `<g>`, keeping the glyph itself upright.
+
+2026-09-18: Production build — a single self-contained binary per (OS/
+arch, locale) combination, with the frontend's own already-built
+production bundle embedded directly into the Go binary via `go:embed`,
+so a deployment needs no separate static file host, reverse proxy, or
+Node runtime at all — just the one binary and a config file. Day-to-day
+development is untouched: `npm run dev`/`dev:ru` from `frontend/` and
+`go run ./cmd/sld-editor` from `backend/` work exactly as before.
+
+New `backend/internal/webui` package: `//go:embed all:dist` embeds
+whatever's currently in its own `dist/` directory. Since `go:embed`
+can't pick a directory at build time based on which locale is wanted,
+the build script instead copies the desired locale's already-built
+frontend (`frontend/dist-en`/`dist-ru`) into this fixed `dist/` path
+immediately before invoking `go build` — this package always embeds
+"whatever's currently there." A committed placeholder `dist/index.html`
+keeps `go build`/`go vet`/`go test` (and a plain `go run`) working
+outside that build script, where `dist/` was never populated with a real
+frontend at all — confirmed live: a plain `go run` still starts and
+serves the placeholder, `/api/*` routes unaffected.
+
+`internal/api/server.go` wires the embedded filesystem in via
+`router.NoRoute`, not a Gin route pattern, since Gin's own routing tree
+doesn't cleanly let a wildcard static mount coexist with the sibling
+`/api` route group registered above; NoRoute still returns a JSON 404 for
+an unmatched `/api/*` path specifically, rather than silently falling
+through to the frontend's own `index.html` for a broken API call. No SPA
+fallback routing was needed — the frontend has no client-side router of
+its own (confirmed by checking for one), so a plain `http.FileServer`
+already serves `index.html` correctly for `/` and the JS/CSS asset paths
+correctly for everything else.
+
+New root `Makefile`: `make linux`/`make windows`/`make macos` (or
+`make all` for all three), each producing both an `-en` and `-ru`
+binary; `make macos` builds both `arm64` and `amd64`. sld-editor has no
+cgo dependencies, so every target cross-compiles natively via
+`GOOS`/`GOARCH` — no Docker required for that part, though `docker-build`
+(Linux/Windows targets only — a Linux container's own Go toolchain can't
+codesign a macOS binary) runs the same Makefile inside a pinned
+Go+Node container via `Dockerfile.build`, for anyone who'd rather not
+install either locally. Every native target's own recipe also mounts
+the sibling `../../slddoc` checkout `backend/go.mod`'s own `replace`
+directive already requires for ordinary development — `docker-build`
+bind-mounts this repo's own *parent* directory specifically so that
+relative path still resolves correctly inside the container.
+
+A real bug was caught and fixed while building this Makefile itself:
+GNU Make only runs a given `.PHONY` target's own recipe once per
+top-level `make` invocation, even when several sibling targets list it
+as a prerequisite — so `make all`'s own `windows-en` target silently
+ended up embedding whichever locale's frontend build had run *last*
+(Russian, from `linux-ru`) instead of its own English one, since its own
+`frontend-en` prerequisite was considered "already satisfied" from
+`linux-en`'s earlier run in the same invocation. Caught by grepping the
+compiled binaries for a locale-exclusive UI string and finding English
+and Russian text in the *same* binary — first with a flawed check
+(`strings`, which doesn't reliably extract multi-byte UTF-8 like
+Cyrillic, and an English marker that turned out to also appear in the
+Russian bundle), then confirmed properly with a byte-safe `grep -a`
+against a marker independently verified absent from the *other* locale's
+own real build output first. Fixed by having every locale/OS/arch
+target's own recipe invoke `$(MAKE) frontend-en`/`frontend-ru` as its own
+first step — a recursive `$(MAKE)` call is its own fresh invocation with
+its own once-per-target bookkeeping, so it reliably reruns every time,
+rather than listing the frontend target as an ordinary shared
+prerequisite. Verified by rebuilding all 8 binaries (2 locales × 4
+platforms) from scratch and confirming each one's own locale-exclusive
+marker is present and the *other* locale's own marker is absent, and by
+actually running the native `macos-arm64-en` binary end to end (isolated
+port, the user's own dev servers untouched) — API calls, and the real
+UI loading in a browser — from that one binary alone.

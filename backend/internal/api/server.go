@@ -3,13 +3,16 @@
 package api
 
 import (
+	"io/fs"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
 	"sld-editor/internal/storage"
+	"sld-editor/internal/webui"
 )
 
 // Server holds every dependency the HTTP handlers need.
@@ -54,6 +57,39 @@ func (s *Server) routes() {
 	grp.POST("/render", s.renderPreview)
 	grp.GET("/elements", s.listElements)
 	grp.GET("/config", s.getConfig)
+
+	s.mountWebUI()
+}
+
+// mountWebUI serves the frontend's own embedded production build
+// (webui.Dist — see that package's own doc comment) for anything that
+// doesn't match an /api route: normally just "/" and its own JS/CSS
+// asset paths, since the frontend is a single-page app with no
+// client-side router of its own. A plain http.FileServer already serves
+// index.html for a directory request, so there's no separate SPA
+// fallback to write; a genuinely unmatched path is a real 404 either
+// way. Wired in via NoRoute rather than a Gin route pattern, since Gin's
+// own routing tree doesn't cleanly let a wildcard static mount coexist
+// with the sibling /api group registered above. An unmatched path that
+// does start with /api (a typo'd or since-removed endpoint) still gets a
+// JSON 404 here, not the frontend's own index.html, so a broken API call
+// fails obviously instead of silently receiving an HTML document.
+func (s *Server) mountWebUI() {
+	sub, err := fs.Sub(webui.Dist, "dist")
+	if err != nil {
+		// dist/ is a fixed, always-embedded directory (see webui.go) —
+		// this can only fail from a genuine bug in this package itself,
+		// never from anything a caller or a config file controls.
+		panic(err)
+	}
+	fileServer := http.FileServer(http.FS(sub))
+	s.router.NoRoute(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		fileServer.ServeHTTP(c.Writer, c.Request)
+	})
 }
 
 // allowLocalOrigins is a permissive CORS policy: sld-editor is an internal

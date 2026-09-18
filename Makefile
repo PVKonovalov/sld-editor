@@ -1,0 +1,143 @@
+# Production build for sld-editor: a single self-contained binary per
+# (OS/arch, locale) combination, with the frontend's own production build
+# embedded directly into the Go binary (see backend/internal/webui's own
+# doc comment) — no separate static file host or reverse proxy needed to
+# deploy it. Day-to-day development is untouched by any of this: keep
+# running `npm run dev`/`npm run dev:ru` from frontend/ and
+# `go run ./cmd/sld-editor -config config/sld-editor.yaml` from backend/
+# exactly as before (see CLAUDE.md).
+#
+# Requires a Go toolchain able to cross-compile linux/windows/darwin amd64
+# and arm64 (the standard library alone; sld-editor has no cgo
+# dependencies, so no C toolchain is needed for any target) and Node for
+# the frontend build. If you'd rather not install those locally,
+# `make docker-build` runs this same Makefile inside a container with
+# both pinned — see Dockerfile.build (Linux/Windows targets only: a
+# Linux container's own Go toolchain can't produce a codesigned macOS
+# binary, and this project doesn't attempt to).
+#
+# sld-editor's own backend/go.mod points its "github.com/PVKonovalov/
+# slddoc" dependency at the sibling ../../slddoc checkout (a separate
+# repo, not vendored into this one) via a replace directive — every
+# target below assumes that sibling directory already exists next to
+# this repo's own checkout, the same way `go run`/`go build` already
+# require for ordinary development.
+#
+# Each locale/OS/arch target's own recipe re-invokes `$(MAKE) frontend-*`
+# as its own first step, rather than listing frontend-en/frontend-ru as an
+# ordinary prerequisite shared across sibling targets: GNU Make only runs
+# a given .PHONY target's own recipe once per top-level `make` invocation,
+# even when several other targets depend on it, so `make all`'s own
+# windows-en and linux-en (say) would otherwise silently share whichever
+# locale's frontend build happened to run *last* instead of each getting
+# its own correct one — a real bug this project hit building the very
+# first version of this Makefile, verified by grepping the compiled
+# binaries for a locale-exclusive UI string. A recursive `$(MAKE)` call is
+# its own fresh invocation with its own once-per-target bookkeeping, so it
+# reliably reruns every time.
+#
+# Usage:
+#   make                 # every OS/arch x locale combination
+#   make linux           # linux/amd64, both locales
+#   make windows         # windows/amd64, both locales
+#   make macos           # darwin/arm64 + darwin/amd64, both locales
+#   make linux-en
+#   make linux-ru
+#   make windows-en
+#   make windows-ru
+#   make macos-arm64-en
+#   make macos-arm64-ru
+#   make macos-amd64-en
+#   make macos-amd64-ru
+#   make docker-build    # linux+windows targets, run inside a pinned container
+#   make clean
+
+.PHONY: all linux windows macos \
+        linux-en linux-ru windows-en windows-ru \
+        macos-arm64-en macos-arm64-ru macos-amd64-en macos-amd64-ru \
+        frontend-en frontend-ru docker-build clean
+
+BUILD_DIR    := build
+FRONTEND_DIR := frontend
+BACKEND_DIR  := backend
+WEBUI_DIST   := $(BACKEND_DIR)/internal/webui/dist
+DOCKER_IMAGE := sld-editor-build
+
+all: linux windows macos
+
+linux: linux-en linux-ru
+
+windows: windows-en windows-ru
+
+macos: macos-arm64-en macos-arm64-ru macos-amd64-en macos-amd64-ru
+
+linux-en: $(BUILD_DIR)
+	$(MAKE) frontend-en
+	cd $(BACKEND_DIR) && GOOS=linux GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-linux-en ./cmd/sld-editor
+
+linux-ru: $(BUILD_DIR)
+	$(MAKE) frontend-ru
+	cd $(BACKEND_DIR) && GOOS=linux GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-linux-ru ./cmd/sld-editor
+
+windows-en: $(BUILD_DIR)
+	$(MAKE) frontend-en
+	cd $(BACKEND_DIR) && GOOS=windows GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-windows-en.exe ./cmd/sld-editor
+
+windows-ru: $(BUILD_DIR)
+	$(MAKE) frontend-ru
+	cd $(BACKEND_DIR) && GOOS=windows GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-windows-ru.exe ./cmd/sld-editor
+
+macos-arm64-en: $(BUILD_DIR)
+	$(MAKE) frontend-en
+	cd $(BACKEND_DIR) && GOOS=darwin GOARCH=arm64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-macos-arm64-en ./cmd/sld-editor
+
+macos-arm64-ru: $(BUILD_DIR)
+	$(MAKE) frontend-ru
+	cd $(BACKEND_DIR) && GOOS=darwin GOARCH=arm64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-macos-arm64-ru ./cmd/sld-editor
+
+macos-amd64-en: $(BUILD_DIR)
+	$(MAKE) frontend-en
+	cd $(BACKEND_DIR) && GOOS=darwin GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-macos-amd64-en ./cmd/sld-editor
+
+macos-amd64-ru: $(BUILD_DIR)
+	$(MAKE) frontend-ru
+	cd $(BACKEND_DIR) && GOOS=darwin GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-macos-amd64-ru ./cmd/sld-editor
+
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
+
+# Builds one locale's frontend and copies it into the backend's own
+# webui/dist/ so the very next `go build` embeds it. Always invoked via a
+# recursive `$(MAKE)` call (see this file's own top comment), never as a
+# plain shared prerequisite.
+frontend-en:
+	cd $(FRONTEND_DIR) && npm install && npm run build:en
+	rm -rf $(WEBUI_DIST)
+	mkdir -p $(WEBUI_DIST)
+	cp -r $(FRONTEND_DIR)/dist-en/. $(WEBUI_DIST)/
+
+frontend-ru:
+	cd $(FRONTEND_DIR) && npm install && npm run build:ru
+	rm -rf $(WEBUI_DIST)
+	mkdir -p $(WEBUI_DIST)
+	cp -r $(FRONTEND_DIR)/dist-ru/. $(WEBUI_DIST)/
+
+# Runs this same Makefile's own linux/windows targets inside a container
+# with Go/Node pinned (see Dockerfile.build), rather than requiring either
+# on the host — macOS targets are deliberately excluded, since a Linux
+# container's own Go toolchain, while able to *cross-compile* a darwin
+# binary, can't codesign one, and this project doesn't attempt to build
+# unsigned macOS binaries this way. Mounts the *parent* of this repo, not
+# just this repo, so the sibling ../../slddoc checkout backend/go.mod's
+# own replace directive needs is visible inside the container at the same
+# relative path — the build artifacts land in this repo's own build/
+# directly via that mount, no extraction step needed afterward.
+docker-build:
+	docker build -t $(DOCKER_IMAGE) -f Dockerfile.build .
+	docker run --rm -v "$(abspath ..)":/workspace -w /workspace/sld-editor $(DOCKER_IMAGE) make linux windows
+
+clean:
+	rm -rf $(BUILD_DIR)
+	rm -rf $(WEBUI_DIST)
+	mkdir -p $(WEBUI_DIST)
+	git -C $(BACKEND_DIR)/internal/webui checkout -- dist/index.html 2>/dev/null || true
