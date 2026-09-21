@@ -153,6 +153,50 @@
 ]]></template>
   </symbol>
 
+  <!-- 164 Отделитель (Sectionalizer) — a two-terminal device drawn as a
+       fixed pivot rod plus a small pointer arm+arrowhead, swinging between
+       "closed" (rod spans both terminals straight, both fixed contact
+       ticks in place, arm points in toward center) and "open" (rod tilted
+       to a diagonal, pivoting at the bottom terminal — that pivot marked
+       with a small circle in place of the bottom tick, since the blade
+       physically rotates around it — arm swung out with it, top tick
+       unchanged). The real xsde2svg source (internal/modus/element_164.go,
+       element164) draws Open differently in one respect — the rod replaced
+       by a short stub near the top terminal rather than the same
+       full-length rod merely tilted, and the arm retracted further out —
+       rejected as visually wrong for this device at the user's own
+       request, in favor of the tilted-rod look (this template's own
+       original Intermediate option, before this device was found to have
+       no real Intermediate state at all — see below); the bottom-pivot
+       circle itself, unlike that stub, *is* kept from the real source. The
+       real exporter also has an xMirror flag (this schema has
+       no mirroring concept, so only its non-mirrored geometry is ported —
+       the same simplification every other shape here makes) and a
+       busbar-spacing-dependent "leg" extension driven by sde.Distance
+       (this schema has no field for that at all — omitted entirely,
+       matching the common real-world case where it evaluates to a
+       zero-length leg anyway; the terminal points below already sit where
+       that leg would have attached, ±10, so a wire still connects in the
+       right place). This device only has two real positions,
+       Closed(1)/Open(0) — no Intermediate — so Properties' own State
+       dropdown offers only those two (PropertiesPanel.tsx's own
+       TWO_STATE_CLASSES), and this template's own {state:...} third
+       ("other") option is simply a copy of "open": an Intermediate State
+       value (2) on already-saved data, or any other unrecognized one,
+       still reads as Open rather than something drawn specially for it. -->
+  <symbol shape="164" class="Sectionalizer" name="Sectionalizer" category="Switching devices">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M -5 -10 h 10" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M -5 10 h 10|M 0 9 a 2 2 0 1 1 0 4 a 2 2 0 0 1 0 -4|M 0 9 a 2 2 0 1 1 0 4 a 2 2 0 0 1 0 -4}" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -9 v 18 M 0 0 h -11|M -6 -9 l 6 18 M -2 0 h -11|M -6 -9 l 6 18 M -2 0 h -11}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M -11 0 l 8 3 v -6 z|M -13 0 l 8 3 v -6 z|M -13 0 l 8 3 v -6 z}" style="fill:{color};stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <!-- Same withdrawable convention as shape 43 above: the two real
        terminals sit at the far chevron tips (y=±30), not the switch body
        itself, and the movable body (near chevrons/contact bars/blade) is

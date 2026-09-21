@@ -137,14 +137,14 @@ function defaultLayer(diagram: Diagram): number {
  * seeds the new element's voltage class from whichever one the user last
  * picked in Properties, so placing several elements in a row doesn't
  * require re-assigning the same voltage each time. */
-// A Breaker/Disconnector/LoadBreakSwitch (either the fixed or withdrawable
-// shape — both share the same Class) starts out placed in service, not
-// open, so a freshly drawn one-line reads correctly without a separate
-// trip to Properties for every single device: 1 is "Close" in the
+// A Breaker/Disconnector/Sectionalizer/LoadBreakSwitch (either the fixed or
+// withdrawable shape — both share the same Class) starts out placed in
+// service, not open, so a freshly drawn one-line reads correctly without a
+// separate trip to Properties for every single device: 1 is "Close" in the
 // state->color legend (config.stateColors). GroundSwitch gets its own
 // default below instead, since leaving it unset now has a different
 // visual consequence (see GROUND_SWITCH_DEFAULT_STATE's own comment).
-const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector', 'LoadBreakSwitch'])
+const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector', 'Sectionalizer', 'LoadBreakSwitch'])
 const STATE_CLOSE = 1
 
 // GroundSwitch's own template (base.xml shape 54) draws earth-plates-up/
@@ -526,18 +526,21 @@ function defaultConnectorName(kind: ConnectorKind, id: number): string | undefin
   return label ? `${label}-${id}` : undefined
 }
 
-/** Rotates a local (unrotated) point by an element's own orient (degrees)
- * and translates it by the element's own anchor — matching exactly how
+/** Mirrors (if set), rotates, and translates a local (unrotated) point by
+ * an element's own mirror/orient/anchor — matching exactly how
  * internal/slddoc.Render places a symbol's template, via
- * transform="translate(x,y) rotate(orient)". Exported for Canvas.tsx's own
+ * transform="translate(x,y) rotate(orient) scale(-1,1)" (mirror is the
+ * innermost transform, applied to the point first, same as the backend's
+ * own transform-attribute order). Exported for Canvas.tsx's own
  * elementBoxes, which maps a symbol's real rendered-DOM local bounding box
  * (getBBox(), still in that same pre-transform local space) through this
  * same math to get its true diagram-space footprint. */
 export function placeLocalPoint(el: DiagramElement, p: Point): Point {
+  const mx = el.mirror ? -p.x : p.x
   const rad = ((el.orient ?? 0) * Math.PI) / 180
   const cos = Math.cos(rad)
   const sin = Math.sin(rad)
-  return { x: el.x + p.x * cos - p.y * sin, y: el.y + p.x * sin + p.y * cos }
+  return { x: el.x + mx * cos - p.y * sin, y: el.y + mx * sin + p.y * cos }
 }
 
 // Power transformer (shape 47) geometry constants — mirrors

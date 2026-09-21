@@ -15,16 +15,37 @@ Ported so far (render templates in `backend/assets/elements/base.xml` +
 `Extract` support in the shared `slddoc` module): Reactor (37), Reactor
 shunt (397), Surge arrester variant (29), Starter (76), Fuse withdrawable
 (154), Surge arrester grounded (168), Capacitor bank (172), Generator
-(173), Non-intersection/"Wire jump" (14).
+(173), Non-intersection/"Wire jump" (14), **164** Отделитель/Sectionalizer
+(only Closed(1)/Open(0), so Properties' own State dropdown for this class
+offers just those two, not the usual Open/Close/Intermediate — the real
+source has no Intermediate position for this device at all, so this
+shape's own `{state:closed|open|other}` template deliberately draws its
+"other" option identical to "open" rather than inventing a third one; Open
+itself is drawn as the same full-length rod tilted to a diagonal rather
+than the real source's own literal geometry (a short stub near the top
+terminal plus a bottom-terminal open-contact circle) — rejected as
+visually wrong for this device, at the user's own request — and
+`Extract`'s own `parseSectionalizer` reads
+State from whichever of the real source's two visibility-swapped `<g
+data-state="0|1">` child groups is actually visible, not from a `data-
+state` attribute on a path the way every other switching device here
+works; both the real source's xMirror flag and its `sde.Distance`-driven
+leg extension were dropped, the same simplification every other shape here
+already makes. Unlike Ground switch (54)'s own `Extract` support, an
+unrotated (Orient 0) instance — the common real-world case for this shape,
+confirmed against a real corpus (`PS_110kV_Lubnisa.svg`, both its own
+Sectionalizer instances) — *is* supported: since the real source omits its
+`rotate()` transform entirely at that angle, and this shape's own two
+states draw too differently from each other for a reliable "extreme
+points" anchor the way most other two-port shapes get one,
+`sectionalizerAnchorFromTick` instead locates the shape's own "top tick" —
+a fixed, always-identical-between-states 10-unit segment — and derives the
+anchor from it directly).
 
 Deferred — real xsde2svg shapes whose own source (`xsde2svg/internal/modus/
 element_<code>.go`) is substantially more involved than the shapes above,
 each needing its own dedicated pass rather than a quick port:
 
-- **164** Отделитель (disconnector/isolator) — state-toggling dual
-  geometry (visible/hidden `<g>` pairs), mirror-dependent, *and* depends on
-  `sde.Distance` (external busbar spacing) that this schema has no
-  equivalent field for at all.
 - **398** Короткозамыкатель (short-circuiter) — same state-toggling
   dual-geometry + mirror complexity as 164, without the Distance
   dependency.

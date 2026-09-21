@@ -2607,3 +2607,121 @@ with no leftover English, the armed-hint interpolates the Russian name
 correctly, the Properties type label shows the Russian name while the
 underlying persisted `Name` field correctly stays the raw English
 `"Breaker-1"`-style default, and no console errors.
+
+2026-09-21: Sectionalizer (shape 164, Отделитель) added to the Switching
+devices palette — a two-terminal device drawn as a fixed pivot rod plus a
+small pointer arm+arrowhead that swings between Open and Close, geometry
+initially reverse-derived from the real xsde2svg source
+(`internal/modus/element_164.go`) and cross-checked against a real
+corpus-rendered instance, but Open's own final look was changed at the
+user's own explicit request/reference icons: the real source's own rod
+replaced by a short stub near the top terminal (rather than the same
+full-length rod merely tilted) reads wrong for this device, so Open
+instead tilts the same full-length rod to a diagonal, pivoting at the
+bottom terminal — this template's own original Intermediate option, before
+the device was found to have no real Intermediate state at all (below).
+The bottom terminal's own fixed tick — present for Closed — is replaced by
+a small circle marking that pivot point for Open, since the blade
+physically rotates around it; this part *is* kept from the real source
+(top tick unaffected either way). The real
+source's Closed/Open toggle is a pair of visibility-swapped `<g>` groups, a
+mechanism this project doesn't use elsewhere — folded instead into the
+existing single-path `{state:closed|open|other}` convention every other
+switching device here already uses; unlike every other switching device
+here, this one has no real Intermediate position at all, so its own
+"other" option is deliberately just a copy of "open" (an Intermediate
+State value reads as Open, not as some invented third position) and
+Properties' own State dropdown (`PropertiesPanel.tsx`'s new
+`TWO_STATE_CLASSES`) offers only Open/Close for this class, not the
+Open/Close/Intermediate every other switching device gets. The real
+source's xMirror flag
+and its `sde.Distance`-driven leg extension (external busbar-spacing
+dependent) were both dropped — this schema has no equivalent for either,
+the same simplification every other ported shape already makes; terminals
+sit at (0,±10), matching where that leg would have attached anyway.
+`Extract` support was added too (`parseSectionalizer`, shared `slddoc`
+module): State is read from whichever of the real source's two
+visibility-swapped `<g data-state="0|1">` child groups is actually
+visible. The two terminal points are derived as fixed (0,∓10) local
+offsets from the element's own anchor rather than from raw path-point
+extremes, since this shape's two states draw too differently from each
+other (a full-length rod vs. a short swung-open stub plus an
+open-contact circle) for a reliable "extreme points" source the way most
+other two-port shapes get one — when a rotate() transform is present
+(Orient != 0) its own center is that anchor, same as every other two-port
+shape; when it's absent (Orient 0 — confirmed to be the common real-world
+case, both of `PS_110kV_Lubnisa.svg`'s own Sectionalizer instances are
+unrotated) a first attempt punted on this the same way Ground switch
+(54)'s own `Extract` support does, but that turned out to drop both real
+instances entirely (`Report.Failed`) — so `sectionalizerAnchorFromTick`
+was added instead, deriving the anchor from the shape's own "top tick", a
+fixed 10-unit segment identical in both states and always the topmost
+point in whichever one's active. Regenerated `sld-svg/xml/
+PS_110kV_Lubnisa.xml` and its `sld-editor/diagrams/` copy (both untracked/
+gitignored, `svg-sld extract` re-run against the same source SVG) —
+confirmed both Sectionalizer instances now extract as fully-connected
+elements instead of being silently dropped. New `ClassSectionalizer`
+constant (shared `slddoc` module, a separate sibling repo) plus a
+`shapeName["164"]` entry for the rendered SVG's own comment; frontend
+`ElementClass`/`SWITCHING_DEVICE_CLASSES`/`DEFAULT_CLOSED_CLASSES` updated
+so it gets a State dropdown in Properties and defaults to Closed on
+placement, like Breaker/Disconnector; i18n label added for both locales.
+Verified live in the browser (placed from the palette, defaulted to Close,
+Open/Close render distinctly correct, Intermediate now correctly renders
+identical to Open) and via a direct `Extract` test against the real
+corpus-example markup (both a Closed and an Open instance correctly
+recover State and identical (1560,505)/(1560,525) terminal Nodes).
+
+2026-09-21: A new `Mirror` property (shared `slddoc` module, a separate
+sibling repo) — every ordinary templated element (everything `internal/
+elements`' library covers, including the freshly-added Sectionalizer) can
+now be flipped horizontally in its own local frame, independent of its own
+Orient rotation, matching real xsde2svg's own xMirror concept (see
+render.go's own `mirrorScale`: an extra ` scale(-1,1)` in the outer `<g
+transform="translate(x,y) rotate(orient)...">`, applied before Orient's
+own rotation via ordinary SVG transform composition order, the same way
+real xsde2svg's own xMirror flips local x before its own Orient-driven
+rotate()). `PowerTransformer` (shape 47), which renders through its own
+separate path (`writePowerTransformer`) rather than template substitution,
+gets the same `scale(-1,1)` on its own outer `<g>` too — mirroring the
+whole transformer including its per-winding connection-scheme glyphs
+(Y/Δ/Yn), a deliberate choice (simpler than preserving glyph orientation
+under mirroring the way they already stay upright under rotation) rather
+than an oversight. `BusBarSection` (shape 24) has no template of its own
+(its geometry is its own drawn Points, already absolute) — Mirror is a
+no-op there, same as Orient already is. Unlike Orient, `Extract` never
+sets Mirror: a real xsde2svg-exported SVG bakes xMirror straight into
+absolute path coordinates with no attribute of its own preserved in the
+output (confirmed while investigating why `PS_110kV_Lubnisa.svg`'s own two
+Sectionalizer instances render mirrored — xMirror there traces back to
+either the equipment type's own catalog default or a per-instance
+override in the original `.xsde` source, neither reconstructable from the
+exported SVG alone) — so every already-extracted element simply defaults
+to false/unmirrored, same as before this existed. Frontend:
+`DiagramElement.mirror`, and `diagramOps.placeLocalPoint` (the shared
+local-point-to-diagram-space math terminal markers/connection targets/
+`elementBoxes` all go through) now flips local X before rotating when
+`el.mirror` is set, matching the backend's own transform order exactly —
+without this, a mirrored element's own terminal markers/hit-targets would
+stay at their unmirrored positions while the rendered geometry itself
+moved. A "Mirror" checkbox was added to Properties right below
+Orientation, shown under the exact same condition (skipped for
+BusBarSection, which shows its own Points editor instead, and for Lamp,
+whose plain-circle template looks identical either way — same reasoning
+Orientation itself already uses); i18n label added for both locales.
+Verified live in the browser: a mirrored Sectionalizer's arm/arrowhead
+correctly flip to the opposite side while its terminal markers stay
+exactly on the (unmoved) rod; a 2-winding PowerTransformer with
+Δ (winding 1) / Y (winding 2) correctly swaps which side each winding (and
+its own glyph) renders on when mirrored, terminals included.
+
+2026-09-21: `scripts/deploy.sh` — builds (`make linux-ru`) and deploys the
+Russian-locale Linux build to the ctrlroom server (`root@192.168.20.23`,
+key `~/.ssh/id_rsa_ctrlroom`): stops the `sld-editor` systemd service over
+ssh, scp's `build/sld-editor-linux-ru` and `backend/assets/elements/
+base.xml` into `/usr/lib/sld-editor/`, restores the executable bit scp
+doesn't preserve, then restarts the service. `set -euo pipefail` so a
+failed build or copy stops the script before touching the remote
+service — a failed build in particular never gets as far as stopping it.
+Host/key/remote path are overridable via `DEPLOY_HOST`/`DEPLOY_SSH_KEY`/
+`DEPLOY_REMOTE_DIR` env vars rather than hardcoded outright.

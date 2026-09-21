@@ -55,7 +55,13 @@ const BLANK_WINDING: TransformerWinding = { scheme: 'wye' }
 // every other class here — has no {fill}/data-fill color legend of its
 // own (the real source never gave it one); it's included anyway since the
 // dropdown itself is just "which of the three template variants to draw".
-const SWITCHING_DEVICE_CLASSES = new Set(['Breaker', 'Disconnector', 'LoadBreakSwitch', 'GroundSwitch', 'Starter'])
+const SWITCHING_DEVICE_CLASSES = new Set(['Breaker', 'Disconnector', 'Sectionalizer', 'LoadBreakSwitch', 'GroundSwitch', 'Starter'])
+
+// Sectionalizer (164) only has two real positions — the real xsde2svg
+// source never modeled an Intermediate one for this device (see base.xml's
+// own comment on shape 164) — so its own State dropdown offers only
+// Open/Close, unlike every other class in SWITCHING_DEVICE_CLASSES above.
+const TWO_STATE_CLASSES = new Set(['Sectionalizer'])
 
 // Shapes whose base.xml template also reacts to {positionAttr}/
 // {positionOffset} (a withdrawable device's own Service/Normal/Test
@@ -789,11 +795,13 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               onChange={e => patch({ state: e.target.value === '' ? undefined : Number(e.target.value) })}
             >
               <option value="">{t('common.none')}</option>
-              {(config?.stateColors ?? []).map(sc => (
-                <option key={sc.state} value={sc.state}>
-                  {sc.label}
-                </option>
-              ))}
+              {(config?.stateColors ?? [])
+                .filter(sc => !TWO_STATE_CLASSES.has(el.class) || sc.state === 0 || sc.state === 1)
+                .map(sc => (
+                  <option key={sc.state} value={sc.state}>
+                    {sc.label}
+                  </option>
+                ))}
             </select>
           </label>
         )}
@@ -880,20 +888,30 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           // so it still needs the field even though nothing visually
           // changes.
           !isLamp && (
-            <label className="block text-xs">
-              <span className="block text-gray-400 mb-1">{t('properties.orientation')}</span>
-              <select
-                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
-                value={el.orient ?? 0}
-                onChange={e => patch({ orient: Number(e.target.value) })}
-              >
-                {ORIENTATIONS.map(o => (
-                  <option key={o} value={o}>
-                    {o}°
-                  </option>
-                ))}
-              </select>
-            </label>
+            <>
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.orientation')}</span>
+                <select
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.orient ?? 0}
+                  onChange={e => patch({ orient: Number(e.target.value) })}
+                >
+                  {ORIENTATIONS.map(o => (
+                    <option key={o} value={o}>
+                      {o}°
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={el.mirror ?? false}
+                  onChange={e => patch({ mirror: e.target.checked || undefined })}
+                />
+                <span className="text-gray-400">{t('properties.mirror')}</span>
+              </label>
+            </>
           )
         )}
 

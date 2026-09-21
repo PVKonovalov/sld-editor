@@ -56,6 +56,7 @@ export interface EditorSettings {
 export type ElementClass =
   | 'Breaker'
   | 'Disconnector'
+  | 'Sectionalizer'
   | 'LoadBreakSwitch'
   | 'GroundSwitch'
   | 'Ground'
@@ -126,6 +127,11 @@ export interface DiagramElement {
   x: number
   y: number
   orient?: number
+  // Flips the symbol template horizontally in its own local frame, applied
+  // before orient's own rotation — matches backend/internal/slddoc's own
+  // Mirror field. Meaningless for a BusBarSection (its own drawn `points`
+  // are already absolute geometry, no local template to flip).
+  mirror?: boolean
   state?: number | null
   position?: number | null
   fillOff?: string
