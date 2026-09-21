@@ -104,9 +104,18 @@
     <template></template>
   </symbol>
 
+  <!-- r/fill are user-editable (Element.Radius/Fill) via {junctionRadius}/
+       {junctionFill} — separate placeholders from the generic {radius},
+       each with its own non-zero/"none" fallback so an already-placed
+       instance with neither field set keeps this schema's own
+       long-standing look (radius 3, unfilled), even though real xsde2svg
+       usually draws a filled dot at a varying radius instead — see
+       Element.Radius/Fill's own doc comments (slddoc/model.go) for the
+       real corpus evidence and internal/slddoc/render.go's own
+       junctionRadius/junctionFill for the fallback logic itself. -->
   <symbol shape="7" class="JunctionPoint" name="Junction point" category="Wiring">
     <template><![CDATA[
-<circle cx="0" cy="0" r="3" style="fill:none;stroke:{color};stroke-width:1" />
+<circle cx="0" cy="0" r="{junctionRadius}" style="fill:{junctionFill};stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 

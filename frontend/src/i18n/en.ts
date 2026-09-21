@@ -187,6 +187,8 @@ export const dictionary = {
   'properties.substationDashed': 'Dashed',
   'properties.substationFill': 'Fill color',
   'properties.substationPropertyText': 'Label text',
+  'properties.junctionFill': 'Fill color',
+  'properties.junctionRadius': 'Radius',
 
   'properties.transformerAutotransformer': 'Autotransformer',
   'properties.transformerWindingCount': 'Number of windings',

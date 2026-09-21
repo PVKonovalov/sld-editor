@@ -3234,3 +3234,63 @@ icon, placement, selection, Orientation/Mirror, and Ctrl/Cmd-click
 connecting to a nearby Breaker (the terminal behaves as a genuine
 electrical endpoint, and the connector follows correctly when rotated
 after the fact).
+
+2026-09-21: Junction point (7) gained real per-instance Radius and Fill,
+after the user asked to check a real corpus instance with a filled dot
+and a non-default radius. Checked 9895 real corpus instances across
+every example file: ~65% draw a dot filled with their own voltage color,
+~35% draw a "hollow" one instead (filled with the page's own background
+color — the real source's own `bussed_link` case), and the radius varies
+meaningfully (2/3/4/5/8/11 all seen) — none of which this project's own
+long-standing hardcoded r=3/unfilled template captured. Both are now real
+Element fields, editable in Properties, with that same hardcoded look
+kept as the *default* (so an already-placed/-saved junction point's own
+look doesn't change) — Extract now sets both explicitly from a real
+instance's own r/fill instead of discarding them. Also gained an
+attached text label: some real instances carry a ParamText/SubscriptName
+`<text>` beside the dot, in 9 distinct real position/alignment combos —
+rather than a bespoke position-matrix field (the approach already used
+for Package/Enclosed substation's own simpler, single-position label),
+Extract now synthesizes an ordinary standalone Label from it (`For` set
+to the junction's own id), reusing this schema's already-built Label
+editing wholesale, at the user's own explicit choice between the two
+approaches. Doing so needed a real source change: every real xsde2svg
+export found still draws a junction point as a bare
+`<circle data-type="7">` with its own optional `<text>` as a separate,
+unlinked sibling, giving Extract no reliable way to associate the two —
+`element_7.go` was restructured (at the user's own request) to wrap both
+in a shared `<g id data-type="7">`, the same fix already made for
+Package/Enclosed substation (385/386); `parseJunctionPoint` supports both
+the older bare-circle form (every real corpus instance currently on
+disk) and the new wrapped one. Verified live in the browser: a custom
+Fill color and Radius render correctly, and the Transparent button
+correctly clears back to a hollow look.
+
+2026-09-21: Fixed two real Extract bugs on Package/Enclosed substation
+(385/386), reported directly against real production elements. First:
+Fill (the real source's own Abonent flag, filling the inner rectangle/
+triangle solid) was wired into rendering from the start but never
+actually recovered by Extract, so a real filled instance (id 148788827)
+silently lost its own fill on extraction — fixed via a new
+`substationFill`, reading it back from the inner rect's/triangle path's
+own drawn fill. Second, per the user's own explicit request: replaced
+385's own single-purpose `data-ntype` export attribute with a generic
+`data-property="key:value;..."` one (`internal/modus/element_385.go`/
+`element_id386.go`, the same lightweight grammar `style="..."` already
+uses) that now also carries Tech.Closed (the dashed-outline state) for
+both shapes — previously unrecoverable on Extract at all despite already
+being wired into rendering. The older, single-purpose `data-ntype` is
+still read as a fallback, since a real, independently-generated xsde2svg
+v1.4.12 corpus export was found to already carry it before this change.
+
+2026-09-21: Gave Lamp (106) the same attached-label fix Junction point
+(7) got earlier today, for the identical reason — the user pointed out a
+real corpus instance with a `<circle data-type="106">` followed by an
+unlinked `<text>` sibling Extract couldn't associate with it.
+`internal/modus/element_106.go` got the same shared-`<g>` restructuring
+already made for Junction point, and `parseLamp` now supports both the
+older bare-circle form (every real corpus instance currently on disk)
+and the new wrapped one — the actual lookup logic (`firstCircleChild`)
+and the label synthesis (`parseAttachedLabel`) are shared helpers, not
+duplicated, since both shapes' own fix is identical. Verified against
+scratch tests covering both the bare and grouped forms.

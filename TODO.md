@@ -38,7 +38,45 @@ distinct non-English string value selects a single line plus a
 differently-shaped triangle) and its own optional phase-color fill on the
 triangle have no real corpus instance to confirm either against, so
 neither is modeled — a real instance using either extracts with this
-same plain look instead), **398** Short-circuiter (a
+same plain look instead), **7** Junction point (already ported before
+this session's own tracked history, but gained real per-instance
+Radius/Fill after checking corpus: this project's own long-standing
+hardcoded r=3/unfilled look is kept as the *default* (an already-placed/
+-saved instance with neither field set doesn't change), but both are now
+real Element fields a user can edit — real xsde2svg usually draws a
+filled dot (own voltage color, ~65% of 9895 real instances checked) or a
+"hollow" one (filled with the page's own background instead, the
+`bussed_link` case, ~35%) at a genuinely varying radius (2/3/4/5/8/11 all
+seen), and Extract now captures both explicitly from a real instance
+rather than discarding them. Also gained an attached text label: some
+real instances carry a ParamText/SubscriptName `<text>` beside the dot
+(9 distinct position/alignment combos found in real corpus, not just one
+fixed style) — rather than inventing a bespoke position-matrix field,
+Extract synthesizes an ordinary standalone Label (`For` = the junction's
+own id) from it, reusing this schema's already-built Label
+position/anchor/valign/font/color editing wholesale; the trade-off,
+accepted at the user's own explicit choice, is that (like every other
+Label already) it doesn't move when the junction point itself is dragged,
+unlike the real source's own attached-to-the-point look. Recovering the
+label at all required a real source change: every real xsde2svg export
+found still draws a junction point as a bare `<circle data-type="7">`
+with its own optional `<text>` as a separate, unlinked top-level
+sibling — Extract has no reliable way to associate the two, so
+`internal/modus/element_7.go` was restructured (at the user's own
+request) to wrap both in a shared `<g id data-type="7">`, the same fix
+already made for PackageSubstation/EnclosedSubstation (385/386);
+`parseJunctionPoint` supports both the older bare-circle form (every real
+corpus instance currently on disk) and this new wrapped one, since real
+instances of the older one will presumably keep showing up for a while
+yet). Lamp (106) — already ported before this session's own tracked
+history — gained the identical attached-label fix for the identical
+reason: real corpus shows the same bare `<circle data-type="106">` plus
+an unlinked top-level `<text>` sibling pattern, so `element_106.go` got
+the same shared-`<g>` restructuring and `parseLamp` the same
+`firstCircleChild`/`parseAttachedLabel` treatment `parseJunctionPoint`
+already uses (both factored into shared helpers rather than duplicated,
+since the two shapes' own fix is now identical in every particular except
+which class/shape code owns it), **398** Short-circuiter (a
 single-terminal grounding-type switching device, structurally close to
 Ground switch (54): a fixed tapered earth symbol at the top, one real
 electrical terminal at the bottom, and a State-driven pivot rod bridging
@@ -90,16 +128,29 @@ instead, its own apex at local (0,18), not at the anchor — confirmed
 against a real xsde2svg v1.4.12 corpus export
 (sld-svg/examples/sld/Shema_sety_VRES.svg) after an initial hand-derived
 transcription of the real source's own path formula got this wrong.
-NType is only recoverable on Extract via a data-ntype export attribute
-that real corpus file already carries — confirming this project's own
-independent choice of attribute name matches an already-deployed
-convention — but this repo's own local xsde2svg checkout (an older
-version) didn't yet have it; added there too (element_385.go) so this
-repo's own tooling has something to read. Abonent (fills the inner
+NType was originally only recoverable on Extract via a data-ntype export
+attribute that a real corpus file already independently carried —
+confirming this project's own first choice of attribute name matched an
+already-deployed convention — but this repo's own local xsde2svg checkout
+(an older version) didn't yet have it; added there too (element_385.go)
+so this repo's own tooling had something to read. Superseded at the
+user's own explicit request by a generic `data-property="key:value;..."`
+export attribute (element_385.go/element_id386.go — the same lightweight
+grammar `style="..."` already uses), which now also carries Tech.Closed
+(key "closed") for both shapes; the older single-purpose data-ntype is
+still read as a fallback so the already-independently-deployed real
+corpus file above keeps extracting correctly. Abonent (fills the inner
 rectangle/triangle solid) reuses this schema's ordinary Fill field
 instead of a dedicated boolean; Tech.Closed (dashes the outline) reuses
 the ordinary State field the same way Short-circuiter's own dashing
-convention does. Unlike Ground switch, a real unrotated instance (no
+convention does — both were wired into rendering from the start but,
+until a user-reported real instance (id 148788827, its own Abonent-filled
+inner rectangle silently dropped) surfaced the gap, Extract never
+actually recovered either; both are now read back (`substationFill`,
+`substationState`, `substationDataProperty`), State only for an instance
+whose own data-property already carries "closed" (nil/unrecovered
+otherwise, same known gap as before for an older export). Unlike Ground
+switch, a real unrotated instance (no
 rotate() transform at all — the real source only emits one when angle !=
 0) is directly confirmed to exist in production (a user-reported Extract
 failure on a real element from sld-svg/examples/sld/Distributed

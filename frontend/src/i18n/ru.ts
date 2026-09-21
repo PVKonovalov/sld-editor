@@ -185,6 +185,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.substationDashed': 'Пунктирная линия',
   'properties.substationFill': 'Цвет заливки',
   'properties.substationPropertyText': 'Текст надписи',
+  'properties.junctionFill': 'Цвет заливки',
+  'properties.junctionRadius': 'Радиус',
 
   'properties.transformerAutotransformer': 'Автотрансформатор',
   'properties.transformerWindingCount': 'Число обмоток',

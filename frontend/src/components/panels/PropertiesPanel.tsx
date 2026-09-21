@@ -638,6 +638,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isArrow = el.class === 'Arrow'
   const isPackageSubstation = el.class === 'PackageSubstation'
   const isEnclosedSubstation = el.class === 'EnclosedSubstation'
+  const isJunctionPoint = el.class === 'JunctionPoint'
   // Neither a Lamp nor a FaultPassageIndicator reads a Voltage class color
   // (see diagramOps.placeElement's own matching exclusion) — both get a
   // fixed color of their own instead. A Rectangle/Circle/Arrow isn't part
@@ -950,6 +951,46 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
                 value={el.propertyText ?? ''}
                 onChange={e => patch({ propertyText: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+
+        {isJunctionPoint && (
+          <>
+            {/* Both unset by default (fill "none", radius 3) — this
+                editor's own long-standing look, kept as the fallback so an
+                already-placed/-saved junction point's look doesn't change;
+                real xsde2svg usually draws a filled dot at a varying
+                radius instead, which Extract captures explicitly (see
+                Element.Radius/Fill's own doc comments, slddoc/model.go). */}
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.junctionFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.junctionRadius')}</span>
+              <input
+                type="number"
+                min={1}
+                placeholder="3"
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.radius ?? ''}
+                onChange={e => patch({ radius: Number(e.target.value) })}
               />
             </label>
           </>
