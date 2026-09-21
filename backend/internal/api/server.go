@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 
 	"sld-editor/internal/config"
@@ -35,6 +36,15 @@ type Server struct {
 // NewServer builds a ready-to-run Server.
 func NewServer(store *storage.Store, lib *elements.Library, cfg *config.Config) *Server {
 	r := gin.Default()
+	// A diagram's own rendered SVG (and, for a large one, its JSON form
+	// too) is repetitive text — highly compressible — so this alone cuts
+	// response size substantially for the big-diagram-over-a-slow-link
+	// case, with no frontend change needed: every browser already sends
+	// Accept-Encoding: gzip and decompresses transparently. Doesn't touch
+	// the request body direction (the diagram JSON the frontend posts up)
+	// — that would need the frontend to compress it itself, a separate,
+	// bigger change.
+	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(allowLocalOrigins())
 	// This is a local authoring tool served directly, never behind a
 	// reverse proxy, so there is no X-Forwarded-For chain to trust.

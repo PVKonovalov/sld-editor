@@ -9,6 +9,55 @@
   handles the latter already).
 - Undo/redo.
 
+## Reducing frontend/backend traffic
+
+Raised by the user: a big diagram over a bad connection has a long delay
+on every add/edit, since `Canvas.tsx` POSTs the *whole* Diagram JSON to
+`/api/render` (debounced) and gets back the *whole* rendered SVG document
+on every change — for a large diagram this round trip is big regardless
+of how small the actual edit was.
+
+Done: **gzip response compression** (`internal/api/server.go`,
+`gin-contrib/gzip`) — see RELEASE.md's own 2026-09-21 entry. Cuts the
+`/api/render` response size by ~89% on a real 2530×1610 diagram (verified
+via the Performance API), with zero frontend change, since every browser
+already negotiates and decompresses gzip transparently. Doesn't touch the
+request direction (the diagram JSON posted up) at all.
+
+Considered, not started: **incremental/patch-based re-rendering** instead
+of a full diagram-in/full-SVG-out round trip on every edit — the real fix
+for the "big diagram, small edit" case (gzip helps bandwidth, not the
+fact that a full document is generated/transferred/DOM-replaced for a
+one-element change). Sketch:
+- A new endpoint (or a flag on the existing one) takes the full Diagram
+  (still needed for voltage-class/topology resolution, which spans the
+  whole document) plus the set of element/connector/label ids that
+  actually changed since the last successful render, and returns *only*
+  those ids' own freshly rendered fragments (keyed by id), not a whole
+  `<svg>` document.
+- `internal/slddoc.Render` would need a sibling (or an `only []int`
+  filter) that still does its normal whole-diagram voltage/topology
+  resolution pass but writes markup for just the requested ids.
+- The frontend would look up each returned fragment's own existing DOM
+  node by id (the same `[data-editor-kind][id=X]` pattern
+  `dragElementsInDom`/`elementBoxes` already use) and replace just that
+  node, instead of replacing the whole injected SVG's own `innerHTML`;
+  a deleted id would need to come back as an explicit "removed" list so
+  its own DOM node gets removed rather than left orphaned.
+- Real complication: a **diagram-wide** change (e.g. editing a
+  VoltageClass's own color in Settings) affects every element that
+  references it, not just one — the "just re-render the touched ids"
+  model breaks down there and would still need a full re-render; this is
+  fine since that kind of edit is rare compared to per-element edits.
+- Another: rapid edits touching *different* elements before the debounce
+  fires need the *union* of every touched id since the last successful
+  render, not just the latest one — `Canvas.tsx`'s own debounce logic
+  would need a touched-ids accumulator, not just the latest full Diagram.
+- The initial diagram open (and Save, which needs the full document
+  anyway) would still use the existing full-render path unchanged — this
+  only optimizes the interactive-editing hot path once a diagram is
+  already loaded.
+
 ## Equipment shapes not yet ported
 
 Ported so far (render templates in `backend/assets/elements/base.xml` +
@@ -76,7 +125,29 @@ the same shared-`<g>` restructuring and `parseLamp` the same
 `firstCircleChild`/`parseAttachedLabel` treatment `parseJunctionPoint`
 already uses (both factored into shared helpers rather than duplicated,
 since the two shapes' own fix is now identical in every particular except
-which class/shape code owns it), **398** Short-circuiter (a
+which class/shape code owns it). FaultPassageIndicator (320003) —
+already ported before this session's own tracked history — gained an
+editable overlay text: its own centered "FPI" label was always a fixed
+literal in base.xml's template, unlike Junction point's/Lamp's own
+attached labels this has no real source counterpart to recover at all
+(element_320.go's own custom-element case for this shape draws no text
+of any kind — a "FPI" label is purely this project's own long-standing
+convention). Now backed by Element.PropertyText, the same free-text
+field 385/386 already use, defaulting to a new admin-configured
+`config.Config.Indicators.DefaultFPIText` (`indicators.default_fpi_text`
+in `config/sld-editor.yaml`, exposed via `GET /api/config` as
+`defaultFpiText`, "FPI" out of the box) rather than a hardcoded literal —
+`internal/slddoc.Render` gained a new `defaultFPIText` parameter threaded
+through from `config.Config` (`cmd/sld-editor/main.go` ->
+`storage.Store`), and `diagramOps.placeElement` seeds a freshly placed
+instance's own PropertyText from that same server value explicitly
+(`fpiDefaults`), rather than leaving it unset and relying on Render's own
+fallback silently. An i18n-dictionary-based default (varying by locale
+build) was considered and explicitly rejected in favor of this, since
+every other config-driven legend in this project (state_colors,
+position_states, ...) is already a single install-wide value, not
+locale-aware, and this should be consistent with that established
+precedent rather than introduce a new one, **398** Short-circuiter (a
 single-terminal grounding-type switching device, structurally close to
 Ground switch (54): a fixed tapered earth symbol at the top, one real
 electrical terminal at the bottom, and a State-driven pivot rod bridging
@@ -278,6 +349,12 @@ vague to know what it actually draws).
 
 ## Known pre-existing extract gaps
 
-- `PowerTransformer` (47) only supports the 2-winding case — a real
-  corpus's 3-winding transformers land in `Report.Failed`, not
-  `Report.Skipped` (2 such instances in `Examples.svg`).
+None currently known. The one gap previously listed here —
+`PowerTransformer` (47) only supporting the 2-winding case, with a real
+corpus's 3-winding transformers landing in `Report.Failed` — was already
+fixed in an earlier session without this section being updated to say
+so; re-verified against `sld-svg/translated/Examples.svg` (the real
+corpus file the old note's own "2 such instances" count came from):
+`parsePowerTransformer` now supports 2/3/4 windings, `Report.Failed` is
+empty, and both of that file's own 3-winding transformers (ids 1267,
+4438) extract with `len(Windings) == 3` correctly.

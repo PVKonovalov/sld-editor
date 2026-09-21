@@ -1164,6 +1164,19 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
+        {el.class === 'FaultPassageIndicator' && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.substationPropertyText')}</span>
+            <input
+              type="text"
+              placeholder={config?.defaultFpiText || 'FPI'}
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.propertyText ?? ''}
+              onChange={e => patch({ propertyText: e.target.value })}
+            />
+          </label>
+        )}
+
         {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow) && el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>

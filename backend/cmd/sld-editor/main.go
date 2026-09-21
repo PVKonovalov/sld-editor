@@ -47,7 +47,7 @@ func main() {
 		fpiColors[i] = slddoc.StateColor{State: sc.State, Label: sc.Label, Color: sc.Color}
 	}
 
-	store, err := storage.New(cfg.Diagrams.Dir, lib.SymbolLibrary(), fpiColors, stateColors...)
+	store, err := storage.New(cfg.Diagrams.Dir, lib.SymbolLibrary(), cfg.Indicators.DefaultFPIText, fpiColors, stateColors...)
 	if err != nil {
 		llog.Logger.Fatalf("opening diagrams directory (%s): %v", cfg.Diagrams.Dir, err)
 	}

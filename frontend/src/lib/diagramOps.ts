@@ -214,11 +214,19 @@ const LAMP_DEFAULTS: Pick<DiagramElement, 'state' | 'fillOff' | 'fillOn' | 'radi
 // starting value — with a real radius instead of unset, which (like an
 // unset Lamp radius) renders as an invisible r="0" circle; 10 also matches
 // where base.xml's own <terminals> for this shape are fixed, and the
-// default 10-unit grid (its own "FPI" text is sized down to fit inside a
-// ring this small).
-const FPI_DEFAULTS: Pick<DiagramElement, 'state' | 'radius'> = {
-  state: 0,
-  radius: 10,
+// default 10-unit grid (its own overlay text is sized down to fit inside a
+// ring this small). propertyText is seeded from the server's own
+// config.defaultFpiText (EditorConfig — see its own doc comment) when set,
+// so a freshly placed instance's saved data already carries the
+// admin-configured label explicitly rather than relying on Render's own
+// "FPI" fallback silently; left unset when the server has none configured,
+// same fallback either way.
+function fpiDefaults(defaultFpiText?: string): Pick<DiagramElement, 'state' | 'radius' | 'propertyText'> {
+  return {
+    state: 0,
+    radius: 10,
+    ...(defaultFpiText ? { propertyText: defaultFpiText } : {}),
+  }
 }
 
 // A freshly placed PowerTransformer starts as a plain 2-winding wye/wye
@@ -241,6 +249,7 @@ export function placeElement(
   symbol: ElementSymbol,
   point: Point,
   defaultVoltage?: number,
+  defaultFpiText?: string,
 ): Diagram {
   const ids = new IdSequence(diagram)
   const id = ids.take()
@@ -266,7 +275,7 @@ export function placeElement(
       ? { orient: GROUND_TYPE_DEFAULT_ORIENT, state: GROUND_TYPE_DEFAULT_STATE }
       : {}),
     ...(WITHDRAWABLE_SHAPES.has(symbol.shape) ? { position: POSITION_NORMAL } : {}),
-    ...(elementClass === 'FaultPassageIndicator' ? FPI_DEFAULTS : {}),
+    ...(elementClass === 'FaultPassageIndicator' ? fpiDefaults(defaultFpiText) : {}),
     ...(elementClass === 'PowerTransformer' ? powerTransformerDefaults(defaultVoltage) : {}),
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }

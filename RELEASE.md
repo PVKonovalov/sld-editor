@@ -3294,3 +3294,47 @@ and the new wrapped one — the actual lookup logic (`firstCircleChild`)
 and the label synthesis (`parseAttachedLabel`) are shared helpers, not
 duplicated, since both shapes' own fix is identical. Verified against
 scratch tests covering both the bare and grouped forms.
+
+2026-09-21: Made FaultPassageIndicator's (320003) own centered "FPI"
+label editable — it was a fixed literal directly in base.xml's own
+template, and unlike Junction point's/Lamp's own labels this shape has
+no real source counterpart to recover at all (element_320.go's own
+custom-element case for this shape draws no text of any kind — "FPI" was
+always purely this project's own convention). Backed by
+Element.PropertyText, the same field 385/386 already use, with a new
+admin-configured default instead of a hardcoded literal:
+`config.Config.Indicators.DefaultFPIText` (`indicators.default_fpi_text`
+in `config/sld-editor.yaml`, "FPI" out of the box), exposed via
+`GET /api/config` as `defaultFpiText` and threaded through
+`internal/slddoc.Render`'s new `defaultFPIText` parameter. A freshly
+placed instance's own PropertyText is now seeded from that server value
+explicitly (`diagramOps.placeElement`'s own `fpiDefaults`) rather than
+left unset to rely on Render's own fallback silently. Considered making
+the default locale-aware (an i18n dictionary entry) instead, but this
+project's other config-driven legends (state_colors, position_states,
+...) are already single, non-locale-aware install-wide values, so kept
+this consistent with that precedent rather than introducing a new one.
+Verified live in the browser: a freshly placed instance's own Properties
+panel already shows the configured "FPI" as a real (not placeholder)
+value, and editing it re-renders correctly.
+
+2026-09-21: Added gzip response compression (`internal/api/server.go`,
+`github.com/gin-contrib/gzip`, pinned to v1.0.1 — the latest version
+forces a Gin upgrade that transitively pulls in unrelated, heavy
+dependencies like a QUIC implementation and a MongoDB driver, so stayed
+on the older one that doesn't) — the first step toward reducing the
+frontend/backend traffic a big diagram over a slow connection generates,
+per the user's own report of long delays adding/editing elements in a
+large diagram. Every browser already sends `Accept-Encoding: gzip` and
+decompresses transparently, so this needed no frontend change at all.
+Verified against a real 2530×1610 diagram from this project's own
+`diagrams/` directory:
+its own `/api/render` response shrank from 33,940 bytes to 3,571 bytes
+actually transferred (~89% smaller), via the Performance API's own
+`encodedBodySize`/`decodedBodySize`. Only compresses the response
+direction (backend to frontend) — the diagram JSON the frontend posts up
+on each edit is untouched, since that would need the frontend to
+compress it itself; a bigger, separate change (see TODO.md's own
+"Reducing frontend/backend traffic" section for that and the other,
+higher-effort option considered: incremental/patch-based re-rendering
+instead of a full diagram+full SVG round trip on every edit).

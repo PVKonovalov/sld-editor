@@ -172,13 +172,18 @@ export interface DiagramElement {
   // Element.NType: 0/unset draws a box-in-box pictogram with a lead stub,
   // 1 draws a plain downward-pointing triangle instead.
   nType?: number
-  // PackageSubstation (385) or EnclosedSubstation (386) only — a short
-  // overlay label (e.g. a transformer's own power rating, "160") drawn
-  // centered on the shape, staying upright regardless of Orientation/
-  // Mirror. Matches backend/internal/slddoc's own Element.PropertyText —
-  // see its own doc comment for why this is a fixed centered/white/17px
-  // style rather than the real source's own generic position/font/color
-  // options. Empty means no label.
+  // PackageSubstation (385) or EnclosedSubstation (386) — a short overlay
+  // label (e.g. a transformer's own power rating, "160") drawn centered
+  // on the shape, staying upright regardless of Orientation/Mirror.
+  // Matches backend/internal/slddoc's own Element.PropertyText — see its
+  // own doc comment for why this is a fixed centered/white/17px style
+  // rather than the real source's own generic position/font/color
+  // options. Empty means no label for these two. Also used by
+  // FaultPassageIndicator (320003) for its own centered "FPI" text —
+  // unlike 385/386, empty here means that fixed default label, not "no
+  // label", since this shape's own real source draws no text at all (a
+  // long-standing convention of this project's own, not derived from
+  // anything real to match "no label" against).
   propertyText?: string
   ports?: Port[]
   points?: Point[]
@@ -359,4 +364,11 @@ export interface EditorConfig {
   stateColors: StateColor[]
   positionStates: PositionState[]
   fpiStateColors: StateColor[]
+  // The install-wide default overlay text a FaultPassageIndicator (320003)
+  // with no own propertyText draws — see backend/internal/config's own
+  // Indicators.DefaultFPIText doc comment for why this is admin-configured
+  // rather than hardcoded. "" falls back to the backend's own "FPI"
+  // literal; diagramOps.placeElement/PropertiesPanel fall back to that
+  // same literal too, for a config predating this field.
+  defaultFpiText: string
 }

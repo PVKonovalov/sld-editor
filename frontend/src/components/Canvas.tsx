@@ -814,7 +814,7 @@ export function Canvas() {
         window.addEventListener('mouseup', onUp)
         return
       }
-      updateDiagram(d => diagramOps.placeElement(d, armedSymbol, snapPoint(point), defaultVoltage))
+      updateDiagram(d => diagramOps.placeElement(d, armedSymbol, snapPoint(point), defaultVoltage, config?.defaultFpiText))
       armSymbol(null)
       return
     }

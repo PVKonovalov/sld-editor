@@ -818,11 +818,19 @@
   </symbol>
 
   <!-- Terminals sit at the default radius (10, diagramOps' own
-       FPI_DEFAULTS, matching the default 10-unit grid) — a real instance's
+       fpiDefaults, matching the default 10-unit grid) — a real instance's
        own Radius can differ, in which case these no longer land exactly on
        the drawn ring, the same static-terminals-vs-variable-geometry
        tradeoff already accepted elsewhere (nothing here adjusts a terminal
-       for a resized symbol). -->
+       for a resized symbol). The centered "FPI" label was always a fixed
+       literal here — this shape's own real source (element_320.go's own
+       custom-element case for this shape) draws no text at all, so there
+       was never anything to match it against — now backed by {fpiText}
+       (Element.PropertyText, reused the same free-text way 385/386 already
+       do, defaulting to the admin-configured Indicators.DefaultFPIText —
+       "FPI" out of the box — when unset so an already-placed/-saved
+       instance's own look doesn't change; see PropertyText's own doc
+       comment in model.go and Render's own defaultFPIText param). -->
   <symbol shape="320003" class="FaultPassageIndicator" name="Fault passage indicator" category="Indicators">
     <terminals>
       <terminal x="0" y="-10"/>
@@ -831,7 +839,7 @@
     <template><![CDATA[
 <circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:{fpiColor};stroke-width:0.80" />
 <g transform="rotate({counterRotate})">
-<text x="0" y="0" style="fill:{fpiColor};text-anchor:middle;dominant-baseline:middle;font-size:8px;font-family:Arial" >FPI</text>
+<text x="0" y="0" style="fill:{fpiColor};text-anchor:middle;dominant-baseline:middle;font-size:8px;font-family:Arial" >{fpiText}</text>
 </g>
 ]]></template>
   </symbol>

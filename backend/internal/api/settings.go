@@ -18,8 +18,10 @@ type editorDefaults struct {
 // voltage-color palette offered when adding a voltage class, the global
 // state->color legend the Properties panel's State dropdown offers for a
 // switching device, the global Position status legend it offers for a
-// withdrawable one, and the global FPI color legend it offers for a
-// FaultPassageIndicator.
+// withdrawable one, the global FPI color legend it offers for a
+// FaultPassageIndicator, and that same shape's own default overlay text
+// (Properties' own placeholder, and diagramOps.placeElement's own seed for
+// a freshly placed one) when neither it nor a diagram-side default exists.
 func (s *Server) getConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"editor": editorDefaults{
@@ -32,5 +34,6 @@ func (s *Server) getConfig(c *gin.Context) {
 		"stateColors":    s.cfg.StateColors,
 		"positionStates": s.cfg.PositionStates,
 		"fpiStateColors": s.cfg.FPIStateColors,
+		"defaultFpiText": s.cfg.Indicators.DefaultFPIText,
 	})
 }
