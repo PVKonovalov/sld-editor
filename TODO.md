@@ -69,7 +69,15 @@ replicate those five draw branches either — it recovers the two true
 endpoints via a "farthest two points in the path" heuristic robust to all
 of them, but can't reliably tell a double-headed instance's own doubled
 starting chevron apart from an ordinary single-headed one from geometry
-alone, so an extracted Arrow's own `DoubleHeaded` is always false).
+alone, so an extracted Arrow's own `DoubleHeaded` is always false), **4**
+Круг/Circle (same non-electrical status and same two-opposite-corners
+`Points` convention as Rectangle above — order-independent, unlike
+Arrow's — just rendered as an `<ellipse>` instead of a `<rect>`; reuses
+Rectangle's own `Fill`/`Stroke`/`StrokeWidth` fields rather than adding
+new ones, including the same Properties "Transparent" fill-reset button.
+`Extract`'s own `parseCircle` reads `cx`/`cy`/`rx`/`ry` straight off the
+bare `<ellipse>` tag, the same direct-attribute approach Rectangle's own
+`parseRectangle` uses).
 
 Deferred — real xsde2svg shapes whose own source (`xsde2svg/internal/modus/
 element_<code>.go`) is substantially more involved than the shapes above,
@@ -91,9 +99,9 @@ each needing its own dedicated pass rather than a quick port:
 
 Deliberately out of scope (decorative/structural, not real electrical
 equipment — same reasoning that already excludes the generic draw
-primitives, data-type 1/4/16 — Rectangle (3) and Arrow (2) are the two
-generic primitives that *have* been ported, see above): poles/pylons
-(19/146/292), power-plant/
+primitives, data-type 1/16 — Rectangle (3), Arrow (2), and Circle (4) are
+the three generic primitives that *have* been ported, see above):
+poles/pylons (19/146/292), power-plant/
 substation pictogram icons (38/360), chassis/half-chassis cart graphics
 (51/52), a cable-plug graphic (56), a decorative connector-arrow (83),
 button/table/window HMI decoration (113/313/319), a road/geographic

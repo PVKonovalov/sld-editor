@@ -11,11 +11,12 @@ import type { Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
 const RECTANGLE_SHAPE = '3'
+const CIRCLE_SHAPE = '4'
 const ARROW_SHAPE = '2'
 // Shapes placed by dragging out two opposite points rather than a single
 // click — see diagramOps.POINTS_BASED_CLASSES for the element-class
 // equivalent used once one's already on the diagram.
-const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([BUSBAR_SHAPE, RECTANGLE_SHAPE, ARROW_SHAPE])
+const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([BUSBAR_SHAPE, RECTANGLE_SHAPE, CIRCLE_SHAPE, ARROW_SHAPE])
 const HIGHLIGHT = '#3b82f6'
 const CONNECT_TARGET_COLOR = '#22c55e'
 // How many grid cells, per side, get batched into one grid-dot pattern
@@ -302,16 +303,20 @@ export function Canvas() {
   // diagram-space footprint. BusBarSection is skipped entirely: it renders
   // as a bare <polyline> with no fill at all, and its own thin line is
   // already covered by its points-based selection highlight/hit-testing, no
-  // click-tolerance box needed. A Rectangle or Arrow, unlike a busbar, is
-  // skipped in the DOM-lookup sense (each is a bare <rect>/<path>, not a
-  // <g>) but *does* still get a real box here, computed straight from its
-  // own diagram-state Points instead of getBBox — a Rectangle's own fill
-  // is very often "none" (transparent), and an SVG shape with fill:none
-  // simply doesn't receive pointer events over its own interior at all
-  // (only its stroke does), so without this a click anywhere but the
-  // exact 1px border would silently miss it entirely, unlike every filled
-  // shape; an Arrow has no interior in the first place, just a thin
-  // stroke, so it needs the same click-tolerance box even more.
+  // click-tolerance box needed. A Rectangle, Circle, or Arrow, unlike a
+  // busbar, is skipped in the DOM-lookup sense (each is a bare
+  // <rect>/<ellipse>/<path>, not a <g>) but *does* still get a real box
+  // here, computed straight from its own diagram-state Points instead of
+  // getBBox — a Rectangle's/Circle's own fill is very often "none"
+  // (transparent), and an SVG shape with fill:none simply doesn't receive
+  // pointer events over its own interior at all (only its stroke does), so
+  // without this a click anywhere but the exact 1px border would silently
+  // miss it entirely, unlike every filled shape; an Arrow has no interior
+  // in the first place, just a thin stroke, so it needs the same
+  // click-tolerance box even more. A Circle's own box is its bounding
+  // box, not a true ellipse hit-test — close enough for a click-tolerance
+  // fallback, same as everywhere else this project favors a simple box
+  // over per-shape-accurate hit geometry.
   useEffect(() => {
     const root = wrapperRef.current
     if (!root || !diagram) {
@@ -321,7 +326,7 @@ export function Canvas() {
     const boxes = new Map<number, ElementBox>()
     for (const el of diagram.elements) {
       if (el.class === 'BusBarSection') continue
-      if ((el.class === 'Rectangle' || el.class === 'Arrow') && el.points) {
+      if ((el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow') && el.points) {
         const [p0, p1] = el.points
         const x = Math.min(p0.x, p1.x)
         const y = Math.min(p0.y, p1.y)
@@ -469,11 +474,11 @@ export function Canvas() {
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
       if (exclude?.kind === 'element' && el.id === exclude.elementId) continue
-      // A Rectangle/Arrow is a purely decorative annotation, never a valid
-      // wire endpoint — unlike every other class here, neither even falls
-      // back to its own anchor (see diagramOps.connectElements' own
+      // A Rectangle/Circle/Arrow is a purely decorative annotation, never
+      // a valid wire endpoint — unlike every other class here, none even
+      // falls back to its own anchor (see diagramOps.connectElements' own
       // matching guard).
-      if (el.class === 'Rectangle' || el.class === 'Arrow') continue
+      if (el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow') continue
       if (el.class === 'BusBarSection' && el.points && el.points.length >= 2) {
         if (!includeBusbars) continue
         const { index, point: nearest } = nearestSegmentOnPolyline(el.points, point)
@@ -692,11 +697,12 @@ export function Canvas() {
   // the actual placed element follow the cursor while dragging, not just
   // an abstract highlight. Reads each element's own current x/y/points from
   // diagram state (unchanged until mouseup) and offsets from there; a
-  // BusBarSection/Rectangle (see diagramOps.POINTS_BASED_CLASSES) has no
-  // single anchor to translate via a transform, so its own points-derived
-  // attributes are set directly instead — a busbar's <polyline points>, or
-  // a rectangle's <rect x y> (its width/height are unaffected by a plain
-  // translate, only x/y shift).
+  // BusBarSection/Rectangle/Circle (see diagramOps.POINTS_BASED_CLASSES)
+  // has no single anchor to translate via a transform, so its own
+  // points-derived attributes are set directly instead — a busbar's
+  // <polyline points>, a rectangle's <rect x y> (its width/height are
+  // unaffected by a plain translate, only x/y shift), or a circle's
+  // <ellipse cx cy> (its own rx/ry likewise unaffected).
   function dragElementsInDom(ids: number[], dx: number, dy: number) {
     const root = wrapperRef.current
     if (!root) return
@@ -709,6 +715,9 @@ export function Canvas() {
       } else if (el.class === 'Rectangle' && el.points) {
         node.setAttribute('x', String(Math.min(el.points[0].x, el.points[1].x) + dx))
         node.setAttribute('y', String(Math.min(el.points[0].y, el.points[1].y) + dy))
+      } else if (el.class === 'Circle' && el.points) {
+        node.setAttribute('cx', String((el.points[0].x + el.points[1].x) / 2 + dx))
+        node.setAttribute('cy', String((el.points[0].y + el.points[1].y) / 2 + dy))
       } else if (el.class === 'Arrow' && el.points) {
         // writeArrow's own <path> d is in local coordinates relative to
         // Points[0] (unaffected by a plain whole-shape translate), so only
@@ -786,9 +795,11 @@ export function Canvas() {
             updateDiagram(d =>
               shape === RECTANGLE_SHAPE
                 ? diagramOps.placeRectangle(d, start, snappedEnd)
-                : shape === ARROW_SHAPE
-                  ? diagramOps.placeArrow(d, start, snappedEnd)
-                  : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
+                : shape === CIRCLE_SHAPE
+                  ? diagramOps.placeCircle(d, start, snappedEnd)
+                  : shape === ARROW_SHAPE
+                    ? diagramOps.placeArrow(d, start, snappedEnd)
+                    : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
             )
           }
           armSymbol(null)
@@ -1391,6 +1402,21 @@ export function Canvas() {
                       />
                     )
                   }
+                  if (el.class === 'Circle' && el.points) {
+                    const [p0, p1] = el.points
+                    return (
+                      <ellipse
+                        key={el.id}
+                        cx={(p0.x + p1.x) / 2}
+                        cy={(p0.y + p1.y) / 2}
+                        rx={Math.abs(p1.x - p0.x) / 2 + BOX_HIGHLIGHT_PAD}
+                        ry={Math.abs(p1.y - p0.y) / 2 + BOX_HIGHLIGHT_PAD}
+                        fill="none"
+                        stroke={HIGHLIGHT}
+                        strokeWidth={2}
+                      />
+                    )
+                  }
                   const box = elementBoxes.get(el.id)
                   // Falls back to the old fixed circle only for the brief
                   // window before elementBoxes' own effect has run for a
@@ -1573,6 +1599,17 @@ export function Canvas() {
                   strokeWidth={2}
                   strokeDasharray="6 4"
                 />
+              ) : newBusbar && armedSymbol?.shape === CIRCLE_SHAPE ? (
+                <ellipse
+                  cx={(newBusbar.start.x + newBusbar.current.x) / 2}
+                  cy={(newBusbar.start.y + newBusbar.current.y) / 2}
+                  rx={Math.abs(newBusbar.current.x - newBusbar.start.x) / 2}
+                  ry={Math.abs(newBusbar.current.y - newBusbar.start.y) / 2}
+                  fill="none"
+                  stroke={HIGHLIGHT}
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                />
               ) : (
                 newBusbar && (
                   <line
@@ -1589,14 +1626,16 @@ export function Canvas() {
               {selectedElement &&
                 (selectedElement.class === 'BusBarSection' ||
                   selectedElement.class === 'Rectangle' ||
+                  selectedElement.class === 'Circle' ||
                   selectedElement.class === 'Arrow') &&
                 selectedElement.points && (
                 <>
                   {/* Live preview while a corner/endpoint handle is being
                       dragged — the actual points only update (via
                       updateBusbarPoint) on mouseup. A Rectangle previews as
-                      an actual rect outline rather than the diagonal line a
-                      plain 2-point polyline would draw. */}
+                      an actual rect outline, a Circle as an actual ellipse
+                      outline, rather than the diagonal line a plain 2-point
+                      polyline would draw. */}
                   {pointDrag &&
                     pointDrag.elementId === selectedElement.id &&
                     (() => {
@@ -1609,6 +1648,21 @@ export function Canvas() {
                             y={Math.min(p0.y, p1.y)}
                             width={Math.abs(p1.x - p0.x)}
                             height={Math.abs(p1.y - p0.y)}
+                            fill="none"
+                            stroke={HIGHLIGHT}
+                            strokeWidth={2}
+                            strokeDasharray="6 4"
+                          />
+                        )
+                      }
+                      if (selectedElement.class === 'Circle') {
+                        const [p0, p1] = pts
+                        return (
+                          <ellipse
+                            cx={(p0.x + p1.x) / 2}
+                            cy={(p0.y + p1.y) / 2}
+                            rx={Math.abs(p1.x - p0.x) / 2}
+                            ry={Math.abs(p1.y - p0.y) / 2}
                             fill="none"
                             stroke={HIGHLIGHT}
                             strokeWidth={2}

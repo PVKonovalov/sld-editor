@@ -2906,3 +2906,47 @@ click-tolerance gap Rectangle's own fill:none fix already addressed
 applies even more to a stroke-only shape), single- and double-headed
 render correctly, corner-drag reshape keeps both arrowheads correct, no
 console errors after the fix.
+
+2026-09-21: Circle (shape 4) implemented full-scope, the same way
+Rectangle and Arrow were before it — backend `slddoc` module (new
+`ClassCircle`, `writeCircle` drawing a bare `<ellipse cx cy rx ry>` from
+the element's own two opposite-corner `Points` exactly like Rectangle's
+own convention — order-independent, unlike Arrow's — reusing Rectangle's
+own `Fill`/`Stroke`/`StrokeWidth` fields rather than adding new ones;
+`Extract`'s own `parseCircle` reads `cx`/`cy`/`rx`/`ry` straight off the
+bare tag, the same direct-attribute approach `parseRectangle` uses, no
+"farthest two points" heuristic needed the way Arrow's own `parseArrow`
+required), a new "Circle" entry in `base.xml`'s own "Annotations"
+category (template-less, like Rectangle/Arrow — its size varies per
+instance and it isn't real electrical equipment, so `Render` draws it
+straight from `Points` instead of template substitution). Frontend:
+widened `POINTS_BASED_CLASSES`/`connectElements`'s decorative-shape guard
+to include Circle, new `placeCircle` (mirrors `placeRectangle` exactly,
+same `RECTANGLE_DEFAULTS`); Canvas.tsx gets a `CIRCLE_SHAPE` drag-to-draw
+entry, an ellipse drag-preview, an ellipse `elementBoxes` click-tolerance
+box (a Circle's own box is its bounding box, not a true ellipse hit-test —
+close enough for the fallback), a `cx`/`cy`-based `dragElementsInDom`
+branch (unlike Rectangle's own `x`/`y`, since `writeCircle` renders a
+center-based `<ellipse>` rather than a corner-based `<rect>`), an ellipse
+selection-highlight and reshape-preview (rather than falling back to
+Rectangle's generic box highlight, so a Circle's own selection marker
+reads as a real ellipse outline, not a bounding rectangle), and the same
+corner-handle drag-to-resize Rectangle already gets. New "Annotations"
+palette entry with its own dashed-ellipse icon (`elementIcon.ts`);
+Properties gets the same Fill/Border color/Border width fields as
+Rectangle, reusing its exact `properties.rectangleFill`/`rectangleStroke`/
+`rectangleStrokeWidth` i18n keys rather than duplicating "circle"-prefixed
+ones, since the semantics are identical — including the same "Transparent"
+fill-reset button. Also fixed the same gap on Lamp's own FillOff/FillOn
+color pickers while addressing it for Circle, at the user's own request:
+`type="color"` can't represent LAMP_DEFAULTS' own `fillOff: 'none'` once a
+real color's been picked, so both pickers get their own "Transparent"
+button too. Verified live in the browser end to end: drag-place, select
+via interior click on the `fill:none` shape (the `elementBoxes`
+click-tolerance fallback), whole-shape drag, corner-drag resize, Fill
+color change plus the Transparent button resetting it back to a hollow
+outline, copy/paste via the right-click menu, delete — all against a
+disposable scratch diagram, cleaned up afterward; a stale `go run`
+backend process left over from before this session's backend changes was
+caught (it reported a false "symbol library missing shape(s): 4" render
+warning) and restarted.

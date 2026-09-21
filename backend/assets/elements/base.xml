@@ -91,6 +91,19 @@
     <template></template>
   </symbol>
 
+  <symbol shape="4" class="Circle" name="Circle" category="Annotations">
+    <!-- Like Rectangle above, a Circle has no fixed template: its size
+         varies per instance, and it isn't real electrical equipment at
+         all (no terminals, no voltage, no state — see slddoc's own
+         ClassCircle doc comment), so it's drawn straight from its own two
+         Points (opposite bounding-box corners, the exact same convention
+         Rectangle uses) by internal/slddoc.Render, not template
+         substitution. This entry exists only so the Elements palette can
+         offer "Circle" the same drag-two-corners way it already offers
+         "Rectangle". -->
+    <template></template>
+  </symbol>
+
   <symbol shape="7" class="JunctionPoint" name="Junction point" category="Wiring">
     <template><![CDATA[
 <circle cx="0" cy="0" r="3" style="fill:none;stroke:{color};stroke-width:1" />

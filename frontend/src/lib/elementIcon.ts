@@ -26,7 +26,17 @@ const RECTANGLE_ICON =
 // triangle).
 const ARROW_ICON =
   '<path d="M -20 16 L 18 -16 M 6 -16 L 18 -16 L 18 -4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />'
-const EMPTY_TEMPLATE_ICONS: Record<string, string> = { '24': BUSBAR_ICON, '3': RECTANGLE_ICON, '2': ARROW_ICON }
+
+// Circle (shape 4) likewise has no template (see BUSBAR_ICON above) — same
+// "you drag this one" dashed-outline cue as RECTANGLE_ICON, just an ellipse.
+const CIRCLE_ICON =
+  '<ellipse cx="0" cy="0" rx="20" ry="14" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 3" />'
+const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
+  '24': BUSBAR_ICON,
+  '3': RECTANGLE_ICON,
+  '2': ARROW_ICON,
+  '4': CIRCLE_ICON,
+}
 
 // GroundSwitch's own template (base.xml shape 54) is drawn earth-plates-up/
 // stub-down in its raw, unrotated form — confirmed byte-for-byte against a

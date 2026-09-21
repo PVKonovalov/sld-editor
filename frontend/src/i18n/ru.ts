@@ -99,6 +99,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'elementCatalog.name.320003': 'Указатель короткого замыкания',
   'elementCatalog.name.3': 'Прямоугольник',
   'elementCatalog.name.2': 'Стрелка',
+  'elementCatalog.name.4': 'Круг',
 
   'settings.noDiagram': 'Откройте или создайте схему, чтобы изменить её настройки.',
   'settings.gridSpacing': 'Шаг сетки',

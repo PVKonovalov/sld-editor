@@ -101,6 +101,7 @@ export const dictionary = {
   'elementCatalog.name.320003': 'Fault passage indicator',
   'elementCatalog.name.3': 'Rectangle',
   'elementCatalog.name.2': 'Arrow',
+  'elementCatalog.name.4': 'Circle',
 
   'settings.noDiagram': 'Open or create a diagram to edit its settings.',
   'settings.gridSpacing': 'Grid spacing',

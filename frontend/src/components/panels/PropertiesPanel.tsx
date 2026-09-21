@@ -607,14 +607,15 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const typeLabel = `${typeName}:${el.shape}`
   const isLamp = el.class === 'Lamp'
   const isRectangle = el.class === 'Rectangle'
+  const isCircle = el.class === 'Circle'
   const isArrow = el.class === 'Arrow'
   // Neither a Lamp nor a FaultPassageIndicator reads a Voltage class color
   // (see diagramOps.placeElement's own matching exclusion) — both get a
-  // fixed color of their own instead. A Rectangle/Arrow isn't part of the
-  // electrical network at all (see slddoc's own ClassRectangle/ClassArrow
-  // doc comments) — its own Stroke (plus, for a Rectangle, Fill) is its
-  // equivalent, shown below.
-  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator' || isRectangle || isArrow
+  // fixed color of their own instead. A Rectangle/Circle/Arrow isn't part
+  // of the electrical network at all (see slddoc's own
+  // ClassRectangle/ClassCircle/ClassArrow doc comments) — its own Stroke
+  // (plus, for a Rectangle/Circle, Fill) is its equivalent, shown below.
+  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator' || isRectangle || isCircle || isArrow
 
   function patch(fields: Partial<DiagramElement>) {
     updateDiagram(d => ({
@@ -681,7 +682,20 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               </select>
             </label>
             <label className="block text-xs">
-              <span className="block text-gray-400 mb-1">{t('properties.lampFillOff')}</span>
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.lampFillOff')}</span>
+                {/* Same gap as Rectangle/Circle's own Fill picker: type="color"
+                    only ever produces a real #rrggbb value, so once a color's
+                    been picked there's no way back to LAMP_DEFAULTS' own
+                    "none" through the picker itself. */}
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fillOff: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
               <input
                 type="color"
                 className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
@@ -690,7 +704,16 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               />
             </label>
             <label className="block text-xs">
-              <span className="block text-gray-400 mb-1">{t('properties.lampFillOn')}</span>
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.lampFillOn')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fillOn: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
               <input
                 type="color"
                 className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
@@ -720,6 +743,52 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                     a color's been picked there's no way back to the "none"
                     (transparent) default through the picker itself — this
                     button is the only way to clear it again. */}
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+          </>
+        )}
+
+        {isCircle && (
+          <>
+            {/* Reuses Rectangle's own property labels/i18n keys rather than
+                duplicating "circleFill" etc. — a Circle's Fill/Stroke/
+                StrokeWidth model is identical to Rectangle's, unlike
+                Arrow's (no fill, "line" not "border"). */}
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.rectangleFill')}</span>
                 <button
                   type="button"
                   className="text-[10px] text-gray-400 hover:text-white underline"
@@ -925,7 +994,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {(el.class === 'BusBarSection' || isRectangle || isArrow) && el.points ? (
+        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow) && el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>
             <div className="space-y-2">
