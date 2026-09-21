@@ -2608,7 +2608,7 @@ correctly, the Properties type label shows the Russian name while the
 underlying persisted `Name` field correctly stays the raw English
 `"Breaker-1"`-style default, and no console errors.
 
-2026-09-21: Sectionalizer (shape 164, Отделитель) added to the Switching
+2026-09-21: Sectionalizer (shape 164) added to the Switching
 devices palette — a two-terminal device drawn as a fixed pivot rod plus a
 small pointer arm+arrowhead that swings between Open and Close, geometry
 initially reverse-derived from the real xsde2svg source
@@ -2730,3 +2730,64 @@ target, so they're no longer hardcoded in the script at all — they live in
 message if neither `.env` nor the environment sets them.
 `DEPLOY_REMOTE_DIR` stays an optional override with its own built-in
 default (`/usr/lib/sld-editor`), same as before.
+
+2026-09-21: Upgraded `vite` (`^5.4.21` -> `^8.3.0`) and `@vitejs/plugin-
+react` (`^4.3.3` -> `^6.1.1`, the version that supports vite 8) in
+`frontend/package.json`, fixing the two `npm audit` findings (both the
+same underlying esbuild advisory, GHSA-67mh-4wv8-2f99 — dev-server-only,
+not present in the production build's own output — that `vite@5.4.21`,
+itself already the newest 5.x release, had no non-breaking fix for).
+`npm audit` now reports 0 vulnerabilities. `vite.config.ts` needed no
+changes (a plain plugin+server/proxy config, nothing version-specific).
+Verified: `tsc --noEmit` clean, both `build:en`/`build:ru` succeed with no
+new warnings, `npm run dev` starts cleanly and the app loads/renders/opens
+a real diagram correctly against the live backend through Vite 8's own dev
+server + proxy, no console errors.
+
+2026-09-21: Every group in the Elements palette (`ElementsPanel.tsx`) is
+now collapsible — the fixed Wires/Text sections and every dynamic
+equipment category (Switching devices, Transformers, ...) alike, via a
+shared `GroupHeader` (a clickable heading with a chevron that swaps
+open/closed, `lucide-react`'s `ChevronDown`/`ChevronRight`) replacing each
+section's own plain `<h3>`. Every group starts collapsed by default — the
+component tracks which groups are *expanded* (`expandedGroups`, a
+`Set<string>` keyed by 'wires'/'text'/the raw category string, starting
+empty) rather than which are collapsed, so a freshly opened/loaded diagram
+doesn't need to know the full list of category keys up front (they only
+exist once `elements` has loaded from the backend) to default every one of
+them closed. Not persisted anywhere — it resets to all-collapsed again the
+next time the panel itself mounts, a deliberate simplification (a
+session-only UI convenience doesn't need its own storage). Collapsing a
+group doesn't touch
+armedSymbol/armedWireKind/etc. — an element already armed from a group
+that then gets collapsed stays armed, same as any other panel state.
+Verified live in the browser: each group toggles independently, collapsing
+one doesn't affect its neighbors, no console errors.
+
+2026-09-21: `Extract` (shared `slddoc` module) no longer silently drops an
+xsde2svg element it can't turn into a real Element/Connector — both an
+unrecognized data-type (a `Report.Skipped` call site) and a recognized
+data-type whose own specific instance failed to parse (a `Report.Failed`
+one) now also get a red diagnostic `Label` in the extracted diagram, at
+the user's own request, reading "Missing: `<name>` (`<code>`) #`<id>`" —
+so a diagram author sees exactly where and what wasn't carried over
+instead of an unexplained topology gap. New `missingElementAnchor` makes a
+best-effort guess at the element's own position (its `rotate()`
+transform's own center, then a descendant `<path>`'s own first point, a
+`<circle>`'s own cx/cy, or a `<rect>`'s own center — checking the node
+itself too, not just its descendants, since an untyped Rectangle/Circle
+primitive isn't wrapped in its own outer `<g>` the way a real equipment
+shape is) — no Label is added when none of these apply, though
+Report.Skipped/Failed still record it either way. `<name>` comes from
+`shapeName` (every code this package already renders) or else the new
+`unrecognizedShapeName` (English names for the codes it doesn't, sourced
+from the xsde2svg catalog's own object-type list), falling back to the
+bare code when neither has it. Caught and fixed a real bug surfaced while
+building this: `Extract` unconditionally did `d.Labels = matchLabels(...)`
+near the end, which would have silently clobbered every diagnostic Label
+just added — changed to append. Regenerated `sld-svg/xml/
+PS_110kV_Lubnisa.xml` and its `sld-editor/diagrams/` copy again (both
+untracked/gitignored) — verified live in the browser: all 7 of that
+diagram's own skipped elements (2 Short-circuiter, 2 Arrow, 1 Cable
+connector, 1 Rectangle, 1 3D button) now show a correctly positioned red
+"Missing: ..." label, no console errors.
