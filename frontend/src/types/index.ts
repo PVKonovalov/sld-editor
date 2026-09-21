@@ -76,11 +76,14 @@ export type ElementClass =
   | 'JunctionPoint'
   | 'NonIntersection'
   | 'CableConnector'
+  | 'CableJoint'
   | 'Lamp'
   | 'FaultPassageIndicator'
   | 'Rectangle'
   | 'Arrow'
   | 'Circle'
+  | 'PackageSubstation'
+  | 'EnclosedSubstation'
 
 // Matches slddoc.WindingScheme — a PowerTransformer winding's own
 // connection scheme. Only the three values with a real connection glyph in
@@ -146,7 +149,11 @@ export interface DiagramElement {
   // color, matching backend/internal/slddoc's own Element.Fill. Not a
   // VoltageClass reference (a decorative annotation shape has no
   // electrical voltage of its own), the same free-text-color pattern
-  // fillOff/fillOn already use for a Lamp.
+  // fillOff/fillOn already use for a Lamp. Also used by PackageSubstation
+  // (shape 385) for its own inner rectangle's/triangle's interior — unlike
+  // Rectangle/Circle, this one *does* have a real Voltage of its own (its
+  // outline's color); Fill here is the real xsde2svg source's own Abonent
+  // flag, generalized into this same free-choice field.
   fill?: string
   // A Rectangle's/Circle's own border color, or an Arrow's (shape 2) own
   // line color — same free-text convention as fill.
@@ -160,6 +167,19 @@ export interface DiagramElement {
   // points instead of just the second one, matching backend/internal/
   // slddoc's own Element.DoubleHeaded.
   doubleHeaded?: boolean
+  // PackageSubstation (shape 385) only — selects between its own two real
+  // appearance variants, matching backend/internal/slddoc's own
+  // Element.NType: 0/unset draws a box-in-box pictogram with a lead stub,
+  // 1 draws a plain downward-pointing triangle instead.
+  nType?: number
+  // PackageSubstation (385) or EnclosedSubstation (386) only — a short
+  // overlay label (e.g. a transformer's own power rating, "160") drawn
+  // centered on the shape, staying upright regardless of Orientation/
+  // Mirror. Matches backend/internal/slddoc's own Element.PropertyText —
+  // see its own doc comment for why this is a fixed centered/white/17px
+  // style rather than the real source's own generic position/font/color
+  // options. Empty means no label.
+  propertyText?: string
   ports?: Port[]
   points?: Point[]
   // PowerTransformer (shape 47) only — see TransformerWinding's own doc

@@ -3109,3 +3109,128 @@ own arrowhead shifted from y=-8 to y=-9 to stay centered on the new,
 slightly longer rod. Verified live in the browser: a fresh instance
 placed at 90 degrees next to a fresh Sectionalizer, both in Open state,
 now shows a visually matching shallow diagonal.
+
+2026-09-21: Package substation (shape 385, KTP) implemented, at the
+user's own request, reversing an earlier decision that had marked shapes
+385/386 out of scope for this editor's "equipment with terminals" model.
+It is a facility-level pictogram, not switchgear in the usual sense, but
+the real xsde2svg source still gives it a genuine voltage-driven color
+and exactly one real electrical terminal, so it was implemented as real
+equipment with a single Port. It has two real appearance variants
+(NType): 0 draws a 36-unit outer square, an 18-unit inner rectangle, and
+a short lead stub above the top edge (the terminal's own position); 1
+draws a plain downward-pointing triangle instead. Since NType leaves no
+other trace in a real export, an explicit data-ntype attribute was added
+to the real xsde2svg converter's own source (element_385.go, a separate
+sibling repo) so it can be recovered on Extract; while implementing this
+a real corpus file with a newer xsde2svg version already carrying this
+same attribute was found, confirming the chosen attribute name
+independently matched an already-deployed convention, and also revealing
+a transcription error in an initial hand-derived reading of the
+triangle's own real path formula (its apex sits at local (0,18), not at
+the anchor) — corrected before shipping. Backend: new
+ClassPackageSubstation and a new NType field (shared slddoc module,
+reused generically enough that any future shape needing a similar
+"real appearance variant" flag can use the same field), a bespoke
+writePackageSubstation render function (its own two variants are
+structurally different XML, not something a static {state:...} template
+could express, same reasoning PowerTransformer's own bypass uses), and
+Extract support via parsePackageSubstation. Abonent (fills the inner
+shape solid) and Tech.Closed (dashes the outline) reuse the existing
+Fill/State fields rather than adding dedicated ones. Frontend: Properties
+gets an Appearance (Box/Triangle) dropdown, a State (Solid/Dashed)
+dropdown, and a Fill color picker with the same Transparent-reset button
+Rectangle/Circle already have; a new palette icon at the shape's own real
+local proportions. Also fixed a real hit-testing gap found while testing
+this shape's own triangle variant: Canvas.tsx's own click-tolerance
+`elementBoxes` fallback only looked for a wrapping `<g>` element, so any
+bypass-template shape that renders as a bare tag instead (this shape's
+own NType 1, joining Rectangle/Circle/Arrow) never got a box and was
+unclickable except by hitting its own thin 1px stroke exactly — the
+lookup no longer restricts by tag. Verified live in the browser: both
+variants render correctly, the interior-click fix works for both, the
+Fill/State/Appearance controls all work (including the Transparent
+button), and Ctrl/Cmd-click-connecting to a nearby Breaker confirms the
+terminal behaves as a genuine electrical endpoint.
+
+2026-09-21: Fixed a real Extract bug for Package substation (385),
+reported directly against a real production element (Distributed
+grid.svg, element id 148790560) that Extract failed to recognize.
+`parsePackageSubstation` required the real source's own `rotate()`
+transform to recover the element's anchor, but xsde2svg only emits
+`rotate()` when the angle is non-zero — a real unrotated instance has no
+transform at all. Added `substationAnchorFromGeometry` (shared slddoc
+module): recovers the anchor from the outer `<rect>`'s own center for
+the box variant, or the bare `<path>`'s own first "M x y" point for the
+triangle variant, whenever no `rotate()` is present. Verified against the
+user's exact reported element.
+
+2026-09-21: Implemented Enclosed transformer substation (ZTP, shape
+386) — the same facility-level-pictogram family as Package substation
+(385), a fixed 36-unit outer square around an always-drawn downward
+triangle (apex at local (0,18), the same corrected formula 385's own
+triangle variant uses), but with only one appearance (no NType) and no
+drawn lead stub (confirmed against the real source, element_id386.go: no
+`canvas.Line` call anywhere). Reuses Fill (the triangle's own interior)
+and State (dashes the outline) identically to 385, and the same
+`substationAnchorFromGeometry` unrotated-instance fallback added above.
+Backend: new ClassEnclosedSubstation and a bespoke
+writeEnclosedSubstation render function, Extract support via
+parseEnclosedSubstation. Frontend: Properties gets the same State
+(Solid/Dashed) dropdown and Fill color picker 385 has, but no Appearance
+dropdown (there's no variant to pick); a new palette icon (outer square
+plus the same triangle). Terminal placed at local (0,-20), confirmed by
+direct user answer (one real electrical terminal, same as 385). Verified
+live in the browser: placement, interior-click selection (confirming the
+385 elementBoxes fix also covers this shape's own `<g>`-wrapped
+rendering), all Properties controls, and Ctrl/Cmd-click-connecting to a
+nearby Breaker.
+
+2026-09-21: Added an optional overlay label (Element.PropertyText) to
+Package substation (385) and Enclosed substation (386), matching a real
+source update the user made to xsde2svg (element_385.go/element_id386.go):
+every real instance can carry a short centered text label (e.g. a
+transformer's own power rating, "160") drawn in white/17px/Arial, staying
+upright and centered on the shape regardless of its own Orientation/
+Mirror — confirmed against real corpus instances carrying both a
+non-zero rotation and a label at once. This editor's own Render keeps
+every symbol element's translate+rotate+mirror as one combined transform
+(relied on by Canvas.tsx's own click-tolerance box and drag-in-DOM logic)
+rather than splitting it into nested groups the way the real source now
+does, so the label is instead given its own local counter-transform that
+cancels the parent's rotation/mirror to the same visual effect. Also fixed
+a real Extract bug uncovered while wiring this up: `parsePackageSubstation`/
+`parseEnclosedSubstation` only checked the outer node's own `transform`
+attribute for Orientation, but the real source now nests its rotate()
+transform one level inside (matching how `parseTwoPortDevice` already
+handles other shapes that can do the same) — every real rotated instance
+was silently losing its Orientation. Fixed by searching descendants for
+the transform (`firstAttrDescendant`) and always deriving the anchor from
+geometry (rotate-invariant) rather than the previous two-branch fallback.
+Frontend: both shapes' Properties get a new "Label text" field. Verified
+live in the browser: text renders correctly at 0°, and stays upright
+after setting Orientation to 90° and enabling Mirror together, for both
+the box and triangle (NType 1) variants of 385 and for 386; dragging a
+labeled element keeps the label attached and upright throughout.
+
+2026-09-21: Implemented Cable joint/coupling (shape 32) — a real
+two-terminal electrical device marking where two cable segments are
+spliced. Checked 500+ real corpus instances across 17 files before
+implementing: every single one uses the same plain geometry (a vertical
+stem split by a gap, with an unfilled triangle mark in the gap, no text),
+so only that confirmed look was ported — the real source's own alternate
+CustomView appearance and optional phase-color fill on the triangle have
+no real corpus instance to confirm against and were left unmodeled, a
+real instance using either extracts with this same plain look instead.
+Drawn from a plain fixed local-coordinate template, the same way Cable
+connector (56) already is; terminals sit at (0,-12)/(0,14), asymmetric
+around the anchor by design, matching the real source's own geometry
+exactly (its own default branch shifts its drawn geometry one unit below
+the element's true anchor before drawing). Fits the shared `slddoc`
+module's existing `parseTwoPortDevice` Extract helper exactly, so no new
+parse function was needed — verified against both a rotated and an
+unrotated real corpus instance. Verified live in the browser: palette
+icon, placement, selection, Orientation/Mirror, and Ctrl/Cmd-click
+connecting to a nearby Breaker (the terminal behaves as a genuine
+electrical endpoint, and the connector follows correctly when rotated
+after the fact).

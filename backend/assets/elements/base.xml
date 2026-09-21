@@ -150,6 +150,38 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_32.go (element32), default branch
+       only (the real source's own CustomView field selects an alternate
+       appearance via a distinct non-English string value — see below) —
+       a cable joint/coupling marking where two cable segments are
+       spliced, a real two-terminal electrical device drawn as a plain
+       fixed local-coordinate template the same way Cable connector (56)
+       above is: a vertical stem split by a gap, with an unfilled triangle
+       mark in the gap. Terminals sit at (0,-12)/(0,14) — asymmetric
+       around the anchor by design, not a transcription slip: the real
+       source's own default branch shifts its drawn geometry one unit
+       below the element's true anchor before drawing (`y += 1`),
+       confirmed against every one of 500+ real corpus instances found
+       (17 files, sld-svg's own examples/sld) — matching that offset here
+       keeps a real xsde2svg export's own rotate()-based anchor (unaffected
+       by the shift) lining up with this template's own geometry exactly.
+       The real source's own alternate CustomView appearance (a single
+       line plus a differently-shaped triangle) and its own optional
+       phase-color fill (yellow/green/red) on the triangle have no real
+       corpus instance to confirm either against, so neither is modeled —
+       every real instance found uses this same plain, unfilled look. No
+       State of its own. -->
+  <symbol shape="32" class="CableJoint" name="Cable joint" category="Wiring">
+    <terminals>
+      <terminal x="0" y="-12"/>
+      <terminal x="0" y="14"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 -3 v -9 M 0 5 v 9" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -3 l 8 8 h -16 z" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <symbol shape="41" class="Breaker" name="Breaker" category="Switching devices">
     <terminals>
       <terminal x="0" y="-10"/>
@@ -713,6 +745,61 @@
     <template><![CDATA[
 <path d="M 0 0 v 12 l -4 -4 m 4 4 l 4 -4 m -4 12 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_385.go (element385) — a
+       facility-level pictogram (Package transformer substation, KTP), not
+       switchgear in the usual sense, but still given a genuine
+       voltage-driven color and exactly one real electrical terminal
+       (grid-aligned to y=-22, the real source's own lead stub, 4 units
+       above the box's own top edge). Its geometry varies per instance
+       (two structurally different real appearance variants, not just a
+       {state:...}-style tweak within one static shape — see
+       internal/slddoc.writePackageSubstation) so, like Rectangle/Circle/
+       Arrow/PowerTransformer above, it bypasses this file's own template
+       substitution entirely — this entry exists only so the palette can
+       offer it and declare its own terminal. NType (0/unset, the common
+       case: a 36-unit outer square, an 18-unit inner rectangle, and the
+       lead stub; 1: a plain downward-pointing triangle, no separate
+       stub, but the same terminal position still lands right above its
+       identical-height top edge) is only recoverable from a real
+       xsde2svg export via a data-ntype attribute added to that source's
+       own element_385.go specifically for this — neither variant's own
+       drawn geometry otherwise reveals which one was used. Fill reuses
+       this schema's ordinary free-choice field (the real source's own
+       Abonent flag, generalized the same way Rectangle/Circle's own
+       Fill already is); State reuses this schema's ordinary field too
+       (the real source's own Tech.Closed, 0 dashing the outline) —
+       neither is recoverable on Extract, a known gap the same way
+       Arrow's own DoubleHeaded isn't either. -->
+  <symbol shape="385" class="PackageSubstation" name="Package substation" category="Other equipment">
+    <terminals>
+      <terminal x="0" y="-22"/>
+    </terminals>
+    <template></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_id386.go (element386) — the same
+       kind of facility-level pictogram as Package substation (385) just
+       above, but with a single fixed appearance instead of two real
+       variants: a 36-unit square outline with a downward-pointing
+       triangle always drawn inside it (see
+       internal/slddoc.writeEnclosedSubstation), so it bypasses this
+       file's own template substitution the same way that shape does —
+       this entry exists only so the palette can offer it and declare its
+       own terminal. Confirmed to have exactly one real electrical
+       terminal the same way Package substation does, at the user's own
+       explicit confirmation; grid-aligned to y=-20 (the real source
+       draws no separate lead stub for it the way 385 does, unlike that
+       shape's own drawn 4-unit stub). Fill/State reuse the same
+       free-choice/dashed-outline fields 385's own template does, for the
+       same reasons (Abonent/Tech.Closed), neither recoverable on
+       Extract. -->
+  <symbol shape="386" class="EnclosedSubstation" name="Enclosed substation" category="Other equipment">
+    <terminals>
+      <terminal x="0" y="-20"/>
+    </terminals>
+    <template></template>
   </symbol>
 
   <symbol shape="106" class="Lamp" name="Lamp" category="Indicators">

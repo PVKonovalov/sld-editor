@@ -31,11 +31,35 @@ const ARROW_ICON =
 // "you drag this one" dashed-outline cue as RECTANGLE_ICON, just an ellipse.
 const CIRCLE_ICON =
   '<ellipse cx="0" cy="0" rx="20" ry="14" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 3" />'
+
+// PackageSubstation (shape 385) also has no template — its own two real
+// appearance variants (see writePackageSubstation) are structurally too
+// different from each other for a static template — but unlike
+// Rectangle/Arrow/Circle above it's real equipment, not a decorative
+// "you drag this" annotation, so this icon is a solid (not dashed)
+// preview of its own default (NType 0) box-in-box look, at the shape's
+// own real local proportions (outer 36-unit box, inner 18-unit
+// rectangle, short lead stub).
+const PACKAGE_SUBSTATION_ICON =
+  '<rect x="-18" y="-18" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2" />' +
+  '<rect x="-9" y="-18" width="18" height="36" fill="none" stroke="currentColor" stroke-width="2" />' +
+  '<line x1="0" y1="-18" x2="0" y2="-24" stroke="currentColor" stroke-width="2" />'
+
+// EnclosedSubstation (shape 386) likewise has no template — same
+// "real equipment, solid not dashed" reasoning PACKAGE_SUBSTATION_ICON
+// above uses — a square outline with the same downward-pointing triangle
+// always drawn inside it (see writeEnclosedSubstation), no separate lead
+// stub (this shape's own real source draws none).
+const ENCLOSED_SUBSTATION_ICON =
+  '<rect x="-18" y="-18" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2" />' +
+  '<path d="M -18 -18 L 18 -18 L 0 18 Z" fill="none" stroke="currentColor" stroke-width="2" />'
 const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '24': BUSBAR_ICON,
   '3': RECTANGLE_ICON,
   '2': ARROW_ICON,
   '4': CIRCLE_ICON,
+  '385': PACKAGE_SUBSTATION_ICON,
+  '386': ENCLOSED_SUBSTATION_ICON,
 }
 
 // GroundSwitch's own template (base.xml shape 54) is drawn earth-plates-up/

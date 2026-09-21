@@ -333,7 +333,13 @@ export function Canvas() {
         boxes.set(el.id, { x, y, width: Math.abs(p1.x - p0.x), height: Math.abs(p1.y - p0.y) })
         continue
       }
-      const node = root.querySelector(`g[data-editor-kind="element"][id="${el.id}"]`) as SVGGraphicsElement | null
+      // No tag restriction (not just `g[...]`) — PackageSubstation's own
+      // NType 1 (triangle) variant renders as a bare <path>, the same
+      // "no wrapping <g>" convention Rectangle/Circle/Arrow already use,
+      // so it needs this same generic getBBox() fallback to be reachable
+      // at all (its NType 0/box variant already was, since that one does
+      // render as a real <g>).
+      const node = root.querySelector(`[data-editor-kind="element"][id="${el.id}"]`) as SVGGraphicsElement | null
       if (!node) continue
       let local: DOMRect
       try {

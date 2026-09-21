@@ -92,6 +92,24 @@ const WITHDRAWABLE_SHAPES = new Set(['43', '49', '154', '51'])
 const LAMP_STATE_OFF = 0
 const LAMP_STATE_ON = 1
 
+// PackageSubstation's own State (backend/internal/slddoc's own
+// Element.State, reused rather than a dedicated field) isn't an
+// Open/Close/Intermediate switching-device concept — it's the real
+// xsde2svg source's own Tech.Closed, a plain solid-vs-dashed outline
+// toggle, so it gets its own small Solid/Dashed dropdown here instead of
+// SWITCHING_DEVICE_CLASSES' shared config.stateColors-driven one. 1
+// (Solid) matches applyStateLine's own nil-defaults-to-first-option
+// convention, so an unset State already reads as Solid without a
+// separate default having to be seeded on placement.
+const SUBSTATION_STATE_SOLID = 1
+const SUBSTATION_STATE_DASHED = 0
+
+// PackageSubstation's own NType (backend/internal/slddoc's own
+// Element.NType) selects between its two real appearance variants — see
+// that field's own doc comment.
+const SUBSTATION_NTYPE_BOX = 0
+const SUBSTATION_NTYPE_TRIANGLE = 1
+
 // A handful of common web-safe SVG font-family values for a Label's own
 // Font dropdown — an empty Label.font (this list's first entry) falls
 // back to the original hardcoded Arial (see model.go's own doc comment).
@@ -618,6 +636,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isRectangle = el.class === 'Rectangle'
   const isCircle = el.class === 'Circle'
   const isArrow = el.class === 'Arrow'
+  const isPackageSubstation = el.class === 'PackageSubstation'
+  const isEnclosedSubstation = el.class === 'EnclosedSubstation'
   // Neither a Lamp nor a FaultPassageIndicator reads a Voltage class color
   // (see diagramOps.placeElement's own matching exclusion) — both get a
   // fixed color of their own instead. A Rectangle/Circle/Arrow isn't part
@@ -830,6 +850,106 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
                 value={el.strokeWidth ?? 1}
                 onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+          </>
+        )}
+
+        {isPackageSubstation && (
+          <>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.substationNType')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.nType ?? SUBSTATION_NTYPE_BOX}
+                onChange={e => patch({ nType: Number(e.target.value) })}
+              >
+                <option value={SUBSTATION_NTYPE_BOX}>{t('properties.substationNTypeBox')}</option>
+                <option value={SUBSTATION_NTYPE_TRIANGLE}>{t('properties.substationNTypeTriangle')}</option>
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.substationState')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.state ?? SUBSTATION_STATE_SOLID}
+                onChange={e => patch({ state: Number(e.target.value) })}
+              >
+                <option value={SUBSTATION_STATE_SOLID}>{t('properties.substationSolid')}</option>
+                <option value={SUBSTATION_STATE_DASHED}>{t('properties.substationDashed')}</option>
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.substationFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.substationPropertyText')}</span>
+              <input
+                type="text"
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.propertyText ?? ''}
+                onChange={e => patch({ propertyText: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+
+        {isEnclosedSubstation && (
+          <>
+            {/* Reuses PackageSubstation's own State/Fill labels/i18n keys
+                (no Appearance dropdown — this shape has no NType, only
+                ever the one fixed square-plus-triangle look). */}
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.substationState')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.state ?? SUBSTATION_STATE_SOLID}
+                onChange={e => patch({ state: Number(e.target.value) })}
+              >
+                <option value={SUBSTATION_STATE_SOLID}>{t('properties.substationSolid')}</option>
+                <option value={SUBSTATION_STATE_DASHED}>{t('properties.substationDashed')}</option>
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.substationFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.substationPropertyText')}</span>
+              <input
+                type="text"
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.propertyText ?? ''}
+                onChange={e => patch({ propertyText: e.target.value })}
               />
             </label>
           </>

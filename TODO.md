@@ -24,7 +24,21 @@ source's own relative-path formula (`element_56.go`) into an open
 two-line chevron flaring outward from each terminal, matching Arrow's own
 open-chevron style but at both ends unconditionally; fits `Extract`'s own
 existing `parseTwoPortDevice` helper exactly, same as Junction point/Wire
-jump, so no new parse function was needed), **398** Short-circuiter (a
+jump, so no new parse function was needed), **32** Cable joint/coupling (a
+real two-terminal electrical device marking where two cable segments are
+spliced, drawn the same plain fixed local-coordinate way Cable connector
+(56) is: a vertical stem split by a gap, with an unfilled triangle mark
+in the gap — terminals at (0,-12)/(0,14), asymmetric around the anchor by
+design (the real source's own default branch shifts its drawn geometry
+one unit below the element's true anchor before drawing), confirmed
+against 500+ real corpus instances across 17 files, all using this same
+plain look; also fits `parseTwoPortDevice` exactly, no new parse function
+needed. The real source's own alternate CustomView appearance (a
+distinct non-English string value selects a single line plus a
+differently-shaped triangle) and its own optional phase-color fill on the
+triangle have no real corpus instance to confirm either against, so
+neither is modeled — a real instance using either extracts with this
+same plain look instead), **398** Short-circuiter (a
 single-terminal grounding-type switching device, structurally close to
 Ground switch (54): a fixed tapered earth symbol at the top, one real
 electrical terminal at the bottom, and a State-driven pivot rod bridging
@@ -63,7 +77,69 @@ elementIcon.ts's `ICON_ROTATION`), since its raw unrotated template also
 reads backwards in a preview with no orient of its own to lean on. Still
 requires the real source's own rotate() transform to
 recover the element's anchor, same known gap as Ground switch's own
-unrotated-instance limitation), **164** Отделитель/Sectionalizer
+unrotated-instance limitation), **385** Package substation (KTP) (a
+facility-level pictogram, not switchgear in the usual sense, but the real
+source still gives it a genuine voltage-driven color and exactly one real
+electrical terminal — despite this class having been previously judged
+out of scope for exactly the opposite reason, see the "deliberately out
+of scope" list below's own history — grid-aligned to y=-22, the real
+source's own lead stub. Two real appearance variants exist (NType): 0
+(the common case) draws a 36-unit outer square, an 18-unit inner
+rectangle, and the lead stub; 1 draws a plain downward-pointing triangle
+instead, its own apex at local (0,18), not at the anchor — confirmed
+against a real xsde2svg v1.4.12 corpus export
+(sld-svg/examples/sld/Shema_sety_VRES.svg) after an initial hand-derived
+transcription of the real source's own path formula got this wrong.
+NType is only recoverable on Extract via a data-ntype export attribute
+that real corpus file already carries — confirming this project's own
+independent choice of attribute name matches an already-deployed
+convention — but this repo's own local xsde2svg checkout (an older
+version) didn't yet have it; added there too (element_385.go) so this
+repo's own tooling has something to read. Abonent (fills the inner
+rectangle/triangle solid) reuses this schema's ordinary Fill field
+instead of a dedicated boolean; Tech.Closed (dashes the outline) reuses
+the ordinary State field the same way Short-circuiter's own dashing
+convention does. Unlike Ground switch, a real unrotated instance (no
+rotate() transform at all — the real source only emits one when angle !=
+0) is directly confirmed to exist in production (a user-reported Extract
+failure on a real element from sld-svg/examples/sld/Distributed
+grid.svg), so Extract falls back to a geometry-derived anchor
+(`substationAnchorFromGeometry`: the outer `<rect>`'s own center for the
+box variant, the bare `<path>`'s own first "M x y" point for the triangle
+one) whenever no rotate() is present, rather than requiring one
+unconditionally the way most other shapes still do. Its own
+bypass-template rendering (a bare `<g>`/`<path>`, not a symbol template)
+needed Canvas.tsx's own click-tolerance `elementBoxes` fallback widened
+to match on any `data-editor-kind` element regardless of tag, not just
+`<g>`, since its own NType 1 (triangle) variant renders as a bare
+`<path>` the same way Rectangle/Circle/Arrow already do), **386**
+Enclosed transformer substation (ZTP) (the same facility-level-pictogram
+family as 385 — a fixed 36-unit outer square around an always-drawn,
+always-unfilled-by-default downward triangle, apex at local (0,18), the
+same corrected formula 385's own triangle variant uses — but with only
+one appearance (no NType) and no drawn lead stub at all (confirmed
+against the real source, element_id386.go: no `canvas.Line` call
+anywhere). Reuses Fill (the triangle's own interior) and State
+(dashes the outline) identically to 385, and the same
+`substationAnchorFromGeometry` unrotated-instance fallback. Terminal
+placed at local (0,-20), just outside the outer square's own top edge —
+confirmed by direct user answer (one real electrical terminal, same as
+385) rather than derived from the real source, which draws no stub to
+anchor it to. Both 385 and 386 also carry an optional PropertyText overlay
+label (e.g. a transformer's own power rating), matching a real source
+update the user made to xsde2svg's own element_385.go/element_id386.go:
+a short centered white/17px/Arial `<text>` that stays upright regardless
+of Orientation/Mirror — this editor's own Render achieves that with a
+local counter-transform on the `<text>` rather than the real source's own
+nested-group split, since every other symbol element already relies on a
+single combined transform for Canvas.tsx's own click-tolerance box and
+drag-in-DOM logic. Fixing this also surfaced a real Extract bug: both
+parsers only checked the outer node's own `transform` attribute for
+Orientation, but the real source now nests rotate() one level inside (the
+same pattern `parseTwoPortDevice` already handles for other shapes) —
+every real rotated instance was silently losing its Orientation; fixed by
+searching descendants for the transform instead, always deriving the
+anchor from geometry), **164** Отделитель/Sectionalizer
 (only Closed(1)/Open(0), so Properties' own State dropdown for this class
 offers just those two, not the usual Open/Close/Intermediate — the real
 source has no Intermediate position for this device at all, so this
@@ -137,10 +213,6 @@ each needing its own dedicated pass rather than a quick port:
   faithfully means adding a real winding-configuration concept to the
   schema, closer in scope to redesigning `PowerTransformer` support than
   adding a shape.
-- **385/386** КТП/ЗТП (package substation units) — these aren't switchgear
-  with electrical ports at all; they're facility-level pictogram boxes
-  (like a power-plant icon), so they don't fit this project's
-  "equipment with terminals" model as-is.
 
 Deliberately out of scope (decorative/structural, not real electrical
 equipment — same reasoning that already excludes the generic draw
