@@ -55,13 +55,22 @@ const BLANK_WINDING: TransformerWinding = { scheme: 'wye' }
 // every other class here — has no {fill}/data-fill color legend of its
 // own (the real source never gave it one); it's included anyway since the
 // dropdown itself is just "which of the three template variants to draw".
-const SWITCHING_DEVICE_CLASSES = new Set(['Breaker', 'Disconnector', 'Sectionalizer', 'LoadBreakSwitch', 'GroundSwitch', 'Starter'])
+const SWITCHING_DEVICE_CLASSES = new Set([
+  'Breaker',
+  'Disconnector',
+  'Sectionalizer',
+  'LoadBreakSwitch',
+  'GroundSwitch',
+  'ShortCircuiter',
+  'Starter',
+])
 
-// Sectionalizer (164) only has two real positions — the real xsde2svg
-// source never modeled an Intermediate one for this device (see base.xml's
-// own comment on shape 164) — so its own State dropdown offers only
-// Open/Close, unlike every other class in SWITCHING_DEVICE_CLASSES above.
-const TWO_STATE_CLASSES = new Set(['Sectionalizer'])
+// Sectionalizer (164) and Short-circuiter (398) only have two real
+// positions — the real xsde2svg source never modeled an Intermediate one
+// for either device (see base.xml's own comments on shapes 164/398) — so
+// their own State dropdown offers only Open/Close, unlike every other
+// class in SWITCHING_DEVICE_CLASSES above.
+const TWO_STATE_CLASSES = new Set(['Sectionalizer', 'ShortCircuiter'])
 
 // Shapes whose base.xml template also reacts to {positionAttr}/
 // {positionOffset} (a withdrawable device's own Service/Normal/Test

@@ -79,6 +79,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'elementCatalog.name.164': 'Отделитель',
   'elementCatalog.name.51': 'Шасси',
   'elementCatalog.name.54': 'Заземляющий разъединитель',
+  'elementCatalog.name.398': 'Короткозамыкатель',
   'elementCatalog.name.76': 'Пускатель',
   'elementCatalog.name.31': 'Точка заземления',
   'elementCatalog.name.47': 'Силовой трансформатор',

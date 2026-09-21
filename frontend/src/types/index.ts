@@ -59,6 +59,7 @@ export type ElementClass =
   | 'Sectionalizer'
   | 'LoadBreakSwitch'
   | 'GroundSwitch'
+  | 'ShortCircuiter'
   | 'Ground'
   | 'PowerTransformer'
   | 'CurrentTransformer'

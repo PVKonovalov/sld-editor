@@ -155,30 +155,33 @@ function defaultLayer(diagram: Diagram): number {
 // withdrawable shape — both share the same Class) starts out placed in
 // service, not open, so a freshly drawn one-line reads correctly without a
 // separate trip to Properties for every single device: 1 is "Close" in the
-// state->color legend (config.stateColors). GroundSwitch gets its own
-// default below instead, since leaving it unset now has a different
-// visual consequence (see GROUND_SWITCH_DEFAULT_STATE's own comment).
+// state->color legend (config.stateColors). GroundSwitch/ShortCircuiter
+// get their own default below instead, since leaving it unset now has a
+// different visual consequence (see GROUND_TYPE_DEFAULT_STATE's own
+// comment).
 const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector', 'Sectionalizer', 'LoadBreakSwitch'])
 const STATE_CLOSE = 1
 
-// GroundSwitch's own template (base.xml shape 54) draws earth-plates-up/
-// stub-down at orient 0 — confirmed against a real xsde2svg corpus export,
-// which always places this shape pre-rotated (90/180, never 0), so the
-// template itself is left as-is. A freshly placed one defaults to 180°
-// instead of unset/0 so it already reads the conventional way (stub up
-// toward whatever it's tapped off of, earth symbol dangling below) without
-// a separate trip to Properties' Orientation field first.
-const GROUND_SWITCH_DEFAULT_ORIENT = 180
+// GroundSwitch/ShortCircuiter (base.xml shapes 54/398) both draw
+// earth-plates-up/stub-down at orient 0 — confirmed against a real
+// xsde2svg corpus export, which always places GroundSwitch pre-rotated
+// (90/180, never 0), so their templates are left as-is. A freshly placed
+// one defaults to 180 degrees instead of unset/0 so it already reads the
+// conventional way (stub up toward whatever it's tapped off of, earth
+// symbol dangling below) without a separate trip to Properties'
+// Orientation field first.
+const GROUND_TYPE_DEFAULT_ORIENT = 180
 
-// GroundSwitch's blade is now state-driven too (base.xml's {state:...},
-// matching Breaker/Disconnector's own mechanism), and an unset State reads
-// as Close (applyStateLine's own nil-maps-to-first-option rule) — so
-// leaving it unset would make a freshly placed one default to the
-// grounded/closed look. 0 (Open) instead matches both the real corpus
-// (~92% of a real substation export's own GroundSwitch elements are Open)
-// and this template's own pre-{state:...} fixed appearance, so a freshly
-// placed one still looks the same as it always has.
-const GROUND_SWITCH_DEFAULT_STATE = 0
+// GroundSwitch/ShortCircuiter's own blade is state-driven (base.xml's
+// {state:...}, matching Breaker/Disconnector's own mechanism), and an
+// unset State reads as Close (applyStateLine's own nil-maps-to-first-
+// option rule) — so leaving it unset would make a freshly placed one
+// default to the grounded/shorted look. 0 (Open) instead matches both the
+// real corpus (~92% of a real substation export's own GroundSwitch
+// elements are Open) and each template's own pre-{state:...} fixed
+// appearance, so a freshly placed one still looks the same as it always
+// has.
+const GROUND_TYPE_DEFAULT_STATE = 0
 
 // Breaker/Disconnector/Fuse (withdrawable) — shapes 43/49/154, keyed by
 // Shape since each shares a Class with a non-withdrawable sibling (41/162,
@@ -259,8 +262,8 @@ export function placeElement(
     y: point.y,
     ...(DEFAULT_CLOSED_CLASSES.has(elementClass) ? { state: STATE_CLOSE } : {}),
     ...(elementClass === 'Lamp' ? LAMP_DEFAULTS : {}),
-    ...(elementClass === 'GroundSwitch'
-      ? { orient: GROUND_SWITCH_DEFAULT_ORIENT, state: GROUND_SWITCH_DEFAULT_STATE }
+    ...(elementClass === 'GroundSwitch' || elementClass === 'ShortCircuiter'
+      ? { orient: GROUND_TYPE_DEFAULT_ORIENT, state: GROUND_TYPE_DEFAULT_STATE }
       : {}),
     ...(WITHDRAWABLE_SHAPES.has(symbol.shape) ? { position: POSITION_NORMAL } : {}),
     ...(elementClass === 'FaultPassageIndicator' ? FPI_DEFAULTS : {}),

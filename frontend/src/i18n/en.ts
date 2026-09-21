@@ -81,6 +81,7 @@ export const dictionary = {
   'elementCatalog.name.164': 'Sectionalizer',
   'elementCatalog.name.51': 'Chassis',
   'elementCatalog.name.54': 'Ground switch',
+  'elementCatalog.name.398': 'Short-circuiter',
   'elementCatalog.name.76': 'Starter',
   'elementCatalog.name.31': 'Ground terminal',
   'elementCatalog.name.47': 'Power transformer',

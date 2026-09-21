@@ -47,7 +47,11 @@ const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
 // where the network connection would be expected, stub where the dead-end
 // earth symbol would be) — so just its icon gets a 180° spin here, purely
 // cosmetic, independent of whatever orient a placed instance ends up with.
-const ICON_ROTATION: Record<string, number> = { '54': 180 }
+// Short-circuiter (398) has the exact same raw-template layout (earth
+// symbol at the top, terminal at the bottom) and the same
+// GROUND_TYPE_DEFAULT_ORIENT default placement in diagramOps.ts, so it
+// gets the same treatment.
+const ICON_ROTATION: Record<string, number> = { '54': 180, '398': 180 }
 
 /** SVG body suitable for a small <svg viewBox="-32 -32 64 64"> palette icon. */
 export function elementIconMarkup(symbol: ElementSymbol): string {

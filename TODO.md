@@ -24,7 +24,46 @@ source's own relative-path formula (`element_56.go`) into an open
 two-line chevron flaring outward from each terminal, matching Arrow's own
 open-chevron style but at both ends unconditionally; fits `Extract`'s own
 existing `parseTwoPortDevice` helper exactly, same as Junction point/Wire
-jump, so no new parse function was needed), **164** Отделитель/Sectionalizer
+jump, so no new parse function was needed), **398** Short-circuiter (a
+single-terminal grounding-type switching device, structurally close to
+Ground switch (54): a fixed tapered earth symbol at the top, one real
+electrical terminal at the bottom, and a State-driven pivot rod bridging
+the gap between them — Closed bridges the terminal straight to the earth
+symbol, an intentional short to ground (with a fixed-contact tick where
+the rod meets the earth symbol); Open pivots the rod away at that same
+end, marked with a circle there instead of the tick, same pivot-circle
+convention as Sectionalizer. This template's own default uses
+element_398.go's own xMirror==1 geometry rather than its xMirror==0 one
+(the blade swings counter-clockwise, at the user's own explicit
+request), since this schema's generic Mirror property already covers the
+xMirror==0 look for whichever placed instance needs it. Only two real
+states exist, same as Sectionalizer, so its own State dropdown offers
+only Open/Close. Unlike most switching devices, this shape's own real
+xsde2svg export encodes State via two sibling
+`<g data-state="0|1" visibility="visible|hidden">` groups rather than a
+plain `data-state` attribute on a path — `parseShortCircuiter`'s own
+state-reading mirrors `parseSectionalizer`'s own visible-group-scanning
+logic, not the generic `parseState` helper every other two-port device
+uses, since that helper only looks at path-level attributes and would
+silently return no State at all for a real exported instance of this
+shape. The arrowhead itself sits on a short arm off the rod's own
+midpoint (matching Sectionalizer's own arm+arrowhead-at-the-tip
+composition) rather than element_398.go's own compact
+arrowhead-near-the-rod placement — another deliberate departure at the
+user's own request, kept at its own xMirror==0 orientation (unlike the
+rod above it) since the shape's own default 180-degree placement
+orientation flips which way that reads. The rod's own Open deflection
+(dx:dy) also uses Sectionalizer's own 6:18 ratio rather than
+element_398.go's own 7:16 one, for the same "reads the same way as
+Sectionalizer" reason — both states' rod now spans the full 18 units
+from the pivot circle to the terminal-adjacent end (was 16), so the arm
+moved from y=-8 to y=-9 to stay centered on it. The palette icon gets the same
+cosmetic 180-degree spin Ground switch's own icon already has (see
+elementIcon.ts's `ICON_ROTATION`), since its raw unrotated template also
+reads backwards in a preview with no orient of its own to lean on. Still
+requires the real source's own rotate() transform to
+recover the element's anchor, same known gap as Ground switch's own
+unrotated-instance limitation), **164** Отделитель/Sectionalizer
 (only Closed(1)/Open(0), so Properties' own State dropdown for this class
 offers just those two, not the usual Open/Close/Intermediate — the real
 source has no Intermediate position for this device at all, so this
@@ -92,9 +131,6 @@ Deferred — real xsde2svg shapes whose own source (`xsde2svg/internal/modus/
 element_<code>.go`) is substantially more involved than the shapes above,
 each needing its own dedicated pass rather than a quick port:
 
-- **398** Короткозамыкатель (short-circuiter) — same state-toggling
-  dual-geometry + mirror complexity as 164, without the Distance
-  dependency.
 - **55** Трансформатор напряжения (voltage transformer) — not a simple
   symbol: variable winding count (2/3/4), per-winding color, and six
   different connection-type geometries (wye/delta/zigzag/...). Porting it

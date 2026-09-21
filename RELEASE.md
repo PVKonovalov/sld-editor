@@ -2980,3 +2980,132 @@ Ctrl/Cmd-click-connected to a nearby Breaker — confirming it behaves as a
 genuine electrical endpoint, unlike the three prior decorative shapes —
 cleaned up afterward; a stale `go run` backend process left over from
 before this session's own backend changes was again caught and restarted.
+
+2026-09-21: Short-circuiter (shape 398) implemented. Decoded from the real
+xsde2svg source (element_398.go)'s own relative-path formulas: a
+single-terminal grounding-type switching device, structurally close to
+Ground switch (54) — a fixed tapered earth symbol at the top, one real
+electrical terminal at the bottom, and a State-driven pivot rod bridging
+the gap between them. Closed draws the rod as a straight bar bridging the
+terminal to the earth symbol above it (an intentional short to ground);
+Open pivots the rod away at the top, marked with a small circle at the
+pivot, the same convention Sectionalizer (164) already uses for its own
+open contact. Both states also draw a small filled arrowhead next to the
+rod, matching the real source. Only two real states exist (the real
+source's own state field is a plain boolean, no Intermediate), so its
+State dropdown offers only Open/Close, the same treatment Sectionalizer
+already gets. The real source's own mirror flag, with its own separate
+geometry formulas for the mirrored case, was not ported — this schema's
+generic Mirror property already flips any symbol's template the same way,
+making a second explicit geometry unnecessary. Backend: new
+ClassShortCircuiter (shared slddoc module), shapeName entry, a new
+base.xml symbol in the Switching devices category with one terminal at
+(0,10) (grid-aligned the same way Ground switch's own terminal is, with
+the lead stub shortened to match), and Extract support via a new
+parseShortCircuiter mirroring parseGroundSwitch exactly (same known gap:
+an unrotated instance is not yet supported). Frontend: added to
+SWITCHING_DEVICE_CLASSES and TWO_STATE_CLASSES, and given the same
+default-Open-state plus default-180-degree-orientation treatment Ground
+switch already gets, generalized from a GroundSwitch-only condition to
+cover both classes (renamed GROUND_SWITCH_DEFAULT_ORIENT/STATE to
+GROUND_TYPE_DEFAULT_ORIENT/STATE) — so a freshly placed one does not read
+as already shorted to ground. Verified live in the browser end to end,
+against a disposable scratch diagram: placed via the Switching devices
+palette (icon renders correctly), open state shows the pivoted rod with
+the ground symbol dangling below (matching the default 180-degree
+orientation), toggled to Close in Properties and confirmed the rod
+becomes a straight bridging bar, and Ctrl/Cmd-click-connected to a nearby
+Breaker — confirming it behaves as a genuine electrical endpoint — cleaned
+up afterward.
+
+2026-09-21: Short-circuiter (shape 398)'s Open/Closed state geometry
+corrected, at the user's own explicit request: rather than the real
+source's own literal pivot geometry (pivoting near the top, next to the
+ground symbol), the state-driven tick/circle, pivot rod, arm, and
+arrowhead are now reused verbatim from Sectionalizer (164)'s own
+template, so the two shapes render identically for both states apart
+from the top structure — Sectionalizer has a second real terminal with
+its own fixed tick there, Short-circuiter has the fixed tapered ground
+symbol instead. Verified live in the browser by placing both shapes side
+by side at the same orientation and state and confirming the rod/circle/
+arrow geometry lines up exactly.
+
+2026-09-21: Short-circuiter (shape 398)'s Open/Closed state geometry
+corrected again, reverting the previous entry above: the user clarified
+the pivot circle belongs on the ground-symbol side, not the terminal
+side, matching the real source's own pivot direction after all (a real
+short-circuiter's blade is permanently hinged next to the grounded
+structure, not the live conductor). Rather than re-deriving the geometry
+by hand a second time, this was instead confirmed directly against a
+real xsde2svg corpus export (element id 1015 in PS_110kV_Lubnisa.svg,
+data-name "KZ-110 T-2 f.A" — the same device the user's own reference
+screenshots showed) and against element_398.go's own partClosed/
+arrowClosed formulas for the Closed state, then translated byte-for-byte
+into this editor's own local coordinate frame. Verified live in the
+browser at both orient 0 and 90 degrees against the user's own reference
+images: Open shows the terminal cap, diagonal pivoting rod with its
+circle marker next to the ground symbol, and filled arrowhead; Closed
+shows a straight bar with the arrowhead, matching exactly.
+
+2026-09-21: Short-circuiter (shape 398) two further corrections, both at
+the user's own explicit request. First, the Open-state blade now swings
+counter-clockwise instead of clockwise — this template's default now
+uses element_398.go's own xMirror==1 geometry (the mirrored branch)
+rather than its xMirror==0 one, since this editor's own generic Mirror
+property already covers the un-mirrored look for whichever placed
+instance needs it, the same way every other symbol here handles mirroring.
+Second, the Closed state gets a new fixed-contact tick ("M -5 -18 h 10")
+right where the rod meets the earth symbol, matching Sectionalizer's own
+convention of a tick for Closed where Open shows a circle at that same
+spot — previously Closed showed nothing there at all. Also fixed a real
+Extract bug caught by the user from a corrected real corpus sample: unlike
+most switching devices, this shape's own State isn't a plain data-state
+attribute on a path — the real source wraps its two alternate geometries
+in their own sibling <g data-state="0|1" visibility="visible|hidden">
+groups, the same convention parseSectionalizer already handles, and the
+previous parseShortCircuiter used the generic parseState helper, which
+only looks at path-level data-state attributes and would have silently
+returned no State at all for every real extracted instance. parseState
+was replaced with the same visible-group-scanning logic
+parseSectionalizer already uses. Verified live in the browser (both
+state/orientation changes) and via a scratch Extract test against the
+user's own corrected real corpus markup, confirming State comes back as
+0 from the visible group instead of nil.
+
+2026-09-21: Short-circuiter (shape 398) two more corrections to its own
+arrowhead, both at the user's own explicit request, comparing directly
+against Sectionalizer (164) placed side by side in the browser. First,
+the arrowhead's own direction was flipped back to element_398.go's
+xMirror==0 orientation (the rod above it stays on xMirror==1, from the
+previous entry) — the previous fix only got this half right, since the
+default 180-degree placement orientation flips which way an xMirror==0
+arrowhead reads, and that flip hadn't been accounted for. Second, the
+arrowhead's own position was moved off the rod itself onto a short arm
+(matching Sectionalizer's own arm+arrowhead-at-the-tip composition — see
+that symbol's own template), replacing the small tick that used to sit
+directly on the rod; this is a deliberate departure from
+element_398.go's own compact arrowhead-near-the-rod placement, at the
+user's request, for visual consistency with Sectionalizer. Also updated
+the palette icon: Short-circuiter (398) now gets the same cosmetic 180
+degree ICON_ROTATION spin Ground switch (54) already has, since its own
+raw, unrotated template also reads backwards in a preview with no orient
+of its own to lean on (earth symbol at the top instead of the bottom,
+matching the shape's own GROUND_TYPE_DEFAULT_ORIENT placement default).
+Verified live in the browser: the palette icon now shows the earth
+symbol at the bottom, and a fresh instance placed side by side with
+Sectionalizer, both in Open state, shows matching rod/circle/arm/
+arrowhead composition and arrowhead direction.
+
+2026-09-21: Short-circuiter (shape 398)'s Open rod deflection angle
+corrected, at the user's own explicit request, to match Sectionalizer
+(164)'s own deflection exactly: dx:dy of 6:18 (from Sectionalizer's own
+"M -6 -9 l 6 18"), replacing element_398.go's own h2:y6 constants
+(7:16) — the real source's own angle read too steep next to
+Sectionalizer's shallower one. The rod's own overall length also grew to
+match (both Closed and Open now span the full 18 units from the pivot
+circle at the earth-symbol end down to the terminal-adjacent end,
+instead of 16), so the arm (still off the rod's own midpoint) and its
+own arrowhead shifted from y=-8 to y=-9 to stay centered on the new,
+slightly longer rod. Verified live in the browser: a fresh instance
+placed at 90 degrees next to a fresh Sectionalizer, both in Open state,
+now shows a visually matching shallow diagonal.

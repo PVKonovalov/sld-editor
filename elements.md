@@ -53,7 +53,7 @@
 156 — Резистор (Resistor)
 157 — Тиристор (Thyristor)
 162 ? Disconnector
-163 — Короткозамыкатель без земли (Short-circuiter without ground)
+163 - Короткозамыкатель без земли (Short-circuiter without ground)
 164 + Отделитель (Sectionalizer)
 166 — Разъединитель-предохранитель (Disconnector-fuse)
 168 + ОПН (разрядник) (Surge arrester)
