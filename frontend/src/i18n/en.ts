@@ -67,6 +67,7 @@ export const dictionary = {
   'elementCatalog.category.Other equipment': 'Other equipment',
   'elementCatalog.category.Protection': 'Protection',
   'elementCatalog.category.Indicators': 'Indicators',
+  'elementCatalog.category.Annotations': 'Annotations',
 
   'elementCatalog.name.24': 'Busbar section',
   'elementCatalog.name.7': 'Junction point',
@@ -98,6 +99,7 @@ export const dictionary = {
   'elementCatalog.name.52': 'Half-chassis',
   'elementCatalog.name.106': 'Lamp',
   'elementCatalog.name.320003': 'Fault passage indicator',
+  'elementCatalog.name.3': 'Rectangle',
 
   'settings.noDiagram': 'Open or create a diagram to edit its settings.',
   'settings.gridSpacing': 'Grid spacing',
@@ -163,6 +165,9 @@ export const dictionary = {
   'properties.lampFillOff': 'Off color',
   'properties.lampFillOn': 'On color',
   'properties.lampRadius': 'Radius',
+  'properties.rectangleFill': 'Fill color',
+  'properties.rectangleStroke': 'Border color',
+  'properties.rectangleStrokeWidth': 'Border width',
 
   'properties.transformerAutotransformer': 'Autotransformer',
   'properties.transformerWindingCount': 'Number of windings',

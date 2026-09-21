@@ -66,6 +66,18 @@
     <template></template>
   </symbol>
 
+  <symbol shape="3" class="Rectangle" name="Rectangle" category="Annotations">
+    <!-- Like Busbar section above, a Rectangle has no fixed template: its
+         size varies per instance, and it isn't real electrical equipment
+         at all (no terminals, no voltage, no state — see slddoc's own
+         ClassRectangle doc comment), so it's drawn straight from its own
+         two Points (opposite corners) by internal/slddoc.Render, not
+         template substitution. This entry exists only so the Elements
+         palette can offer "Rectangle" the same drag-two-corners way it
+         already offers "Busbar section". -->
+    <template></template>
+  </symbol>
+
   <symbol shape="7" class="JunctionPoint" name="Junction point" category="Wiring">
     <template><![CDATA[
 <circle cx="0" cy="0" r="3" style="fill:none;stroke:{color};stroke-width:1" />

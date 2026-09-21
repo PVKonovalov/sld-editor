@@ -65,6 +65,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'elementCatalog.category.Other equipment': 'Прочее оборудование',
   'elementCatalog.category.Protection': 'Защита',
   'elementCatalog.category.Indicators': 'Индикаторы',
+  'elementCatalog.category.Annotations': 'Аннотации',
 
   'elementCatalog.name.24': 'Секция шин',
   'elementCatalog.name.7': 'Точка соединения',
@@ -96,6 +97,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'elementCatalog.name.52': 'Полушасси',
   'elementCatalog.name.106': 'Лампа',
   'elementCatalog.name.320003': 'Указатель короткого замыкания',
+  'elementCatalog.name.3': 'Прямоугольник',
 
   'settings.noDiagram': 'Откройте или создайте схему, чтобы изменить её настройки.',
   'settings.gridSpacing': 'Шаг сетки',
@@ -161,6 +163,9 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.lampFillOff': 'Цвет выключенной',
   'properties.lampFillOn': 'Цвет включённой',
   'properties.lampRadius': 'Радиус',
+  'properties.rectangleFill': 'Цвет заливки',
+  'properties.rectangleStroke': 'Цвет рамки',
+  'properties.rectangleStrokeWidth': 'Толщина рамки',
 
   'properties.transformerAutotransformer': 'Автотрансформатор',
   'properties.transformerWindingCount': 'Число обмоток',

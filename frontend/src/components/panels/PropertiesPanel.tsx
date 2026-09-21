@@ -606,10 +606,13 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // already read as distinctive (e.g. "Breaker (withdrawable)").
   const typeLabel = `${typeName}:${el.shape}`
   const isLamp = el.class === 'Lamp'
+  const isRectangle = el.class === 'Rectangle'
   // Neither a Lamp nor a FaultPassageIndicator reads a Voltage class color
   // (see diagramOps.placeElement's own matching exclusion) — both get a
-  // fixed color of their own instead.
-  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator'
+  // fixed color of their own instead. A Rectangle isn't part of the
+  // electrical network at all (see slddoc's own ClassRectangle doc
+  // comment) — its own Fill/Stroke are its equivalent, shown below.
+  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator' || isRectangle
 
   function patch(fields: Partial<DiagramElement>) {
     updateDiagram(d => ({
@@ -701,6 +704,39 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
                 value={el.radius ?? ''}
                 onChange={e => patch({ radius: Number(e.target.value) })}
+              />
+            </label>
+          </>
+        )}
+
+        {isRectangle && (
+          <>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleFill')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
               />
             </label>
           </>
@@ -842,7 +878,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {el.class === 'BusBarSection' && el.points ? (
+        {(el.class === 'BusBarSection' || isRectangle) && el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>
             <div className="space-y-2">

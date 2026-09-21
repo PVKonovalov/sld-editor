@@ -40,7 +40,17 @@ states draw too differently from each other for a reliable "extreme
 points" anchor the way most other two-port shapes get one,
 `sectionalizerAnchorFromTick` instead locates the shape's own "top tick" —
 a fixed, always-identical-between-states 10-unit segment — and derives the
-anchor from it directly).
+anchor from it directly), **3** Прямоугольник/Rectangle (unlike every
+other shape here, not real electrical equipment at all — see slddoc's own
+`ClassRectangle` doc comment: no Voltage/State/Orientation/Ports, never a
+valid `connectElements`/routing-tool target, `Extract`'s own
+`parseRectangle` never gives it a Port. Its size varies per instance and
+isn't part of the electrical network, so — like `BusBarSection` — it's
+drawn straight from its own two `Points` (opposite corners) rather than a
+fixed local-coordinate template; its own literal `Fill`/`Stroke` colors are
+free text, not a `VoltageClass` reference, the same pattern a Lamp's own
+FillOff/FillOn already uses. Placed in the palette's own new "Annotations"
+category rather than force-fit into an electrical one).
 
 Deferred — real xsde2svg shapes whose own source (`xsde2svg/internal/modus/
 element_<code>.go`) is substantially more involved than the shapes above,
@@ -62,7 +72,9 @@ each needing its own dedicated pass rather than a quick port:
 
 Deliberately out of scope (decorative/structural, not real electrical
 equipment — same reasoning that already excludes the generic draw
-primitives, data-type 1/2/3/4/16): poles/pylons (19/146/292), power-plant/
+primitives, data-type 1/2/4/16 — Rectangle, data-type 3, is the one
+generic primitive that *has* been ported, see above): poles/pylons
+(19/146/292), power-plant/
 substation pictogram icons (38/360), chassis/half-chassis cart graphics
 (51/52), a cable-plug graphic (56), a decorative connector-arrow (83),
 button/table/window HMI decoration (113/313/319), a road/geographic

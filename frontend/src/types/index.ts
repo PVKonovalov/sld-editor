@@ -76,6 +76,7 @@ export type ElementClass =
   | 'NonIntersection'
   | 'Lamp'
   | 'FaultPassageIndicator'
+  | 'Rectangle'
 
 // Matches slddoc.WindingScheme — a PowerTransformer winding's own
 // connection scheme. Only the three values with a real connection glyph in
@@ -137,6 +138,17 @@ export interface DiagramElement {
   fillOff?: string
   fillOn?: string
   radius?: number
+  // Rectangle (shape 3) only — its own two literal CSS colors, matching
+  // backend/internal/slddoc's own Element.Fill/Stroke. Not a VoltageClass
+  // reference (a decorative annotation box has no electrical voltage of
+  // its own), the same free-text-color pattern fillOff/fillOn already use
+  // for a Lamp.
+  fill?: string
+  stroke?: string
+  // Rectangle (shape 3) only — its own border thickness, matching
+  // backend/internal/slddoc's own Element.StrokeWidth. Unset/0 means the
+  // real xsde2svg default of 1, not literally invisible.
+  strokeWidth?: number
   ports?: Port[]
   points?: Point[]
   // PowerTransformer (shape 47) only — see TransformerWinding's own doc

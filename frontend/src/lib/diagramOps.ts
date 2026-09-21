@@ -14,6 +14,15 @@ import type {
   TerminalDirection,
 } from '../types'
 
+// Element classes whose own geometry is a drawn Points array (two or more
+// vertices) rather than a single x/y anchor+orient — BusBarSection (a real
+// electrical busbar) and Rectangle (a purely decorative annotation, no
+// electrical meaning at all — see connectElements' own guard below) are
+// the only two. Shared by every place/move/paste/point-drag helper that
+// needs to treat "drag two corners/vertices to draw or reshape" the same
+// way regardless of which of the two classes it actually is.
+const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set(['BusBarSection', 'Rectangle'])
+
 // A voltage-class <select>'s option value is either an existing class's own
 // id (as a string) or, for one of the server's default presets not yet
 // added to this diagram, "preset:<name>" — resolveVoltageSelection turns
@@ -275,6 +284,38 @@ export function placeBusbar(diagram: Diagram, start: Point, end: Point, defaultV
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
 
+// A freshly placed Rectangle's own colors/border thickness — matching
+// render.go's own unset-Fill/Stroke/StrokeWidth fallback
+// ("none"/"white"/1) explicitly, the same reason LAMP_DEFAULTS spells out
+// FillOff/FillOn rather than leaving them unset: so Properties' own color
+// pickers and width field show a real value immediately instead of
+// empty-string/swatchColor's own fallback guesswork.
+const RECTANGLE_DEFAULTS = { fill: 'none', stroke: '#ffffff', strokeWidth: 1 }
+
+/** Places a new Rectangle spanning start..end — a purely decorative
+ * annotation box, not real electrical equipment (see slddoc's own
+ * ClassRectangle doc comment): no Voltage, no Ports, never a valid
+ * connectElements/routing target. Drawn from its own Points the same
+ * drag-not-click way placeBusbar places a BusBarSection, and for the same
+ * reason (its size varies per instance, there's no single "the" anchor to
+ * click). */
+export function placeRectangle(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Rectangle',
+    shape: '3',
+    name: `Rectangle-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...RECTANGLE_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
 // What Copy captures for Paste: the element's own data minus its id (a
 // paste always gets a fresh one) and Ports (a pasted copy starts
 // unconnected — its ports referenced its old Node ids, which a copy has no
@@ -288,17 +329,18 @@ export function copyElement(el: DiagramElement): ClipboardEntry {
 }
 
 /** Places a copied element at point — its anchor for most classes; for a
- * BusBarSection, point becomes the new midpoint and the whole shape is
- * translated to match, preserving its length/angle (mirrors placeBusbar's
- * own start..end -> anchor convention). Named the same way a freshly
- * placed element is — "<type>-<id>" (e.g. "Busbar-5") — rather than
- * "<original name> copy", so a pasted copy reads like any other new
- * element instead of accumulating "copy" suffixes on repeated pastes.
+ * BusBarSection or Rectangle (see POINTS_BASED_CLASSES), point becomes the
+ * new midpoint and the whole shape is translated to match, preserving its
+ * length/angle/size (mirrors placeBusbar's own start..end -> anchor
+ * convention). Named the same way a freshly placed element is —
+ * "<type>-<id>" (e.g. "Busbar-5") — rather than "<original name> copy", so
+ * a pasted copy reads like any other new element instead of accumulating
+ * "copy" suffixes on repeated pastes.
  *
- * snap, when given, is applied to each of a pasted BusBarSection's
+ * snap, when given, is applied to each of a pasted points-based element's
  * translated endpoints (and the anchor is then re-derived as their
  * midpoint, mirroring updateBusbarPoint's convention). Without it, a
- * busbar whose original anchor wasn't itself exactly on-grid — its anchor
+ * shape whose original anchor wasn't itself exactly on-grid — its anchor
  * is always the plain midpoint of its two endpoints, which for two
  * on-grid points spaced an odd multiple of the grid apart isn't itself a
  * grid point — would carry that same off-grid remainder into the pasted
@@ -320,7 +362,7 @@ export function pasteElement(
     x: point.x,
     y: point.y,
   }
-  if (element.class === 'BusBarSection' && entry.points) {
+  if (POINTS_BASED_CLASSES.has(element.class) && entry.points) {
     const dx = point.x - entry.x
     const dy = point.y - entry.y
     const points = entry.points.map(p => snap({ x: p.x + dx, y: p.y + dy }))
@@ -374,13 +416,14 @@ export function pasteElements(
 
 /** Translates an element by (dx, dy) — its anchor for most classes, or
  * every vertex (plus the anchor, kept in sync for labeling/hit-testing)
- * for a BusBarSection. */
+ * for a points-based one (BusBarSection/Rectangle — see
+ * POINTS_BASED_CLASSES). */
 export function moveElement(diagram: Diagram, id: number, dx: number, dy: number): Diagram {
   return {
     ...diagram,
     elements: diagram.elements.map(e => {
       if (e.id !== id) return e
-      if (e.class === 'BusBarSection' && e.points) {
+      if (POINTS_BASED_CLASSES.has(e.class) && e.points) {
         return {
           ...e,
           x: e.x + dx,
@@ -479,15 +522,19 @@ export function moveElements(diagram: Diagram, ids: number[], dx: number, dy: nu
   return { ...moved, connectors, nodes }
 }
 
-/** Updates one endpoint of a BusBarSection's own Points in place — its
- * anchor (X/Y) is recomputed as the midpoint of the first and last point,
- * the same convention placeBusbar establishes when first drawing one. A
- * no-op for any other class, or an out-of-range point index. */
+/** Updates one endpoint of a points-based element's own Points in place
+ * (BusBarSection or Rectangle — see POINTS_BASED_CLASSES; for a Rectangle
+ * this is how dragging a corner handle resizes it) — its anchor (X/Y) is
+ * recomputed as the midpoint of the first and last point, the same
+ * convention placeBusbar/placeRectangle establish when first drawing one.
+ * A no-op for any other class, or an out-of-range point index. Kept the
+ * name "Busbar" for historical reasons (every caller predates Rectangle),
+ * not because it's busbar-specific. */
 export function updateBusbarPoint(diagram: Diagram, id: number, pointIndex: number, point: Point): Diagram {
   return {
     ...diagram,
     elements: diagram.elements.map(e => {
-      if (e.id !== id || e.class !== 'BusBarSection' || !e.points || !e.points[pointIndex]) return e
+      if (e.id !== id || !POINTS_BASED_CLASSES.has(e.class) || !e.points || !e.points[pointIndex]) return e
       const points = e.points.map((p, i) => (i === pointIndex ? point : p))
       const first = points[0]
       const last = points[points.length - 1]
@@ -708,12 +755,17 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
  * each shape's true terminal position. The new connector's voltage comes
  * from whichever of from/to already has one (see drawConnectorPath's own
  * doc comment) — with no defaultVoltage param here, an element joined to
- * one with no voltage of its own at all just stays unset, same as before. */
+ * one with no voltage of its own at all just stays unset, same as before.
+ * A no-op when either end is a Rectangle — a purely decorative annotation
+ * box, never a valid electrical endpoint (see slddoc's own ClassRectangle
+ * doc comment); the routing tool's own findConnectionTarget (Canvas.tsx)
+ * excludes it from candidates entirely for the same reason. */
 export function connectElements(diagram: Diagram, fromId: number, toId: number): Diagram {
   if (fromId === toId) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
   const to = diagram.elements.find(e => e.id === toId)
   if (!from || !to) return diagram
+  if (from.class === 'Rectangle' || to.class === 'Rectangle') return diagram
 
   const ids = new IdSequence(diagram)
   const fromNode: DiagramNode = { id: ids.take(), x: from.x, y: from.y }

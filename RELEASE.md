@@ -2791,3 +2791,59 @@ untracked/gitignored) — verified live in the browser: all 7 of that
 diagram's own skipped elements (2 Short-circuiter, 2 Arrow, 1 Cable
 connector, 1 Rectangle, 1 3D button) now show a correctly positioned red
 "Missing: ..." label, no console errors.
+
+2026-09-21: Rectangle (shape 3) implemented full-scope, at
+the user's own request — a purely decorative annotation box, unlike every
+other shape here not real electrical equipment at all: new
+`ClassRectangle` (shared `slddoc` module) never gets a Voltage/State/
+Orientation/Ports, and is never a valid `connectElements` or routing-tool
+target (both now explicitly guard against/skip it — Canvas.tsx's own
+`findConnectionTarget` and diagramOps' `connectElements`). Its size varies
+per instance and it isn't part of the electrical network, so like
+`BusBarSection` it's drawn from its own two `Points` (opposite corners,
+order-independent) rather than a fixed local-coordinate template — new
+`Element.Fill`/`Stroke` fields hold its own literal CSS colors (free text,
+not a `VoltageClass` reference, the same pattern a Lamp's own FillOff/
+FillOn already uses; empty falls back to "none"/"white"). `Extract`'s new
+`parseRectangle` reads a real xsde2svg `<rect x y width height style>`
+(confirmed against `internal/modus/element_3.go`) — Rectangle (shape 3) no
+longer shows up as a red "Missing: ..." placeholder, it's a real element
+now. Frontend: `placeRectangle` (drag-to-draw, same as `placeBusbar`);
+`diagramOps.POINTS_BASED_CLASSES` new shared constant generalizing every
+BusBarSection-specific points-editing helper (`moveElement`,
+`pasteElement`, `updateBusbarPoint`) to cover Rectangle too, so dragging a
+corner handle resizes it the same way it repositions a busbar endpoint;
+Canvas.tsx's own drag-to-draw dispatch, live corner-drag preview
+(an actual rect outline, not a diagonal line), selection highlight, and
+DOM-direct drag-move all got a Rectangle-specific branch alongside their
+existing BusBarSection one. New "Annotations" palette category (not forced
+into an electrical one); Properties gets fill/border color pickers + a
+points editor, no Voltage/State/Orientation shown. Caught and fixed a real
+hit-testing bug while testing this live: a `fill:none` (the freshly-placed
+default) SVG shape receives no pointer events at all over its own
+interior, only its stroke — a click anywhere but the exact 1px border
+silently missed it; fixed by giving Rectangle a real entry in Canvas.tsx's
+own `elementBoxes` (computed from its diagram-state Points directly,
+unlike every other shape's DOM-`getBBox()`-derived one), which the
+existing click-tolerance fallback (`findElementBoxHit`) already knew how
+to use. Verified live in the browser end to end: drag-place, select
+(inside the shape, not just its border), resize via corner handle, move
+the whole shape, recolor both fill and border, Ctrl/Cmd-click-to-connect
+correctly refuses to wire it to a Breaker, right-click Copy/Delete, and
+Paste — all correct, no console errors.
+
+2026-09-21: Rectangle (shape 3) gets a real, editable border width — new
+`Element.StrokeWidth` (shared `slddoc` module), 0/unset falling back to 1
+(the fixed value every other shape's own template hardcodes, and the real
+xsde2svg source's own minimum), same convention Radius already uses for a
+Lamp/FaultPassageIndicator. `writeRectangle` now emits the resolved value
+instead of a hardcoded `stroke-width:1`; `Extract`'s `parseRectangle` reads
+it from a real `<rect>`'s own style. Frontend: `strokeWidth` added to
+`DiagramElement` and `RECTANGLE_DEFAULTS` (1, so Properties' own new
+number field — "Border width", alongside the existing fill/border color
+pickers — shows a real value immediately); no Canvas.tsx changes needed
+(its own selection-highlight/corner-drag-preview strokes are a fixed UI
+convention, unrelated to the element's own real one). Verified live: the
+field defaults to 1, and setting it to 8 visibly thickens the rendered
+border; a direct `/api/render` check confirmed both the explicit value and
+the unset-falls-back-to-1 case.

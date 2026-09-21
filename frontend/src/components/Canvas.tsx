@@ -10,6 +10,11 @@ import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import type { Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
+const RECTANGLE_SHAPE = '3'
+// Shapes placed by dragging out two opposite points rather than a single
+// click — see diagramOps.POINTS_BASED_CLASSES for the element-class
+// equivalent used once one's already on the diagram.
+const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([BUSBAR_SHAPE, RECTANGLE_SHAPE])
 const HIGHLIGHT = '#3b82f6'
 const CONNECT_TARGET_COLOR = '#22c55e'
 // How many grid cells, per side, get batched into one grid-dot pattern
@@ -293,9 +298,17 @@ export function Canvas() {
   // 4 corners are pushed through diagramOps.placeLocalPoint — the same
   // rotate-by-orient-then-translate-by-anchor math internal/slddoc.Render
   // itself used to place that same geometry — to get the element's real
-  // diagram-space footprint. BusBarSection is skipped: it renders as a
-  // bare <polyline> (see writePolyline), not a <g>, and already has its
-  // own points-based highlight/hit-testing that doesn't need a box at all.
+  // diagram-space footprint. BusBarSection is skipped entirely: it renders
+  // as a bare <polyline> with no fill at all, and its own thin line is
+  // already covered by its points-based selection highlight/hit-testing, no
+  // click-tolerance box needed. A Rectangle, unlike a busbar, is skipped in
+  // the DOM-lookup sense (it's a bare <rect>, not a <g>) but *does* still
+  // get a real box here, computed straight from its own diagram-state
+  // Points instead of getBBox — its own fill is very often "none"
+  // (transparent), and an SVG shape with fill:none simply doesn't receive
+  // pointer events over its own interior at all (only its stroke does), so
+  // without this a click anywhere but the exact 1px border would silently
+  // miss it entirely, unlike every filled shape.
   useEffect(() => {
     const root = wrapperRef.current
     if (!root || !diagram) {
@@ -305,6 +318,13 @@ export function Canvas() {
     const boxes = new Map<number, ElementBox>()
     for (const el of diagram.elements) {
       if (el.class === 'BusBarSection') continue
+      if (el.class === 'Rectangle' && el.points) {
+        const [p0, p1] = el.points
+        const x = Math.min(p0.x, p1.x)
+        const y = Math.min(p0.y, p1.y)
+        boxes.set(el.id, { x, y, width: Math.abs(p1.x - p0.x), height: Math.abs(p1.y - p0.y) })
+        continue
+      }
       const node = root.querySelector(`g[data-editor-kind="element"][id="${el.id}"]`) as SVGGraphicsElement | null
       if (!node) continue
       let local: DOMRect
@@ -446,6 +466,11 @@ export function Canvas() {
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
       if (exclude?.kind === 'element' && el.id === exclude.elementId) continue
+      // A Rectangle is a purely decorative annotation, never a valid wire
+      // endpoint — unlike every other class here, it doesn't even fall
+      // back to its own anchor (see diagramOps.connectElements' own
+      // matching guard).
+      if (el.class === 'Rectangle') continue
       if (el.class === 'BusBarSection' && el.points && el.points.length >= 2) {
         if (!includeBusbars) continue
         const { index, point: nearest } = nearestSegmentOnPolyline(el.points, point)
@@ -664,8 +689,11 @@ export function Canvas() {
   // the actual placed element follow the cursor while dragging, not just
   // an abstract highlight. Reads each element's own current x/y/points from
   // diagram state (unchanged until mouseup) and offsets from there; a
-  // BusBarSection has no single anchor to translate, so its polyline's own
-  // points are each shifted instead of setting a transform.
+  // BusBarSection/Rectangle (see diagramOps.POINTS_BASED_CLASSES) has no
+  // single anchor to translate via a transform, so its own points-derived
+  // attributes are set directly instead — a busbar's <polyline points>, or
+  // a rectangle's <rect x y> (its width/height are unaffected by a plain
+  // translate, only x/y shift).
   function dragElementsInDom(ids: number[], dx: number, dy: number) {
     const root = wrapperRef.current
     if (!root) return
@@ -675,6 +703,9 @@ export function Canvas() {
       if (!el || !node) continue
       if (el.class === 'BusBarSection' && el.points) {
         node.setAttribute('points', el.points.map(p => `${p.x + dx},${p.y + dy}`).join(' '))
+      } else if (el.class === 'Rectangle' && el.points) {
+        node.setAttribute('x', String(Math.min(el.points[0].x, el.points[1].x) + dx))
+        node.setAttribute('y', String(Math.min(el.points[0].y, el.points[1].y) + dy))
       } else {
         node.setAttribute('transform', `translate(${el.x + dx},${el.y + dy}) rotate(${el.orient ?? 0})`)
       }
@@ -726,7 +757,8 @@ export function Canvas() {
 
     if (armedSymbol) {
       e.stopPropagation()
-      if (armedSymbol.shape === BUSBAR_SHAPE) {
+      if (DRAG_TO_DRAW_SHAPES.has(armedSymbol.shape)) {
+        const shape = armedSymbol.shape
         setNewBusbar({ start: point, current: point })
         const onMove = (ev: MouseEvent) => {
           setNewBusbar(nb => (nb ? { ...nb, current: toPoint(ev.clientX, ev.clientY) } : nb))
@@ -739,7 +771,11 @@ export function Canvas() {
           const start = snapPoint(point)
           const snappedEnd = snapPoint(end)
           if (Math.hypot(snappedEnd.x - start.x, snappedEnd.y - start.y) > 1) {
-            updateDiagram(d => diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage))
+            updateDiagram(d =>
+              shape === RECTANGLE_SHAPE
+                ? diagramOps.placeRectangle(d, start, snappedEnd)
+                : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
+            )
           }
           armSymbol(null)
         }
@@ -1326,6 +1362,21 @@ export function Canvas() {
                       />
                     )
                   }
+                  if (el.class === 'Rectangle' && el.points) {
+                    const [p0, p1] = el.points
+                    return (
+                      <rect
+                        key={el.id}
+                        x={Math.min(p0.x, p1.x) - BOX_HIGHLIGHT_PAD}
+                        y={Math.min(p0.y, p1.y) - BOX_HIGHLIGHT_PAD}
+                        width={Math.abs(p1.x - p0.x) + BOX_HIGHLIGHT_PAD * 2}
+                        height={Math.abs(p1.y - p0.y) + BOX_HIGHLIGHT_PAD * 2}
+                        fill="none"
+                        stroke={HIGHLIGHT}
+                        strokeWidth={2}
+                      />
+                    )
+                  }
                   const box = elementBoxes.get(el.id)
                   // Falls back to the old fixed circle only for the brief
                   // window before elementBoxes' own effect has run for a
@@ -1497,34 +1548,68 @@ export function Canvas() {
                     </>
                   )
                 })()}
-              {newBusbar && (
-                <line
-                  x1={newBusbar.start.x}
-                  y1={newBusbar.start.y}
-                  x2={newBusbar.current.x}
-                  y2={newBusbar.current.y}
+              {newBusbar && armedSymbol?.shape === RECTANGLE_SHAPE ? (
+                <rect
+                  x={Math.min(newBusbar.start.x, newBusbar.current.x)}
+                  y={Math.min(newBusbar.start.y, newBusbar.current.y)}
+                  width={Math.abs(newBusbar.current.x - newBusbar.start.x)}
+                  height={Math.abs(newBusbar.current.y - newBusbar.start.y)}
+                  fill="none"
                   stroke={HIGHLIGHT}
                   strokeWidth={2}
                   strokeDasharray="6 4"
                 />
+              ) : (
+                newBusbar && (
+                  <line
+                    x1={newBusbar.start.x}
+                    y1={newBusbar.start.y}
+                    x2={newBusbar.current.x}
+                    y2={newBusbar.current.y}
+                    stroke={HIGHLIGHT}
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                  />
+                )
               )}
-              {selectedElement && selectedElement.class === 'BusBarSection' && selectedElement.points && (
+              {selectedElement &&
+                (selectedElement.class === 'BusBarSection' || selectedElement.class === 'Rectangle') &&
+                selectedElement.points && (
                 <>
-                  {/* Live preview of the line while a handle is being dragged
-                      — the actual points only update (via updateBusbarPoint)
-                      on mouseup. */}
-                  {pointDrag && pointDrag.elementId === selectedElement.id && (
-                    <polyline
-                      points={selectedElement.points
-                        .map((p, i) => (i === pointDrag.pointIndex ? pointDrag.point : p))
-                        .map(p => `${p.x},${p.y}`)
-                        .join(' ')}
-                      fill="none"
-                      stroke={HIGHLIGHT}
-                      strokeWidth={2}
-                      strokeDasharray="6 4"
-                    />
-                  )}
+                  {/* Live preview while a corner/endpoint handle is being
+                      dragged — the actual points only update (via
+                      updateBusbarPoint) on mouseup. A Rectangle previews as
+                      an actual rect outline rather than the diagonal line a
+                      plain 2-point polyline would draw. */}
+                  {pointDrag &&
+                    pointDrag.elementId === selectedElement.id &&
+                    (() => {
+                      const pts = selectedElement.points!.map((p, i) => (i === pointDrag.pointIndex ? pointDrag.point : p))
+                      if (selectedElement.class === 'Rectangle') {
+                        const [p0, p1] = pts
+                        return (
+                          <rect
+                            x={Math.min(p0.x, p1.x)}
+                            y={Math.min(p0.y, p1.y)}
+                            width={Math.abs(p1.x - p0.x)}
+                            height={Math.abs(p1.y - p0.y)}
+                            fill="none"
+                            stroke={HIGHLIGHT}
+                            strokeWidth={2}
+                            strokeDasharray="6 4"
+                          />
+                        )
+                      }
+                      return (
+                        <polyline
+                          points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                          fill="none"
+                          stroke={HIGHLIGHT}
+                          strokeWidth={2}
+                          strokeDasharray="6 4"
+                        />
+                      )
+                    })()}
                   {/* One draggable handle per endpoint: an unfilled red
                       square, plus a larger invisible circle around it for an
                       easier grab target. */}
