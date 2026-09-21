@@ -98,6 +98,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'elementCatalog.name.106': 'Лампа',
   'elementCatalog.name.320003': 'Указатель короткого замыкания',
   'elementCatalog.name.3': 'Прямоугольник',
+  'elementCatalog.name.2': 'Стрелка',
 
   'settings.noDiagram': 'Откройте или создайте схему, чтобы изменить её настройки.',
   'settings.gridSpacing': 'Шаг сетки',
@@ -163,9 +164,13 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.lampFillOff': 'Цвет выключенной',
   'properties.lampFillOn': 'Цвет включённой',
   'properties.lampRadius': 'Радиус',
+  'properties.transparent': 'Прозрачный',
   'properties.rectangleFill': 'Цвет заливки',
   'properties.rectangleStroke': 'Цвет рамки',
   'properties.rectangleStrokeWidth': 'Толщина рамки',
+  'properties.arrowStroke': 'Цвет линии',
+  'properties.arrowStrokeWidth': 'Толщина линии',
+  'properties.arrowDoubleHeaded': 'Двусторонняя стрелка',
 
   'properties.transformerAutotransformer': 'Автотрансформатор',
   'properties.transformerWindingCount': 'Число обмоток',

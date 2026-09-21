@@ -2847,3 +2847,62 @@ convention, unrelated to the element's own real one). Verified live: the
 field defaults to 1, and setting it to 8 visibly thickens the rendered
 border; a direct `/api/render` check confirmed both the explicit value and
 the unset-falls-back-to-1 case.
+
+2026-09-21: Rectangle's own Properties Fill color picker gets a
+"Transparent" button next to its label — `type="color"` only ever
+produces a real #rrggbb value, so once any color's been picked there was
+no way back to the "none" default through the picker itself. New
+`properties.transparent` i18n key, reusable for any future free-text
+color field with the same gap (e.g. Lamp's own FillOff/FillOn have it
+too, not addressed here).
+
+2026-09-21: Arrow (shape 2, Стрелка) implemented full-scope, the same way
+Rectangle was — a decorative annotation line, not real electrical
+equipment (new `ClassArrow`, shared `slddoc` module; no Voltage/State/
+Orientation/Ports, `connectElements`/`findConnectionTarget` both refuse it
+as an endpoint the same way they already refuse Rectangle). Reuses
+Rectangle's own `Stroke`/`StrokeWidth` fields (no `Fill` — an arrow has no
+interior) plus a new `DoubleHeaded` bool. `writeArrow` draws it as a
+single flat `<path>`, local-frame `M 0 0 h length` plus new
+`arrowChevron`'s own open two-stroke chevron at the end (and, when
+DoubleHeaded, a mirrored one at the start), wrapped in
+`transform="translate(x0,y0) rotate(angle)"` — matching the real xsde2svg
+source (`element_2.go`) exactly, confirmed against a real corpus instance
+byte-for-byte, but collapsing that source's own five separate draw
+branches (four axis-aligned special cases plus one generic/rotated one)
+into this one local-frame formula, since a horizontal chevron rotated
+0°/180° by the wrapping transform is pixel-identical to what those special
+cases compute directly. Dashed/dash-dot line styles and StrokeWidth-scaled
+arrowhead size were both left unported (documented simplifications).
+`Extract`'s new `parseArrow` recovers the two true endpoints via a
+"farthest two points in the path" heuristic (every arrowhead wing sits
+only a few units from the tip, nowhere near as far as the arrow's own
+real length) rather than replicating the real source's own five draw
+branches — verified against the real corpus (`PS_110kV_Lubnisa.svg`, a
+diagonal instance drawn via the generic/rotated branch, `rotate(-45,...)`)
+by hand-computing the expected rotated endpoint and confirming it matched
+exactly; can't reliably tell a double-headed instance apart from a
+single-headed one from geometry alone, so `DoubleHeaded` always comes back
+false from `Extract` (documented limitation). Frontend: reuses
+`diagramOps.POINTS_BASED_CLASSES`/`placeArrow` (mirroring `placeRectangle`)
+end to end — Canvas.tsx's drag-to-draw dispatch, `elementBoxes`
+click-tolerance box, DOM-direct whole-shape drag (recomputing the
+transform's own rotate angle from the two Points, since the local path
+itself doesn't change), polyline selection-highlight (shared with
+BusBarSection), and the same generic corner-handle reshape/resize
+Rectangle already gets, no Arrow-specific Canvas.tsx branch needed beyond
+the drag-to-draw dispatch and box computation. New "Annotations"-category
+palette entry (alongside Rectangle) with its own diagonal-chevron icon;
+Properties gets line color/width fields plus a Double-headed checkbox, no
+Voltage/State/Orientation. Caught and fixed a real bug while testing this
+live: `arrowChevron`'s own start-chevron formula string-concatenated a
+literal "-" with an already-negative value, producing invalid SVG path
+syntax ("l --7 -3") whenever DoubleHeaded was set — the whole element
+silently failed to render (no console error). Fixed by computing the
+signed x-delta as a real number before formatting, not string-level sign
+juggling. Verified live in the browser end to end: drag-place, select
+(inside/near the thin line, via the click-tolerance box — the exact
+click-tolerance gap Rectangle's own fill:none fix already addressed
+applies even more to a stroke-only shape), single- and double-headed
+render correctly, corner-drag reshape keeps both arrowheads correct, no
+console errors after the fix.

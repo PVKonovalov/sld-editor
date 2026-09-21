@@ -16,12 +16,17 @@ import type {
 
 // Element classes whose own geometry is a drawn Points array (two or more
 // vertices) rather than a single x/y anchor+orient — BusBarSection (a real
-// electrical busbar) and Rectangle (a purely decorative annotation, no
-// electrical meaning at all — see connectElements' own guard below) are
-// the only two. Shared by every place/move/paste/point-drag helper that
-// needs to treat "drag two corners/vertices to draw or reshape" the same
-// way regardless of which of the two classes it actually is.
-const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set(['BusBarSection', 'Rectangle'])
+// electrical busbar), Rectangle, and Arrow (the latter two purely
+// decorative annotations, no electrical meaning at all — see
+// connectElements' own guard below). Shared by every place/move/paste/
+// point-drag helper that needs to treat "drag two corners/vertices to draw
+// or reshape" the same way regardless of which of the three classes it
+// actually is — including, for Rectangle/Arrow, the anchor (x/y)
+// recomputed as the two Points' own midpoint on every move/paste/drag:
+// harmless for an Arrow even though its own rendering (writeArrow) reads
+// Points[0]/[1] directly rather than x/y, since x/y only ever matters here
+// as a paste-target anchor, never for the real drawn geometry.
+const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set(['BusBarSection', 'Rectangle', 'Arrow'])
 
 // A voltage-class <select>'s option value is either an existing class's own
 // id (as a string) or, for one of the server's default presets not yet
@@ -312,6 +317,32 @@ export function placeRectangle(diagram: Diagram, start: Point, end: Point): Diag
     y: (start.y + end.y) / 2,
     points: [start, end],
     ...RECTANGLE_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly placed Arrow's own color/width — same reasoning as
+// RECTANGLE_DEFAULTS (no fill: an arrow has no interior).
+const ARROW_DEFAULTS = { stroke: '#ffffff', strokeWidth: 1 }
+
+/** Places a new Arrow from start to end — the arrowhead is always drawn at
+ * end (see slddoc's own ClassArrow doc comment on why Points order
+ * matters here, unlike a Rectangle's). Same "purely decorative, not real
+ * electrical equipment, drawn from its own Points" reasoning as
+ * placeRectangle. */
+export function placeArrow(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Arrow',
+    shape: '2',
+    name: `Arrow-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...ARROW_DEFAULTS,
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -756,16 +787,18 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
  * from whichever of from/to already has one (see drawConnectorPath's own
  * doc comment) — with no defaultVoltage param here, an element joined to
  * one with no voltage of its own at all just stays unset, same as before.
- * A no-op when either end is a Rectangle — a purely decorative annotation
- * box, never a valid electrical endpoint (see slddoc's own ClassRectangle
- * doc comment); the routing tool's own findConnectionTarget (Canvas.tsx)
- * excludes it from candidates entirely for the same reason. */
+ * A no-op when either end is a Rectangle or Arrow — a purely decorative
+ * annotation, never a valid electrical endpoint (see slddoc's own
+ * ClassRectangle/ClassArrow doc comments); the routing tool's own
+ * findConnectionTarget (Canvas.tsx) excludes both from candidates
+ * entirely for the same reason. */
 export function connectElements(diagram: Diagram, fromId: number, toId: number): Diagram {
   if (fromId === toId) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
   const to = diagram.elements.find(e => e.id === toId)
   if (!from || !to) return diagram
-  if (from.class === 'Rectangle' || to.class === 'Rectangle') return diagram
+  const notConnectable = (el: DiagramElement) => el.class === 'Rectangle' || el.class === 'Arrow'
+  if (notConnectable(from) || notConnectable(to)) return diagram
 
   const ids = new IdSequence(diagram)
   const fromNode: DiagramNode = { id: ids.take(), x: from.x, y: from.y }

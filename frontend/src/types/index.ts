@@ -77,6 +77,7 @@ export type ElementClass =
   | 'Lamp'
   | 'FaultPassageIndicator'
   | 'Rectangle'
+  | 'Arrow'
 
 // Matches slddoc.WindingScheme — a PowerTransformer winding's own
 // connection scheme. Only the three values with a real connection glyph in
@@ -138,17 +139,23 @@ export interface DiagramElement {
   fillOff?: string
   fillOn?: string
   radius?: number
-  // Rectangle (shape 3) only — its own two literal CSS colors, matching
-  // backend/internal/slddoc's own Element.Fill/Stroke. Not a VoltageClass
+  // Rectangle (shape 3) only — its own interior color, matching
+  // backend/internal/slddoc's own Element.Fill. Not a VoltageClass
   // reference (a decorative annotation box has no electrical voltage of
   // its own), the same free-text-color pattern fillOff/fillOn already use
   // for a Lamp.
   fill?: string
+  // A Rectangle's own border color, or an Arrow's (shape 2) own line
+  // color — same free-text convention as fill.
   stroke?: string
-  // Rectangle (shape 3) only — its own border thickness, matching
-  // backend/internal/slddoc's own Element.StrokeWidth. Unset/0 means the
-  // real xsde2svg default of 1, not literally invisible.
+  // A Rectangle's own border thickness, or an Arrow's own line thickness,
+  // matching backend/internal/slddoc's own Element.StrokeWidth. Unset/0
+  // means the real xsde2svg default of 1, not literally invisible.
   strokeWidth?: number
+  // Arrow (shape 2) only — draws its own open chevron arrowhead at both
+  // points instead of just the second one, matching backend/internal/
+  // slddoc's own Element.DoubleHeaded.
+  doubleHeaded?: boolean
   ports?: Port[]
   points?: Point[]
   // PowerTransformer (shape 47) only — see TransformerWinding's own doc

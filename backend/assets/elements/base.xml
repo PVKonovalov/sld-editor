@@ -78,6 +78,19 @@
     <template></template>
   </symbol>
 
+  <symbol shape="2" class="Arrow" name="Arrow" category="Annotations">
+    <!-- Like Rectangle above, an Arrow has no fixed template: its length/
+         angle vary per instance, and it isn't real electrical equipment
+         at all (no terminals, no voltage, no state — see slddoc's own
+         ClassArrow doc comment), so it's drawn straight from its own two
+         Points (start, then end — order matters, unlike Rectangle's) by
+         internal/slddoc.Render, not template substitution. This entry
+         exists only so the Elements palette can offer "Arrow" the same
+         drag-two-points way it already offers "Rectangle"/"Busbar
+         section". -->
+    <template></template>
+  </symbol>
+
   <symbol shape="7" class="JunctionPoint" name="Junction point" category="Wiring">
     <template><![CDATA[
 <circle cx="0" cy="0" r="3" style="fill:none;stroke:{color};stroke-width:1" />

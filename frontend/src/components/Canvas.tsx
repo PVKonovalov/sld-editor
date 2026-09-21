@@ -11,10 +11,11 @@ import type { Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
 const RECTANGLE_SHAPE = '3'
+const ARROW_SHAPE = '2'
 // Shapes placed by dragging out two opposite points rather than a single
 // click — see diagramOps.POINTS_BASED_CLASSES for the element-class
 // equivalent used once one's already on the diagram.
-const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([BUSBAR_SHAPE, RECTANGLE_SHAPE])
+const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([BUSBAR_SHAPE, RECTANGLE_SHAPE, ARROW_SHAPE])
 const HIGHLIGHT = '#3b82f6'
 const CONNECT_TARGET_COLOR = '#22c55e'
 // How many grid cells, per side, get batched into one grid-dot pattern
@@ -301,14 +302,16 @@ export function Canvas() {
   // diagram-space footprint. BusBarSection is skipped entirely: it renders
   // as a bare <polyline> with no fill at all, and its own thin line is
   // already covered by its points-based selection highlight/hit-testing, no
-  // click-tolerance box needed. A Rectangle, unlike a busbar, is skipped in
-  // the DOM-lookup sense (it's a bare <rect>, not a <g>) but *does* still
-  // get a real box here, computed straight from its own diagram-state
-  // Points instead of getBBox — its own fill is very often "none"
-  // (transparent), and an SVG shape with fill:none simply doesn't receive
-  // pointer events over its own interior at all (only its stroke does), so
-  // without this a click anywhere but the exact 1px border would silently
-  // miss it entirely, unlike every filled shape.
+  // click-tolerance box needed. A Rectangle or Arrow, unlike a busbar, is
+  // skipped in the DOM-lookup sense (each is a bare <rect>/<path>, not a
+  // <g>) but *does* still get a real box here, computed straight from its
+  // own diagram-state Points instead of getBBox — a Rectangle's own fill
+  // is very often "none" (transparent), and an SVG shape with fill:none
+  // simply doesn't receive pointer events over its own interior at all
+  // (only its stroke does), so without this a click anywhere but the
+  // exact 1px border would silently miss it entirely, unlike every filled
+  // shape; an Arrow has no interior in the first place, just a thin
+  // stroke, so it needs the same click-tolerance box even more.
   useEffect(() => {
     const root = wrapperRef.current
     if (!root || !diagram) {
@@ -318,7 +321,7 @@ export function Canvas() {
     const boxes = new Map<number, ElementBox>()
     for (const el of diagram.elements) {
       if (el.class === 'BusBarSection') continue
-      if (el.class === 'Rectangle' && el.points) {
+      if ((el.class === 'Rectangle' || el.class === 'Arrow') && el.points) {
         const [p0, p1] = el.points
         const x = Math.min(p0.x, p1.x)
         const y = Math.min(p0.y, p1.y)
@@ -466,11 +469,11 @@ export function Canvas() {
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
       if (exclude?.kind === 'element' && el.id === exclude.elementId) continue
-      // A Rectangle is a purely decorative annotation, never a valid wire
-      // endpoint — unlike every other class here, it doesn't even fall
+      // A Rectangle/Arrow is a purely decorative annotation, never a valid
+      // wire endpoint — unlike every other class here, neither even falls
       // back to its own anchor (see diagramOps.connectElements' own
       // matching guard).
-      if (el.class === 'Rectangle') continue
+      if (el.class === 'Rectangle' || el.class === 'Arrow') continue
       if (el.class === 'BusBarSection' && el.points && el.points.length >= 2) {
         if (!includeBusbars) continue
         const { index, point: nearest } = nearestSegmentOnPolyline(el.points, point)
@@ -706,6 +709,15 @@ export function Canvas() {
       } else if (el.class === 'Rectangle' && el.points) {
         node.setAttribute('x', String(Math.min(el.points[0].x, el.points[1].x) + dx))
         node.setAttribute('y', String(Math.min(el.points[0].y, el.points[1].y) + dy))
+      } else if (el.class === 'Arrow' && el.points) {
+        // writeArrow's own <path> d is in local coordinates relative to
+        // Points[0] (unaffected by a plain whole-shape translate), so only
+        // the transform's translate portion needs updating — its own
+        // rotate angle, derived from the two (both moving together, so
+        // still-unchanged-relative-to-each-other) Points, stays the same.
+        const [p0, p1] = el.points
+        const angle = (Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180) / Math.PI
+        node.setAttribute('transform', `translate(${p0.x + dx},${p0.y + dy}) rotate(${angle})`)
       } else {
         node.setAttribute('transform', `translate(${el.x + dx},${el.y + dy}) rotate(${el.orient ?? 0})`)
       }
@@ -774,7 +786,9 @@ export function Canvas() {
             updateDiagram(d =>
               shape === RECTANGLE_SHAPE
                 ? diagramOps.placeRectangle(d, start, snappedEnd)
-                : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
+                : shape === ARROW_SHAPE
+                  ? diagramOps.placeArrow(d, start, snappedEnd)
+                  : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
             )
           }
           armSymbol(null)
@@ -1350,7 +1364,7 @@ export function Canvas() {
                 ))}
               {!ghost &&
                 selectedElements.map(el => {
-                  if (el.class === 'BusBarSection' && el.points) {
+                  if ((el.class === 'BusBarSection' || el.class === 'Arrow') && el.points) {
                     return (
                       <polyline
                         key={el.id}
@@ -1573,7 +1587,9 @@ export function Canvas() {
                 )
               )}
               {selectedElement &&
-                (selectedElement.class === 'BusBarSection' || selectedElement.class === 'Rectangle') &&
+                (selectedElement.class === 'BusBarSection' ||
+                  selectedElement.class === 'Rectangle' ||
+                  selectedElement.class === 'Arrow') &&
                 selectedElement.points && (
                 <>
                   {/* Live preview while a corner/endpoint handle is being

@@ -100,6 +100,7 @@ export const dictionary = {
   'elementCatalog.name.106': 'Lamp',
   'elementCatalog.name.320003': 'Fault passage indicator',
   'elementCatalog.name.3': 'Rectangle',
+  'elementCatalog.name.2': 'Arrow',
 
   'settings.noDiagram': 'Open or create a diagram to edit its settings.',
   'settings.gridSpacing': 'Grid spacing',
@@ -165,9 +166,13 @@ export const dictionary = {
   'properties.lampFillOff': 'Off color',
   'properties.lampFillOn': 'On color',
   'properties.lampRadius': 'Radius',
+  'properties.transparent': 'Transparent',
   'properties.rectangleFill': 'Fill color',
   'properties.rectangleStroke': 'Border color',
   'properties.rectangleStrokeWidth': 'Border width',
+  'properties.arrowStroke': 'Line color',
+  'properties.arrowStrokeWidth': 'Line width',
+  'properties.arrowDoubleHeaded': 'Double-headed',
 
   'properties.transformerAutotransformer': 'Autotransformer',
   'properties.transformerWindingCount': 'Number of windings',

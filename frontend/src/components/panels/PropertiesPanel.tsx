@@ -607,12 +607,14 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const typeLabel = `${typeName}:${el.shape}`
   const isLamp = el.class === 'Lamp'
   const isRectangle = el.class === 'Rectangle'
+  const isArrow = el.class === 'Arrow'
   // Neither a Lamp nor a FaultPassageIndicator reads a Voltage class color
   // (see diagramOps.placeElement's own matching exclusion) — both get a
-  // fixed color of their own instead. A Rectangle isn't part of the
-  // electrical network at all (see slddoc's own ClassRectangle doc
-  // comment) — its own Fill/Stroke are its equivalent, shown below.
-  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator' || isRectangle
+  // fixed color of their own instead. A Rectangle/Arrow isn't part of the
+  // electrical network at all (see slddoc's own ClassRectangle/ClassArrow
+  // doc comments) — its own Stroke (plus, for a Rectangle, Fill) is its
+  // equivalent, shown below.
+  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator' || isRectangle || isArrow
 
   function patch(fields: Partial<DiagramElement>) {
     updateDiagram(d => ({
@@ -712,7 +714,20 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
         {isRectangle && (
           <>
             <label className="block text-xs">
-              <span className="block text-gray-400 mb-1">{t('properties.rectangleFill')}</span>
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.rectangleFill')}</span>
+                {/* type="color" only ever produces a real #rrggbb value, so once
+                    a color's been picked there's no way back to the "none"
+                    (transparent) default through the picker itself — this
+                    button is the only way to clear it again. */}
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
               <input
                 type="color"
                 className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
@@ -738,6 +753,38 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 value={el.strokeWidth ?? 1}
                 onChange={e => patch({ strokeWidth: Number(e.target.value) })}
               />
+            </label>
+          </>
+        )}
+
+        {isArrow && (
+          <>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.arrowStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.arrowStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-xs">
+              <input
+                type="checkbox"
+                checked={el.doubleHeaded ?? false}
+                onChange={e => patch({ doubleHeaded: e.target.checked || undefined })}
+              />
+              {t('properties.arrowDoubleHeaded')}
             </label>
           </>
         )}
@@ -878,7 +925,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {(el.class === 'BusBarSection' || isRectangle) && el.points ? (
+        {(el.class === 'BusBarSection' || isRectangle || isArrow) && el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>
             <div className="space-y-2">

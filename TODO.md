@@ -50,7 +50,26 @@ drawn straight from its own two `Points` (opposite corners) rather than a
 fixed local-coordinate template; its own literal `Fill`/`Stroke` colors are
 free text, not a `VoltageClass` reference, the same pattern a Lamp's own
 FillOff/FillOn already uses. Placed in the palette's own new "Annotations"
-category rather than force-fit into an electrical one).
+category rather than force-fit into an electrical one), **2** Стрелка/
+Arrow (same non-electrical status as Rectangle just above — see slddoc's
+own `ClassArrow` doc comment; also drawn from its own two `Points`, but
+order matters here, unlike Rectangle's — the arrowhead is always at
+`Points[1]`, or both ends when `DoubleHeaded`. Reuses Rectangle's own
+`Stroke`/`StrokeWidth` fields rather than adding new ones — an arrow has
+no interior, so no `Fill`. Its own open two-stroke chevron arrowhead
+matches the real xsde2svg source (`element_2.go`) exactly, reproduced as a
+single local-frame formula rather than that source's own five separate
+draw branches — a horizontal chevron rotated by `writeArrow`'s own
+wrapping transform is pixel-identical to what those branches compute
+directly. Two real-source details were *not* ported: dashed/dash-dot line
+styles, and scaling the arrowhead's own size by StrokeWidth — the latter
+turned out to not really be a real relationship in the source either (see
+`arrowChevron`'s own doc comment). `Extract`'s own `parseArrow` doesn't
+replicate those five draw branches either — it recovers the two true
+endpoints via a "farthest two points in the path" heuristic robust to all
+of them, but can't reliably tell a double-headed instance's own doubled
+starting chevron apart from an ordinary single-headed one from geometry
+alone, so an extracted Arrow's own `DoubleHeaded` is always false).
 
 Deferred — real xsde2svg shapes whose own source (`xsde2svg/internal/modus/
 element_<code>.go`) is substantially more involved than the shapes above,
@@ -72,8 +91,8 @@ each needing its own dedicated pass rather than a quick port:
 
 Deliberately out of scope (decorative/structural, not real electrical
 equipment — same reasoning that already excludes the generic draw
-primitives, data-type 1/2/4/16 — Rectangle, data-type 3, is the one
-generic primitive that *has* been ported, see above): poles/pylons
+primitives, data-type 1/4/16 — Rectangle (3) and Arrow (2) are the two
+generic primitives that *have* been ported, see above): poles/pylons
 (19/146/292), power-plant/
 substation pictogram icons (38/360), chassis/half-chassis cart graphics
 (51/52), a cable-plug graphic (56), a decorative connector-arrow (83),

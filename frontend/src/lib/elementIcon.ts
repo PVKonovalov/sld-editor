@@ -19,7 +19,14 @@ const BUSBAR_ICON = '<line x1="-28" y1="0" x2="28" y2="0" stroke="currentColor" 
 // visual cue, distinguishing it from a busbar's plain line.
 const RECTANGLE_ICON =
   '<rect x="-20" y="-14" width="40" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 3" />'
-const EMPTY_TEMPLATE_ICONS: Record<string, string> = { '24': BUSBAR_ICON, '3': RECTANGLE_ICON }
+
+// Arrow (shape 2) likewise has no template (see BUSBAR_ICON above) — a
+// diagonal line with an open chevron at the tip, matching writeArrow's own
+// real shape (a line plus an unfilled two-stroke chevron, not a filled
+// triangle).
+const ARROW_ICON =
+  '<path d="M -20 16 L 18 -16 M 6 -16 L 18 -16 L 18 -4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />'
+const EMPTY_TEMPLATE_ICONS: Record<string, string> = { '24': BUSBAR_ICON, '3': RECTANGLE_ICON, '2': ARROW_ICON }
 
 // GroundSwitch's own template (base.xml shape 54) is drawn earth-plates-up/
 // stub-down in its raw, unrotated form — confirmed byte-for-byte against a
