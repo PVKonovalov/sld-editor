@@ -70,6 +70,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'elementCatalog.name.24': 'Секция шин',
   'elementCatalog.name.7': 'Точка соединения',
   'elementCatalog.name.14': 'Перемычка',
+  'elementCatalog.name.56': 'Кабельный разъем',
   'elementCatalog.name.41': 'Выключатель',
   'elementCatalog.name.43': 'Выключатель (выкатной)',
   'elementCatalog.name.42': 'Выключатель нагрузки',

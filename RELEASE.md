@@ -2950,3 +2950,33 @@ disposable scratch diagram, cleaned up afterward; a stale `go run`
 backend process left over from before this session's backend changes was
 caught (it reported a false "symbol library missing shape(s): 4" render
 warning) and restarted.
+
+2026-09-21: Cable connector (shape 56) implemented. Unlike
+Rectangle/Arrow/Circle, this is a real two-terminal electrical device (a
+cable termination/splice symbol), decoded from the real xsde2svg source
+(`element_56.go`)'s own relative-path formula into an open two-line
+chevron flaring outward from each end of a fixed vertical stem — visually
+similar to Arrow's own open chevron, just unconditionally at both ends
+rather than gated by DoubleHeaded. Implemented as a plain fixed-geometry
+template symbol, the same pattern Junction point (7)/Wire jump (14)
+already use: new `ClassCableConnector` (shared `slddoc` module),
+`shapeName["56"]`, a new `base.xml` entry in the "Wiring" category with
+real terminals at (0,-10)/(0,10) (same convention as Breaker/
+Disconnector), and `Extract` support wired straight into the existing
+`parseTwoPortDevice` helper (`elementDataTypes`/`twoPortShapes`) — no new
+parse function needed, since its own geometry's dominant-axis extremes
+land exactly on its two terminals. No frontend code changes were needed
+at all: Properties' generic Voltage/Orientation/Mirror fields, the
+palette's generic template-preview icon, and Canvas's generic symbol
+placement/rotation/rerouting all already handle a plain no-State/
+no-Points/no-Fill symbol like this one, the same way they already handle
+Junction point/Wire jump — only `ElementClass` (frontend types) and the
+`elementCatalog.name.56` i18n key needed adding. Verified live in the
+browser end to end, against a disposable scratch diagram: placed via the
+Wiring palette (icon renders the chevron-flare geometry correctly),
+selected (real terminal markers at both ends), rotated 90° (terminals
+follow), assigned a voltage class (color updates), dragged, and
+Ctrl/Cmd-click-connected to a nearby Breaker — confirming it behaves as a
+genuine electrical endpoint, unlike the three prior decorative shapes —
+cleaned up afterward; a stale `go run` backend process left over from
+before this session's own backend changes was again caught and restarted.

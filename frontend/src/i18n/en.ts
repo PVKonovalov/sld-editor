@@ -72,6 +72,7 @@ export const dictionary = {
   'elementCatalog.name.24': 'Busbar section',
   'elementCatalog.name.7': 'Junction point',
   'elementCatalog.name.14': 'Wire jump',
+  'elementCatalog.name.56': 'Cable connector',
   'elementCatalog.name.41': 'Breaker',
   'elementCatalog.name.43': 'Breaker (withdrawable)',
   'elementCatalog.name.42': 'Load-break switch',

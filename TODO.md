@@ -15,7 +15,16 @@ Ported so far (render templates in `backend/assets/elements/base.xml` +
 `Extract` support in the shared `slddoc` module): Reactor (37), Reactor
 shunt (397), Surge arrester variant (29), Starter (76), Fuse withdrawable
 (154), Surge arrester grounded (168), Capacitor bank (172), Generator
-(173), Non-intersection/"Wire jump" (14), **164** Отделитель/Sectionalizer
+(173), Non-intersection/"Wire jump" (14), **56** Кабельный разъем/Cable
+connector (a real two-terminal electrical device — a cable termination/
+splice symbol, not decorative — drawn from a plain fixed local-coordinate
+template the same "Junction point (7)/Wire jump (14)" way, terminals at
+(0,-10)/(0,10) like Breaker/Disconnector; decoded by hand from the real
+source's own relative-path formula (`element_56.go`) into an open
+two-line chevron flaring outward from each terminal, matching Arrow's own
+open-chevron style but at both ends unconditionally; fits `Extract`'s own
+existing `parseTwoPortDevice` helper exactly, same as Junction point/Wire
+jump, so no new parse function was needed), **164** Отделитель/Sectionalizer
 (only Closed(1)/Open(0), so Properties' own State dropdown for this class
 offers just those two, not the usual Open/Close/Intermediate — the real
 source has no Intermediate position for this device at all, so this
@@ -103,7 +112,7 @@ primitives, data-type 1/16 — Rectangle (3), Arrow (2), and Circle (4) are
 the three generic primitives that *have* been ported, see above):
 poles/pylons (19/146/292), power-plant/
 substation pictogram icons (38/360), chassis/half-chassis cart graphics
-(51/52), a cable-plug graphic (56), a decorative connector-arrow (83),
+(51/52), a decorative connector-arrow (83),
 button/table/window HMI decoration (113/313/319), a road/geographic
 background element (335), and a generic "Device" placeholder (130, too
 vague to know what it actually draws).

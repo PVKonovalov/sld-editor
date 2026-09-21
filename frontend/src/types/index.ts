@@ -74,6 +74,7 @@ export type ElementClass =
   | 'BusBarSection'
   | 'JunctionPoint'
   | 'NonIntersection'
+  | 'CableConnector'
   | 'Lamp'
   | 'FaultPassageIndicator'
   | 'Rectangle'

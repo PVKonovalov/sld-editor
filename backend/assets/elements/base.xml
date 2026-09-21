@@ -127,6 +127,29 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_56.go (element56) — a cable
+       termination/splice symbol, a real two-terminal electrical device
+       (unlike Rectangle/Arrow/Circle above), drawn as a plain fixed
+       local-coordinate template the same way Junction point/Wire jump
+       are. The real source draws its own vertical stem (length 20,
+       terminals at the ends) via relative path commands ("m 0 -10 v 20"
+       plus four more relative segments) that work out to an open
+       two-line chevron flaring outward from each terminal — decoded by
+       hand here into the equivalent absolute local coordinates: the
+       stem itself, then two short diagonal strokes meeting at each tip
+       (mirroring Arrow's own open chevron, just unfilled and at both
+       ends unconditionally, not gated by a DoubleHeaded flag). -->
+  <symbol shape="56" class="CableConnector" name="Cable connector" category="Wiring">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 -10 V 10" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 10 L -4 6 M 4 6 L 0 10 M 0 -10 L 4 -6 M -4 -6 L 0 -10" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <symbol shape="41" class="Breaker" name="Breaker" category="Switching devices">
     <terminals>
       <terminal x="0" y="-10"/>
