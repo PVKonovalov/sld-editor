@@ -7,13 +7,26 @@
 # ssh/scp step runs.
 set -euo pipefail
 
-HOST="${DEPLOY_HOST:-root@192.168.20.23}"
-SSH_KEY="${DEPLOY_SSH_KEY:-$HOME/.ssh/id_rsa_ctrlroom}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# HOST/SSH_KEY name this specific deployment target, so they live in
+# scripts/.env (gitignored, not this script) rather than being hardcoded
+# here — see scripts/.env.example for the expected shape. set -a exports
+# everything .env defines so ${DEPLOY_HOST:?...} below can see it.
+ENV_FILE="$REPO_ROOT/scripts/.env"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
+
+HOST="${DEPLOY_HOST:?set DEPLOY_HOST in scripts/.env (see scripts/.env.example) or the environment}"
+SSH_KEY="${DEPLOY_SSH_KEY:?set DEPLOY_SSH_KEY in scripts/.env (see scripts/.env.example) or the environment}"
 REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/usr/lib/sld-editor}"
 SERVICE="sld-editor"
 BINARY="sld-editor-linux-ru"
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BASE_XML="$REPO_ROOT/backend/assets/elements/base.xml"
 BINARY_PATH="$REPO_ROOT/build/$BINARY"
 

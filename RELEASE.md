@@ -2723,5 +2723,10 @@ base.xml` into `/usr/lib/sld-editor/`, restores the executable bit scp
 doesn't preserve, then restarts the service. `set -euo pipefail` so a
 failed build or copy stops the script before touching the remote
 service — a failed build in particular never gets as far as stopping it.
-Host/key/remote path are overridable via `DEPLOY_HOST`/`DEPLOY_SSH_KEY`/
-`DEPLOY_REMOTE_DIR` env vars rather than hardcoded outright.
+Host/key (`DEPLOY_HOST`/`DEPLOY_SSH_KEY`) name this specific deployment
+target, so they're no longer hardcoded in the script at all — they live in
+`scripts/.env` instead (gitignored, sourced automatically; `scripts/
+.env.example` is the tracked template) and the script fails with a clear
+message if neither `.env` nor the environment sets them.
+`DEPLOY_REMOTE_DIR` stays an optional override with its own built-in
+default (`/usr/lib/sld-editor`), same as before.
