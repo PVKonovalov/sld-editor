@@ -204,6 +204,14 @@ func (s *Store) Render(d *slddoc.Diagram, w io.Writer, mode slddoc.RenderMode) e
 	return slddoc.Render(d, s.lib, w, mode, s.defaultFPIText, s.fpiColors, s.stateColors...)
 }
 
+// RenderFragments is Render's incremental-editing counterpart (see
+// slddoc.RenderFragments' own doc comment) — renders only ids' own markup,
+// not a whole document, for the live canvas to patch in place after a small
+// edit instead of replacing its whole injected SVG on every change.
+func (s *Store) RenderFragments(d *slddoc.Diagram, ids []int, mode slddoc.RenderMode) (map[int]string, error) {
+	return slddoc.RenderFragments(d, s.lib, ids, mode, s.defaultFPIText, s.fpiColors, s.stateColors...)
+}
+
 // safePathSegments splits a "/"-separated relative path (a diagram name, or
 // a List dir argument) into its individual segments, rejecting any that
 // could escape the store's own root: empty (a leading/trailing/doubled

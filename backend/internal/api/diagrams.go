@@ -170,6 +170,39 @@ func (s *Server) renderPreview(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+type renderFragmentsRequest struct {
+	Diagram slddoc.Diagram `json:"diagram"`
+	Ids     []int          `json:"ids"`
+}
+
+// renderPreviewFragments is renderPreview's incremental counterpart (see
+// slddoc.RenderFragments' own doc comment) — given a diagram and the ids
+// (elements/connectors/labels/digital devices — this schema's ids are one
+// shared space across all four, so a plain int works regardless of kind)
+// that actually changed since the canvas's own last successful render, it
+// returns only those ids' own fresh markup, not a whole document, so the
+// canvas can patch its existing DOM nodes in place instead of replacing the
+// entire injected SVG on every small edit. fragments is keyed by id
+// (JSON-marshaled as a string key, same as any Go map[int]... would be); an
+// id the caller asked for but that no longer exists in diagram at all
+// (something it just deleted locally) simply has no entry — not an error,
+// same as slddoc.RenderFragments' own doc comment describes. Otherwise
+// mirrors renderPreview exactly: Interactive mode, no persistence.
+func (s *Server) renderPreviewFragments(c *gin.Context) {
+	var req renderFragmentsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+
+	fragments, renderErr := s.store.RenderFragments(&req.Diagram, req.Ids, slddoc.Interactive)
+	resp := gin.H{"fragments": fragments}
+	if renderErr != nil {
+		resp["warning"] = renderErr.Error()
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 // exportDiagramXML renders a not-yet-saved (or already-modified-in-editor)
 // diagram to XML for the browser to download directly to the user's own
 // machine — the same slddoc.Diagram.Save format Save/Save As write to

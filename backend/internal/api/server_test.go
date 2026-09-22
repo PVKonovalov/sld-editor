@@ -179,6 +179,55 @@ func TestRenderPreview_DoesNotPersist(t *testing.T) {
 	}
 }
 
+// TestRenderPreviewFragments covers /api/render/fragments end to end: only
+// the requested ids come back, an id no longer in the posted diagram is
+// silently skipped (not an error), and nothing is persisted — the same
+// "preview, never touches storage" contract /api/render itself has.
+func TestRenderPreviewFragments(t *testing.T) {
+	s := newTestServer(t)
+	d := slddoc.Diagram{
+		Width: 10, Height: 10,
+		Elements: []slddoc.Element{
+			{ID: 1, Class: slddoc.ClassBreaker, Shape: "41", X: 1, Y: 1},
+			{ID: 2, Class: slddoc.ClassBreaker, Shape: "41", X: 2, Y: 2},
+		},
+	}
+
+	rec := doJSON(t, s, http.MethodPost, "/api/render/fragments", gin.H{
+		"diagram": d,
+		"ids":     []int{1, 999},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("render fragments: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Fragments map[string]string `json:"fragments"`
+		Warning   string            `json:"warning"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Warning != "" {
+		t.Errorf("unexpected warning: %s", resp.Warning)
+	}
+	if len(resp.Fragments) != 1 {
+		t.Fatalf("fragments = %+v, want exactly one entry (id 999 names nothing in the diagram)", resp.Fragments)
+	}
+	if !strings.Contains(resp.Fragments["1"], `id="1"`) {
+		t.Errorf("fragment for id 1 missing its own id: %q", resp.Fragments["1"])
+	}
+	if _, ok := resp.Fragments["2"]; ok {
+		t.Errorf("element 2 wasn't requested, should not be in the response: %+v", resp.Fragments)
+	}
+
+	rec = doJSON(t, s, http.MethodGet, "/api/diagrams", nil)
+	var entries []storage.Entry
+	_ = json.Unmarshal(rec.Body.Bytes(), &entries)
+	if len(entries) != 0 {
+		t.Errorf("render fragments should not persist a diagram: %+v", entries)
+	}
+}
+
 func TestExportImportXML(t *testing.T) {
 	s := newTestServer(t)
 	d := slddoc.Diagram{

@@ -3707,3 +3707,36 @@ confirmed both new folders listed alongside a real pre-existing one
 found already sitting in the diagrams directory — invisible before this
 change, since the old flat `List()` silently skipped every subdirectory
 entry outright).
+
+Date: 2026-09-22 — Backend half of "Reducing frontend/backend traffic"'s
+own incremental-rendering plan (see TODO.md): a new `slddoc.RenderFragments`
+renders only a requested set of ids' own markup instead of a whole `<svg>`
+document — still resolving voltage/topology across the *entire* diagram
+(an id's own color can depend on a VoltageClass that isn't itself
+requested), but only writing out markup for the ids actually asked for,
+returned as `map[int]string`. Ids may name an Element, Connector, Label,
+or DigitalDevice interchangeably (this schema's ids are one shared space
+across all four), and one no longer present in the diagram at all is
+silently skipped rather than erroring — the caller already knows it's
+gone. No type-comment headers and no `elementZOrder` tiering, both only
+meaningful for a full ordered document; `renderElement`'s own
+type-comment call was pulled out to its two call sites inside `Render`
+(now written by the caller, just before invoking it) and a new
+`renderConnector` helper factored out of `Render`'s own connectors loop,
+so both `Render` and `RenderFragments` share the exact same per-entity
+dispatch instead of duplicating it. New `Store.RenderFragments`
+(`sld-editor/backend/internal/storage`) and `POST /api/render/fragments`
+(`internal/api/diagrams.go`'s `renderPreviewFragments`) expose it with
+the same "preview only, never touches storage" contract `POST
+/api/render` already has: `{diagram, ids}` in, `{fragments: {id:
+markup}, warning?}` out. This is the backend half only — `Canvas.tsx`
+still always calls the full `/api/render` and replaces its whole
+injected SVG on every edit; wiring the frontend up to diff against its
+own last-rendered diagram and call this new endpoint instead is tracked
+separately in TODO.md. Verified with `go build`/`vet`/`test` in both
+`slddoc` (4 new tests: only-requested-ids rendered, an id no longer in
+the diagram silently skipped, a missing-shape error doesn't drop other
+fragments, no type-comments/z-order in a fragment) and `sld-editor/
+backend` (a new end-to-end HTTP test against `/api/render/fragments`,
+plus the existing full suite confirming the `Render`/`renderElement`
+refactor didn't change a single byte of existing output).
