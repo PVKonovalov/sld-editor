@@ -11,7 +11,11 @@ Run the backend from `backend/` (binds `0.0.0.0:8090` by default):
 
 ```
 go run ./cmd/sld-editor -config config/sld-editor.yaml
+go run ./cmd/sld-editor -config config/sld-editor.yaml -open-browser
 ```
+
+`-open-browser` opens the editor's URL in the default browser once the server
+starts listening.
 
 Build/vet/test the backend, all from `backend/`:
 
@@ -70,15 +74,13 @@ targets only — a Linux container can't produce a codesigned macOS binary).
 make                 # every OS/arch x locale combination
 make linux           # linux/amd64, both locales
 make windows         # windows/amd64, both locales
-make macos           # darwin/arm64 + darwin/amd64, both locales
+make macos           # darwin/arm64, both locales
 make linux-en
 make linux-ru
 make windows-en
 make windows-ru
 make macos-arm64-en
 make macos-arm64-ru
-make macos-amd64-en
-make macos-amd64-ru
 make docker-build    # linux+windows targets, run inside a pinned container
 make clean
 ```
