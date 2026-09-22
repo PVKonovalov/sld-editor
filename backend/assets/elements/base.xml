@@ -66,9 +66,56 @@
     <template></template>
   </symbol>
 
+  <symbol shape="3" class="Rectangle" name="Rectangle" category="Annotations">
+    <!-- Like Busbar section above, a Rectangle has no fixed template: its
+         size varies per instance, and it isn't real electrical equipment
+         at all (no terminals, no voltage, no state — see slddoc's own
+         ClassRectangle doc comment), so it's drawn straight from its own
+         two Points (opposite corners) by internal/slddoc.Render, not
+         template substitution. This entry exists only so the Elements
+         palette can offer "Rectangle" the same drag-two-corners way it
+         already offers "Busbar section". -->
+    <template></template>
+  </symbol>
+
+  <symbol shape="2" class="Arrow" name="Arrow" category="Annotations">
+    <!-- Like Rectangle above, an Arrow has no fixed template: its length/
+         angle vary per instance, and it isn't real electrical equipment
+         at all (no terminals, no voltage, no state — see slddoc's own
+         ClassArrow doc comment), so it's drawn straight from its own two
+         Points (start, then end — order matters, unlike Rectangle's) by
+         internal/slddoc.Render, not template substitution. This entry
+         exists only so the Elements palette can offer "Arrow" the same
+         drag-two-points way it already offers "Rectangle"/"Busbar
+         section". -->
+    <template></template>
+  </symbol>
+
+  <symbol shape="4" class="Circle" name="Circle" category="Annotations">
+    <!-- Like Rectangle above, a Circle has no fixed template: its size
+         varies per instance, and it isn't real electrical equipment at
+         all (no terminals, no voltage, no state — see slddoc's own
+         ClassCircle doc comment), so it's drawn straight from its own two
+         Points (opposite bounding-box corners, the exact same convention
+         Rectangle uses) by internal/slddoc.Render, not template
+         substitution. This entry exists only so the Elements palette can
+         offer "Circle" the same drag-two-corners way it already offers
+         "Rectangle". -->
+    <template></template>
+  </symbol>
+
+  <!-- r/fill are user-editable (Element.Radius/Fill) via {junctionRadius}/
+       {junctionFill} — separate placeholders from the generic {radius},
+       each with its own non-zero/"none" fallback so an already-placed
+       instance with neither field set keeps this schema's own
+       long-standing look (radius 3, unfilled), even though real xsde2svg
+       usually draws a filled dot at a varying radius instead — see
+       Element.Radius/Fill's own doc comments (slddoc/model.go) for the
+       real corpus evidence and internal/slddoc/render.go's own
+       junctionRadius/junctionFill for the fallback logic itself. -->
   <symbol shape="7" class="JunctionPoint" name="Junction point" category="Wiring">
     <template><![CDATA[
-<circle cx="0" cy="0" r="3" style="fill:none;stroke:{color};stroke-width:1" />
+<circle cx="0" cy="0" r="{junctionRadius}" style="fill:{junctionFill};stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
@@ -86,6 +133,61 @@
     </terminals>
     <template><![CDATA[
 <path d="M 10 0 L 3 0 A 3 3 0 0 0 -3 0 L -10 0" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_56.go (element56) — a cable
+       termination/splice symbol, a real two-terminal electrical device
+       (unlike Rectangle/Arrow/Circle above), drawn as a plain fixed
+       local-coordinate template the same way Junction point/Wire jump
+       are. The real source draws its own vertical stem (length 20,
+       terminals at the ends) via relative path commands ("m 0 -10 v 20"
+       plus four more relative segments) that work out to an open
+       two-line chevron flaring outward from each terminal — decoded by
+       hand here into the equivalent absolute local coordinates: the
+       stem itself, then two short diagonal strokes meeting at each tip
+       (mirroring Arrow's own open chevron, just unfilled and at both
+       ends unconditionally, not gated by a DoubleHeaded flag). -->
+  <symbol shape="56" class="CableConnector" name="Cable connector" category="Wiring">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 -10 V 10" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 10 L -4 6 M 4 6 L 0 10 M 0 -10 L 4 -6 M -4 -6 L 0 -10" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_32.go (element32), default branch
+       only (the real source's own CustomView field selects an alternate
+       appearance via a distinct non-English string value — see below) —
+       a cable joint/coupling marking where two cable segments are
+       spliced, a real two-terminal electrical device drawn as a plain
+       fixed local-coordinate template the same way Cable connector (56)
+       above is: a vertical stem split by a gap, with an unfilled triangle
+       mark in the gap. Terminals sit at (0,-12)/(0,14) — asymmetric
+       around the anchor by design, not a transcription slip: the real
+       source's own default branch shifts its drawn geometry one unit
+       below the element's true anchor before drawing (`y += 1`),
+       confirmed against every one of 500+ real corpus instances found
+       (17 files, sld-svg's own examples/sld) — matching that offset here
+       keeps a real xsde2svg export's own rotate()-based anchor (unaffected
+       by the shift) lining up with this template's own geometry exactly.
+       The real source's own alternate CustomView appearance (a single
+       line plus a differently-shaped triangle) and its own optional
+       phase-color fill (yellow/green/red) on the triangle have no real
+       corpus instance to confirm either against, so neither is modeled —
+       every real instance found uses this same plain, unfilled look. No
+       State of its own. -->
+  <symbol shape="32" class="CableJoint" name="Cable joint" category="Wiring">
+    <terminals>
+      <terminal x="0" y="-12"/>
+      <terminal x="0" y="14"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 -3 v -9 M 0 5 v 9" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -3 l 8 8 h -16 z" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
@@ -150,6 +252,50 @@
 <path d="{state:M 0 6 v -13|M -6 0 h 13|M -4.6 -4.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
 <path d="M -4 -9 h 8 m 0 18 h -8" style="fill:none;stroke:{color};stroke-width:1" />
 <path d="M 0 -9 v -1 M 0 9 v 1" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- 164 Отделитель (Sectionalizer) — a two-terminal device drawn as a
+       fixed pivot rod plus a small pointer arm+arrowhead, swinging between
+       "closed" (rod spans both terminals straight, both fixed contact
+       ticks in place, arm points in toward center) and "open" (rod tilted
+       to a diagonal, pivoting at the bottom terminal — that pivot marked
+       with a small circle in place of the bottom tick, since the blade
+       physically rotates around it — arm swung out with it, top tick
+       unchanged). The real xsde2svg source (internal/modus/element_164.go,
+       element164) draws Open differently in one respect — the rod replaced
+       by a short stub near the top terminal rather than the same
+       full-length rod merely tilted, and the arm retracted further out —
+       rejected as visually wrong for this device at the user's own
+       request, in favor of the tilted-rod look (this template's own
+       original Intermediate option, before this device was found to have
+       no real Intermediate state at all — see below); the bottom-pivot
+       circle itself, unlike that stub, *is* kept from the real source. The
+       real exporter also has an xMirror flag (this schema has
+       no mirroring concept, so only its non-mirrored geometry is ported —
+       the same simplification every other shape here makes) and a
+       busbar-spacing-dependent "leg" extension driven by sde.Distance
+       (this schema has no field for that at all — omitted entirely,
+       matching the common real-world case where it evaluates to a
+       zero-length leg anyway; the terminal points below already sit where
+       that leg would have attached, ±10, so a wire still connects in the
+       right place). This device only has two real positions,
+       Closed(1)/Open(0) — no Intermediate — so Properties' own State
+       dropdown offers only those two (PropertiesPanel.tsx's own
+       TWO_STATE_CLASSES), and this template's own {state:...} third
+       ("other") option is simply a copy of "open": an Intermediate State
+       value (2) on already-saved data, or any other unrecognized one,
+       still reads as Open rather than something drawn specially for it. -->
+  <symbol shape="164" class="Sectionalizer" name="Sectionalizer" category="Switching devices">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M -5 -10 h 10" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M -5 10 h 10|M 0 9 a 2 2 0 1 1 0 4 a 2 2 0 0 1 0 -4|M 0 9 a 2 2 0 1 1 0 4 a 2 2 0 0 1 0 -4}" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -9 v 18 M 0 0 h -11|M -6 -9 l 6 18 M -2 0 h -11|M -6 -9 l 6 18 M -2 0 h -11}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M -11 0 l 8 3 v -6 z|M -13 0 l 8 3 v -6 z|M -13 0 l 8 3 v -6 z}" style="fill:{color};stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
@@ -234,6 +380,64 @@
     <template><![CDATA[
 <path d="M 0 10 v -7 m -4 0 h 8 m -8 -20 h 8 m -4 0 v -8 m -8 0 h 16 m -2 -3 h -12 m 2 -3 h 8" style="fill:none;stroke:{color};stroke-width:1" />
 <path d="{state:M 0 -2 v -12|M 6 -8 h -12|M -4.6 -12.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_398.go (element398) — a
+       single-terminal grounding-type switching device: a fixed tapered
+       earth symbol at the top (matching Ground switch (54)'s own taper),
+       one real electrical terminal at the bottom (grid-aligned to y=10,
+       lead stub shortened from the real source's own y=11 to end exactly
+       there, same deliberate minor deviation Ground switch's own stub
+       already makes), and a State-driven pivot rod bridging the gap
+       between them. Closed draws the rod as a straight bar bridging the
+       terminal to the earth symbol above it (an intentional short to
+       ground), with a fixed-contact tick where the rod meets the earth
+       symbol; Open pivots the rod away at that same end, marked with a
+       small circle there instead of the tick (the blade is permanently
+       hinged next to the earth symbol, matching how a real
+       short-circuiter's blade is bolted to the grounded structure, not
+       the live conductor), swinging its far end away from the terminal —
+       at the user's own explicit request, using element_398.go's own
+       xMirror==1 geometry as this rod's own default rather than its
+       xMirror==0 one (the direction the un-mirrored geometry swings
+       looked wrong), since this schema's generic Mirror property (see
+       Element.Mirror) already covers the xMirror==0 look for whichever
+       placed instance needs it, the same as any other symbol here. Both
+       states also draw a short arm off the rod's own midpoint with a
+       filled arrowhead at its tip — again at the user's own request,
+       this replaces element_398.go's own small arrowhead-near-the-rod
+       composition with Sectionalizer's own arm+arrowhead-at-the-tip one
+       (see that symbol's own template just above), so the two read the
+       same way, kept at its own xMirror==0 orientation (matching
+       Sectionalizer's own arrowhead direction) even though the rod above
+       it uses xMirror==1, since GROUND_TYPE_DEFAULT_ORIENT already places
+       a freshly placed instance at 180 degrees by default (see
+       diagramOps.ts), which on its own flips which way an xMirror==0
+       arrowhead reads in the common case. The rod's own deflection when
+       Open (both the pivot-to-swung-end diagonal's own dx:dy and the
+       overall rod length, now spanning the full pivot-to-terminal-side
+       reach) also no longer matches element_398.go's own h2/y6 constants
+       (7:16) — at the user's own request it now reuses Sectionalizer's
+       own deflection exactly (6:18, from that symbol's own "M -6 -9 l 6
+       18"), for the same "reads the same way as Sectionalizer" reason
+       the arm+arrowhead swap above already has. The rod/circle geometry
+       (before this and the arm+arrowhead swap) was confirmed against a
+       real xsde2svg corpus export (id 1015 in PS_110kV_Lubnisa.svg,
+       data-name "КЗ-110 Т-2 ф.А") for Open, and directly against
+       element_398.go's own partClosed formula for Closed. This device
+       has no real Intermediate position (the real source's own
+       sde.Tech.Closed is a plain boolean), so the third {state:...}
+       option duplicates the second (Open), same convention Sectionalizer
+       uses. -->
+  <symbol shape="398" class="ShortCircuiter" name="Short-circuiter" category="Switching devices">
+    <terminals>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 10 V 3 M -5 3 H 5 M 0 -18 V -25 M -7 -25 H 7 M -5 -28 H 5 M -3 -31 H 3" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -18 V 0 M -5 -18 h 10 M 0 -9 h 11|M -2 -18 a 2 2 0 1 1 4 0 a 2 2 0 1 1 -4 0 m 2 0 l 6 18 M 2 -9 h 11|M -2 -18 a 2 2 0 1 1 4 0 a 2 2 0 1 1 -4 0 m 2 0 l 6 18 M 2 -9 h 11}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 11 -9 l -8 3 v -6 z|M 13 -9 l -8 3 v -6 z|M 13 -9 l -8 3 v -6 z}" style="fill:{color};stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
@@ -552,6 +756,61 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_385.go (element385) — a
+       facility-level pictogram (Package transformer substation, KTP), not
+       switchgear in the usual sense, but still given a genuine
+       voltage-driven color and exactly one real electrical terminal
+       (grid-aligned to y=-22, the real source's own lead stub, 4 units
+       above the box's own top edge). Its geometry varies per instance
+       (two structurally different real appearance variants, not just a
+       {state:...}-style tweak within one static shape — see
+       internal/slddoc.writePackageSubstation) so, like Rectangle/Circle/
+       Arrow/PowerTransformer above, it bypasses this file's own template
+       substitution entirely — this entry exists only so the palette can
+       offer it and declare its own terminal. NType (0/unset, the common
+       case: a 36-unit outer square, an 18-unit inner rectangle, and the
+       lead stub; 1: a plain downward-pointing triangle, no separate
+       stub, but the same terminal position still lands right above its
+       identical-height top edge) is only recoverable from a real
+       xsde2svg export via a data-ntype attribute added to that source's
+       own element_385.go specifically for this — neither variant's own
+       drawn geometry otherwise reveals which one was used. Fill reuses
+       this schema's ordinary free-choice field (the real source's own
+       Abonent flag, generalized the same way Rectangle/Circle's own
+       Fill already is); State reuses this schema's ordinary field too
+       (the real source's own Tech.Closed, 0 dashing the outline) —
+       neither is recoverable on Extract, a known gap the same way
+       Arrow's own DoubleHeaded isn't either. -->
+  <symbol shape="385" class="PackageSubstation" name="Package substation" category="Other equipment">
+    <terminals>
+      <terminal x="0" y="-22"/>
+    </terminals>
+    <template></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_id386.go (element386) — the same
+       kind of facility-level pictogram as Package substation (385) just
+       above, but with a single fixed appearance instead of two real
+       variants: a 36-unit square outline with a downward-pointing
+       triangle always drawn inside it (see
+       internal/slddoc.writeEnclosedSubstation), so it bypasses this
+       file's own template substitution the same way that shape does —
+       this entry exists only so the palette can offer it and declare its
+       own terminal. Confirmed to have exactly one real electrical
+       terminal the same way Package substation does, at the user's own
+       explicit confirmation; grid-aligned to y=-20 (the real source
+       draws no separate lead stub for it the way 385 does, unlike that
+       shape's own drawn 4-unit stub). Fill/State reuse the same
+       free-choice/dashed-outline fields 385's own template does, for the
+       same reasons (Abonent/Tech.Closed), neither recoverable on
+       Extract. -->
+  <symbol shape="386" class="EnclosedSubstation" name="Enclosed substation" category="Other equipment">
+    <terminals>
+      <terminal x="0" y="-20"/>
+    </terminals>
+    <template></template>
+  </symbol>
+
   <symbol shape="106" class="Lamp" name="Lamp" category="Indicators">
     <template><![CDATA[
 <circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:slategray;stroke-width:2" />
@@ -559,11 +818,19 @@
   </symbol>
 
   <!-- Terminals sit at the default radius (10, diagramOps' own
-       FPI_DEFAULTS, matching the default 10-unit grid) — a real instance's
+       fpiDefaults, matching the default 10-unit grid) — a real instance's
        own Radius can differ, in which case these no longer land exactly on
        the drawn ring, the same static-terminals-vs-variable-geometry
        tradeoff already accepted elsewhere (nothing here adjusts a terminal
-       for a resized symbol). -->
+       for a resized symbol). The centered "FPI" label was always a fixed
+       literal here — this shape's own real source (element_320.go's own
+       custom-element case for this shape) draws no text at all, so there
+       was never anything to match it against — now backed by {fpiText}
+       (Element.PropertyText, reused the same free-text way 385/386 already
+       do, defaulting to the admin-configured Indicators.DefaultFPIText —
+       "FPI" out of the box — when unset so an already-placed/-saved
+       instance's own look doesn't change; see PropertyText's own doc
+       comment in model.go and Render's own defaultFPIText param). -->
   <symbol shape="320003" class="FaultPassageIndicator" name="Fault passage indicator" category="Indicators">
     <terminals>
       <terminal x="0" y="-10"/>
@@ -572,7 +839,7 @@
     <template><![CDATA[
 <circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:{fpiColor};stroke-width:0.80" />
 <g transform="rotate({counterRotate})">
-<text x="0" y="0" style="fill:{fpiColor};text-anchor:middle;dominant-baseline:middle;font-size:8px;font-family:Arial" >FPI</text>
+<text x="0" y="0" style="fill:{fpiColor};text-anchor:middle;dominant-baseline:middle;font-size:8px;font-family:Arial" >{fpiText}</text>
 </g>
 ]]></template>
   </symbol>

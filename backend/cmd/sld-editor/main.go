@@ -1,19 +1,29 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+	"time"
 
-	"github.com/PVKonovalov/slddoc"
 	"sld-editor/internal/api"
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
 	"sld-editor/internal/storage"
 	"sld-editor/pkg/configuration"
 	"sld-editor/pkg/llog"
+
+	"github.com/PVKonovalov/slddoc"
+	"github.com/pkg/browser"
 )
 
 func main() {
 	configFile := flag.String("config", "config/sld-editor.yaml", "path to the YAML configuration file")
+	openBrowser := flag.Bool("open-browser", false, "open the browser automatically")
 	flag.Parse()
 
 	var cfg config.Config
@@ -43,14 +53,34 @@ func main() {
 		fpiColors[i] = slddoc.StateColor{State: sc.State, Label: sc.Label, Color: sc.Color}
 	}
 
-	store, err := storage.New(cfg.Diagrams.Dir, lib.SymbolLibrary(), fpiColors, stateColors...)
+	store, err := storage.New(cfg.Diagrams.Dir, lib.SymbolLibrary(), cfg.Indicators.DefaultFPIText, fpiColors, stateColors...)
 	if err != nil {
 		llog.Logger.Fatalf("opening diagrams directory (%s): %v", cfg.Diagrams.Dir, err)
 	}
 
+	// SIGTERM is what systemd/Docker/`kill` send by default; SIGINT is
+	// Ctrl-C in an interactive terminal. Either cancels ctx, which Run
+	// treats as "shut down gracefully" rather than aborting in-flight
+	// requests.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	srv := api.NewServer(store, lib, &cfg)
 	llog.Logger.Infof("sld-editor listening on %s", cfg.Server.Bind)
-	if err := srv.Run(cfg.Server.Bind); err != nil {
+
+	if *openBrowser {
+		if _, port, ok := strings.Cut(cfg.Server.Bind, ":"); ok {
+			go func() {
+				time.Sleep(1 * time.Second)
+				if err := browser.OpenURL(fmt.Sprintf("http://localhost:%s", port)); err != nil {
+					llog.Logger.Errorf("opening browser: %v", err)
+				}
+			}()
+		}
+	}
+
+	if err := srv.Run(ctx, cfg.Server.Bind); err != nil {
 		llog.Logger.Fatalf("server error: %v", err)
 	}
+	llog.Logger.Infof("sld-editor shut down")
 }

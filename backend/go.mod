@@ -4,7 +4,9 @@ go 1.26.5
 
 require (
 	github.com/PVKonovalov/slddoc v0.0.0
+	github.com/gin-contrib/gzip v1.0.1
 	github.com/gin-gonic/gin v1.10.1
+	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	gopkg.in/yaml.v3 v3.0.1
 )
 

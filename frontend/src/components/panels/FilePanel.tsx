@@ -1,16 +1,29 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import { PanelShell } from './PanelShell'
 import { NewDiagramDialog } from '../NewDiagramDialog'
 import { t } from '../../i18n'
+import * as api from '../../lib/api'
+import { downloadText, readFileAsText, stripXmlExtension } from '../../lib/fileTransfer'
 
 export function FilePanel({ onClose }: { onClose: () => void }) {
-  const { diagrams, diagramName, dirty, openDiagram, saveDiagram, saveDiagramAs, error, clearError } =
-    useDiagramContext()
+  const {
+    diagrams,
+    diagramName,
+    diagram,
+    dirty,
+    openDiagram,
+    loadDiagramFromXML,
+    saveDiagram,
+    saveDiagramAs,
+    error,
+    clearError,
+  } = useDiagramContext()
   const [newDialogOpen, setNewDialogOpen] = useState(false)
   const [saveAsName, setSaveAsName] = useState('')
   const [busy, setBusy] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function run(action: () => Promise<void>) {
     setBusy(true)
@@ -97,6 +110,66 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
               {t('file.saveAs')}
             </button>
           </div>
+        </section>
+
+        <section>
+          <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{t('file.export')}</h3>
+          <div className="flex gap-1 mb-3">
+            <button
+              type="button"
+              disabled={busy || !diagram}
+              onClick={() =>
+                run(async () => {
+                  if (!diagram) return
+                  const xml = await api.exportDiagramXML(diagram)
+                  downloadText(`${diagramName ?? 'diagram'}.xml`, xml, 'application/xml')
+                })
+              }
+              className="flex-1 px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
+            >
+              {t('file.downloadXml')}
+            </button>
+            <button
+              type="button"
+              disabled={busy || !diagram}
+              onClick={() =>
+                run(async () => {
+                  if (!diagram) return
+                  const svg = await api.exportDiagramSVG(diagram)
+                  downloadText(`${diagramName ?? 'diagram'}.svg`, svg, 'image/svg+xml')
+                })
+              }
+              className="flex-1 px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
+            >
+              {t('file.downloadSvg')}
+            </button>
+          </div>
+
+          <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{t('file.import')}</h3>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xml,application/xml,text/xml"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0]
+              e.target.value = ''
+              if (!file) return
+              run(async () => {
+                const text = await readFileAsText(file)
+                await loadDiagramFromXML(text, stripXmlExtension(file.name))
+              })
+            }}
+          />
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => fileInputRef.current?.click()}
+            className="w-full px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
+          >
+            {t('file.loadFromFile')}
+          </button>
+          <p className="text-[11px] text-gray-500 mt-1">{t('file.dropHint')}</p>
         </section>
 
         {(localError || error) && <p className="text-xs text-red-400">{localError ?? error}</p>}

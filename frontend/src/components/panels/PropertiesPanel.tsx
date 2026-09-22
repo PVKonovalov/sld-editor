@@ -3,6 +3,7 @@ import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { PanelShell } from './PanelShell'
 import { t, type TranslationKey } from '../../i18n'
+import { elementDisplayName } from '../../lib/elementCatalogI18n'
 import type { DiagramElement, ConnectorLineStyle, TransformerWinding, WindingScheme, TerminalDirection } from '../../types'
 
 const ORIENTATIONS = [0, 90, 180, -90]
@@ -54,7 +55,22 @@ const BLANK_WINDING: TransformerWinding = { scheme: 'wye' }
 // every other class here — has no {fill}/data-fill color legend of its
 // own (the real source never gave it one); it's included anyway since the
 // dropdown itself is just "which of the three template variants to draw".
-const SWITCHING_DEVICE_CLASSES = new Set(['Breaker', 'Disconnector', 'LoadBreakSwitch', 'GroundSwitch', 'Starter'])
+const SWITCHING_DEVICE_CLASSES = new Set([
+  'Breaker',
+  'Disconnector',
+  'Sectionalizer',
+  'LoadBreakSwitch',
+  'GroundSwitch',
+  'ShortCircuiter',
+  'Starter',
+])
+
+// Sectionalizer (164) and Short-circuiter (398) only have two real
+// positions — the real xsde2svg source never modeled an Intermediate one
+// for either device (see base.xml's own comments on shapes 164/398) — so
+// their own State dropdown offers only Open/Close, unlike every other
+// class in SWITCHING_DEVICE_CLASSES above.
+const TWO_STATE_CLASSES = new Set(['Sectionalizer', 'ShortCircuiter'])
 
 // Shapes whose base.xml template also reacts to {positionAttr}/
 // {positionOffset} (a withdrawable device's own Service/Normal/Test
@@ -75,6 +91,24 @@ const WITHDRAWABLE_SHAPES = new Set(['43', '49', '154', '51'])
 // section instead of the ordinary Voltage class + State fields.
 const LAMP_STATE_OFF = 0
 const LAMP_STATE_ON = 1
+
+// PackageSubstation's own State (backend/internal/slddoc's own
+// Element.State, reused rather than a dedicated field) isn't an
+// Open/Close/Intermediate switching-device concept — it's the real
+// xsde2svg source's own Tech.Closed, a plain solid-vs-dashed outline
+// toggle, so it gets its own small Solid/Dashed dropdown here instead of
+// SWITCHING_DEVICE_CLASSES' shared config.stateColors-driven one. 1
+// (Solid) matches applyStateLine's own nil-defaults-to-first-option
+// convention, so an unset State already reads as Solid without a
+// separate default having to be seeded on placement.
+const SUBSTATION_STATE_SOLID = 1
+const SUBSTATION_STATE_DASHED = 0
+
+// PackageSubstation's own NType (backend/internal/slddoc's own
+// Element.NType) selects between its two real appearance variants — see
+// that field's own doc comment.
+const SUBSTATION_NTYPE_BOX = 0
+const SUBSTATION_NTYPE_TRIANGLE = 1
 
 // A handful of common web-safe SVG font-family values for a Label's own
 // Font dropdown — an empty Label.font (this list's first entry) falls
@@ -591,17 +625,27 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // Class. Falls back to the bare Class for an element loaded from a
   // library that no longer has that Shape (e.g. shapeDisconnectorLegacy's
   // own kind of gap), so this never just renders blank.
-  const typeName = elements.find(s => s.shape === el.shape)?.name ?? el.class
+  const typeSymbol = elements.find(s => s.shape === el.shape)
+  const typeName = typeSymbol ? elementDisplayName(typeSymbol) : el.class
   // "Name:shape" — the same "Breaker:41" convention render.go's own
   // typeComment annotates the rendered SVG with (see shapeName), shown
   // here for every element, not just the ones whose name happens to
   // already read as distinctive (e.g. "Breaker (withdrawable)").
   const typeLabel = `${typeName}:${el.shape}`
   const isLamp = el.class === 'Lamp'
+  const isRectangle = el.class === 'Rectangle'
+  const isCircle = el.class === 'Circle'
+  const isArrow = el.class === 'Arrow'
+  const isPackageSubstation = el.class === 'PackageSubstation'
+  const isEnclosedSubstation = el.class === 'EnclosedSubstation'
+  const isJunctionPoint = el.class === 'JunctionPoint'
   // Neither a Lamp nor a FaultPassageIndicator reads a Voltage class color
   // (see diagramOps.placeElement's own matching exclusion) — both get a
-  // fixed color of their own instead.
-  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator'
+  // fixed color of their own instead. A Rectangle/Circle/Arrow isn't part
+  // of the electrical network at all (see slddoc's own
+  // ClassRectangle/ClassCircle/ClassArrow doc comments) — its own Stroke
+  // (plus, for a Rectangle/Circle, Fill) is its equivalent, shown below.
+  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator' || isRectangle || isCircle || isArrow
 
   function patch(fields: Partial<DiagramElement>) {
     updateDiagram(d => ({
@@ -668,7 +712,20 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               </select>
             </label>
             <label className="block text-xs">
-              <span className="block text-gray-400 mb-1">{t('properties.lampFillOff')}</span>
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.lampFillOff')}</span>
+                {/* Same gap as Rectangle/Circle's own Fill picker: type="color"
+                    only ever produces a real #rrggbb value, so once a color's
+                    been picked there's no way back to LAMP_DEFAULTS' own
+                    "none" through the picker itself. */}
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fillOff: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
               <input
                 type="color"
                 className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
@@ -677,7 +734,16 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               />
             </label>
             <label className="block text-xs">
-              <span className="block text-gray-400 mb-1">{t('properties.lampFillOn')}</span>
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.lampFillOn')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fillOn: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
               <input
                 type="color"
                 className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
@@ -694,6 +760,270 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 value={el.radius ?? ''}
                 onChange={e => patch({ radius: Number(e.target.value) })}
               />
+            </label>
+          </>
+        )}
+
+        {isRectangle && (
+          <>
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.rectangleFill')}</span>
+                {/* type="color" only ever produces a real #rrggbb value, so once
+                    a color's been picked there's no way back to the "none"
+                    (transparent) default through the picker itself — this
+                    button is the only way to clear it again. */}
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+          </>
+        )}
+
+        {isCircle && (
+          <>
+            {/* Reuses Rectangle's own property labels/i18n keys rather than
+                duplicating "circleFill" etc. — a Circle's Fill/Stroke/
+                StrokeWidth model is identical to Rectangle's, unlike
+                Arrow's (no fill, "line" not "border"). */}
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.rectangleFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+          </>
+        )}
+
+        {isPackageSubstation && (
+          <>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.substationNType')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.nType ?? SUBSTATION_NTYPE_BOX}
+                onChange={e => patch({ nType: Number(e.target.value) })}
+              >
+                <option value={SUBSTATION_NTYPE_BOX}>{t('properties.substationNTypeBox')}</option>
+                <option value={SUBSTATION_NTYPE_TRIANGLE}>{t('properties.substationNTypeTriangle')}</option>
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.substationState')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.state ?? SUBSTATION_STATE_SOLID}
+                onChange={e => patch({ state: Number(e.target.value) })}
+              >
+                <option value={SUBSTATION_STATE_SOLID}>{t('properties.substationSolid')}</option>
+                <option value={SUBSTATION_STATE_DASHED}>{t('properties.substationDashed')}</option>
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.substationFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.substationPropertyText')}</span>
+              <input
+                type="text"
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.propertyText ?? ''}
+                onChange={e => patch({ propertyText: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+
+        {isEnclosedSubstation && (
+          <>
+            {/* Reuses PackageSubstation's own State/Fill labels/i18n keys
+                (no Appearance dropdown — this shape has no NType, only
+                ever the one fixed square-plus-triangle look). */}
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.substationState')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.state ?? SUBSTATION_STATE_SOLID}
+                onChange={e => patch({ state: Number(e.target.value) })}
+              >
+                <option value={SUBSTATION_STATE_SOLID}>{t('properties.substationSolid')}</option>
+                <option value={SUBSTATION_STATE_DASHED}>{t('properties.substationDashed')}</option>
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.substationFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.substationPropertyText')}</span>
+              <input
+                type="text"
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.propertyText ?? ''}
+                onChange={e => patch({ propertyText: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+
+        {isJunctionPoint && (
+          <>
+            {/* Both unset by default (fill "none", radius 3) — this
+                editor's own long-standing look, kept as the fallback so an
+                already-placed/-saved junction point's look doesn't change;
+                real xsde2svg usually draws a filled dot at a varying
+                radius instead, which Extract captures explicitly (see
+                Element.Radius/Fill's own doc comments, slddoc/model.go). */}
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.junctionFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.junctionRadius')}</span>
+              <input
+                type="number"
+                min={1}
+                placeholder="3"
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.radius ?? ''}
+                onChange={e => patch({ radius: Number(e.target.value) })}
+              />
+            </label>
+          </>
+        )}
+
+        {isArrow && (
+          <>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.arrowStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.arrowStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+            <label className="flex items-center gap-1.5 text-xs">
+              <input
+                type="checkbox"
+                checked={el.doubleHeaded ?? false}
+                onChange={e => patch({ doubleHeaded: e.target.checked || undefined })}
+              />
+              {t('properties.arrowDoubleHeaded')}
             </label>
           </>
         )}
@@ -787,11 +1117,13 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               onChange={e => patch({ state: e.target.value === '' ? undefined : Number(e.target.value) })}
             >
               <option value="">{t('common.none')}</option>
-              {(config?.stateColors ?? []).map(sc => (
-                <option key={sc.state} value={sc.state}>
-                  {sc.label}
-                </option>
-              ))}
+              {(config?.stateColors ?? [])
+                .filter(sc => !TWO_STATE_CLASSES.has(el.class) || sc.state === 0 || sc.state === 1)
+                .map(sc => (
+                  <option key={sc.state} value={sc.state}>
+                    {sc.label}
+                  </option>
+                ))}
             </select>
           </label>
         )}
@@ -832,7 +1164,20 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {el.class === 'BusBarSection' && el.points ? (
+        {el.class === 'FaultPassageIndicator' && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.substationPropertyText')}</span>
+            <input
+              type="text"
+              placeholder={config?.defaultFpiText || 'FPI'}
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.propertyText ?? ''}
+              onChange={e => patch({ propertyText: e.target.value })}
+            />
+          </label>
+        )}
+
+        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow) && el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>
             <div className="space-y-2">
@@ -878,20 +1223,30 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           // so it still needs the field even though nothing visually
           // changes.
           !isLamp && (
-            <label className="block text-xs">
-              <span className="block text-gray-400 mb-1">{t('properties.orientation')}</span>
-              <select
-                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
-                value={el.orient ?? 0}
-                onChange={e => patch({ orient: Number(e.target.value) })}
-              >
-                {ORIENTATIONS.map(o => (
-                  <option key={o} value={o}>
-                    {o}°
-                  </option>
-                ))}
-              </select>
-            </label>
+            <>
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.orientation')}</span>
+                <select
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.orient ?? 0}
+                  onChange={e => patch({ orient: Number(e.target.value) })}
+                >
+                  {ORIENTATIONS.map(o => (
+                    <option key={o} value={o}>
+                      {o}°
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={el.mirror ?? false}
+                  onChange={e => patch({ mirror: e.target.checked || undefined })}
+                />
+                <span className="text-gray-400">{t('properties.mirror')}</span>
+              </label>
+            </>
           )
         )}
 

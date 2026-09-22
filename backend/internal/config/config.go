@@ -68,6 +68,18 @@ type Config struct {
 	// Unlike State, position carries no color of its own — it only drives a
 	// geometric offset — so there's no Color field here, just a label.
 	PositionStates []PositionState `yaml:"position_states"`
+
+	Indicators struct {
+		// DefaultFPIText is the label a FaultPassageIndicator (320003)
+		// draws centered on itself when its own Element.PropertyText is
+		// unset (internal/slddoc.Render's defaultFPIText) — this shape's
+		// own real source draws no text at all, so there's nothing to
+		// derive a default from; it's admin-configurable per install
+		// rather than hardcoded, the same reasoning VoltageColors/
+		// StateColors already get their own config section for. Empty
+		// falls back to the literal "FPI" this project has always shown.
+		DefaultFPIText string `yaml:"default_fpi_text" env:"true"`
+	} `yaml:"indicators"`
 }
 
 // VoltageColor is one default palette entry.

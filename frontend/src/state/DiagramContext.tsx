@@ -231,6 +231,24 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [clearSelection],
   )
 
+  // suggestedName is the dropped/picked file's own name (with its .xml
+  // extension stripped by the caller) — used as-is as the diagram name, so
+  // a subsequent Save just writes/overwrites the server's own copy under
+  // that name (same upsert semantics saveDiagramAs already has) rather
+  // than requiring a separate Save As first.
+  const loadDiagramFromXML = useCallback(
+    async (xmlText: string, suggestedName: string) => {
+      const raw = await api.importDiagramXML(xmlText)
+      const d = diagramOps.ensureLastId(raw)
+      setDiagramName(suggestedName)
+      setDiagram(d)
+      setDirty(true)
+      setDefaultVoltage(d.editor?.defaultVoltage)
+      clearSelection()
+    },
+    [clearSelection],
+  )
+
   const saveDiagram = useCallback(async () => {
     if (!diagramName || !diagram) return
     const { diagram: d, warning } = await api.saveDiagram(diagramName, diagram)
@@ -328,6 +346,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       refreshDiagrams,
       newDiagram,
       openDiagram,
+      loadDiagramFromXML,
       saveDiagram,
       saveDiagramAs,
       updateDiagram,
@@ -366,6 +385,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       refreshDiagrams,
       newDiagram,
       openDiagram,
+      loadDiagramFromXML,
       saveDiagram,
       saveDiagramAs,
       updateDiagram,

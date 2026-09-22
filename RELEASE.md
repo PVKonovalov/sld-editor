@@ -2440,3 +2440,911 @@ directly against the render API (`POST /api/render`) with a 90°-rotated
 2-winding transformer: the circles/legs rotate with the transformer as
 expected, while each winding's own Y/Δ glyph renders inside its own
 counter-rotating `<g>`, keeping the glyph itself upright.
+
+2026-09-18: Production build — a single self-contained binary per (OS/
+arch, locale) combination, with the frontend's own already-built
+production bundle embedded directly into the Go binary via `go:embed`,
+so a deployment needs no separate static file host, reverse proxy, or
+Node runtime at all — just the one binary and a config file. Day-to-day
+development is untouched: `npm run dev`/`dev:ru` from `frontend/` and
+`go run ./cmd/sld-editor` from `backend/` work exactly as before.
+
+New `backend/internal/webui` package: `//go:embed all:dist` embeds
+whatever's currently in its own `dist/` directory. Since `go:embed`
+can't pick a directory at build time based on which locale is wanted,
+the build script instead copies the desired locale's already-built
+frontend (`frontend/dist-en`/`dist-ru`) into this fixed `dist/` path
+immediately before invoking `go build` — this package always embeds
+"whatever's currently there." A committed placeholder `dist/index.html`
+keeps `go build`/`go vet`/`go test` (and a plain `go run`) working
+outside that build script, where `dist/` was never populated with a real
+frontend at all — confirmed live: a plain `go run` still starts and
+serves the placeholder, `/api/*` routes unaffected.
+
+`internal/api/server.go` wires the embedded filesystem in via
+`router.NoRoute`, not a Gin route pattern, since Gin's own routing tree
+doesn't cleanly let a wildcard static mount coexist with the sibling
+`/api` route group registered above; NoRoute still returns a JSON 404 for
+an unmatched `/api/*` path specifically, rather than silently falling
+through to the frontend's own `index.html` for a broken API call. No SPA
+fallback routing was needed — the frontend has no client-side router of
+its own (confirmed by checking for one), so a plain `http.FileServer`
+already serves `index.html` correctly for `/` and the JS/CSS asset paths
+correctly for everything else.
+
+New root `Makefile`: `make linux`/`make windows`/`make macos` (or
+`make all` for all three), each producing both an `-en` and `-ru`
+binary; `make macos` builds both `arm64` and `amd64`. sld-editor has no
+cgo dependencies, so every target cross-compiles natively via
+`GOOS`/`GOARCH` — no Docker required for that part, though `docker-build`
+(Linux/Windows targets only — a Linux container's own Go toolchain can't
+codesign a macOS binary) runs the same Makefile inside a pinned
+Go+Node container via `Dockerfile.build`, for anyone who'd rather not
+install either locally. Every native target's own recipe also mounts
+the sibling `../../slddoc` checkout `backend/go.mod`'s own `replace`
+directive already requires for ordinary development — `docker-build`
+bind-mounts this repo's own *parent* directory specifically so that
+relative path still resolves correctly inside the container.
+
+A real bug was caught and fixed while building this Makefile itself:
+GNU Make only runs a given `.PHONY` target's own recipe once per
+top-level `make` invocation, even when several sibling targets list it
+as a prerequisite — so `make all`'s own `windows-en` target silently
+ended up embedding whichever locale's frontend build had run *last*
+(Russian, from `linux-ru`) instead of its own English one, since its own
+`frontend-en` prerequisite was considered "already satisfied" from
+`linux-en`'s earlier run in the same invocation. Caught by grepping the
+compiled binaries for a locale-exclusive UI string and finding English
+and Russian text in the *same* binary — first with a flawed check
+(`strings`, which doesn't reliably extract multi-byte UTF-8 like
+Cyrillic, and an English marker that turned out to also appear in the
+Russian bundle), then confirmed properly with a byte-safe `grep -a`
+against a marker independently verified absent from the *other* locale's
+own real build output first. Fixed by having every locale/OS/arch
+target's own recipe invoke `$(MAKE) frontend-en`/`frontend-ru` as its own
+first step — a recursive `$(MAKE)` call is its own fresh invocation with
+its own once-per-target bookkeeping, so it reliably reruns every time,
+rather than listing the frontend target as an ordinary shared
+prerequisite. Verified by rebuilding all 8 binaries (2 locales × 4
+platforms) from scratch and confirming each one's own locale-exclusive
+marker is present and the *other* locale's own marker is absent, and by
+actually running the native `macos-arm64-en` binary end to end (isolated
+port, the user's own dev servers untouched) — API calls, and the real
+UI loading in a browser — from that one binary alone.
+
+2026-09-18: Save/load a diagram directly to/from the user's own machine,
+independent of the server's own diagrams directory. Backend: three new
+endpoints alongside the existing `/api/render` (all operate on the posted
+diagram JSON directly, not a name in server storage, so they work on the
+current in-memory — possibly unsaved — diagram): `POST /api/export/xml`
+(raw XML via `slddoc.Diagram.Save`), `POST /api/export/svg` (raw
+Static-mode SVG, the same xsde2svg-faithful rendering the on-disk `.svg`
+gets, not the canvas's own Interactive markup), and `POST /api/import/xml`
+(raw XML body -> parsed diagram JSON via `slddoc.Load`, 400 on malformed
+XML). Frontend: `FilePanel`'s new "Export" section (Download XML/Download
+SVG — a client-side blob download, no navigation away from the app) and
+"Import" section (a "Load from file…" picker restricted to `.xml`), plus a
+window-wide drag-and-drop zone (`App.tsx`'s `Shell`, with a visual overlay
+while dragging) so a `.xml` file can be dropped anywhere in the app, not
+just onto a specific control. Both routes into the app funnel through one
+new `DiagramContext` action, `loadDiagramFromXML` — parses via the new
+import endpoint, runs the result through the same `ensureLastId` backfill
+`openDiagram` already applies, and makes it the working diagram (named
+after the source file, marked dirty so Save persists it server-side under
+that name — the same upsert semantics Save As already has, not a separate
+"import" concept the rest of the app needs to know about). New i18n keys
+in both `en.ts`/`ru.ts`. Verified: a Go test round-trips export XML ->
+import XML end to end and checks both export content types; live browser
+verification against an isolated instance (the user's own dev servers
+untouched) confirmed the File panel's buttons render/enable correctly,
+Download XML/SVG each fire their own request and return 200 with no
+console errors, and picking a file through the hidden file input
+(drag-and-drop's own event simulation isn't reachable through the
+available browser automation tools, but it shares the same
+`loadDiagramFromXML` code path the file-picker button already exercised)
+correctly loads it as a new, dirty, correctly-named working diagram with
+its element rendered on canvas.
+
+2026-09-18: Graceful shutdown for the backend, since it's a long-running
+service (systemd unit, Docker container, etc.), not a one-shot script —
+being killed mid-request previously just dropped the connection.
+`api.Server.Run` now takes a `context.Context` and builds its own
+`*http.Server` (instead of Gin's own `router.Run`, which blocks on
+`http.ListenAndServe` directly with no way to call `Shutdown`): on context
+cancellation it calls `Shutdown`, letting any in-flight request finish (up
+to a 10s `shutdownTimeout`) before returning, rather than aborting it.
+`main.go` derives that context with `signal.NotifyContext(...,
+os.Interrupt, syscall.SIGTERM)`, so both Ctrl-C and a `kill`/systemd
+stop (SIGTERM) now shut the process down cleanly instead of the OS just
+tearing down open connections. `Run` had exactly one caller (`main.go`),
+so this was a contained signature change. New test:
+`TestRun_GracefulShutdown` starts the real server on a free port, confirms
+a request succeeds, cancels the context, and asserts `Run` returns
+(without error) within the shutdown timeout and the port stops accepting
+new connections afterward. Also manually verified against a real built
+binary: sent it a real `SIGTERM` and confirmed the "sld-editor shut down"
+log line and a clean process exit, on an isolated port, the user's own dev
+server untouched.
+
+2026-09-18: Elements palette category headings and per-element names are
+now translated in the Russian build — previously they were the bundled
+`backend/assets/elements/base.xml` catalog's own raw English `name`/
+`category` XML attributes, shown as-is regardless of locale, since they
+come from the backend's `/api/elements` response rather than through the
+frontend's own build-time i18n dictionary at all. New dictionary keys,
+`elementCatalog.name.<shape>` (per-symbol; two shapes can share a `class`
+but never a `shape`, so this is a safe stable key — e.g. `Breaker` (41) vs
+`Breaker (withdrawable)` (43) both being `class="Breaker"`) and
+`elementCatalog.category.<category>` (there are 10, e.g. `Switching
+devices` -> `Коммутационные аппараты`), added for all 29 bundled shapes in
+both `en.ts`/`ru.ts` — `ru.ts`'s own `Record<keyof Dictionary, string>`
+typing means a 30th bundled shape added later without its own Russian
+translation is a compile error, same guarantee every other UI string
+already has. A new `lib/elementCatalogI18n.ts`
+(`elementDisplayName`/`categoryDisplayName`) and `i18n/index.ts`'s new
+`tOrFallback` helper look these up by a runtime-built key (not a literal
+`TranslationKey`, since the shape comes from server data) and fall back to
+the server's own raw string unchanged when no key matches — which is what
+happens for anything from a site's own config-added element library file
+(`elements.libraries` in config): this app's own translations were only
+ever going to cover the bundled default catalog, and a site adding its own
+equipment shapes gets its own raw label rather than a build error. Wired
+into `ElementsPanel.tsx` (category headings, each palette button's own
+label/tooltip, and the "click the canvas to place a {{name}}" armed hint)
+and `PropertiesPanel.tsx` (the "TypeName:shape" label shown above a
+selected element's own editable Name field) — deliberately *not* into
+`diagramOps.placeElement`'s own default-name generator
+(`` `${symbol.name}-${id}` ``, which stays the raw English catalog name),
+since that becomes the persisted `Element.Name` written to the diagram's
+own XML, and a diagram saved under one locale's build should read
+identically when later opened under the other's, not have its actual data
+follow whichever locale happened to place it. Verified: both `build:en`
+and `build:ru` type-check clean (confirming `ru.ts`'s exhaustiveness
+check), and a live browser pass against an isolated Russian-locale
+instance (the user's own dev servers untouched) confirmed every one of
+the 10 category headings and all ~29 element labels render in Russian
+with no leftover English, the armed-hint interpolates the Russian name
+correctly, the Properties type label shows the Russian name while the
+underlying persisted `Name` field correctly stays the raw English
+`"Breaker-1"`-style default, and no console errors.
+
+2026-09-21: Sectionalizer (shape 164) added to the Switching
+devices palette — a two-terminal device drawn as a fixed pivot rod plus a
+small pointer arm+arrowhead that swings between Open and Close, geometry
+initially reverse-derived from the real xsde2svg source
+(`internal/modus/element_164.go`) and cross-checked against a real
+corpus-rendered instance, but Open's own final look was changed at the
+user's own explicit request/reference icons: the real source's own rod
+replaced by a short stub near the top terminal (rather than the same
+full-length rod merely tilted) reads wrong for this device, so Open
+instead tilts the same full-length rod to a diagonal, pivoting at the
+bottom terminal — this template's own original Intermediate option, before
+the device was found to have no real Intermediate state at all (below).
+The bottom terminal's own fixed tick — present for Closed — is replaced by
+a small circle marking that pivot point for Open, since the blade
+physically rotates around it; this part *is* kept from the real source
+(top tick unaffected either way). The real
+source's Closed/Open toggle is a pair of visibility-swapped `<g>` groups, a
+mechanism this project doesn't use elsewhere — folded instead into the
+existing single-path `{state:closed|open|other}` convention every other
+switching device here already uses; unlike every other switching device
+here, this one has no real Intermediate position at all, so its own
+"other" option is deliberately just a copy of "open" (an Intermediate
+State value reads as Open, not as some invented third position) and
+Properties' own State dropdown (`PropertiesPanel.tsx`'s new
+`TWO_STATE_CLASSES`) offers only Open/Close for this class, not the
+Open/Close/Intermediate every other switching device gets. The real
+source's xMirror flag
+and its `sde.Distance`-driven leg extension (external busbar-spacing
+dependent) were both dropped — this schema has no equivalent for either,
+the same simplification every other ported shape already makes; terminals
+sit at (0,±10), matching where that leg would have attached anyway.
+`Extract` support was added too (`parseSectionalizer`, shared `slddoc`
+module): State is read from whichever of the real source's two
+visibility-swapped `<g data-state="0|1">` child groups is actually
+visible. The two terminal points are derived as fixed (0,∓10) local
+offsets from the element's own anchor rather than from raw path-point
+extremes, since this shape's two states draw too differently from each
+other (a full-length rod vs. a short swung-open stub plus an
+open-contact circle) for a reliable "extreme points" source the way most
+other two-port shapes get one — when a rotate() transform is present
+(Orient != 0) its own center is that anchor, same as every other two-port
+shape; when it's absent (Orient 0 — confirmed to be the common real-world
+case, both of `PS_110kV_Lubnisa.svg`'s own Sectionalizer instances are
+unrotated) a first attempt punted on this the same way Ground switch
+(54)'s own `Extract` support does, but that turned out to drop both real
+instances entirely (`Report.Failed`) — so `sectionalizerAnchorFromTick`
+was added instead, deriving the anchor from the shape's own "top tick", a
+fixed 10-unit segment identical in both states and always the topmost
+point in whichever one's active. Regenerated `sld-svg/xml/
+PS_110kV_Lubnisa.xml` and its `sld-editor/diagrams/` copy (both untracked/
+gitignored, `svg-sld extract` re-run against the same source SVG) —
+confirmed both Sectionalizer instances now extract as fully-connected
+elements instead of being silently dropped. New `ClassSectionalizer`
+constant (shared `slddoc` module, a separate sibling repo) plus a
+`shapeName["164"]` entry for the rendered SVG's own comment; frontend
+`ElementClass`/`SWITCHING_DEVICE_CLASSES`/`DEFAULT_CLOSED_CLASSES` updated
+so it gets a State dropdown in Properties and defaults to Closed on
+placement, like Breaker/Disconnector; i18n label added for both locales.
+Verified live in the browser (placed from the palette, defaulted to Close,
+Open/Close render distinctly correct, Intermediate now correctly renders
+identical to Open) and via a direct `Extract` test against the real
+corpus-example markup (both a Closed and an Open instance correctly
+recover State and identical (1560,505)/(1560,525) terminal Nodes).
+
+2026-09-21: A new `Mirror` property (shared `slddoc` module, a separate
+sibling repo) — every ordinary templated element (everything `internal/
+elements`' library covers, including the freshly-added Sectionalizer) can
+now be flipped horizontally in its own local frame, independent of its own
+Orient rotation, matching real xsde2svg's own xMirror concept (see
+render.go's own `mirrorScale`: an extra ` scale(-1,1)` in the outer `<g
+transform="translate(x,y) rotate(orient)...">`, applied before Orient's
+own rotation via ordinary SVG transform composition order, the same way
+real xsde2svg's own xMirror flips local x before its own Orient-driven
+rotate()). `PowerTransformer` (shape 47), which renders through its own
+separate path (`writePowerTransformer`) rather than template substitution,
+gets the same `scale(-1,1)` on its own outer `<g>` too — mirroring the
+whole transformer including its per-winding connection-scheme glyphs
+(Y/Δ/Yn), a deliberate choice (simpler than preserving glyph orientation
+under mirroring the way they already stay upright under rotation) rather
+than an oversight. `BusBarSection` (shape 24) has no template of its own
+(its geometry is its own drawn Points, already absolute) — Mirror is a
+no-op there, same as Orient already is. Unlike Orient, `Extract` never
+sets Mirror: a real xsde2svg-exported SVG bakes xMirror straight into
+absolute path coordinates with no attribute of its own preserved in the
+output (confirmed while investigating why `PS_110kV_Lubnisa.svg`'s own two
+Sectionalizer instances render mirrored — xMirror there traces back to
+either the equipment type's own catalog default or a per-instance
+override in the original `.xsde` source, neither reconstructable from the
+exported SVG alone) — so every already-extracted element simply defaults
+to false/unmirrored, same as before this existed. Frontend:
+`DiagramElement.mirror`, and `diagramOps.placeLocalPoint` (the shared
+local-point-to-diagram-space math terminal markers/connection targets/
+`elementBoxes` all go through) now flips local X before rotating when
+`el.mirror` is set, matching the backend's own transform order exactly —
+without this, a mirrored element's own terminal markers/hit-targets would
+stay at their unmirrored positions while the rendered geometry itself
+moved. A "Mirror" checkbox was added to Properties right below
+Orientation, shown under the exact same condition (skipped for
+BusBarSection, which shows its own Points editor instead, and for Lamp,
+whose plain-circle template looks identical either way — same reasoning
+Orientation itself already uses); i18n label added for both locales.
+Verified live in the browser: a mirrored Sectionalizer's arm/arrowhead
+correctly flip to the opposite side while its terminal markers stay
+exactly on the (unmoved) rod; a 2-winding PowerTransformer with
+Δ (winding 1) / Y (winding 2) correctly swaps which side each winding (and
+its own glyph) renders on when mirrored, terminals included.
+
+2026-09-21: `scripts/deploy.sh` — builds (`make linux-ru`) and deploys the
+Russian-locale Linux build to the ctrlroom server (`root@192.168.20.23`,
+key `~/.ssh/id_rsa_ctrlroom`): stops the `sld-editor` systemd service over
+ssh, scp's `build/sld-editor-linux-ru` and `backend/assets/elements/
+base.xml` into `/usr/lib/sld-editor/`, restores the executable bit scp
+doesn't preserve, then restarts the service. `set -euo pipefail` so a
+failed build or copy stops the script before touching the remote
+service — a failed build in particular never gets as far as stopping it.
+Host/key (`DEPLOY_HOST`/`DEPLOY_SSH_KEY`) name this specific deployment
+target, so they're no longer hardcoded in the script at all — they live in
+`scripts/.env` instead (gitignored, sourced automatically; `scripts/
+.env.example` is the tracked template) and the script fails with a clear
+message if neither `.env` nor the environment sets them.
+`DEPLOY_REMOTE_DIR` stays an optional override with its own built-in
+default (`/usr/lib/sld-editor`), same as before.
+
+2026-09-21: Upgraded `vite` (`^5.4.21` -> `^8.3.0`) and `@vitejs/plugin-
+react` (`^4.3.3` -> `^6.1.1`, the version that supports vite 8) in
+`frontend/package.json`, fixing the two `npm audit` findings (both the
+same underlying esbuild advisory, GHSA-67mh-4wv8-2f99 — dev-server-only,
+not present in the production build's own output — that `vite@5.4.21`,
+itself already the newest 5.x release, had no non-breaking fix for).
+`npm audit` now reports 0 vulnerabilities. `vite.config.ts` needed no
+changes (a plain plugin+server/proxy config, nothing version-specific).
+Verified: `tsc --noEmit` clean, both `build:en`/`build:ru` succeed with no
+new warnings, `npm run dev` starts cleanly and the app loads/renders/opens
+a real diagram correctly against the live backend through Vite 8's own dev
+server + proxy, no console errors.
+
+2026-09-21: Every group in the Elements palette (`ElementsPanel.tsx`) is
+now collapsible — the fixed Wires/Text sections and every dynamic
+equipment category (Switching devices, Transformers, ...) alike, via a
+shared `GroupHeader` (a clickable heading with a chevron that swaps
+open/closed, `lucide-react`'s `ChevronDown`/`ChevronRight`) replacing each
+section's own plain `<h3>`. Every group starts collapsed by default — the
+component tracks which groups are *expanded* (`expandedGroups`, a
+`Set<string>` keyed by 'wires'/'text'/the raw category string, starting
+empty) rather than which are collapsed, so a freshly opened/loaded diagram
+doesn't need to know the full list of category keys up front (they only
+exist once `elements` has loaded from the backend) to default every one of
+them closed. Not persisted anywhere — it resets to all-collapsed again the
+next time the panel itself mounts, a deliberate simplification (a
+session-only UI convenience doesn't need its own storage). Collapsing a
+group doesn't touch
+armedSymbol/armedWireKind/etc. — an element already armed from a group
+that then gets collapsed stays armed, same as any other panel state.
+Verified live in the browser: each group toggles independently, collapsing
+one doesn't affect its neighbors, no console errors.
+
+2026-09-21: `Extract` (shared `slddoc` module) no longer silently drops an
+xsde2svg element it can't turn into a real Element/Connector — both an
+unrecognized data-type (a `Report.Skipped` call site) and a recognized
+data-type whose own specific instance failed to parse (a `Report.Failed`
+one) now also get a red diagnostic `Label` in the extracted diagram, at
+the user's own request, reading "Missing: `<name>` (`<code>`) #`<id>`" —
+so a diagram author sees exactly where and what wasn't carried over
+instead of an unexplained topology gap. New `missingElementAnchor` makes a
+best-effort guess at the element's own position (its `rotate()`
+transform's own center, then a descendant `<path>`'s own first point, a
+`<circle>`'s own cx/cy, or a `<rect>`'s own center — checking the node
+itself too, not just its descendants, since an untyped Rectangle/Circle
+primitive isn't wrapped in its own outer `<g>` the way a real equipment
+shape is) — no Label is added when none of these apply, though
+Report.Skipped/Failed still record it either way. `<name>` comes from
+`shapeName` (every code this package already renders) or else the new
+`unrecognizedShapeName` (English names for the codes it doesn't, sourced
+from the xsde2svg catalog's own object-type list), falling back to the
+bare code when neither has it. Caught and fixed a real bug surfaced while
+building this: `Extract` unconditionally did `d.Labels = matchLabels(...)`
+near the end, which would have silently clobbered every diagnostic Label
+just added — changed to append. Regenerated `sld-svg/xml/
+PS_110kV_Lubnisa.xml` and its `sld-editor/diagrams/` copy again (both
+untracked/gitignored) — verified live in the browser: all 7 of that
+diagram's own skipped elements (2 Short-circuiter, 2 Arrow, 1 Cable
+connector, 1 Rectangle, 1 3D button) now show a correctly positioned red
+"Missing: ..." label, no console errors.
+
+2026-09-21: Rectangle (shape 3) implemented full-scope, at
+the user's own request — a purely decorative annotation box, unlike every
+other shape here not real electrical equipment at all: new
+`ClassRectangle` (shared `slddoc` module) never gets a Voltage/State/
+Orientation/Ports, and is never a valid `connectElements` or routing-tool
+target (both now explicitly guard against/skip it — Canvas.tsx's own
+`findConnectionTarget` and diagramOps' `connectElements`). Its size varies
+per instance and it isn't part of the electrical network, so like
+`BusBarSection` it's drawn from its own two `Points` (opposite corners,
+order-independent) rather than a fixed local-coordinate template — new
+`Element.Fill`/`Stroke` fields hold its own literal CSS colors (free text,
+not a `VoltageClass` reference, the same pattern a Lamp's own FillOff/
+FillOn already uses; empty falls back to "none"/"white"). `Extract`'s new
+`parseRectangle` reads a real xsde2svg `<rect x y width height style>`
+(confirmed against `internal/modus/element_3.go`) — Rectangle (shape 3) no
+longer shows up as a red "Missing: ..." placeholder, it's a real element
+now. Frontend: `placeRectangle` (drag-to-draw, same as `placeBusbar`);
+`diagramOps.POINTS_BASED_CLASSES` new shared constant generalizing every
+BusBarSection-specific points-editing helper (`moveElement`,
+`pasteElement`, `updateBusbarPoint`) to cover Rectangle too, so dragging a
+corner handle resizes it the same way it repositions a busbar endpoint;
+Canvas.tsx's own drag-to-draw dispatch, live corner-drag preview
+(an actual rect outline, not a diagonal line), selection highlight, and
+DOM-direct drag-move all got a Rectangle-specific branch alongside their
+existing BusBarSection one. New "Annotations" palette category (not forced
+into an electrical one); Properties gets fill/border color pickers + a
+points editor, no Voltage/State/Orientation shown. Caught and fixed a real
+hit-testing bug while testing this live: a `fill:none` (the freshly-placed
+default) SVG shape receives no pointer events at all over its own
+interior, only its stroke — a click anywhere but the exact 1px border
+silently missed it; fixed by giving Rectangle a real entry in Canvas.tsx's
+own `elementBoxes` (computed from its diagram-state Points directly,
+unlike every other shape's DOM-`getBBox()`-derived one), which the
+existing click-tolerance fallback (`findElementBoxHit`) already knew how
+to use. Verified live in the browser end to end: drag-place, select
+(inside the shape, not just its border), resize via corner handle, move
+the whole shape, recolor both fill and border, Ctrl/Cmd-click-to-connect
+correctly refuses to wire it to a Breaker, right-click Copy/Delete, and
+Paste — all correct, no console errors.
+
+2026-09-21: Rectangle (shape 3) gets a real, editable border width — new
+`Element.StrokeWidth` (shared `slddoc` module), 0/unset falling back to 1
+(the fixed value every other shape's own template hardcodes, and the real
+xsde2svg source's own minimum), same convention Radius already uses for a
+Lamp/FaultPassageIndicator. `writeRectangle` now emits the resolved value
+instead of a hardcoded `stroke-width:1`; `Extract`'s `parseRectangle` reads
+it from a real `<rect>`'s own style. Frontend: `strokeWidth` added to
+`DiagramElement` and `RECTANGLE_DEFAULTS` (1, so Properties' own new
+number field — "Border width", alongside the existing fill/border color
+pickers — shows a real value immediately); no Canvas.tsx changes needed
+(its own selection-highlight/corner-drag-preview strokes are a fixed UI
+convention, unrelated to the element's own real one). Verified live: the
+field defaults to 1, and setting it to 8 visibly thickens the rendered
+border; a direct `/api/render` check confirmed both the explicit value and
+the unset-falls-back-to-1 case.
+
+2026-09-21: Rectangle's own Properties Fill color picker gets a
+"Transparent" button next to its label — `type="color"` only ever
+produces a real #rrggbb value, so once any color's been picked there was
+no way back to the "none" default through the picker itself. New
+`properties.transparent` i18n key, reusable for any future free-text
+color field with the same gap (e.g. Lamp's own FillOff/FillOn have it
+too, not addressed here).
+
+2026-09-21: Arrow (shape 2, Стрелка) implemented full-scope, the same way
+Rectangle was — a decorative annotation line, not real electrical
+equipment (new `ClassArrow`, shared `slddoc` module; no Voltage/State/
+Orientation/Ports, `connectElements`/`findConnectionTarget` both refuse it
+as an endpoint the same way they already refuse Rectangle). Reuses
+Rectangle's own `Stroke`/`StrokeWidth` fields (no `Fill` — an arrow has no
+interior) plus a new `DoubleHeaded` bool. `writeArrow` draws it as a
+single flat `<path>`, local-frame `M 0 0 h length` plus new
+`arrowChevron`'s own open two-stroke chevron at the end (and, when
+DoubleHeaded, a mirrored one at the start), wrapped in
+`transform="translate(x0,y0) rotate(angle)"` — matching the real xsde2svg
+source (`element_2.go`) exactly, confirmed against a real corpus instance
+byte-for-byte, but collapsing that source's own five separate draw
+branches (four axis-aligned special cases plus one generic/rotated one)
+into this one local-frame formula, since a horizontal chevron rotated
+0°/180° by the wrapping transform is pixel-identical to what those special
+cases compute directly. Dashed/dash-dot line styles and StrokeWidth-scaled
+arrowhead size were both left unported (documented simplifications).
+`Extract`'s new `parseArrow` recovers the two true endpoints via a
+"farthest two points in the path" heuristic (every arrowhead wing sits
+only a few units from the tip, nowhere near as far as the arrow's own
+real length) rather than replicating the real source's own five draw
+branches — verified against the real corpus (`PS_110kV_Lubnisa.svg`, a
+diagonal instance drawn via the generic/rotated branch, `rotate(-45,...)`)
+by hand-computing the expected rotated endpoint and confirming it matched
+exactly; can't reliably tell a double-headed instance apart from a
+single-headed one from geometry alone, so `DoubleHeaded` always comes back
+false from `Extract` (documented limitation). Frontend: reuses
+`diagramOps.POINTS_BASED_CLASSES`/`placeArrow` (mirroring `placeRectangle`)
+end to end — Canvas.tsx's drag-to-draw dispatch, `elementBoxes`
+click-tolerance box, DOM-direct whole-shape drag (recomputing the
+transform's own rotate angle from the two Points, since the local path
+itself doesn't change), polyline selection-highlight (shared with
+BusBarSection), and the same generic corner-handle reshape/resize
+Rectangle already gets, no Arrow-specific Canvas.tsx branch needed beyond
+the drag-to-draw dispatch and box computation. New "Annotations"-category
+palette entry (alongside Rectangle) with its own diagonal-chevron icon;
+Properties gets line color/width fields plus a Double-headed checkbox, no
+Voltage/State/Orientation. Caught and fixed a real bug while testing this
+live: `arrowChevron`'s own start-chevron formula string-concatenated a
+literal "-" with an already-negative value, producing invalid SVG path
+syntax ("l --7 -3") whenever DoubleHeaded was set — the whole element
+silently failed to render (no console error). Fixed by computing the
+signed x-delta as a real number before formatting, not string-level sign
+juggling. Verified live in the browser end to end: drag-place, select
+(inside/near the thin line, via the click-tolerance box — the exact
+click-tolerance gap Rectangle's own fill:none fix already addressed
+applies even more to a stroke-only shape), single- and double-headed
+render correctly, corner-drag reshape keeps both arrowheads correct, no
+console errors after the fix.
+
+2026-09-21: Circle (shape 4) implemented full-scope, the same way
+Rectangle and Arrow were before it — backend `slddoc` module (new
+`ClassCircle`, `writeCircle` drawing a bare `<ellipse cx cy rx ry>` from
+the element's own two opposite-corner `Points` exactly like Rectangle's
+own convention — order-independent, unlike Arrow's — reusing Rectangle's
+own `Fill`/`Stroke`/`StrokeWidth` fields rather than adding new ones;
+`Extract`'s own `parseCircle` reads `cx`/`cy`/`rx`/`ry` straight off the
+bare tag, the same direct-attribute approach `parseRectangle` uses, no
+"farthest two points" heuristic needed the way Arrow's own `parseArrow`
+required), a new "Circle" entry in `base.xml`'s own "Annotations"
+category (template-less, like Rectangle/Arrow — its size varies per
+instance and it isn't real electrical equipment, so `Render` draws it
+straight from `Points` instead of template substitution). Frontend:
+widened `POINTS_BASED_CLASSES`/`connectElements`'s decorative-shape guard
+to include Circle, new `placeCircle` (mirrors `placeRectangle` exactly,
+same `RECTANGLE_DEFAULTS`); Canvas.tsx gets a `CIRCLE_SHAPE` drag-to-draw
+entry, an ellipse drag-preview, an ellipse `elementBoxes` click-tolerance
+box (a Circle's own box is its bounding box, not a true ellipse hit-test —
+close enough for the fallback), a `cx`/`cy`-based `dragElementsInDom`
+branch (unlike Rectangle's own `x`/`y`, since `writeCircle` renders a
+center-based `<ellipse>` rather than a corner-based `<rect>`), an ellipse
+selection-highlight and reshape-preview (rather than falling back to
+Rectangle's generic box highlight, so a Circle's own selection marker
+reads as a real ellipse outline, not a bounding rectangle), and the same
+corner-handle drag-to-resize Rectangle already gets. New "Annotations"
+palette entry with its own dashed-ellipse icon (`elementIcon.ts`);
+Properties gets the same Fill/Border color/Border width fields as
+Rectangle, reusing its exact `properties.rectangleFill`/`rectangleStroke`/
+`rectangleStrokeWidth` i18n keys rather than duplicating "circle"-prefixed
+ones, since the semantics are identical — including the same "Transparent"
+fill-reset button. Also fixed the same gap on Lamp's own FillOff/FillOn
+color pickers while addressing it for Circle, at the user's own request:
+`type="color"` can't represent LAMP_DEFAULTS' own `fillOff: 'none'` once a
+real color's been picked, so both pickers get their own "Transparent"
+button too. Verified live in the browser end to end: drag-place, select
+via interior click on the `fill:none` shape (the `elementBoxes`
+click-tolerance fallback), whole-shape drag, corner-drag resize, Fill
+color change plus the Transparent button resetting it back to a hollow
+outline, copy/paste via the right-click menu, delete — all against a
+disposable scratch diagram, cleaned up afterward; a stale `go run`
+backend process left over from before this session's backend changes was
+caught (it reported a false "symbol library missing shape(s): 4" render
+warning) and restarted.
+
+2026-09-21: Cable connector (shape 56) implemented. Unlike
+Rectangle/Arrow/Circle, this is a real two-terminal electrical device (a
+cable termination/splice symbol), decoded from the real xsde2svg source
+(`element_56.go`)'s own relative-path formula into an open two-line
+chevron flaring outward from each end of a fixed vertical stem — visually
+similar to Arrow's own open chevron, just unconditionally at both ends
+rather than gated by DoubleHeaded. Implemented as a plain fixed-geometry
+template symbol, the same pattern Junction point (7)/Wire jump (14)
+already use: new `ClassCableConnector` (shared `slddoc` module),
+`shapeName["56"]`, a new `base.xml` entry in the "Wiring" category with
+real terminals at (0,-10)/(0,10) (same convention as Breaker/
+Disconnector), and `Extract` support wired straight into the existing
+`parseTwoPortDevice` helper (`elementDataTypes`/`twoPortShapes`) — no new
+parse function needed, since its own geometry's dominant-axis extremes
+land exactly on its two terminals. No frontend code changes were needed
+at all: Properties' generic Voltage/Orientation/Mirror fields, the
+palette's generic template-preview icon, and Canvas's generic symbol
+placement/rotation/rerouting all already handle a plain no-State/
+no-Points/no-Fill symbol like this one, the same way they already handle
+Junction point/Wire jump — only `ElementClass` (frontend types) and the
+`elementCatalog.name.56` i18n key needed adding. Verified live in the
+browser end to end, against a disposable scratch diagram: placed via the
+Wiring palette (icon renders the chevron-flare geometry correctly),
+selected (real terminal markers at both ends), rotated 90° (terminals
+follow), assigned a voltage class (color updates), dragged, and
+Ctrl/Cmd-click-connected to a nearby Breaker — confirming it behaves as a
+genuine electrical endpoint, unlike the three prior decorative shapes —
+cleaned up afterward; a stale `go run` backend process left over from
+before this session's own backend changes was again caught and restarted.
+
+2026-09-21: Short-circuiter (shape 398) implemented. Decoded from the real
+xsde2svg source (element_398.go)'s own relative-path formulas: a
+single-terminal grounding-type switching device, structurally close to
+Ground switch (54) — a fixed tapered earth symbol at the top, one real
+electrical terminal at the bottom, and a State-driven pivot rod bridging
+the gap between them. Closed draws the rod as a straight bar bridging the
+terminal to the earth symbol above it (an intentional short to ground);
+Open pivots the rod away at the top, marked with a small circle at the
+pivot, the same convention Sectionalizer (164) already uses for its own
+open contact. Both states also draw a small filled arrowhead next to the
+rod, matching the real source. Only two real states exist (the real
+source's own state field is a plain boolean, no Intermediate), so its
+State dropdown offers only Open/Close, the same treatment Sectionalizer
+already gets. The real source's own mirror flag, with its own separate
+geometry formulas for the mirrored case, was not ported — this schema's
+generic Mirror property already flips any symbol's template the same way,
+making a second explicit geometry unnecessary. Backend: new
+ClassShortCircuiter (shared slddoc module), shapeName entry, a new
+base.xml symbol in the Switching devices category with one terminal at
+(0,10) (grid-aligned the same way Ground switch's own terminal is, with
+the lead stub shortened to match), and Extract support via a new
+parseShortCircuiter mirroring parseGroundSwitch exactly (same known gap:
+an unrotated instance is not yet supported). Frontend: added to
+SWITCHING_DEVICE_CLASSES and TWO_STATE_CLASSES, and given the same
+default-Open-state plus default-180-degree-orientation treatment Ground
+switch already gets, generalized from a GroundSwitch-only condition to
+cover both classes (renamed GROUND_SWITCH_DEFAULT_ORIENT/STATE to
+GROUND_TYPE_DEFAULT_ORIENT/STATE) — so a freshly placed one does not read
+as already shorted to ground. Verified live in the browser end to end,
+against a disposable scratch diagram: placed via the Switching devices
+palette (icon renders correctly), open state shows the pivoted rod with
+the ground symbol dangling below (matching the default 180-degree
+orientation), toggled to Close in Properties and confirmed the rod
+becomes a straight bridging bar, and Ctrl/Cmd-click-connected to a nearby
+Breaker — confirming it behaves as a genuine electrical endpoint — cleaned
+up afterward.
+
+2026-09-21: Short-circuiter (shape 398)'s Open/Closed state geometry
+corrected, at the user's own explicit request: rather than the real
+source's own literal pivot geometry (pivoting near the top, next to the
+ground symbol), the state-driven tick/circle, pivot rod, arm, and
+arrowhead are now reused verbatim from Sectionalizer (164)'s own
+template, so the two shapes render identically for both states apart
+from the top structure — Sectionalizer has a second real terminal with
+its own fixed tick there, Short-circuiter has the fixed tapered ground
+symbol instead. Verified live in the browser by placing both shapes side
+by side at the same orientation and state and confirming the rod/circle/
+arrow geometry lines up exactly.
+
+2026-09-21: Short-circuiter (shape 398)'s Open/Closed state geometry
+corrected again, reverting the previous entry above: the user clarified
+the pivot circle belongs on the ground-symbol side, not the terminal
+side, matching the real source's own pivot direction after all (a real
+short-circuiter's blade is permanently hinged next to the grounded
+structure, not the live conductor). Rather than re-deriving the geometry
+by hand a second time, this was instead confirmed directly against a
+real xsde2svg corpus export (element id 1015 in PS_110kV_Lubnisa.svg,
+data-name "KZ-110 T-2 f.A" — the same device the user's own reference
+screenshots showed) and against element_398.go's own partClosed/
+arrowClosed formulas for the Closed state, then translated byte-for-byte
+into this editor's own local coordinate frame. Verified live in the
+browser at both orient 0 and 90 degrees against the user's own reference
+images: Open shows the terminal cap, diagonal pivoting rod with its
+circle marker next to the ground symbol, and filled arrowhead; Closed
+shows a straight bar with the arrowhead, matching exactly.
+
+2026-09-21: Short-circuiter (shape 398) two further corrections, both at
+the user's own explicit request. First, the Open-state blade now swings
+counter-clockwise instead of clockwise — this template's default now
+uses element_398.go's own xMirror==1 geometry (the mirrored branch)
+rather than its xMirror==0 one, since this editor's own generic Mirror
+property already covers the un-mirrored look for whichever placed
+instance needs it, the same way every other symbol here handles mirroring.
+Second, the Closed state gets a new fixed-contact tick ("M -5 -18 h 10")
+right where the rod meets the earth symbol, matching Sectionalizer's own
+convention of a tick for Closed where Open shows a circle at that same
+spot — previously Closed showed nothing there at all. Also fixed a real
+Extract bug caught by the user from a corrected real corpus sample: unlike
+most switching devices, this shape's own State isn't a plain data-state
+attribute on a path — the real source wraps its two alternate geometries
+in their own sibling <g data-state="0|1" visibility="visible|hidden">
+groups, the same convention parseSectionalizer already handles, and the
+previous parseShortCircuiter used the generic parseState helper, which
+only looks at path-level data-state attributes and would have silently
+returned no State at all for every real extracted instance. parseState
+was replaced with the same visible-group-scanning logic
+parseSectionalizer already uses. Verified live in the browser (both
+state/orientation changes) and via a scratch Extract test against the
+user's own corrected real corpus markup, confirming State comes back as
+0 from the visible group instead of nil.
+
+2026-09-21: Short-circuiter (shape 398) two more corrections to its own
+arrowhead, both at the user's own explicit request, comparing directly
+against Sectionalizer (164) placed side by side in the browser. First,
+the arrowhead's own direction was flipped back to element_398.go's
+xMirror==0 orientation (the rod above it stays on xMirror==1, from the
+previous entry) — the previous fix only got this half right, since the
+default 180-degree placement orientation flips which way an xMirror==0
+arrowhead reads, and that flip hadn't been accounted for. Second, the
+arrowhead's own position was moved off the rod itself onto a short arm
+(matching Sectionalizer's own arm+arrowhead-at-the-tip composition — see
+that symbol's own template), replacing the small tick that used to sit
+directly on the rod; this is a deliberate departure from
+element_398.go's own compact arrowhead-near-the-rod placement, at the
+user's request, for visual consistency with Sectionalizer. Also updated
+the palette icon: Short-circuiter (398) now gets the same cosmetic 180
+degree ICON_ROTATION spin Ground switch (54) already has, since its own
+raw, unrotated template also reads backwards in a preview with no orient
+of its own to lean on (earth symbol at the top instead of the bottom,
+matching the shape's own GROUND_TYPE_DEFAULT_ORIENT placement default).
+Verified live in the browser: the palette icon now shows the earth
+symbol at the bottom, and a fresh instance placed side by side with
+Sectionalizer, both in Open state, shows matching rod/circle/arm/
+arrowhead composition and arrowhead direction.
+
+2026-09-21: Short-circuiter (shape 398)'s Open rod deflection angle
+corrected, at the user's own explicit request, to match Sectionalizer
+(164)'s own deflection exactly: dx:dy of 6:18 (from Sectionalizer's own
+"M -6 -9 l 6 18"), replacing element_398.go's own h2:y6 constants
+(7:16) — the real source's own angle read too steep next to
+Sectionalizer's shallower one. The rod's own overall length also grew to
+match (both Closed and Open now span the full 18 units from the pivot
+circle at the earth-symbol end down to the terminal-adjacent end,
+instead of 16), so the arm (still off the rod's own midpoint) and its
+own arrowhead shifted from y=-8 to y=-9 to stay centered on the new,
+slightly longer rod. Verified live in the browser: a fresh instance
+placed at 90 degrees next to a fresh Sectionalizer, both in Open state,
+now shows a visually matching shallow diagonal.
+
+2026-09-21: Package substation (shape 385, KTP) implemented, at the
+user's own request, reversing an earlier decision that had marked shapes
+385/386 out of scope for this editor's "equipment with terminals" model.
+It is a facility-level pictogram, not switchgear in the usual sense, but
+the real xsde2svg source still gives it a genuine voltage-driven color
+and exactly one real electrical terminal, so it was implemented as real
+equipment with a single Port. It has two real appearance variants
+(NType): 0 draws a 36-unit outer square, an 18-unit inner rectangle, and
+a short lead stub above the top edge (the terminal's own position); 1
+draws a plain downward-pointing triangle instead. Since NType leaves no
+other trace in a real export, an explicit data-ntype attribute was added
+to the real xsde2svg converter's own source (element_385.go, a separate
+sibling repo) so it can be recovered on Extract; while implementing this
+a real corpus file with a newer xsde2svg version already carrying this
+same attribute was found, confirming the chosen attribute name
+independently matched an already-deployed convention, and also revealing
+a transcription error in an initial hand-derived reading of the
+triangle's own real path formula (its apex sits at local (0,18), not at
+the anchor) — corrected before shipping. Backend: new
+ClassPackageSubstation and a new NType field (shared slddoc module,
+reused generically enough that any future shape needing a similar
+"real appearance variant" flag can use the same field), a bespoke
+writePackageSubstation render function (its own two variants are
+structurally different XML, not something a static {state:...} template
+could express, same reasoning PowerTransformer's own bypass uses), and
+Extract support via parsePackageSubstation. Abonent (fills the inner
+shape solid) and Tech.Closed (dashes the outline) reuse the existing
+Fill/State fields rather than adding dedicated ones. Frontend: Properties
+gets an Appearance (Box/Triangle) dropdown, a State (Solid/Dashed)
+dropdown, and a Fill color picker with the same Transparent-reset button
+Rectangle/Circle already have; a new palette icon at the shape's own real
+local proportions. Also fixed a real hit-testing gap found while testing
+this shape's own triangle variant: Canvas.tsx's own click-tolerance
+`elementBoxes` fallback only looked for a wrapping `<g>` element, so any
+bypass-template shape that renders as a bare tag instead (this shape's
+own NType 1, joining Rectangle/Circle/Arrow) never got a box and was
+unclickable except by hitting its own thin 1px stroke exactly — the
+lookup no longer restricts by tag. Verified live in the browser: both
+variants render correctly, the interior-click fix works for both, the
+Fill/State/Appearance controls all work (including the Transparent
+button), and Ctrl/Cmd-click-connecting to a nearby Breaker confirms the
+terminal behaves as a genuine electrical endpoint.
+
+2026-09-21: Fixed a real Extract bug for Package substation (385),
+reported directly against a real production element (Distributed
+grid.svg, element id 148790560) that Extract failed to recognize.
+`parsePackageSubstation` required the real source's own `rotate()`
+transform to recover the element's anchor, but xsde2svg only emits
+`rotate()` when the angle is non-zero — a real unrotated instance has no
+transform at all. Added `substationAnchorFromGeometry` (shared slddoc
+module): recovers the anchor from the outer `<rect>`'s own center for
+the box variant, or the bare `<path>`'s own first "M x y" point for the
+triangle variant, whenever no `rotate()` is present. Verified against the
+user's exact reported element.
+
+2026-09-21: Implemented Enclosed transformer substation (ZTP, shape
+386) — the same facility-level-pictogram family as Package substation
+(385), a fixed 36-unit outer square around an always-drawn downward
+triangle (apex at local (0,18), the same corrected formula 385's own
+triangle variant uses), but with only one appearance (no NType) and no
+drawn lead stub (confirmed against the real source, element_id386.go: no
+`canvas.Line` call anywhere). Reuses Fill (the triangle's own interior)
+and State (dashes the outline) identically to 385, and the same
+`substationAnchorFromGeometry` unrotated-instance fallback added above.
+Backend: new ClassEnclosedSubstation and a bespoke
+writeEnclosedSubstation render function, Extract support via
+parseEnclosedSubstation. Frontend: Properties gets the same State
+(Solid/Dashed) dropdown and Fill color picker 385 has, but no Appearance
+dropdown (there's no variant to pick); a new palette icon (outer square
+plus the same triangle). Terminal placed at local (0,-20), confirmed by
+direct user answer (one real electrical terminal, same as 385). Verified
+live in the browser: placement, interior-click selection (confirming the
+385 elementBoxes fix also covers this shape's own `<g>`-wrapped
+rendering), all Properties controls, and Ctrl/Cmd-click-connecting to a
+nearby Breaker.
+
+2026-09-21: Added an optional overlay label (Element.PropertyText) to
+Package substation (385) and Enclosed substation (386), matching a real
+source update the user made to xsde2svg (element_385.go/element_id386.go):
+every real instance can carry a short centered text label (e.g. a
+transformer's own power rating, "160") drawn in white/17px/Arial, staying
+upright and centered on the shape regardless of its own Orientation/
+Mirror — confirmed against real corpus instances carrying both a
+non-zero rotation and a label at once. This editor's own Render keeps
+every symbol element's translate+rotate+mirror as one combined transform
+(relied on by Canvas.tsx's own click-tolerance box and drag-in-DOM logic)
+rather than splitting it into nested groups the way the real source now
+does, so the label is instead given its own local counter-transform that
+cancels the parent's rotation/mirror to the same visual effect. Also fixed
+a real Extract bug uncovered while wiring this up: `parsePackageSubstation`/
+`parseEnclosedSubstation` only checked the outer node's own `transform`
+attribute for Orientation, but the real source now nests its rotate()
+transform one level inside (matching how `parseTwoPortDevice` already
+handles other shapes that can do the same) — every real rotated instance
+was silently losing its Orientation. Fixed by searching descendants for
+the transform (`firstAttrDescendant`) and always deriving the anchor from
+geometry (rotate-invariant) rather than the previous two-branch fallback.
+Frontend: both shapes' Properties get a new "Label text" field. Verified
+live in the browser: text renders correctly at 0°, and stays upright
+after setting Orientation to 90° and enabling Mirror together, for both
+the box and triangle (NType 1) variants of 385 and for 386; dragging a
+labeled element keeps the label attached and upright throughout.
+
+2026-09-21: Implemented Cable joint/coupling (shape 32) — a real
+two-terminal electrical device marking where two cable segments are
+spliced. Checked 500+ real corpus instances across 17 files before
+implementing: every single one uses the same plain geometry (a vertical
+stem split by a gap, with an unfilled triangle mark in the gap, no text),
+so only that confirmed look was ported — the real source's own alternate
+CustomView appearance and optional phase-color fill on the triangle have
+no real corpus instance to confirm against and were left unmodeled, a
+real instance using either extracts with this same plain look instead.
+Drawn from a plain fixed local-coordinate template, the same way Cable
+connector (56) already is; terminals sit at (0,-12)/(0,14), asymmetric
+around the anchor by design, matching the real source's own geometry
+exactly (its own default branch shifts its drawn geometry one unit below
+the element's true anchor before drawing). Fits the shared `slddoc`
+module's existing `parseTwoPortDevice` Extract helper exactly, so no new
+parse function was needed — verified against both a rotated and an
+unrotated real corpus instance. Verified live in the browser: palette
+icon, placement, selection, Orientation/Mirror, and Ctrl/Cmd-click
+connecting to a nearby Breaker (the terminal behaves as a genuine
+electrical endpoint, and the connector follows correctly when rotated
+after the fact).
+
+2026-09-21: Junction point (7) gained real per-instance Radius and Fill,
+after the user asked to check a real corpus instance with a filled dot
+and a non-default radius. Checked 9895 real corpus instances across
+every example file: ~65% draw a dot filled with their own voltage color,
+~35% draw a "hollow" one instead (filled with the page's own background
+color — the real source's own `bussed_link` case), and the radius varies
+meaningfully (2/3/4/5/8/11 all seen) — none of which this project's own
+long-standing hardcoded r=3/unfilled template captured. Both are now real
+Element fields, editable in Properties, with that same hardcoded look
+kept as the *default* (so an already-placed/-saved junction point's own
+look doesn't change) — Extract now sets both explicitly from a real
+instance's own r/fill instead of discarding them. Also gained an
+attached text label: some real instances carry a ParamText/SubscriptName
+`<text>` beside the dot, in 9 distinct real position/alignment combos —
+rather than a bespoke position-matrix field (the approach already used
+for Package/Enclosed substation's own simpler, single-position label),
+Extract now synthesizes an ordinary standalone Label from it (`For` set
+to the junction's own id), reusing this schema's already-built Label
+editing wholesale, at the user's own explicit choice between the two
+approaches. Doing so needed a real source change: every real xsde2svg
+export found still draws a junction point as a bare
+`<circle data-type="7">` with its own optional `<text>` as a separate,
+unlinked sibling, giving Extract no reliable way to associate the two —
+`element_7.go` was restructured (at the user's own request) to wrap both
+in a shared `<g id data-type="7">`, the same fix already made for
+Package/Enclosed substation (385/386); `parseJunctionPoint` supports both
+the older bare-circle form (every real corpus instance currently on
+disk) and the new wrapped one. Verified live in the browser: a custom
+Fill color and Radius render correctly, and the Transparent button
+correctly clears back to a hollow look.
+
+2026-09-21: Fixed two real Extract bugs on Package/Enclosed substation
+(385/386), reported directly against real production elements. First:
+Fill (the real source's own Abonent flag, filling the inner rectangle/
+triangle solid) was wired into rendering from the start but never
+actually recovered by Extract, so a real filled instance (id 148788827)
+silently lost its own fill on extraction — fixed via a new
+`substationFill`, reading it back from the inner rect's/triangle path's
+own drawn fill. Second, per the user's own explicit request: replaced
+385's own single-purpose `data-ntype` export attribute with a generic
+`data-property="key:value;..."` one (`internal/modus/element_385.go`/
+`element_id386.go`, the same lightweight grammar `style="..."` already
+uses) that now also carries Tech.Closed (the dashed-outline state) for
+both shapes — previously unrecoverable on Extract at all despite already
+being wired into rendering. The older, single-purpose `data-ntype` is
+still read as a fallback, since a real, independently-generated xsde2svg
+v1.4.12 corpus export was found to already carry it before this change.
+
+2026-09-21: Gave Lamp (106) the same attached-label fix Junction point
+(7) got earlier today, for the identical reason — the user pointed out a
+real corpus instance with a `<circle data-type="106">` followed by an
+unlinked `<text>` sibling Extract couldn't associate with it.
+`internal/modus/element_106.go` got the same shared-`<g>` restructuring
+already made for Junction point, and `parseLamp` now supports both the
+older bare-circle form (every real corpus instance currently on disk)
+and the new wrapped one — the actual lookup logic (`firstCircleChild`)
+and the label synthesis (`parseAttachedLabel`) are shared helpers, not
+duplicated, since both shapes' own fix is identical. Verified against
+scratch tests covering both the bare and grouped forms.
+
+2026-09-21: Made FaultPassageIndicator's (320003) own centered "FPI"
+label editable — it was a fixed literal directly in base.xml's own
+template, and unlike Junction point's/Lamp's own labels this shape has
+no real source counterpart to recover at all (element_320.go's own
+custom-element case for this shape draws no text of any kind — "FPI" was
+always purely this project's own convention). Backed by
+Element.PropertyText, the same field 385/386 already use, with a new
+admin-configured default instead of a hardcoded literal:
+`config.Config.Indicators.DefaultFPIText` (`indicators.default_fpi_text`
+in `config/sld-editor.yaml`, "FPI" out of the box), exposed via
+`GET /api/config` as `defaultFpiText` and threaded through
+`internal/slddoc.Render`'s new `defaultFPIText` parameter. A freshly
+placed instance's own PropertyText is now seeded from that server value
+explicitly (`diagramOps.placeElement`'s own `fpiDefaults`) rather than
+left unset to rely on Render's own fallback silently. Considered making
+the default locale-aware (an i18n dictionary entry) instead, but this
+project's other config-driven legends (state_colors, position_states,
+...) are already single, non-locale-aware install-wide values, so kept
+this consistent with that precedent rather than introducing a new one.
+Verified live in the browser: a freshly placed instance's own Properties
+panel already shows the configured "FPI" as a real (not placeholder)
+value, and editing it re-renders correctly.
+
+2026-09-21: Added gzip response compression (`internal/api/server.go`,
+`github.com/gin-contrib/gzip`, pinned to v1.0.1 — the latest version
+forces a Gin upgrade that transitively pulls in unrelated, heavy
+dependencies like a QUIC implementation and a MongoDB driver, so stayed
+on the older one that doesn't) — the first step toward reducing the
+frontend/backend traffic a big diagram over a slow connection generates,
+per the user's own report of long delays adding/editing elements in a
+large diagram. Every browser already sends `Accept-Encoding: gzip` and
+decompresses transparently, so this needed no frontend change at all.
+Verified against a real 2530×1610 diagram from this project's own
+`diagrams/` directory:
+its own `/api/render` response shrank from 33,940 bytes to 3,571 bytes
+actually transferred (~89% smaller), via the Performance API's own
+`encodedBodySize`/`decodedBodySize`. Only compresses the response
+direction (backend to frontend) — the diagram JSON the frontend posts up
+on each edit is untouched, since that would need the frontend to
+compress it itself; a bigger, separate change (see TODO.md's own
+"Reducing frontend/backend traffic" section for that and the other,
+higher-effort option considered: incremental/patch-based re-rendering
+instead of a full diagram+full SVG round trip on every edit).
+
+2026-09-22: Added an `-open-browser` CLI flag (`cmd/sld-editor/main.go`,
+default off) that, once the server starts listening, opens the editor's
+URL in the user's default browser via `github.com/pkg/browser`
+(`http://localhost:<port>`, the port parsed from `server.bind`) after a
+1-second delay to give the HTTP listener time to come up. Convenience
+for local/desktop use (`go run ./cmd/sld-editor -open-browser`, or a
+built binary run the same way) so the app doesn't have to be manually
+opened in a browser tab every time it's started; has no effect on a
+headless/server deployment that doesn't pass the flag.

@@ -84,3 +84,11 @@ position_states:
     label: "Normal"
   - position: 2
     label: "Test"
+
+# Default overlay text a FaultPassageIndicator (320003) draws centered on
+# itself when its own instance doesn't override it (Element.PropertyText) —
+# this shape's own real xsde2svg source draws no text at all, so there's no
+# real default to derive; this is purely this project's own long-standing
+# convention, admin-configurable per install.
+indicators:
+  default_fpi_text: "FPI"

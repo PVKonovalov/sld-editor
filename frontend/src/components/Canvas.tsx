@@ -10,6 +10,13 @@ import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import type { Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
+const RECTANGLE_SHAPE = '3'
+const CIRCLE_SHAPE = '4'
+const ARROW_SHAPE = '2'
+// Shapes placed by dragging out two opposite points rather than a single
+// click — see diagramOps.POINTS_BASED_CLASSES for the element-class
+// equivalent used once one's already on the diagram.
+const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([BUSBAR_SHAPE, RECTANGLE_SHAPE, CIRCLE_SHAPE, ARROW_SHAPE])
 const HIGHLIGHT = '#3b82f6'
 const CONNECT_TARGET_COLOR = '#22c55e'
 // How many grid cells, per side, get batched into one grid-dot pattern
@@ -293,9 +300,23 @@ export function Canvas() {
   // 4 corners are pushed through diagramOps.placeLocalPoint — the same
   // rotate-by-orient-then-translate-by-anchor math internal/slddoc.Render
   // itself used to place that same geometry — to get the element's real
-  // diagram-space footprint. BusBarSection is skipped: it renders as a
-  // bare <polyline> (see writePolyline), not a <g>, and already has its
-  // own points-based highlight/hit-testing that doesn't need a box at all.
+  // diagram-space footprint. BusBarSection is skipped entirely: it renders
+  // as a bare <polyline> with no fill at all, and its own thin line is
+  // already covered by its points-based selection highlight/hit-testing, no
+  // click-tolerance box needed. A Rectangle, Circle, or Arrow, unlike a
+  // busbar, is skipped in the DOM-lookup sense (each is a bare
+  // <rect>/<ellipse>/<path>, not a <g>) but *does* still get a real box
+  // here, computed straight from its own diagram-state Points instead of
+  // getBBox — a Rectangle's/Circle's own fill is very often "none"
+  // (transparent), and an SVG shape with fill:none simply doesn't receive
+  // pointer events over its own interior at all (only its stroke does), so
+  // without this a click anywhere but the exact 1px border would silently
+  // miss it entirely, unlike every filled shape; an Arrow has no interior
+  // in the first place, just a thin stroke, so it needs the same
+  // click-tolerance box even more. A Circle's own box is its bounding
+  // box, not a true ellipse hit-test — close enough for a click-tolerance
+  // fallback, same as everywhere else this project favors a simple box
+  // over per-shape-accurate hit geometry.
   useEffect(() => {
     const root = wrapperRef.current
     if (!root || !diagram) {
@@ -305,7 +326,20 @@ export function Canvas() {
     const boxes = new Map<number, ElementBox>()
     for (const el of diagram.elements) {
       if (el.class === 'BusBarSection') continue
-      const node = root.querySelector(`g[data-editor-kind="element"][id="${el.id}"]`) as SVGGraphicsElement | null
+      if ((el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow') && el.points) {
+        const [p0, p1] = el.points
+        const x = Math.min(p0.x, p1.x)
+        const y = Math.min(p0.y, p1.y)
+        boxes.set(el.id, { x, y, width: Math.abs(p1.x - p0.x), height: Math.abs(p1.y - p0.y) })
+        continue
+      }
+      // No tag restriction (not just `g[...]`) — PackageSubstation's own
+      // NType 1 (triangle) variant renders as a bare <path>, the same
+      // "no wrapping <g>" convention Rectangle/Circle/Arrow already use,
+      // so it needs this same generic getBBox() fallback to be reachable
+      // at all (its NType 0/box variant already was, since that one does
+      // render as a real <g>).
+      const node = root.querySelector(`[data-editor-kind="element"][id="${el.id}"]`) as SVGGraphicsElement | null
       if (!node) continue
       let local: DOMRect
       try {
@@ -446,6 +480,11 @@ export function Canvas() {
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
       if (exclude?.kind === 'element' && el.id === exclude.elementId) continue
+      // A Rectangle/Circle/Arrow is a purely decorative annotation, never
+      // a valid wire endpoint — unlike every other class here, none even
+      // falls back to its own anchor (see diagramOps.connectElements' own
+      // matching guard).
+      if (el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow') continue
       if (el.class === 'BusBarSection' && el.points && el.points.length >= 2) {
         if (!includeBusbars) continue
         const { index, point: nearest } = nearestSegmentOnPolyline(el.points, point)
@@ -664,8 +703,12 @@ export function Canvas() {
   // the actual placed element follow the cursor while dragging, not just
   // an abstract highlight. Reads each element's own current x/y/points from
   // diagram state (unchanged until mouseup) and offsets from there; a
-  // BusBarSection has no single anchor to translate, so its polyline's own
-  // points are each shifted instead of setting a transform.
+  // BusBarSection/Rectangle/Circle (see diagramOps.POINTS_BASED_CLASSES)
+  // has no single anchor to translate via a transform, so its own
+  // points-derived attributes are set directly instead — a busbar's
+  // <polyline points>, a rectangle's <rect x y> (its width/height are
+  // unaffected by a plain translate, only x/y shift), or a circle's
+  // <ellipse cx cy> (its own rx/ry likewise unaffected).
   function dragElementsInDom(ids: number[], dx: number, dy: number) {
     const root = wrapperRef.current
     if (!root) return
@@ -675,6 +718,21 @@ export function Canvas() {
       if (!el || !node) continue
       if (el.class === 'BusBarSection' && el.points) {
         node.setAttribute('points', el.points.map(p => `${p.x + dx},${p.y + dy}`).join(' '))
+      } else if (el.class === 'Rectangle' && el.points) {
+        node.setAttribute('x', String(Math.min(el.points[0].x, el.points[1].x) + dx))
+        node.setAttribute('y', String(Math.min(el.points[0].y, el.points[1].y) + dy))
+      } else if (el.class === 'Circle' && el.points) {
+        node.setAttribute('cx', String((el.points[0].x + el.points[1].x) / 2 + dx))
+        node.setAttribute('cy', String((el.points[0].y + el.points[1].y) / 2 + dy))
+      } else if (el.class === 'Arrow' && el.points) {
+        // writeArrow's own <path> d is in local coordinates relative to
+        // Points[0] (unaffected by a plain whole-shape translate), so only
+        // the transform's translate portion needs updating — its own
+        // rotate angle, derived from the two (both moving together, so
+        // still-unchanged-relative-to-each-other) Points, stays the same.
+        const [p0, p1] = el.points
+        const angle = (Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180) / Math.PI
+        node.setAttribute('transform', `translate(${p0.x + dx},${p0.y + dy}) rotate(${angle})`)
       } else {
         node.setAttribute('transform', `translate(${el.x + dx},${el.y + dy}) rotate(${el.orient ?? 0})`)
       }
@@ -726,7 +784,8 @@ export function Canvas() {
 
     if (armedSymbol) {
       e.stopPropagation()
-      if (armedSymbol.shape === BUSBAR_SHAPE) {
+      if (DRAG_TO_DRAW_SHAPES.has(armedSymbol.shape)) {
+        const shape = armedSymbol.shape
         setNewBusbar({ start: point, current: point })
         const onMove = (ev: MouseEvent) => {
           setNewBusbar(nb => (nb ? { ...nb, current: toPoint(ev.clientX, ev.clientY) } : nb))
@@ -739,7 +798,15 @@ export function Canvas() {
           const start = snapPoint(point)
           const snappedEnd = snapPoint(end)
           if (Math.hypot(snappedEnd.x - start.x, snappedEnd.y - start.y) > 1) {
-            updateDiagram(d => diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage))
+            updateDiagram(d =>
+              shape === RECTANGLE_SHAPE
+                ? diagramOps.placeRectangle(d, start, snappedEnd)
+                : shape === CIRCLE_SHAPE
+                  ? diagramOps.placeCircle(d, start, snappedEnd)
+                  : shape === ARROW_SHAPE
+                    ? diagramOps.placeArrow(d, start, snappedEnd)
+                    : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
+            )
           }
           armSymbol(null)
         }
@@ -747,7 +814,7 @@ export function Canvas() {
         window.addEventListener('mouseup', onUp)
         return
       }
-      updateDiagram(d => diagramOps.placeElement(d, armedSymbol, snapPoint(point), defaultVoltage))
+      updateDiagram(d => diagramOps.placeElement(d, armedSymbol, snapPoint(point), defaultVoltage, config?.defaultFpiText))
       armSymbol(null)
       return
     }
@@ -1314,7 +1381,7 @@ export function Canvas() {
                 ))}
               {!ghost &&
                 selectedElements.map(el => {
-                  if (el.class === 'BusBarSection' && el.points) {
+                  if ((el.class === 'BusBarSection' || el.class === 'Arrow') && el.points) {
                     return (
                       <polyline
                         key={el.id}
@@ -1323,6 +1390,36 @@ export function Canvas() {
                         stroke={HIGHLIGHT}
                         strokeWidth={6}
                         strokeOpacity={0.5}
+                      />
+                    )
+                  }
+                  if (el.class === 'Rectangle' && el.points) {
+                    const [p0, p1] = el.points
+                    return (
+                      <rect
+                        key={el.id}
+                        x={Math.min(p0.x, p1.x) - BOX_HIGHLIGHT_PAD}
+                        y={Math.min(p0.y, p1.y) - BOX_HIGHLIGHT_PAD}
+                        width={Math.abs(p1.x - p0.x) + BOX_HIGHLIGHT_PAD * 2}
+                        height={Math.abs(p1.y - p0.y) + BOX_HIGHLIGHT_PAD * 2}
+                        fill="none"
+                        stroke={HIGHLIGHT}
+                        strokeWidth={2}
+                      />
+                    )
+                  }
+                  if (el.class === 'Circle' && el.points) {
+                    const [p0, p1] = el.points
+                    return (
+                      <ellipse
+                        key={el.id}
+                        cx={(p0.x + p1.x) / 2}
+                        cy={(p0.y + p1.y) / 2}
+                        rx={Math.abs(p1.x - p0.x) / 2 + BOX_HIGHLIGHT_PAD}
+                        ry={Math.abs(p1.y - p0.y) / 2 + BOX_HIGHLIGHT_PAD}
+                        fill="none"
+                        stroke={HIGHLIGHT}
+                        strokeWidth={2}
                       />
                     )
                   }
@@ -1497,34 +1594,98 @@ export function Canvas() {
                     </>
                   )
                 })()}
-              {newBusbar && (
-                <line
-                  x1={newBusbar.start.x}
-                  y1={newBusbar.start.y}
-                  x2={newBusbar.current.x}
-                  y2={newBusbar.current.y}
+              {newBusbar && armedSymbol?.shape === RECTANGLE_SHAPE ? (
+                <rect
+                  x={Math.min(newBusbar.start.x, newBusbar.current.x)}
+                  y={Math.min(newBusbar.start.y, newBusbar.current.y)}
+                  width={Math.abs(newBusbar.current.x - newBusbar.start.x)}
+                  height={Math.abs(newBusbar.current.y - newBusbar.start.y)}
+                  fill="none"
                   stroke={HIGHLIGHT}
                   strokeWidth={2}
                   strokeDasharray="6 4"
                 />
+              ) : newBusbar && armedSymbol?.shape === CIRCLE_SHAPE ? (
+                <ellipse
+                  cx={(newBusbar.start.x + newBusbar.current.x) / 2}
+                  cy={(newBusbar.start.y + newBusbar.current.y) / 2}
+                  rx={Math.abs(newBusbar.current.x - newBusbar.start.x) / 2}
+                  ry={Math.abs(newBusbar.current.y - newBusbar.start.y) / 2}
+                  fill="none"
+                  stroke={HIGHLIGHT}
+                  strokeWidth={2}
+                  strokeDasharray="6 4"
+                />
+              ) : (
+                newBusbar && (
+                  <line
+                    x1={newBusbar.start.x}
+                    y1={newBusbar.start.y}
+                    x2={newBusbar.current.x}
+                    y2={newBusbar.current.y}
+                    stroke={HIGHLIGHT}
+                    strokeWidth={2}
+                    strokeDasharray="6 4"
+                  />
+                )
               )}
-              {selectedElement && selectedElement.class === 'BusBarSection' && selectedElement.points && (
+              {selectedElement &&
+                (selectedElement.class === 'BusBarSection' ||
+                  selectedElement.class === 'Rectangle' ||
+                  selectedElement.class === 'Circle' ||
+                  selectedElement.class === 'Arrow') &&
+                selectedElement.points && (
                 <>
-                  {/* Live preview of the line while a handle is being dragged
-                      — the actual points only update (via updateBusbarPoint)
-                      on mouseup. */}
-                  {pointDrag && pointDrag.elementId === selectedElement.id && (
-                    <polyline
-                      points={selectedElement.points
-                        .map((p, i) => (i === pointDrag.pointIndex ? pointDrag.point : p))
-                        .map(p => `${p.x},${p.y}`)
-                        .join(' ')}
-                      fill="none"
-                      stroke={HIGHLIGHT}
-                      strokeWidth={2}
-                      strokeDasharray="6 4"
-                    />
-                  )}
+                  {/* Live preview while a corner/endpoint handle is being
+                      dragged — the actual points only update (via
+                      updateBusbarPoint) on mouseup. A Rectangle previews as
+                      an actual rect outline, a Circle as an actual ellipse
+                      outline, rather than the diagonal line a plain 2-point
+                      polyline would draw. */}
+                  {pointDrag &&
+                    pointDrag.elementId === selectedElement.id &&
+                    (() => {
+                      const pts = selectedElement.points!.map((p, i) => (i === pointDrag.pointIndex ? pointDrag.point : p))
+                      if (selectedElement.class === 'Rectangle') {
+                        const [p0, p1] = pts
+                        return (
+                          <rect
+                            x={Math.min(p0.x, p1.x)}
+                            y={Math.min(p0.y, p1.y)}
+                            width={Math.abs(p1.x - p0.x)}
+                            height={Math.abs(p1.y - p0.y)}
+                            fill="none"
+                            stroke={HIGHLIGHT}
+                            strokeWidth={2}
+                            strokeDasharray="6 4"
+                          />
+                        )
+                      }
+                      if (selectedElement.class === 'Circle') {
+                        const [p0, p1] = pts
+                        return (
+                          <ellipse
+                            cx={(p0.x + p1.x) / 2}
+                            cy={(p0.y + p1.y) / 2}
+                            rx={Math.abs(p1.x - p0.x) / 2}
+                            ry={Math.abs(p1.y - p0.y) / 2}
+                            fill="none"
+                            stroke={HIGHLIGHT}
+                            strokeWidth={2}
+                            strokeDasharray="6 4"
+                          />
+                        )
+                      }
+                      return (
+                        <polyline
+                          points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                          fill="none"
+                          stroke={HIGHLIGHT}
+                          strokeWidth={2}
+                          strokeDasharray="6 4"
+                        />
+                      )
+                    })()}
                   {/* One draggable handle per endpoint: an unfilled red
                       square, plus a larger invisible circle around it for an
                       easier grab target. */}

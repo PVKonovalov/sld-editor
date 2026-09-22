@@ -84,6 +84,49 @@ export async function renderPreview(diagram: Diagram): Promise<{ svg: string; wa
   return asJSON(res)
 }
 
+/** Renders a diagram (saved or not) to its on-disk XML shape, for the
+ * browser to download directly to the user's own machine — not tied to the
+ * server's own diagrams directory the way saveDiagram/getDiagram are. */
+export async function exportDiagramXML(diagram: Diagram): Promise<string> {
+  const res = await fetch(`${BASE}/export/xml`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(diagram),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error((body && body.error) || `${res.status} ${res.statusText}`)
+  }
+  return res.text()
+}
+
+/** exportDiagramXML's counterpart for the Static-mode SVG (the same
+ * rendering the companion .svg Save writes to disk). */
+export async function exportDiagramSVG(diagram: Diagram): Promise<string> {
+  const res = await fetch(`${BASE}/export/svg`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(diagram),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error((body && body.error) || `${res.status} ${res.statusText}`)
+  }
+  return res.text()
+}
+
+/** Parses a raw .xml file's own text (loaded from the user's machine, e.g.
+ * via a file picker or drag-and-drop) into a Diagram, the same shape
+ * getDiagram returns for one opened from the server's own diagrams list. */
+export async function importDiagramXML(xmlText: string): Promise<Diagram> {
+  const res = await fetch(`${BASE}/import/xml`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/xml' },
+    body: xmlText,
+  })
+  return normalizeDiagram(await asJSON<DiagramWire>(res))
+}
+
 export async function listElements(): Promise<ElementSymbol[]> {
   const res = await fetch(`${BASE}/elements`)
   return asJSON(res)

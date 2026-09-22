@@ -68,6 +68,12 @@ export interface DiagramContextValue {
   // leaving the diagram merely dirty.
   newDiagram: (name: string, width?: number, height?: number, defaultVoltageName?: string) => Promise<void>
   openDiagram: (name: string) => Promise<void>
+  // Parses a .xml file's own text (from a file picker or drag-and-drop on
+  // the user's own machine, not the server's diagrams list) and makes it
+  // the working diagram, named after suggestedName (its filename, minus
+  // extension) — marked dirty so Save persists it server-side under that
+  // name, the same upsert saveDiagramAs already does.
+  loadDiagramFromXML: (xmlText: string, suggestedName: string) => Promise<void>
   saveDiagram: () => Promise<void>
   saveDiagramAs: (name: string) => Promise<void>
   updateDiagram: (updater: (d: Diagram) => Diagram) => void

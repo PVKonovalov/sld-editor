@@ -1,0 +1,22 @@
+# Build environment for sld-editor's own production build (see the repo
+# root Makefile's own docker-build target) — Go and Node pinned to known
+# versions, for a build that doesn't depend on whatever happens to be
+# installed on the host. This is not a runtime image and nothing built
+# from it is ever deployed as-is: `make docker-build` runs the same
+# Makefile this image is built to run, and its own build/ output (an
+# ordinary Linux/Windows binary per locale) is what actually gets
+# deployed, identically to what the Makefile's own native (non-Docker)
+# targets produce on a host that already has a matching Go/Node
+# toolchain — this image exists only to supply that toolchain when it's
+# more convenient not to install one locally.
+#
+# sld-editor has no cgo dependencies (see the root Makefile's own doc
+# comment), so a plain Go toolchain image cross-compiles both linux and
+# windows binaries without any C toolchain.
+FROM golang:1.26-bookworm
+
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /workspace/sld-editor

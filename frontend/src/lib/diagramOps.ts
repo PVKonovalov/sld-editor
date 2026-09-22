@@ -14,6 +14,20 @@ import type {
   TerminalDirection,
 } from '../types'
 
+// Element classes whose own geometry is a drawn Points array (two or more
+// vertices) rather than a single x/y anchor+orient — BusBarSection (a real
+// electrical busbar), Rectangle, Circle, and Arrow (the latter three
+// purely decorative annotations, no electrical meaning at all — see
+// connectElements' own guard below). Shared by every place/move/paste/
+// point-drag helper that needs to treat "drag two corners/vertices to draw
+// or reshape" the same way regardless of which of the four classes it
+// actually is — including, for Rectangle/Circle/Arrow, the anchor (x/y)
+// recomputed as the two Points' own midpoint on every move/paste/drag:
+// harmless for an Arrow even though its own rendering (writeArrow) reads
+// Points[0]/[1] directly rather than x/y, since x/y only ever matters here
+// as a paste-target anchor, never for the real drawn geometry.
+const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set(['BusBarSection', 'Rectangle', 'Circle', 'Arrow'])
+
 // A voltage-class <select>'s option value is either an existing class's own
 // id (as a string) or, for one of the server's default presets not yet
 // added to this diagram, "preset:<name>" — resolveVoltageSelection turns
@@ -137,34 +151,37 @@ function defaultLayer(diagram: Diagram): number {
  * seeds the new element's voltage class from whichever one the user last
  * picked in Properties, so placing several elements in a row doesn't
  * require re-assigning the same voltage each time. */
-// A Breaker/Disconnector/LoadBreakSwitch (either the fixed or withdrawable
-// shape — both share the same Class) starts out placed in service, not
-// open, so a freshly drawn one-line reads correctly without a separate
-// trip to Properties for every single device: 1 is "Close" in the
-// state->color legend (config.stateColors). GroundSwitch gets its own
-// default below instead, since leaving it unset now has a different
-// visual consequence (see GROUND_SWITCH_DEFAULT_STATE's own comment).
-const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector', 'LoadBreakSwitch'])
+// A Breaker/Disconnector/Sectionalizer/LoadBreakSwitch (either the fixed or
+// withdrawable shape — both share the same Class) starts out placed in
+// service, not open, so a freshly drawn one-line reads correctly without a
+// separate trip to Properties for every single device: 1 is "Close" in the
+// state->color legend (config.stateColors). GroundSwitch/ShortCircuiter
+// get their own default below instead, since leaving it unset now has a
+// different visual consequence (see GROUND_TYPE_DEFAULT_STATE's own
+// comment).
+const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector', 'Sectionalizer', 'LoadBreakSwitch'])
 const STATE_CLOSE = 1
 
-// GroundSwitch's own template (base.xml shape 54) draws earth-plates-up/
-// stub-down at orient 0 — confirmed against a real xsde2svg corpus export,
-// which always places this shape pre-rotated (90/180, never 0), so the
-// template itself is left as-is. A freshly placed one defaults to 180°
-// instead of unset/0 so it already reads the conventional way (stub up
-// toward whatever it's tapped off of, earth symbol dangling below) without
-// a separate trip to Properties' Orientation field first.
-const GROUND_SWITCH_DEFAULT_ORIENT = 180
+// GroundSwitch/ShortCircuiter (base.xml shapes 54/398) both draw
+// earth-plates-up/stub-down at orient 0 — confirmed against a real
+// xsde2svg corpus export, which always places GroundSwitch pre-rotated
+// (90/180, never 0), so their templates are left as-is. A freshly placed
+// one defaults to 180 degrees instead of unset/0 so it already reads the
+// conventional way (stub up toward whatever it's tapped off of, earth
+// symbol dangling below) without a separate trip to Properties'
+// Orientation field first.
+const GROUND_TYPE_DEFAULT_ORIENT = 180
 
-// GroundSwitch's blade is now state-driven too (base.xml's {state:...},
-// matching Breaker/Disconnector's own mechanism), and an unset State reads
-// as Close (applyStateLine's own nil-maps-to-first-option rule) — so
-// leaving it unset would make a freshly placed one default to the
-// grounded/closed look. 0 (Open) instead matches both the real corpus
-// (~92% of a real substation export's own GroundSwitch elements are Open)
-// and this template's own pre-{state:...} fixed appearance, so a freshly
-// placed one still looks the same as it always has.
-const GROUND_SWITCH_DEFAULT_STATE = 0
+// GroundSwitch/ShortCircuiter's own blade is state-driven (base.xml's
+// {state:...}, matching Breaker/Disconnector's own mechanism), and an
+// unset State reads as Close (applyStateLine's own nil-maps-to-first-
+// option rule) — so leaving it unset would make a freshly placed one
+// default to the grounded/shorted look. 0 (Open) instead matches both the
+// real corpus (~92% of a real substation export's own GroundSwitch
+// elements are Open) and each template's own pre-{state:...} fixed
+// appearance, so a freshly placed one still looks the same as it always
+// has.
+const GROUND_TYPE_DEFAULT_STATE = 0
 
 // Breaker/Disconnector/Fuse (withdrawable) — shapes 43/49/154, keyed by
 // Shape since each shares a Class with a non-withdrawable sibling (41/162,
@@ -197,11 +214,19 @@ const LAMP_DEFAULTS: Pick<DiagramElement, 'state' | 'fillOff' | 'fillOn' | 'radi
 // starting value — with a real radius instead of unset, which (like an
 // unset Lamp radius) renders as an invisible r="0" circle; 10 also matches
 // where base.xml's own <terminals> for this shape are fixed, and the
-// default 10-unit grid (its own "FPI" text is sized down to fit inside a
-// ring this small).
-const FPI_DEFAULTS: Pick<DiagramElement, 'state' | 'radius'> = {
-  state: 0,
-  radius: 10,
+// default 10-unit grid (its own overlay text is sized down to fit inside a
+// ring this small). propertyText is seeded from the server's own
+// config.defaultFpiText (EditorConfig — see its own doc comment) when set,
+// so a freshly placed instance's saved data already carries the
+// admin-configured label explicitly rather than relying on Render's own
+// "FPI" fallback silently; left unset when the server has none configured,
+// same fallback either way.
+function fpiDefaults(defaultFpiText?: string): Pick<DiagramElement, 'state' | 'radius' | 'propertyText'> {
+  return {
+    state: 0,
+    radius: 10,
+    ...(defaultFpiText ? { propertyText: defaultFpiText } : {}),
+  }
 }
 
 // A freshly placed PowerTransformer starts as a plain 2-winding wye/wye
@@ -224,6 +249,7 @@ export function placeElement(
   symbol: ElementSymbol,
   point: Point,
   defaultVoltage?: number,
+  defaultFpiText?: string,
 ): Diagram {
   const ids = new IdSequence(diagram)
   const id = ids.take()
@@ -245,11 +271,11 @@ export function placeElement(
     y: point.y,
     ...(DEFAULT_CLOSED_CLASSES.has(elementClass) ? { state: STATE_CLOSE } : {}),
     ...(elementClass === 'Lamp' ? LAMP_DEFAULTS : {}),
-    ...(elementClass === 'GroundSwitch'
-      ? { orient: GROUND_SWITCH_DEFAULT_ORIENT, state: GROUND_SWITCH_DEFAULT_STATE }
+    ...(elementClass === 'GroundSwitch' || elementClass === 'ShortCircuiter'
+      ? { orient: GROUND_TYPE_DEFAULT_ORIENT, state: GROUND_TYPE_DEFAULT_STATE }
       : {}),
     ...(WITHDRAWABLE_SHAPES.has(symbol.shape) ? { position: POSITION_NORMAL } : {}),
-    ...(elementClass === 'FaultPassageIndicator' ? FPI_DEFAULTS : {}),
+    ...(elementClass === 'FaultPassageIndicator' ? fpiDefaults(defaultFpiText) : {}),
     ...(elementClass === 'PowerTransformer' ? powerTransformerDefaults(defaultVoltage) : {}),
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
@@ -275,6 +301,86 @@ export function placeBusbar(diagram: Diagram, start: Point, end: Point, defaultV
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
 
+// A freshly placed Rectangle's own colors/border thickness — matching
+// render.go's own unset-Fill/Stroke/StrokeWidth fallback
+// ("none"/"white"/1) explicitly, the same reason LAMP_DEFAULTS spells out
+// FillOff/FillOn rather than leaving them unset: so Properties' own color
+// pickers and width field show a real value immediately instead of
+// empty-string/swatchColor's own fallback guesswork.
+const RECTANGLE_DEFAULTS = { fill: 'none', stroke: '#ffffff', strokeWidth: 1 }
+
+/** Places a new Rectangle spanning start..end — a purely decorative
+ * annotation box, not real electrical equipment (see slddoc's own
+ * ClassRectangle doc comment): no Voltage, no Ports, never a valid
+ * connectElements/routing target. Drawn from its own Points the same
+ * drag-not-click way placeBusbar places a BusBarSection, and for the same
+ * reason (its size varies per instance, there's no single "the" anchor to
+ * click). */
+export function placeRectangle(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Rectangle',
+    shape: '3',
+    name: `Rectangle-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...RECTANGLE_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+/** Places a new Circle spanning start..end (its own bounding-box corners,
+ * order-independent) — same "purely decorative, not real electrical
+ * equipment, drawn from its own Points" reasoning as placeRectangle,
+ * which it otherwise mirrors exactly (same RECTANGLE_DEFAULTS — a
+ * Circle's own Fill/Stroke/StrokeWidth model is identical). */
+export function placeCircle(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Circle',
+    shape: '4',
+    name: `Circle-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...RECTANGLE_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly placed Arrow's own color/width — same reasoning as
+// RECTANGLE_DEFAULTS (no fill: an arrow has no interior).
+const ARROW_DEFAULTS = { stroke: '#ffffff', strokeWidth: 1 }
+
+/** Places a new Arrow from start to end — the arrowhead is always drawn at
+ * end (see slddoc's own ClassArrow doc comment on why Points order
+ * matters here, unlike a Rectangle's). Same "purely decorative, not real
+ * electrical equipment, drawn from its own Points" reasoning as
+ * placeRectangle. */
+export function placeArrow(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Arrow',
+    shape: '2',
+    name: `Arrow-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...ARROW_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
 // What Copy captures for Paste: the element's own data minus its id (a
 // paste always gets a fresh one) and Ports (a pasted copy starts
 // unconnected — its ports referenced its old Node ids, which a copy has no
@@ -288,17 +394,18 @@ export function copyElement(el: DiagramElement): ClipboardEntry {
 }
 
 /** Places a copied element at point — its anchor for most classes; for a
- * BusBarSection, point becomes the new midpoint and the whole shape is
- * translated to match, preserving its length/angle (mirrors placeBusbar's
- * own start..end -> anchor convention). Named the same way a freshly
- * placed element is — "<type>-<id>" (e.g. "Busbar-5") — rather than
- * "<original name> copy", so a pasted copy reads like any other new
- * element instead of accumulating "copy" suffixes on repeated pastes.
+ * BusBarSection or Rectangle (see POINTS_BASED_CLASSES), point becomes the
+ * new midpoint and the whole shape is translated to match, preserving its
+ * length/angle/size (mirrors placeBusbar's own start..end -> anchor
+ * convention). Named the same way a freshly placed element is —
+ * "<type>-<id>" (e.g. "Busbar-5") — rather than "<original name> copy", so
+ * a pasted copy reads like any other new element instead of accumulating
+ * "copy" suffixes on repeated pastes.
  *
- * snap, when given, is applied to each of a pasted BusBarSection's
+ * snap, when given, is applied to each of a pasted points-based element's
  * translated endpoints (and the anchor is then re-derived as their
  * midpoint, mirroring updateBusbarPoint's convention). Without it, a
- * busbar whose original anchor wasn't itself exactly on-grid — its anchor
+ * shape whose original anchor wasn't itself exactly on-grid — its anchor
  * is always the plain midpoint of its two endpoints, which for two
  * on-grid points spaced an odd multiple of the grid apart isn't itself a
  * grid point — would carry that same off-grid remainder into the pasted
@@ -320,7 +427,7 @@ export function pasteElement(
     x: point.x,
     y: point.y,
   }
-  if (element.class === 'BusBarSection' && entry.points) {
+  if (POINTS_BASED_CLASSES.has(element.class) && entry.points) {
     const dx = point.x - entry.x
     const dy = point.y - entry.y
     const points = entry.points.map(p => snap({ x: p.x + dx, y: p.y + dy }))
@@ -374,13 +481,14 @@ export function pasteElements(
 
 /** Translates an element by (dx, dy) — its anchor for most classes, or
  * every vertex (plus the anchor, kept in sync for labeling/hit-testing)
- * for a BusBarSection. */
+ * for a points-based one (BusBarSection/Rectangle — see
+ * POINTS_BASED_CLASSES). */
 export function moveElement(diagram: Diagram, id: number, dx: number, dy: number): Diagram {
   return {
     ...diagram,
     elements: diagram.elements.map(e => {
       if (e.id !== id) return e
-      if (e.class === 'BusBarSection' && e.points) {
+      if (POINTS_BASED_CLASSES.has(e.class) && e.points) {
         return {
           ...e,
           x: e.x + dx,
@@ -479,15 +587,19 @@ export function moveElements(diagram: Diagram, ids: number[], dx: number, dy: nu
   return { ...moved, connectors, nodes }
 }
 
-/** Updates one endpoint of a BusBarSection's own Points in place — its
- * anchor (X/Y) is recomputed as the midpoint of the first and last point,
- * the same convention placeBusbar establishes when first drawing one. A
- * no-op for any other class, or an out-of-range point index. */
+/** Updates one endpoint of a points-based element's own Points in place
+ * (BusBarSection or Rectangle — see POINTS_BASED_CLASSES; for a Rectangle
+ * this is how dragging a corner handle resizes it) — its anchor (X/Y) is
+ * recomputed as the midpoint of the first and last point, the same
+ * convention placeBusbar/placeRectangle establish when first drawing one.
+ * A no-op for any other class, or an out-of-range point index. Kept the
+ * name "Busbar" for historical reasons (every caller predates Rectangle),
+ * not because it's busbar-specific. */
 export function updateBusbarPoint(diagram: Diagram, id: number, pointIndex: number, point: Point): Diagram {
   return {
     ...diagram,
     elements: diagram.elements.map(e => {
-      if (e.id !== id || e.class !== 'BusBarSection' || !e.points || !e.points[pointIndex]) return e
+      if (e.id !== id || !POINTS_BASED_CLASSES.has(e.class) || !e.points || !e.points[pointIndex]) return e
       const points = e.points.map((p, i) => (i === pointIndex ? point : p))
       const first = points[0]
       const last = points[points.length - 1]
@@ -526,18 +638,21 @@ function defaultConnectorName(kind: ConnectorKind, id: number): string | undefin
   return label ? `${label}-${id}` : undefined
 }
 
-/** Rotates a local (unrotated) point by an element's own orient (degrees)
- * and translates it by the element's own anchor — matching exactly how
+/** Mirrors (if set), rotates, and translates a local (unrotated) point by
+ * an element's own mirror/orient/anchor — matching exactly how
  * internal/slddoc.Render places a symbol's template, via
- * transform="translate(x,y) rotate(orient)". Exported for Canvas.tsx's own
+ * transform="translate(x,y) rotate(orient) scale(-1,1)" (mirror is the
+ * innermost transform, applied to the point first, same as the backend's
+ * own transform-attribute order). Exported for Canvas.tsx's own
  * elementBoxes, which maps a symbol's real rendered-DOM local bounding box
  * (getBBox(), still in that same pre-transform local space) through this
  * same math to get its true diagram-space footprint. */
 export function placeLocalPoint(el: DiagramElement, p: Point): Point {
+  const mx = el.mirror ? -p.x : p.x
   const rad = ((el.orient ?? 0) * Math.PI) / 180
   const cos = Math.cos(rad)
   const sin = Math.sin(rad)
-  return { x: el.x + p.x * cos - p.y * sin, y: el.y + p.x * sin + p.y * cos }
+  return { x: el.x + mx * cos - p.y * sin, y: el.y + mx * sin + p.y * cos }
 }
 
 // Power transformer (shape 47) geometry constants — mirrors
@@ -705,12 +820,19 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
  * each shape's true terminal position. The new connector's voltage comes
  * from whichever of from/to already has one (see drawConnectorPath's own
  * doc comment) — with no defaultVoltage param here, an element joined to
- * one with no voltage of its own at all just stays unset, same as before. */
+ * one with no voltage of its own at all just stays unset, same as before.
+ * A no-op when either end is a Rectangle, Circle, or Arrow — a purely
+ * decorative annotation, never a valid electrical endpoint (see slddoc's
+ * own ClassRectangle/ClassCircle/ClassArrow doc comments); the routing
+ * tool's own findConnectionTarget (Canvas.tsx) excludes all three from
+ * candidates entirely for the same reason. */
 export function connectElements(diagram: Diagram, fromId: number, toId: number): Diagram {
   if (fromId === toId) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
   const to = diagram.elements.find(e => e.id === toId)
   if (!from || !to) return diagram
+  const notConnectable = (el: DiagramElement) => el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow'
+  if (notConnectable(from) || notConnectable(to)) return diagram
 
   const ids = new IdSequence(diagram)
   const fromNode: DiagramNode = { id: ids.take(), x: from.x, y: from.y }

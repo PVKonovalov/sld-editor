@@ -9,47 +9,352 @@
   handles the latter already).
 - Undo/redo.
 
+## Reducing frontend/backend traffic
+
+Raised by the user: a big diagram over a bad connection has a long delay
+on every add/edit, since `Canvas.tsx` POSTs the *whole* Diagram JSON to
+`/api/render` (debounced) and gets back the *whole* rendered SVG document
+on every change — for a large diagram this round trip is big regardless
+of how small the actual edit was.
+
+Done: **gzip response compression** (`internal/api/server.go`,
+`gin-contrib/gzip`) — see RELEASE.md's own 2026-09-21 entry. Cuts the
+`/api/render` response size by ~89% on a real 2530×1610 diagram (verified
+via the Performance API), with zero frontend change, since every browser
+already negotiates and decompresses gzip transparently. Doesn't touch the
+request direction (the diagram JSON posted up) at all.
+
+Considered, not started: **incremental/patch-based re-rendering** instead
+of a full diagram-in/full-SVG-out round trip on every edit — the real fix
+for the "big diagram, small edit" case (gzip helps bandwidth, not the
+fact that a full document is generated/transferred/DOM-replaced for a
+one-element change). Sketch:
+- A new endpoint (or a flag on the existing one) takes the full Diagram
+  (still needed for voltage-class/topology resolution, which spans the
+  whole document) plus the set of element/connector/label ids that
+  actually changed since the last successful render, and returns *only*
+  those ids' own freshly rendered fragments (keyed by id), not a whole
+  `<svg>` document.
+- `internal/slddoc.Render` would need a sibling (or an `only []int`
+  filter) that still does its normal whole-diagram voltage/topology
+  resolution pass but writes markup for just the requested ids.
+- The frontend would look up each returned fragment's own existing DOM
+  node by id (the same `[data-editor-kind][id=X]` pattern
+  `dragElementsInDom`/`elementBoxes` already use) and replace just that
+  node, instead of replacing the whole injected SVG's own `innerHTML`;
+  a deleted id would need to come back as an explicit "removed" list so
+  its own DOM node gets removed rather than left orphaned.
+- Real complication: a **diagram-wide** change (e.g. editing a
+  VoltageClass's own color in Settings) affects every element that
+  references it, not just one — the "just re-render the touched ids"
+  model breaks down there and would still need a full re-render; this is
+  fine since that kind of edit is rare compared to per-element edits.
+- Another: rapid edits touching *different* elements before the debounce
+  fires need the *union* of every touched id since the last successful
+  render, not just the latest one — `Canvas.tsx`'s own debounce logic
+  would need a touched-ids accumulator, not just the latest full Diagram.
+- The initial diagram open (and Save, which needs the full document
+  anyway) would still use the existing full-render path unchanged — this
+  only optimizes the interactive-editing hot path once a diagram is
+  already loaded.
+
 ## Equipment shapes not yet ported
 
 Ported so far (render templates in `backend/assets/elements/base.xml` +
 `Extract` support in the shared `slddoc` module): Reactor (37), Reactor
 shunt (397), Surge arrester variant (29), Starter (76), Fuse withdrawable
 (154), Surge arrester grounded (168), Capacitor bank (172), Generator
-(173), Non-intersection/"Wire jump" (14).
+(173), Non-intersection/"Wire jump" (14), **56** Кабельный разъем/Cable
+connector (a real two-terminal electrical device — a cable termination/
+splice symbol, not decorative — drawn from a plain fixed local-coordinate
+template the same "Junction point (7)/Wire jump (14)" way, terminals at
+(0,-10)/(0,10) like Breaker/Disconnector; decoded by hand from the real
+source's own relative-path formula (`element_56.go`) into an open
+two-line chevron flaring outward from each terminal, matching Arrow's own
+open-chevron style but at both ends unconditionally; fits `Extract`'s own
+existing `parseTwoPortDevice` helper exactly, same as Junction point/Wire
+jump, so no new parse function was needed), **32** Cable joint/coupling (a
+real two-terminal electrical device marking where two cable segments are
+spliced, drawn the same plain fixed local-coordinate way Cable connector
+(56) is: a vertical stem split by a gap, with an unfilled triangle mark
+in the gap — terminals at (0,-12)/(0,14), asymmetric around the anchor by
+design (the real source's own default branch shifts its drawn geometry
+one unit below the element's true anchor before drawing), confirmed
+against 500+ real corpus instances across 17 files, all using this same
+plain look; also fits `parseTwoPortDevice` exactly, no new parse function
+needed. The real source's own alternate CustomView appearance (a
+distinct non-English string value selects a single line plus a
+differently-shaped triangle) and its own optional phase-color fill on the
+triangle have no real corpus instance to confirm either against, so
+neither is modeled — a real instance using either extracts with this
+same plain look instead), **7** Junction point (already ported before
+this session's own tracked history, but gained real per-instance
+Radius/Fill after checking corpus: this project's own long-standing
+hardcoded r=3/unfilled look is kept as the *default* (an already-placed/
+-saved instance with neither field set doesn't change), but both are now
+real Element fields a user can edit — real xsde2svg usually draws a
+filled dot (own voltage color, ~65% of 9895 real instances checked) or a
+"hollow" one (filled with the page's own background instead, the
+`bussed_link` case, ~35%) at a genuinely varying radius (2/3/4/5/8/11 all
+seen), and Extract now captures both explicitly from a real instance
+rather than discarding them. Also gained an attached text label: some
+real instances carry a ParamText/SubscriptName `<text>` beside the dot
+(9 distinct position/alignment combos found in real corpus, not just one
+fixed style) — rather than inventing a bespoke position-matrix field,
+Extract synthesizes an ordinary standalone Label (`For` = the junction's
+own id) from it, reusing this schema's already-built Label
+position/anchor/valign/font/color editing wholesale; the trade-off,
+accepted at the user's own explicit choice, is that (like every other
+Label already) it doesn't move when the junction point itself is dragged,
+unlike the real source's own attached-to-the-point look. Recovering the
+label at all required a real source change: every real xsde2svg export
+found still draws a junction point as a bare `<circle data-type="7">`
+with its own optional `<text>` as a separate, unlinked top-level
+sibling — Extract has no reliable way to associate the two, so
+`internal/modus/element_7.go` was restructured (at the user's own
+request) to wrap both in a shared `<g id data-type="7">`, the same fix
+already made for PackageSubstation/EnclosedSubstation (385/386);
+`parseJunctionPoint` supports both the older bare-circle form (every real
+corpus instance currently on disk) and this new wrapped one, since real
+instances of the older one will presumably keep showing up for a while
+yet). Lamp (106) — already ported before this session's own tracked
+history — gained the identical attached-label fix for the identical
+reason: real corpus shows the same bare `<circle data-type="106">` plus
+an unlinked top-level `<text>` sibling pattern, so `element_106.go` got
+the same shared-`<g>` restructuring and `parseLamp` the same
+`firstCircleChild`/`parseAttachedLabel` treatment `parseJunctionPoint`
+already uses (both factored into shared helpers rather than duplicated,
+since the two shapes' own fix is now identical in every particular except
+which class/shape code owns it). FaultPassageIndicator (320003) —
+already ported before this session's own tracked history — gained an
+editable overlay text: its own centered "FPI" label was always a fixed
+literal in base.xml's template, unlike Junction point's/Lamp's own
+attached labels this has no real source counterpart to recover at all
+(element_320.go's own custom-element case for this shape draws no text
+of any kind — a "FPI" label is purely this project's own long-standing
+convention). Now backed by Element.PropertyText, the same free-text
+field 385/386 already use, defaulting to a new admin-configured
+`config.Config.Indicators.DefaultFPIText` (`indicators.default_fpi_text`
+in `config/sld-editor.yaml`, exposed via `GET /api/config` as
+`defaultFpiText`, "FPI" out of the box) rather than a hardcoded literal —
+`internal/slddoc.Render` gained a new `defaultFPIText` parameter threaded
+through from `config.Config` (`cmd/sld-editor/main.go` ->
+`storage.Store`), and `diagramOps.placeElement` seeds a freshly placed
+instance's own PropertyText from that same server value explicitly
+(`fpiDefaults`), rather than leaving it unset and relying on Render's own
+fallback silently. An i18n-dictionary-based default (varying by locale
+build) was considered and explicitly rejected in favor of this, since
+every other config-driven legend in this project (state_colors,
+position_states, ...) is already a single install-wide value, not
+locale-aware, and this should be consistent with that established
+precedent rather than introduce a new one, **398** Short-circuiter (a
+single-terminal grounding-type switching device, structurally close to
+Ground switch (54): a fixed tapered earth symbol at the top, one real
+electrical terminal at the bottom, and a State-driven pivot rod bridging
+the gap between them — Closed bridges the terminal straight to the earth
+symbol, an intentional short to ground (with a fixed-contact tick where
+the rod meets the earth symbol); Open pivots the rod away at that same
+end, marked with a circle there instead of the tick, same pivot-circle
+convention as Sectionalizer. This template's own default uses
+element_398.go's own xMirror==1 geometry rather than its xMirror==0 one
+(the blade swings counter-clockwise, at the user's own explicit
+request), since this schema's generic Mirror property already covers the
+xMirror==0 look for whichever placed instance needs it. Only two real
+states exist, same as Sectionalizer, so its own State dropdown offers
+only Open/Close. Unlike most switching devices, this shape's own real
+xsde2svg export encodes State via two sibling
+`<g data-state="0|1" visibility="visible|hidden">` groups rather than a
+plain `data-state` attribute on a path — `parseShortCircuiter`'s own
+state-reading mirrors `parseSectionalizer`'s own visible-group-scanning
+logic, not the generic `parseState` helper every other two-port device
+uses, since that helper only looks at path-level attributes and would
+silently return no State at all for a real exported instance of this
+shape. The arrowhead itself sits on a short arm off the rod's own
+midpoint (matching Sectionalizer's own arm+arrowhead-at-the-tip
+composition) rather than element_398.go's own compact
+arrowhead-near-the-rod placement — another deliberate departure at the
+user's own request, kept at its own xMirror==0 orientation (unlike the
+rod above it) since the shape's own default 180-degree placement
+orientation flips which way that reads. The rod's own Open deflection
+(dx:dy) also uses Sectionalizer's own 6:18 ratio rather than
+element_398.go's own 7:16 one, for the same "reads the same way as
+Sectionalizer" reason — both states' rod now spans the full 18 units
+from the pivot circle to the terminal-adjacent end (was 16), so the arm
+moved from y=-8 to y=-9 to stay centered on it. The palette icon gets the same
+cosmetic 180-degree spin Ground switch's own icon already has (see
+elementIcon.ts's `ICON_ROTATION`), since its raw unrotated template also
+reads backwards in a preview with no orient of its own to lean on. Still
+requires the real source's own rotate() transform to
+recover the element's anchor, same known gap as Ground switch's own
+unrotated-instance limitation), **385** Package substation (KTP) (a
+facility-level pictogram, not switchgear in the usual sense, but the real
+source still gives it a genuine voltage-driven color and exactly one real
+electrical terminal — despite this class having been previously judged
+out of scope for exactly the opposite reason, see the "deliberately out
+of scope" list below's own history — grid-aligned to y=-22, the real
+source's own lead stub. Two real appearance variants exist (NType): 0
+(the common case) draws a 36-unit outer square, an 18-unit inner
+rectangle, and the lead stub; 1 draws a plain downward-pointing triangle
+instead, its own apex at local (0,18), not at the anchor — confirmed
+against a real xsde2svg v1.4.12 corpus export
+(sld-svg/examples/sld/Shema_sety_VRES.svg) after an initial hand-derived
+transcription of the real source's own path formula got this wrong.
+NType was originally only recoverable on Extract via a data-ntype export
+attribute that a real corpus file already independently carried —
+confirming this project's own first choice of attribute name matched an
+already-deployed convention — but this repo's own local xsde2svg checkout
+(an older version) didn't yet have it; added there too (element_385.go)
+so this repo's own tooling had something to read. Superseded at the
+user's own explicit request by a generic `data-property="key:value;..."`
+export attribute (element_385.go/element_id386.go — the same lightweight
+grammar `style="..."` already uses), which now also carries Tech.Closed
+(key "closed") for both shapes; the older single-purpose data-ntype is
+still read as a fallback so the already-independently-deployed real
+corpus file above keeps extracting correctly. Abonent (fills the inner
+rectangle/triangle solid) reuses this schema's ordinary Fill field
+instead of a dedicated boolean; Tech.Closed (dashes the outline) reuses
+the ordinary State field the same way Short-circuiter's own dashing
+convention does — both were wired into rendering from the start but,
+until a user-reported real instance (id 148788827, its own Abonent-filled
+inner rectangle silently dropped) surfaced the gap, Extract never
+actually recovered either; both are now read back (`substationFill`,
+`substationState`, `substationDataProperty`), State only for an instance
+whose own data-property already carries "closed" (nil/unrecovered
+otherwise, same known gap as before for an older export). Unlike Ground
+switch, a real unrotated instance (no
+rotate() transform at all — the real source only emits one when angle !=
+0) is directly confirmed to exist in production (a user-reported Extract
+failure on a real element from sld-svg/examples/sld/Distributed
+grid.svg), so Extract falls back to a geometry-derived anchor
+(`substationAnchorFromGeometry`: the outer `<rect>`'s own center for the
+box variant, the bare `<path>`'s own first "M x y" point for the triangle
+one) whenever no rotate() is present, rather than requiring one
+unconditionally the way most other shapes still do. Its own
+bypass-template rendering (a bare `<g>`/`<path>`, not a symbol template)
+needed Canvas.tsx's own click-tolerance `elementBoxes` fallback widened
+to match on any `data-editor-kind` element regardless of tag, not just
+`<g>`, since its own NType 1 (triangle) variant renders as a bare
+`<path>` the same way Rectangle/Circle/Arrow already do), **386**
+Enclosed transformer substation (ZTP) (the same facility-level-pictogram
+family as 385 — a fixed 36-unit outer square around an always-drawn,
+always-unfilled-by-default downward triangle, apex at local (0,18), the
+same corrected formula 385's own triangle variant uses — but with only
+one appearance (no NType) and no drawn lead stub at all (confirmed
+against the real source, element_id386.go: no `canvas.Line` call
+anywhere). Reuses Fill (the triangle's own interior) and State
+(dashes the outline) identically to 385, and the same
+`substationAnchorFromGeometry` unrotated-instance fallback. Terminal
+placed at local (0,-20), just outside the outer square's own top edge —
+confirmed by direct user answer (one real electrical terminal, same as
+385) rather than derived from the real source, which draws no stub to
+anchor it to. Both 385 and 386 also carry an optional PropertyText overlay
+label (e.g. a transformer's own power rating), matching a real source
+update the user made to xsde2svg's own element_385.go/element_id386.go:
+a short centered white/17px/Arial `<text>` that stays upright regardless
+of Orientation/Mirror — this editor's own Render achieves that with a
+local counter-transform on the `<text>` rather than the real source's own
+nested-group split, since every other symbol element already relies on a
+single combined transform for Canvas.tsx's own click-tolerance box and
+drag-in-DOM logic. Fixing this also surfaced a real Extract bug: both
+parsers only checked the outer node's own `transform` attribute for
+Orientation, but the real source now nests rotate() one level inside (the
+same pattern `parseTwoPortDevice` already handles for other shapes) —
+every real rotated instance was silently losing its Orientation; fixed by
+searching descendants for the transform instead, always deriving the
+anchor from geometry), **164** Отделитель/Sectionalizer
+(only Closed(1)/Open(0), so Properties' own State dropdown for this class
+offers just those two, not the usual Open/Close/Intermediate — the real
+source has no Intermediate position for this device at all, so this
+shape's own `{state:closed|open|other}` template deliberately draws its
+"other" option identical to "open" rather than inventing a third one; Open
+itself is drawn as the same full-length rod tilted to a diagonal rather
+than the real source's own literal geometry (a short stub near the top
+terminal plus a bottom-terminal open-contact circle) — rejected as
+visually wrong for this device, at the user's own request — and
+`Extract`'s own `parseSectionalizer` reads
+State from whichever of the real source's two visibility-swapped `<g
+data-state="0|1">` child groups is actually visible, not from a `data-
+state` attribute on a path the way every other switching device here
+works; both the real source's xMirror flag and its `sde.Distance`-driven
+leg extension were dropped, the same simplification every other shape here
+already makes. Unlike Ground switch (54)'s own `Extract` support, an
+unrotated (Orient 0) instance — the common real-world case for this shape,
+confirmed against a real corpus (`PS_110kV_Lubnisa.svg`, both its own
+Sectionalizer instances) — *is* supported: since the real source omits its
+`rotate()` transform entirely at that angle, and this shape's own two
+states draw too differently from each other for a reliable "extreme
+points" anchor the way most other two-port shapes get one,
+`sectionalizerAnchorFromTick` instead locates the shape's own "top tick" —
+a fixed, always-identical-between-states 10-unit segment — and derives the
+anchor from it directly), **3** Прямоугольник/Rectangle (unlike every
+other shape here, not real electrical equipment at all — see slddoc's own
+`ClassRectangle` doc comment: no Voltage/State/Orientation/Ports, never a
+valid `connectElements`/routing-tool target, `Extract`'s own
+`parseRectangle` never gives it a Port. Its size varies per instance and
+isn't part of the electrical network, so — like `BusBarSection` — it's
+drawn straight from its own two `Points` (opposite corners) rather than a
+fixed local-coordinate template; its own literal `Fill`/`Stroke` colors are
+free text, not a `VoltageClass` reference, the same pattern a Lamp's own
+FillOff/FillOn already uses. Placed in the palette's own new "Annotations"
+category rather than force-fit into an electrical one), **2** Стрелка/
+Arrow (same non-electrical status as Rectangle just above — see slddoc's
+own `ClassArrow` doc comment; also drawn from its own two `Points`, but
+order matters here, unlike Rectangle's — the arrowhead is always at
+`Points[1]`, or both ends when `DoubleHeaded`. Reuses Rectangle's own
+`Stroke`/`StrokeWidth` fields rather than adding new ones — an arrow has
+no interior, so no `Fill`. Its own open two-stroke chevron arrowhead
+matches the real xsde2svg source (`element_2.go`) exactly, reproduced as a
+single local-frame formula rather than that source's own five separate
+draw branches — a horizontal chevron rotated by `writeArrow`'s own
+wrapping transform is pixel-identical to what those branches compute
+directly. Two real-source details were *not* ported: dashed/dash-dot line
+styles, and scaling the arrowhead's own size by StrokeWidth — the latter
+turned out to not really be a real relationship in the source either (see
+`arrowChevron`'s own doc comment). `Extract`'s own `parseArrow` doesn't
+replicate those five draw branches either — it recovers the two true
+endpoints via a "farthest two points in the path" heuristic robust to all
+of them, but can't reliably tell a double-headed instance's own doubled
+starting chevron apart from an ordinary single-headed one from geometry
+alone, so an extracted Arrow's own `DoubleHeaded` is always false), **4**
+Круг/Circle (same non-electrical status and same two-opposite-corners
+`Points` convention as Rectangle above — order-independent, unlike
+Arrow's — just rendered as an `<ellipse>` instead of a `<rect>`; reuses
+Rectangle's own `Fill`/`Stroke`/`StrokeWidth` fields rather than adding
+new ones, including the same Properties "Transparent" fill-reset button.
+`Extract`'s own `parseCircle` reads `cx`/`cy`/`rx`/`ry` straight off the
+bare `<ellipse>` tag, the same direct-attribute approach Rectangle's own
+`parseRectangle` uses).
 
 Deferred — real xsde2svg shapes whose own source (`xsde2svg/internal/modus/
 element_<code>.go`) is substantially more involved than the shapes above,
 each needing its own dedicated pass rather than a quick port:
 
-- **164** Отделитель (disconnector/isolator) — state-toggling dual
-  geometry (visible/hidden `<g>` pairs), mirror-dependent, *and* depends on
-  `sde.Distance` (external busbar spacing) that this schema has no
-  equivalent field for at all.
-- **398** Короткозамыкатель (short-circuiter) — same state-toggling
-  dual-geometry + mirror complexity as 164, without the Distance
-  dependency.
 - **55** Трансформатор напряжения (voltage transformer) — not a simple
   symbol: variable winding count (2/3/4), per-winding color, and six
   different connection-type geometries (wye/delta/zigzag/...). Porting it
   faithfully means adding a real winding-configuration concept to the
   schema, closer in scope to redesigning `PowerTransformer` support than
   adding a shape.
-- **385/386** КТП/ЗТП (package substation units) — these aren't switchgear
-  with electrical ports at all; they're facility-level pictogram boxes
-  (like a power-plant icon), so they don't fit this project's
-  "equipment with terminals" model as-is.
 
 Deliberately out of scope (decorative/structural, not real electrical
 equipment — same reasoning that already excludes the generic draw
-primitives, data-type 1/2/3/4/16): poles/pylons (19/146/292), power-plant/
+primitives, data-type 1/16 — Rectangle (3), Arrow (2), and Circle (4) are
+the three generic primitives that *have* been ported, see above):
+poles/pylons (19/146/292), power-plant/
 substation pictogram icons (38/360), chassis/half-chassis cart graphics
-(51/52), a cable-plug graphic (56), a decorative connector-arrow (83),
+(51/52), a decorative connector-arrow (83),
 button/table/window HMI decoration (113/313/319), a road/geographic
 background element (335), and a generic "Device" placeholder (130, too
 vague to know what it actually draws).
 
 ## Known pre-existing extract gaps
 
-- `PowerTransformer` (47) only supports the 2-winding case — a real
-  corpus's 3-winding transformers land in `Report.Failed`, not
-  `Report.Skipped` (2 such instances in `Examples.svg`).
+None currently known. The one gap previously listed here —
+`PowerTransformer` (47) only supporting the 2-winding case, with a real
+corpus's 3-winding transformers landing in `Report.Failed` — was already
+fixed in an earlier session without this section being updated to say
+so; re-verified against `sld-svg/translated/Examples.svg` (the real
+corpus file the old note's own "2 such instances" count came from):
+`parsePowerTransformer` now supports 2/3/4 windings, `Report.Failed` is
+empty, and both of that file's own 3-winding transformers (ids 1267,
+4438) extract with `len(Windings) == 3` correctly.

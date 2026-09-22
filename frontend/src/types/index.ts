@@ -56,8 +56,10 @@ export interface EditorSettings {
 export type ElementClass =
   | 'Breaker'
   | 'Disconnector'
+  | 'Sectionalizer'
   | 'LoadBreakSwitch'
   | 'GroundSwitch'
+  | 'ShortCircuiter'
   | 'Ground'
   | 'PowerTransformer'
   | 'CurrentTransformer'
@@ -73,8 +75,15 @@ export type ElementClass =
   | 'BusBarSection'
   | 'JunctionPoint'
   | 'NonIntersection'
+  | 'CableConnector'
+  | 'CableJoint'
   | 'Lamp'
   | 'FaultPassageIndicator'
+  | 'Rectangle'
+  | 'Arrow'
+  | 'Circle'
+  | 'PackageSubstation'
+  | 'EnclosedSubstation'
 
 // Matches slddoc.WindingScheme — a PowerTransformer winding's own
 // connection scheme. Only the three values with a real connection glyph in
@@ -126,11 +135,56 @@ export interface DiagramElement {
   x: number
   y: number
   orient?: number
+  // Flips the symbol template horizontally in its own local frame, applied
+  // before orient's own rotation — matches backend/internal/slddoc's own
+  // Mirror field. Meaningless for a BusBarSection (its own drawn `points`
+  // are already absolute geometry, no local template to flip).
+  mirror?: boolean
   state?: number | null
   position?: number | null
   fillOff?: string
   fillOn?: string
   radius?: number
+  // Rectangle (shape 3) or Circle (shape 4) only — its own interior
+  // color, matching backend/internal/slddoc's own Element.Fill. Not a
+  // VoltageClass reference (a decorative annotation shape has no
+  // electrical voltage of its own), the same free-text-color pattern
+  // fillOff/fillOn already use for a Lamp. Also used by PackageSubstation
+  // (shape 385) for its own inner rectangle's/triangle's interior — unlike
+  // Rectangle/Circle, this one *does* have a real Voltage of its own (its
+  // outline's color); Fill here is the real xsde2svg source's own Abonent
+  // flag, generalized into this same free-choice field.
+  fill?: string
+  // A Rectangle's/Circle's own border color, or an Arrow's (shape 2) own
+  // line color — same free-text convention as fill.
+  stroke?: string
+  // A Rectangle's/Circle's own border thickness, or an Arrow's own line
+  // thickness, matching backend/internal/slddoc's own
+  // Element.StrokeWidth. Unset/0 means the real xsde2svg default of 1,
+  // not literally invisible.
+  strokeWidth?: number
+  // Arrow (shape 2) only — draws its own open chevron arrowhead at both
+  // points instead of just the second one, matching backend/internal/
+  // slddoc's own Element.DoubleHeaded.
+  doubleHeaded?: boolean
+  // PackageSubstation (shape 385) only — selects between its own two real
+  // appearance variants, matching backend/internal/slddoc's own
+  // Element.NType: 0/unset draws a box-in-box pictogram with a lead stub,
+  // 1 draws a plain downward-pointing triangle instead.
+  nType?: number
+  // PackageSubstation (385) or EnclosedSubstation (386) — a short overlay
+  // label (e.g. a transformer's own power rating, "160") drawn centered
+  // on the shape, staying upright regardless of Orientation/Mirror.
+  // Matches backend/internal/slddoc's own Element.PropertyText — see its
+  // own doc comment for why this is a fixed centered/white/17px style
+  // rather than the real source's own generic position/font/color
+  // options. Empty means no label for these two. Also used by
+  // FaultPassageIndicator (320003) for its own centered "FPI" text —
+  // unlike 385/386, empty here means that fixed default label, not "no
+  // label", since this shape's own real source draws no text at all (a
+  // long-standing convention of this project's own, not derived from
+  // anything real to match "no label" against).
+  propertyText?: string
   ports?: Port[]
   points?: Point[]
   // PowerTransformer (shape 47) only — see TransformerWinding's own doc
@@ -310,4 +364,11 @@ export interface EditorConfig {
   stateColors: StateColor[]
   positionStates: PositionState[]
   fpiStateColors: StateColor[]
+  // The install-wide default overlay text a FaultPassageIndicator (320003)
+  // with no own propertyText draws — see backend/internal/config's own
+  // Indicators.DefaultFPIText doc comment for why this is admin-configured
+  // rather than hardcoded. "" falls back to the backend's own "FPI"
+  // literal; diagramOps.placeElement/PropertiesPanel fall back to that
+  // same literal too, for a config predating this field.
+  defaultFpiText: string
 }
