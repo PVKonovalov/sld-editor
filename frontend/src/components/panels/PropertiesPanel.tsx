@@ -4,9 +4,34 @@ import * as diagramOps from '../../lib/diagramOps'
 import { PanelShell } from './PanelShell'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
-import type { DiagramElement, ConnectorLineStyle, TransformerWinding, WindingScheme, TerminalDirection } from '../../types'
+import { CONNECTOR_KIND_CODES, LABEL_SHAPE, DIGITAL_DEVICE_SHAPE } from '../../lib/paletteItem'
+import type { DiagramElement, ConnectorKind, ConnectorLineStyle, TransformerWinding, WindingScheme, TerminalDirection } from '../../types'
 
 const ORIENTATIONS = [0, 90, 180, -90]
+
+// A connector's own "Type:ID" line (see CONNECTOR_KIND_CODES for the "ID"
+// half) — every ConnectorKind, not just the 4 the Elements panel's own
+// "Wires" section offers to arm (ElementsPanel.tsx's own WIRE_KIND_LABELS):
+// a real diagram can still carry a 'BusbarWire' connector from before that
+// kind was removed as a palette choice.
+const CONNECTOR_KIND_LABELS: Record<ConnectorKind, TranslationKey> = {
+  BusbarWire: 'connectorKind.BusbarWire',
+  OverheadLine: 'connectorKind.OverheadLine',
+  CableLine: 'connectorKind.CableLine',
+  BusWork: 'connectorKind.BusWork',
+  LinkToObject: 'connectorKind.LinkToObject',
+}
+
+// Matches the "Name:shape" convention DiagramElementProperties' own
+// typeLabel uses (e.g. "Power transformer:47") — the same xsde2svg
+// ObjectType code convention, generalized to a Connector (its own Kind's
+// code, e.g. "Object link:28" — absent for 'BusbarWire', which has none),
+// a Label ("Text:5"), or a DigitalDevice ("Digital device:134"), each
+// falling back to just the bare name with no ":code" suffix when there's
+// no real code to show.
+function typeCodeLabel(name: string, code?: string): string {
+  return code ? `${name}:${code}` : name
+}
 
 // A Cable line connector's own dash-pattern choices, mirroring xsde2svg's
 // own line-style switch (xsde2svg/internal/modus/element_23.go) exactly —
@@ -341,6 +366,9 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     return (
       <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
         <div className="space-y-3">
+          <p className="text-xs text-gray-400">
+            {typeCodeLabel(t(CONNECTOR_KIND_LABELS[connector.kind]), CONNECTOR_KIND_CODES[connector.kind])}
+          </p>
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.name')}</span>
             <input
@@ -420,6 +448,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     return (
       <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
         <div className="space-y-3">
+          <p className="text-xs text-gray-400">{typeCodeLabel(t('elements.text'), LABEL_SHAPE)}</p>
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.labelText')}</span>
             <textarea
@@ -519,6 +548,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     return (
       <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
         <div className="space-y-3">
+          <p className="text-xs text-gray-400">{typeCodeLabel(t('elements.digitalDevice'), DIGITAL_DEVICE_SHAPE)}</p>
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.digitalDeviceName')}</span>
             <input
@@ -630,8 +660,10 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // "Name:shape" — the same "Breaker:41" convention render.go's own
   // typeComment annotates the rendered SVG with (see shapeName), shown
   // here for every element, not just the ones whose name happens to
-  // already read as distinctive (e.g. "Breaker (withdrawable)").
-  const typeLabel = `${typeName}:${el.shape}`
+  // already read as distinctive (e.g. "Breaker (withdrawable)") — see
+  // typeCodeLabel for the same convention generalized to a Connector/
+  // Label/DigitalDevice.
+  const typeLabel = typeCodeLabel(typeName, el.shape)
   const isLamp = el.class === 'Lamp'
   const isRectangle = el.class === 'Rectangle'
   const isCircle = el.class === 'Circle'

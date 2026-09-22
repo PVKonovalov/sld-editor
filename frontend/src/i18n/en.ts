@@ -43,6 +43,7 @@ export const dictionary = {
   'elements.labelArmedHint': 'Click the canvas to place a text label. Esc to cancel.',
   'elements.digitalDevice': 'Digital device',
   'elements.digitalDeviceArmedHint': 'Click the canvas to place a digital device (SCADA readout). Esc to cancel.',
+  'connectorKind.BusbarWire': 'Busbar wire',
   'connectorKind.BusWork': 'Buswork',
   'connectorKind.OverheadLine': 'Overhead line',
   'connectorKind.CableLine': 'Cable line',

@@ -3525,3 +3525,29 @@ failures; the 4 total failures found in that same run were pre-existing
 PowerTransformer edge cases, unrelated), and a full round trip via the
 live app (placed, selected, toggled Square live in the DOM, saved,
 reloaded) plus an `Extract` check against the app's own saved output.
+
+2026-09-22: Properties' own "Name:shape" type line (e.g. "Power
+transformer:47" — the same xsde2svg `ObjectType`-code convention
+`render.go`'s own `typeComment` annotates the rendered SVG with) was only
+ever shown for an Element; a Connector, Label, or DigitalDevice showed no
+type at all, just a bare "ID: N" further down. Added the identical
+convention to all three: a Connector now shows its own Kind name plus the
+real xsde2svg connector-type code (e.g. "Overhead line:22" — the same
+code `internal/slddoc.Render`'s own `data-type` uses; falls back to just
+the bare name with no code for `BusbarWire`, which has none, having been
+removed as a palette choice), a Label shows "Text:5", and a DigitalDevice
+shows "Digital device:134" (both fixed codes — neither has real
+per-instance variants). New `PropertiesPanel.tsx` helper `typeCodeLabel`
+(`name` + optional `code`) used by all four kinds now, including the
+pre-existing Element case (refactored onto it, unchanged output); new
+`CONNECTOR_KIND_CODES`/`LABEL_SHAPE`/`DIGITAL_DEVICE_SHAPE` exports added
+to `lib/paletteItem.ts` (the same codes that module's own
+`classifyPaletteItem` already used internally, reused here rather than
+duplicated) and a new `connectorKind.BusbarWire` i18n key (en/ru) for the
+one connector kind that had no display name at all yet. The existing
+"ID: N" line stays unchanged for all four — a different number (the
+object's own real id) from the new type line's code, not a duplicate.
+Verified with `npx tsc --noEmit` and live against two real diagrams:
+every kind (Element, a `BusbarWire`/`OverheadLine` Connector, a Label, a
+DigitalDevice) showing its own correct "Type:ID" line, `BusbarWire`
+correctly falling back to no code.

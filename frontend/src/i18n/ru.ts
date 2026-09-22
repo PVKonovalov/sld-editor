@@ -48,6 +48,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'elements.labelArmedHint': 'Щёлкните на схеме, чтобы разместить текстовую надпись. Esc — отмена.',
   'elements.digitalDevice': 'Цифровой прибор',
   'elements.digitalDeviceArmedHint': 'Щёлкните на схеме, чтобы разместить цифровой прибор (показание SCADA). Esc — отмена.',
+  'connectorKind.BusbarWire': 'Шинный провод',
   'connectorKind.BusWork': 'Провод',
   'connectorKind.OverheadLine': 'Воздушная линия',
   'connectorKind.CableLine': 'Кабельная линия',
