@@ -3484,3 +3484,44 @@ label match byte-for-byte before and after the refactor — plus a live
 reorder test (moving "Indicators" to the front of `palette:` and
 restarting) confirming the panel actually reflects a config change with
 no code touched.
+
+2026-09-22: Added shape 292 (Post-type pole) — a purely
+decorative structural marker on a pole-by-pole layout diagram, not real
+electrical equipment (no Ports/Voltage/State, never a connectElements/
+routing endpoint — same as Rectangle/Circle/Arrow/Button/Road). Unlike
+those five, it's a single anchor+orient shape (click-to-place, like Lamp/
+JunctionPoint), not Points-based, drawn as a bare `<rect>` or `<circle>`
+(`Element.Square` selects which — the real source's own three-way
+Material/StyleTow/FillTow branching always collapses to just those two
+visual outcomes either way) with no wrapping `<g>` and no `data-name`
+(same gap Road's own source has). Reuses `Radius` (doubling as the square
+variant's own half-width — the real source's own Radius/w constants
+always share one value) and `Fill`/`Stroke` (unset falls back to "none"/
+"gray", the real corpus's own dominant look); `StrokeWidth` isn't
+modeled — the real source hardcodes 1, no per-instance variance to
+justify a field. `Orient` still round-trips a real instance's own
+`rotate(angle,x,y)` for fidelity, but is visually inert either way (a
+circle has no orientation; an axis-aligned square is 4-fold symmetric,
+and this editor only ever places one at 0/90/180/-90) — Properties hides
+both Orientation and Mirror entirely, the same treatment Lamp's own
+equally-inert Orientation already gets. `slddoc`: `ClassPostPole`,
+`writePole`/`parsePole`. Frontend: `placeElement`'s own defaultVoltage
+seeding excludes PostPole (matching Lamp/FaultPassageIndicator's own
+exclusion — not real electrical equipment), `POLE_DEFAULTS` (visible
+gray/transparent marker instead of blank), a dedicated click-tolerance
+box in Canvas's own `elementBoxes` (computed directly from X/Y/Radius,
+not Points, since PostPole is a single anchor — needed because its own
+Fill is very often "none", same reasoning Rectangle/Circle/Button already
+have one for) and a matching bare-tag branch in `dragElementsInDom`, a
+`base.xml` palette entry ("Post-type pole", added to the Annotations
+group in both `config/sld-editor.yaml` and the untracked local
+`sld-editor-debug.yaml`) with a new `elementIcon.ts` preview, a Properties
+panel section (Fill + Transparent reset/Border color/Radius/Square marker
+checkbox), and new `elementCatalog.name.292`/`properties.poleSquare` i18n
+keys in both `en.ts`/`ru.ts`. Verified with `go build`/`vet`/`test`
+(`slddoc` + `backend`), `npx tsc --noEmit`, a standalone `Extract` check
+against 2961 real corpus Post-type pole instances (zero shape-292
+failures; the 4 total failures found in that same run were pre-existing
+PowerTransformer edge cases, unrelated), and a full round trip via the
+live app (placed, selected, toggled Square live in the DOM, saved,
+reloaded) plus an `Extract` check against the app's own saved output.

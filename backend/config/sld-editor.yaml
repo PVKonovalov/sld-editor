@@ -113,7 +113,7 @@ palette:
   - name: "Busbars"
     items: [ "24" ]
   - name: "Annotations"
-    items: [ "3", "2", "4", "113", "335", "5" ]
+    items: [ "3", "2", "4", "113", "335", "5", "292" ]
   - name: "Wiring"
     items: [ "7", "14", "56", "32" ]
   - name: "Switching devices"

@@ -326,7 +326,10 @@ export function Canvas() {
   // click-tolerance box even more. A Circle's own box is its bounding
   // box, not a true ellipse hit-test — close enough for a click-tolerance
   // fallback, same as everywhere else this project favors a simple box
-  // over per-shape-accurate hit geometry.
+  // over per-shape-accurate hit geometry. A PostPole (also a bare
+  // <rect>/<circle>, also often unfilled) gets the identical treatment,
+  // just computed from its own X/Y/Radius instead of Points, since it's a
+  // single anchor, not a Points-based shape.
   useEffect(() => {
     const root = wrapperRef.current
     if (!root || !diagram) {
@@ -341,6 +344,21 @@ export function Canvas() {
         const x = Math.min(p0.x, p1.x)
         const y = Math.min(p0.y, p1.y)
         boxes.set(el.id, { x, y, width: Math.abs(p1.x - p0.x), height: Math.abs(p1.y - p0.y) })
+        continue
+      }
+      if (el.class === 'PostPole') {
+        // Same reasoning as Rectangle/Circle/Button just above — a bare
+        // <rect>/<circle>, not a <g>, so it's skipped in the DOM-lookup
+        // sense below, and its own Fill is very often "none" (see
+        // diagramOps.POLE_DEFAULTS), so it needs this same click-tolerance
+        // box. Computed directly from X/Y/Radius rather than el.points
+        // (PostPole is a single anchor, not Points-based) — Orient is
+        // never applied here since it's visually inert for this shape
+        // either way (see slddoc's own ClassPostPole doc comment), so the
+        // box is always just a plain square centered on the anchor,
+        // whether the drawn marker itself is round or square.
+        const radius = el.radius || 10
+        boxes.set(el.id, { x: el.x - radius, y: el.y - radius, width: radius * 2, height: radius * 2 })
         continue
       }
       // No tag restriction (not just `g[...]`) — PackageSubstation's own
@@ -490,16 +508,17 @@ export function Canvas() {
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
       if (exclude?.kind === 'element' && el.id === exclude.elementId) continue
-      // A Rectangle/Circle/Arrow/Button/Road is a purely decorative
-      // annotation, never a valid wire endpoint — unlike every other class
-      // here, none even falls back to its own anchor (see
+      // A Rectangle/Circle/Arrow/Button/Road/PostPole is a purely
+      // decorative annotation, never a valid wire endpoint — unlike every
+      // other class here, none even falls back to its own anchor (see
       // diagramOps.connectElements' own matching guard).
       if (
         el.class === 'Rectangle' ||
         el.class === 'Circle' ||
         el.class === 'Arrow' ||
         el.class === 'Button' ||
-        el.class === 'Road'
+        el.class === 'Road' ||
+        el.class === 'PostPole'
       )
         continue
       if (el.class === 'BusBarSection' && el.points && el.points.length >= 2) {
@@ -726,7 +745,10 @@ export function Canvas() {
   // instead — a busbar's or road's <polyline points>, a rectangle's
   // <rect x y> (its width/height are unaffected by a plain translate, only
   // x/y shift), a circle's <ellipse cx cy> (its own rx/ry likewise
-  // unaffected), or a button's own <rect x y>/<text x y> pair.
+  // unaffected), or a button's own <rect x y>/<text x y> pair. PostPole,
+  // though a single anchor (not Points-based), gets the identical bare-tag
+  // treatment for the identical reason — no wrapping <g> a translate()
+  // could shift (see writePole).
   function dragElementsInDom(ids: number[], dx: number, dy: number) {
     const root = wrapperRef.current
     if (!root) return
@@ -766,6 +788,22 @@ export function Canvas() {
         const text = node.querySelector('text')
         text?.setAttribute('x', String(x + w / 2))
         text?.setAttribute('y', String(y + h / 2))
+      } else if (el.class === 'PostPole') {
+        // Also a bare tag with no wrapping <g> (see writePole) — its own
+        // x/y are absolute, not a local-frame origin a translate() could
+        // shift, so its own cx/cy (round) or x/y (square) are set
+        // directly instead, the same way Rectangle's/Circle's own do.
+        const x = el.x + dx
+        const y = el.y + dy
+        if (el.square) {
+          const radius = el.radius || 10
+          node.setAttribute('x', String(x - radius))
+          node.setAttribute('y', String(y - radius))
+        } else {
+          node.setAttribute('cx', String(x))
+          node.setAttribute('cy', String(y))
+        }
+        if (el.orient) node.setAttribute('transform', `rotate(${el.orient},${x},${y})`)
       } else {
         node.setAttribute('transform', `translate(${el.x + dx},${el.y + dy}) rotate(${el.orient ?? 0})`)
       }

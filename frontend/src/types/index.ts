@@ -84,6 +84,7 @@ export type ElementClass =
   | 'Circle'
   | 'Button'
   | 'Road'
+  | 'PostPole'
   | 'PackageSubstation'
   | 'EnclosedSubstation'
 
@@ -146,6 +147,9 @@ export interface DiagramElement {
   position?: number | null
   fillOff?: string
   fillOn?: string
+  // Also a PostPole's (shape 292) own drawn circle radius, doubling as its
+  // Square variant's own half-width — see square below, and slddoc's own
+  // Element.Radius doc comment for why one field covers both.
   radius?: number
   // Rectangle (shape 3) or Circle (shape 4) only — its own interior
   // color, matching backend/internal/slddoc's own Element.Fill. Not a
@@ -155,23 +159,30 @@ export interface DiagramElement {
   // (shape 385) for its own inner rectangle's/triangle's interior — unlike
   // Rectangle/Circle, this one *does* have a real Voltage of its own (its
   // outline's color); Fill here is the real xsde2svg source's own Abonent
-  // flag, generalized into this same free-choice field.
+  // flag, generalized into this same free-choice field. Also used by
+  // PostPole (292) for its own marker interior.
   fill?: string
   // A Rectangle's/Circle's own border color, an Arrow's (shape 2)/Road's
-  // (shape 335) own line color, or a Button's own box border color — same
-  // free-text convention as fill.
+  // (shape 335) own line color, a Button's own box border color, or a
+  // PostPole's (292) own marker border color — same free-text convention
+  // as fill.
   stroke?: string
   // A Rectangle's/Circle's own border thickness, an Arrow's/Road's own
   // line thickness, or a Button's own box border thickness, matching
   // backend/internal/slddoc's own Element.StrokeWidth. Unset/0 means the
   // real xsde2svg default of 1 for every one of these except Road, whose
   // own unset default is much thicker (see that field's own Go doc
-  // comment).
+  // comment). Unused by PostPole (292) — its own border is always 1,
+  // matching the real source's own hardcoded value.
   strokeWidth?: number
   // Arrow (shape 2) only — draws its own open chevron arrowhead at both
   // points instead of just the second one, matching backend/internal/
   // slddoc's own Element.DoubleHeaded.
   doubleHeaded?: boolean
+  // PostPole (shape 292) only — draws its own square marker instead of
+  // its default round one, matching backend/internal/slddoc's own
+  // Element.Square.
+  square?: boolean
   // PackageSubstation (shape 385) only — selects between its own two real
   // appearance variants, matching backend/internal/slddoc's own
   // Element.NType: 0/unset draws a box-in-box pictogram with a lead stub,

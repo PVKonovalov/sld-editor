@@ -120,6 +120,20 @@
     <template></template>
   </symbol>
 
+  <symbol shape="292" class="PostPole" name="Post-type pole">
+    <!-- A PostPole has no fixed template: its own drawn tag (<rect> or
+         <circle>, selected by Square) switches per instance, something a
+         single static template substitution can't express, and it isn't
+         real electrical equipment at all (no terminals, no voltage, no
+         state — see slddoc's own ClassPostPole doc comment), so it's
+         drawn directly by internal/slddoc.Render (writePole), not
+         template substitution. This entry exists only so the Elements
+         palette can offer "Post-type pole" the same click-to-place way it
+         already offers Lamp/JunctionPoint (a single anchor, not a
+         drag-two-points shape like Rectangle/Road). -->
+    <template></template>
+  </symbol>
+
   <symbol shape="335" class="Road" name="Road">
     <!-- Like Busbar section above, a Road has no fixed template: it's an
          arbitrary multi-vertex polyline, and it isn't real electrical

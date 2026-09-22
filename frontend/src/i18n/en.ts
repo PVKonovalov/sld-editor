@@ -111,6 +111,7 @@ export const dictionary = {
   'elementCatalog.name.4': 'Circle',
   'elementCatalog.name.113': '3D button',
   'elementCatalog.name.335': 'Road',
+  'elementCatalog.name.292': 'Post-type pole',
 
   'settings.noDiagram': 'Open or create a diagram to edit its settings.',
   'settings.gridSpacing': 'Grid spacing',
@@ -183,6 +184,7 @@ export const dictionary = {
   'properties.arrowStroke': 'Line color',
   'properties.arrowStrokeWidth': 'Line width',
   'properties.arrowDoubleHeaded': 'Double-headed',
+  'properties.poleSquare': 'Square marker',
   'properties.buttonText': 'Text',
   'properties.buttonTextColor': 'Text color',
   'properties.substationNType': 'Appearance',

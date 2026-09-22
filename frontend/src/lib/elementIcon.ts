@@ -68,6 +68,16 @@ const BUTTON_ICON =
 // BUSBAR_ICON's own plain thin straight line.
 const ROAD_ICON = '<path d="M -22 14 L -6 -8 L 10 -6 L 22 14" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />'
 
+// PostPole (shape 292) also has no template — unlike Rectangle/Circle/
+// Road above, it's click-to-place (a single anchor, not two dragged
+// points), so its icon is solid, not dashed, the same "real equipment"
+// convention PACKAGE_SUBSTATION_ICON/ENCLOSED_SUBSTATION_ICON already use
+// — a ring with a filled center dot, standing in for either of the real
+// shape's own two variants (round or square) without picking one.
+const POLE_ICON =
+  '<circle cx="0" cy="0" r="16" fill="none" stroke="currentColor" stroke-width="2" />' +
+  '<circle cx="0" cy="0" r="4" fill="currentColor" stroke="none" />'
+
 const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '24': BUSBAR_ICON,
   '3': RECTANGLE_ICON,
@@ -75,6 +85,7 @@ const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '4': CIRCLE_ICON,
   '113': BUTTON_ICON,
   '335': ROAD_ICON,
+  '292': POLE_ICON,
   '385': PACKAGE_SUBSTATION_ICON,
   '386': ENCLOSED_SUBSTATION_ICON,
 }

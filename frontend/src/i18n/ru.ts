@@ -107,6 +107,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'elementCatalog.name.4': 'Круг',
   'elementCatalog.name.113': 'Объемная кнопка',
   'elementCatalog.name.335': 'Дорога',
+  'elementCatalog.name.292': 'Опора стоечная',
 
   'settings.noDiagram': 'Откройте или создайте схему, чтобы изменить её настройки.',
   'settings.gridSpacing': 'Шаг сетки',
@@ -179,6 +180,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.arrowStroke': 'Цвет линии',
   'properties.arrowStrokeWidth': 'Толщина линии',
   'properties.arrowDoubleHeaded': 'Двусторонняя стрелка',
+  'properties.poleSquare': 'Квадратный маркер',
   'properties.buttonText': 'Текст',
   'properties.buttonTextColor': 'Цвет текста',
   'properties.substationNType': 'Вид',

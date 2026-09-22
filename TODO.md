@@ -359,7 +359,30 @@ editor can only draw a *fresh* Road as a straight two-point line (same
 limitation a fresh Busbar section already has — no way yet to add a bend
 point to a freshly-placed points-based element mid-edit, only drag
 existing ones); a Road extracted from a real multi-bend file keeps every
-one of its own original vertices, each individually draggable.
+one of its own original vertices, each individually draggable. **292**
+Опора стоечная/Post-type pole (another earlier "out of scope" call that
+turned out to be wrong — same note as 113/335 above): a purely decorative
+structural marker on a pole-by-pole layout diagram, not real electrical
+equipment — unlike the five generic primitives above, it's a single
+anchor+orient shape (click-to-place, like Lamp/JunctionPoint), not
+Points-based, drawn as a bare `<rect>` or `<circle>` (`Square` selects
+which — the real source's own three-way Material/StyleTow/FillTow
+branching always collapses to just those two visual outcomes either way)
+with no wrapping `<g>` and no `data-name` (same gap Road's own source has).
+Reuses `Radius` (doubling as the square variant's own half-width — the
+real source's own Radius/w constants always share one value) and
+`Fill`/`Stroke` (unset falls back to "none"/"gray", the real corpus's own
+dominant look) — `StrokeWidth` isn't modeled, the real source hardcodes 1
+with no per-instance variance to justify a field. `Orient` still
+round-trips a real instance's own `rotate(angle,x,y)` for fidelity, but is
+visually inert either way (a circle has no orientation; an axis-aligned
+square is 4-fold symmetric, and this editor only ever places one at
+0/90/180/-90) — Properties hides both Orientation and Mirror entirely, the
+same treatment Lamp's own equally-inert Orientation already gets. Verified
+against 2961 real corpus instances (zero shape-292 extraction failures,
+geometry/fill/stroke/square/orient all matching) — the 4 total extraction
+failures found across that same corpus run were pre-existing PowerTransformer
+(shape 47) edge cases, unrelated.
 
 Deferred — real xsde2svg shapes whose own source (`xsde2svg/internal/modus/
 element_<code>.go`) is substantially more involved than the shapes above,
@@ -375,8 +398,10 @@ each needing its own dedicated pass rather than a quick port:
 Deliberately out of scope (decorative/structural, not real electrical
 equipment — same reasoning that already excludes the generic draw
 primitives, data-type 1/16 — Rectangle (3), Arrow (2), Circle (4), Button
-(113), and Road (335) are the five generic primitives that *have* been
-ported, see above): poles/pylons (19/146/292), power-plant/
+(113), and Road (335) are the five generic primitives, and Post-type pole
+(292) the one anchor-based marker, that *have* been ported, see above):
+other poles/pylons (19/146 — anchor/angle pole, power pole — neither
+confirmed to share 292's own simple round-or-square geometry), power-plant/
 substation pictogram icons (38/360), chassis/half-chassis cart graphics
 (51/52), a decorative connector-arrow (83),
 table/window HMI decoration (313/319), and a generic "Device" placeholder

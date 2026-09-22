@@ -638,17 +638,19 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isArrow = el.class === 'Arrow'
   const isButton = el.class === 'Button'
   const isRoad = el.class === 'Road'
+  const isPostPole = el.class === 'PostPole'
   const isPackageSubstation = el.class === 'PackageSubstation'
   const isEnclosedSubstation = el.class === 'EnclosedSubstation'
   const isJunctionPoint = el.class === 'JunctionPoint'
   // Neither a Lamp nor a FaultPassageIndicator reads a Voltage class color
   // (see diagramOps.placeElement's own matching exclusion) — both get a
-  // fixed color of their own instead. A Rectangle/Circle/Arrow/Button/Road
-  // isn't part of the electrical network at all (see slddoc's own
-  // ClassRectangle/ClassCircle/ClassArrow/ClassButton/ClassRoad doc
-  // comments) — its own Stroke (plus, for a Rectangle/Circle/Button, Fill)
-  // is its equivalent, shown below.
-  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator' || isRectangle || isCircle || isArrow || isButton || isRoad
+  // fixed color of their own instead. A Rectangle/Circle/Arrow/Button/Road/
+  // PostPole isn't part of the electrical network at all (see slddoc's own
+  // ClassRectangle/ClassCircle/ClassArrow/ClassButton/ClassRoad/
+  // ClassPostPole doc comments) — its own Stroke (plus, for a Rectangle/
+  // Circle/Button/PostPole, Fill) is its equivalent, shown below.
+  const hasNoVoltage =
+    isLamp || el.class === 'FaultPassageIndicator' || isRectangle || isCircle || isArrow || isButton || isRoad || isPostPole
 
   function patch(fields: Partial<DiagramElement>) {
     updateDiagram(d => ({
@@ -1126,6 +1128,58 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {isPostPole && (
+          <>
+            {/* Reuses Rectangle's own Fill/Stroke i18n keys (identical
+                free-text-color model) and Lamp's own Radius key (a plain
+                "Radius" label, despite its own lamp-specific key name) —
+                no StrokeWidth (always 1, see slddoc's own Element.Square
+                doc comment) and no Orientation (hidden below, visually
+                inert for this shape either way). */}
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.rectangleFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#808080')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.lampRadius')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.radius ?? 10}
+                onChange={e => patch({ radius: Number(e.target.value) })}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={!!el.square} onChange={e => patch({ square: e.target.checked })} />
+              <span className="text-gray-400">{t('properties.poleSquare')}</span>
+            </label>
+          </>
+        )}
+
         {el.class === 'PowerTransformer' && (
           <>
             <label className="flex items-center gap-1.5 text-xs">
@@ -1319,8 +1373,12 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           // terminals (top/bottom) — Orientation is what lets one of those
           // land on a horizontal wire instead of only ever a vertical one,
           // so it still needs the field even though nothing visually
-          // changes.
-          !isLamp && (
+          // changes. PostPole gets the same skip as Lamp — no terminals
+          // either, and both its own round and (axis-aligned, 4-fold
+          // symmetric) square variants look identical at every orientation
+          // this editor supports (see slddoc's own ClassPostPole doc
+          // comment) — Mirror is equally inert for the same reason.
+          !isLamp && !isPostPole && (
             <>
               <label className="block text-xs">
                 <span className="block text-gray-400 mb-1">{t('properties.orientation')}</span>

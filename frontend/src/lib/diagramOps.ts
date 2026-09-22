@@ -215,6 +215,17 @@ const LAMP_DEFAULTS: Pick<DiagramElement, 'state' | 'fillOff' | 'fillOn' | 'radi
   radius: 11,
 }
 
+// A freshly placed PostPole starts as a real, visible round marker —
+// matching render.go's own unset-Fill/Stroke/Radius fallback
+// ("none"/"gray"/10) explicitly, the same reason LAMP_DEFAULTS/
+// RECTANGLE_DEFAULTS spell theirs out. square is left unset (round is the
+// default variant either way).
+const POLE_DEFAULTS: Pick<DiagramElement, 'fill' | 'stroke' | 'radius'> = {
+  fill: 'none',
+  stroke: '#808080',
+  radius: 10,
+}
+
 // A freshly placed FaultPassageIndicator starts at State 0 (Open) — same
 // reasoning as GroundSwitch's own default, since an unrecorded State would
 // otherwise still read as Open here too (render.go's fpiColor defaults nil
@@ -273,12 +284,20 @@ export function placeElement(
     // class color, so it shouldn't inherit whatever the user last picked in
     // Properties the way every other symbol does. A FaultPassageIndicator
     // isn't either — its own {color} is a fixed background fill, never a
-    // voltage class color (see base.xml's own header comment).
-    ...(elementClass === 'Lamp' || elementClass === 'FaultPassageIndicator' ? {} : { voltage: defaultVoltage }),
+    // voltage class color (see base.xml's own header comment). Neither is a
+    // PostPole — a purely decorative structural marker, same non-electrical
+    // status as Rectangle/Circle/Button/Road (see slddoc's own
+    // ClassPostPole doc comment), just placed via this generic click-to-
+    // place path instead of one of those four's own dedicated drag-to-draw
+    // one, since its own geometry is a single anchor, not drawn Points.
+    ...(elementClass === 'Lamp' || elementClass === 'FaultPassageIndicator' || elementClass === 'PostPole'
+      ? {}
+      : { voltage: defaultVoltage }),
     x: point.x,
     y: point.y,
     ...(DEFAULT_CLOSED_CLASSES.has(elementClass) ? { state: STATE_CLOSE } : {}),
     ...(elementClass === 'Lamp' ? LAMP_DEFAULTS : {}),
+    ...(elementClass === 'PostPole' ? POLE_DEFAULTS : {}),
     ...(elementClass === 'GroundSwitch' || elementClass === 'ShortCircuiter'
       ? { orient: GROUND_TYPE_DEFAULT_ORIENT, state: GROUND_TYPE_DEFAULT_STATE }
       : {}),
@@ -895,18 +914,24 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
  * from whichever of from/to already has one (see drawConnectorPath's own
  * doc comment) — with no defaultVoltage param here, an element joined to
  * one with no voltage of its own at all just stays unset, same as before.
- * A no-op when either end is a Rectangle, Circle, Arrow, Button, or Road —
- * a purely decorative annotation, never a valid electrical endpoint (see
- * slddoc's own ClassRectangle/ClassCircle/ClassArrow/ClassButton/ClassRoad
- * doc comments); the routing tool's own findConnectionTarget (Canvas.tsx)
- * excludes all five from candidates entirely for the same reason. */
+ * A no-op when either end is a Rectangle, Circle, Arrow, Button, Road, or
+ * PostPole — a purely decorative annotation, never a valid electrical
+ * endpoint (see slddoc's own ClassRectangle/ClassCircle/ClassArrow/
+ * ClassButton/ClassRoad/ClassPostPole doc comments); the routing tool's
+ * own findConnectionTarget (Canvas.tsx) excludes all six from candidates
+ * entirely for the same reason. */
 export function connectElements(diagram: Diagram, fromId: number, toId: number): Diagram {
   if (fromId === toId) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
   const to = diagram.elements.find(e => e.id === toId)
   if (!from || !to) return diagram
   const notConnectable = (el: DiagramElement) =>
-    el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'Road'
+    el.class === 'Rectangle' ||
+    el.class === 'Circle' ||
+    el.class === 'Arrow' ||
+    el.class === 'Button' ||
+    el.class === 'Road' ||
+    el.class === 'PostPole'
   if (notConnectable(from) || notConnectable(to)) return diagram
 
   const ids = new IdSequence(diagram)
