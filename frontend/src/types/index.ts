@@ -82,6 +82,8 @@ export type ElementClass =
   | 'Rectangle'
   | 'Arrow'
   | 'Circle'
+  | 'Button'
+  | 'Road'
   | 'PackageSubstation'
   | 'EnclosedSubstation'
 
@@ -155,13 +157,16 @@ export interface DiagramElement {
   // outline's color); Fill here is the real xsde2svg source's own Abonent
   // flag, generalized into this same free-choice field.
   fill?: string
-  // A Rectangle's/Circle's own border color, or an Arrow's (shape 2) own
-  // line color — same free-text convention as fill.
+  // A Rectangle's/Circle's own border color, an Arrow's (shape 2)/Road's
+  // (shape 335) own line color, or a Button's own box border color — same
+  // free-text convention as fill.
   stroke?: string
-  // A Rectangle's/Circle's own border thickness, or an Arrow's own line
-  // thickness, matching backend/internal/slddoc's own
-  // Element.StrokeWidth. Unset/0 means the real xsde2svg default of 1,
-  // not literally invisible.
+  // A Rectangle's/Circle's own border thickness, an Arrow's/Road's own
+  // line thickness, or a Button's own box border thickness, matching
+  // backend/internal/slddoc's own Element.StrokeWidth. Unset/0 means the
+  // real xsde2svg default of 1 for every one of these except Road, whose
+  // own unset default is much thicker (see that field's own Go doc
+  // comment).
   strokeWidth?: number
   // Arrow (shape 2) only — draws its own open chevron arrowhead at both
   // points instead of just the second one, matching backend/internal/
@@ -183,8 +188,17 @@ export interface DiagramElement {
   // unlike 385/386, empty here means that fixed default label, not "no
   // label", since this shape's own real source draws no text at all (a
   // long-standing convention of this project's own, not derived from
-  // anything real to match "no label" against).
+  // anything real to match "no label" against). Also used by Button (shape
+  // 113) for its own centered label — unlike 385/386/FPI, this one carries
+  // no fixed style of its own; see textColor/bold.
   propertyText?: string
+  // Button (shape 113) only — its own PropertyText color, matching
+  // backend/internal/slddoc's own Element.TextColor. Unset falls back to
+  // white, the more common real corpus case.
+  textColor?: string
+  // Button (shape 113) only — draws its own PropertyText in bold, matching
+  // backend/internal/slddoc's own Element.Bold.
+  bold?: boolean
   ports?: Port[]
   points?: Point[]
   // PowerTransformer (shape 47) only — see TransformerWinding's own doc
@@ -308,12 +322,13 @@ export interface DiagramInfo {
 }
 
 // Matches backend/internal/elements.Symbol. shape is a symbol-library key
-// (e.g. "41", "24"), not an assigned identity, so it stays a string.
+// (e.g. "41", "24"), not an assigned identity, so it stays a string. Carries
+// no grouping/ordering of its own — see EditorConfig.palette, the single
+// source of truth for where a shape shows up in the Elements panel.
 export interface ElementSymbol {
   shape: string
   class: string
   name: string
-  category?: string
   // Local, unrotated points on this shape where a real electrical
   // connection can be made (e.g. a Breaker's own two stem ends) — absent
   // for a shape with none, like a busbar. Purely informational for now:
@@ -358,6 +373,27 @@ export interface EditorDefaults {
   background: string
 }
 
+// Matches backend/internal/config.PaletteGroup.Items — a bare xsde2svg
+// ObjectType code, the same vocabulary for every kind of palette entry,
+// never a mix of codes and human-readable names: a real ElementSymbol's
+// own shape, one of 4 fixed codes for a ConnectorKind the routing tool's
+// next drawn connector should arm, or one of 2 fixed codes for this
+// editor's own built-in non-Element widgets ('label'/'digitalDevice') —
+// see lib/paletteItem.ts's own classifyPaletteItem, which turns one of
+// these back into whichever kind it actually is (mirroring backend/
+// internal/elements.Library's own ValidatePalette).
+export type PaletteItem = string
+
+// Matches backend/internal/config.PaletteGroup — one collapsible section
+// of the Elements panel, in the order its own items should be shown. name
+// is looked up via elementCatalogI18n's own categoryDisplayName, the same
+// elementCatalog.category.<name> lookup an ElementSymbol's own category
+// used to go through.
+export interface PaletteGroup {
+  name: string
+  items: PaletteItem[]
+}
+
 export interface EditorConfig {
   editor: EditorDefaults
   voltageColors: VoltageColor[]
@@ -371,4 +407,7 @@ export interface EditorConfig {
   // literal; diagramOps.placeElement/PropertiesPanel fall back to that
   // same literal too, for a config predating this field.
   defaultFpiText: string
+  // The Elements panel's own layout — see backend/internal/config.Config's
+  // own Palette doc comment.
+  palette: PaletteGroup[]
 }

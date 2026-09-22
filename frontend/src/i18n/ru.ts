@@ -40,11 +40,9 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'file.dropOverlay': 'Отпустите файл .xml для загрузки',
   'file.invalidXmlFile': 'Не файл .xml: {{name}}',
 
-  'elements.uncategorized': 'Прочее',
   'elements.empty': 'Библиотеки элементов не настроены.',
   'elements.pickHint': 'Выберите элемент, затем щёлкните на схеме, чтобы разместить его.',
   'elements.armedHint': 'Щёлкните на схеме, чтобы разместить «{{name}}». Esc — отмена.',
-  'elements.wires': 'Провода',
   'elements.wireArmedHint': 'Рисуйте провод как обычно — это будет «{{name}}». Esc — отмена.',
   'elements.text': 'Текст',
   'elements.labelArmedHint': 'Щёлкните на схеме, чтобы разместить текстовую надпись. Esc — отмена.',
@@ -55,6 +53,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'connectorKind.CableLine': 'Кабельная линия',
   'connectorKind.LinkToObject': 'Связь с объектом',
 
+  'elementCatalog.category.Wires': 'Провода',
+  'elementCatalog.category.Text': 'Текст',
   'elementCatalog.category.Busbars': 'Шины',
   'elementCatalog.category.Wiring': 'Соединения',
   'elementCatalog.category.Switching devices': 'Коммутационные аппараты',
@@ -105,6 +105,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'elementCatalog.name.3': 'Прямоугольник',
   'elementCatalog.name.2': 'Стрелка',
   'elementCatalog.name.4': 'Круг',
+  'elementCatalog.name.113': 'Объемная кнопка',
+  'elementCatalog.name.335': 'Дорога',
 
   'settings.noDiagram': 'Откройте или создайте схему, чтобы изменить её настройки.',
   'settings.gridSpacing': 'Шаг сетки',
@@ -177,6 +179,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.arrowStroke': 'Цвет линии',
   'properties.arrowStrokeWidth': 'Толщина линии',
   'properties.arrowDoubleHeaded': 'Двусторонняя стрелка',
+  'properties.buttonText': 'Текст',
+  'properties.buttonTextColor': 'Цвет текста',
   'properties.substationNType': 'Вид',
   'properties.substationNTypeBox': 'Прямоугольник',
   'properties.substationNTypeTriangle': 'Треугольник',

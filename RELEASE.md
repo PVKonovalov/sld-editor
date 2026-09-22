@@ -3348,3 +3348,139 @@ for local/desktop use (`go run ./cmd/sld-editor -open-browser`, or a
 built binary run the same way) so the app doesn't have to be manually
 opened in a browser tab every time it's started; has no effect on a
 headless/server deployment that doesn't pass the flag.
+
+2026-09-22: Added shape 113 (Объемная кнопка/3D button) — a purely
+decorative annotation widget (no Voltage/Ports/State, never a
+connectElements/routing endpoint, same as Rectangle/Circle/Arrow), drawn
+from its own two Points the same drag-two-corners way as those three, but
+`<g>`-wrapped with an attached centered label (reuses `Element.PropertyText`
+for the text, plus two new fields, `TextColor`/`Bold`, since real corpus
+shows both genuinely varying per instance — a dark box with plain white
+text vs. a light box with bold dark text — confirmed against two real
+corpus instances, "Журнал событий"/Event log and "События по фидеру"/Feeder
+events). Real corpus never shows a `data-state`/real voltage on one despite
+`element_113.go` computing both, and every instance found uses one fixed
+look rather than a Closed-driven toggle, confirming it's a static
+navigation/action button, not anything reflecting live switching state —
+State/data-fill/data-voltage were deliberately not modeled.
+`slddoc`: `ClassButton`, `writeButton` (bypass render function, matching
+real xsde2svg's own `<g data-type="113"><rect/><text/></g>` markup exactly,
+fixed 23px Arial matching every real corpus instance), `parseButton` for
+`Extract`. Frontend: `placeButton`/`BUTTON_DEFAULTS` (transparent fill by
+default, matching Rectangle/Circle's own convention — not corpus's usual
+solid background), added to `POINTS_BASED_CLASSES` and every Canvas
+drag-to-draw/reshape/highlight/hit-test spot Rectangle already had, a
+`base.xml` palette entry ("3D button", Annotations category) with a new
+`elementIcon.ts` preview, a Properties panel section (Text/Fill/Stroke/
+Stroke width/Text color/Bold — reusing Rectangle's own Fill/Stroke i18n
+keys and "Transparent" reset button, and Label's own Bold key), and new
+i18n keys (`elementCatalog.name.113`, `properties.buttonText`,
+`properties.buttonTextColor`) in both `en.ts`/`ru.ts`. Verified with
+`go build`/`vet`/`test` (`slddoc` + `backend`), `npx tsc --noEmit`, and a
+full round trip via the live app (placed, saved, reloaded) plus a
+standalone `Extract` check against both the app's own saved output and the
+two real corpus files — all extract back byte-for-byte matching Fill/
+Stroke/TextColor/Bold/text, no skipped/failed shapes.
+
+Also fixed an unrelated stale build in the sibling `sld-svg` repo
+(`cmd/svg-sld/svg-sld.go`), discovered while testing: its own call to
+`slddoc.Render` hadn't been updated for the `defaultFPIText`/
+`fpiStateColorLegend` parameters the shape-320003/FPI work added — see that
+repo's own `RELEASE.md`.
+
+2026-09-22: Fixed `Extract`'s own `parseGroundSwitch` (`slddoc` module):
+it unconditionally required a real GroundSwitch (shape 54) instance to
+carry a `rotate()` transform, so a real instance placed at the default
+(unrotated) orientation — a completely normal case, not an edge case —
+silently failed to extract (`no rotate() transform (unrotated ground
+switches are not yet supported)`), reported by the user against two real
+instances (ids 2509/2550, "2ЗР СВ-35"/"1ЗР СВ-35") in
+`sld-svg/examples/sld/PS_110kV_Krestsci.svg`. When no transform is found,
+the anchor is now instead recovered from the drawn path's own geometry:
+`element_54.go`'s own first path always starts at a fixed offset from the
+true anchor (`M x y+yx v -tail ...`), and — since `yx`/`tail` are both the
+same `Scale(scaleChosed, ...)` factor of fixed source constants (12/9) —
+their ratio (0.75) holds regardless of a given diagram's own scale, so
+`yx` is recovered from the path's own drawn `tail` segment length without
+needing to know that scale factor. Verified the ratio holds byte-for-byte
+against all 2856 real corpus instances found carrying a `rotate()` (whose
+true anchor is independently knowable from that transform's own center),
+confirming no real instance uses the source's other two draw variants
+(ShortDraw/CustomView "ЗОН-10_7", whose own yx/tail ratios differ) instead
+of the modeled plain one; re-extracting the full ~4200-instance corpus now
+shows zero failed shape-54 extractions (previously 7 silently unrecovered
+unrotated instances across it), and the two ids the user reported now
+extract at (738,781)/(821,778) — matching by hand-derivation from their
+own state-indicator sub-path too.
+
+2026-09-22: Added shape 335 (Road) — a purely decorative geographic
+background line (no Voltage/Ports/State, never a connectElements/routing
+endpoint, same as Rectangle/Circle/Arrow/Button). Unlike those four's own
+fixed-two-point conventions, a Road's geometry is an arbitrary multi-vertex
+`Points` polyline, the same convention `BusBarSection` already uses —
+real corpus shows real instances genuinely bending through several points.
+Reuses the existing `Stroke`/`StrokeWidth` fields (both vary per real
+instance — orangered/blue/royalblue/white, widths 8/10/12 — confirmed
+against real corpus), no new fields needed at all. `slddoc`: `ClassRoad`,
+`writeRoad`/`parseRoad` reuse the existing `writePolyline`/`parsePointList`
+helpers directly (a real instance is a bare `<polyline>`, no wrapping `<g>`
+and — unlike a real busbar's own bare polyline — no `data-name` either,
+matching `element_335.go` exactly). Frontend: `placeRoad`/`ROAD_DEFAULTS`
+(white stroke, width 8 — a real instance is never actually drawn as thin
+as the generic width-1 fallback), added to `POINTS_BASED_CLASSES` and
+every Canvas drag-to-draw/reshape/highlight/hit-test spot `BusBarSection`
+already had (the selection highlight/drag-in-DOM/corner-handle code, not
+Rectangle/Button's own bounding-box code — a Road is a genuine polyline,
+not a box), a `base.xml` palette entry ("Road", Annotations category) with
+a new `elementIcon.ts` preview, a Properties panel section (Stroke color +
+width, reusing Arrow's own i18n keys), and a new `elementCatalog.name.335`
+i18n key in both `en.ts`/`ru.ts`. This editor can only draw a *fresh* Road
+as a straight two-point line (the same limitation a fresh Busbar section
+already has); while fixing this, noticed and fixed a real gap in the
+Button (113) work from earlier today — its own points weren't shown in
+Properties' numeric point-editing list at all, drag handles on canvas
+only — fixed by adding both Button and Road to that list. Verified with
+`go build`/`vet`/`test` (`slddoc` + `backend`), `npx tsc --noEmit`, a
+standalone `Extract` check against 153 real corpus Road instances (zero
+failures, geometry/stroke/width all matching), and a full round trip via
+the live app (drawn, saved, reloaded, dragged — the dragged polyline's
+own points shifted by exactly the drag delta) plus an `Extract` check
+against the app's own saved output.
+
+2026-09-22: Made the Elements panel's own layout (which groups exist, in
+what order, and what's in each) fully config-driven, replacing three
+different mechanisms that used to determine it (a per-symbol `category`
+attribute in `base.xml`, plus the "Wires" and "Text" sections' own
+hardcoded position/contents in `ElementsPanel.tsx`) with one: a new
+`palette:` section in `config/sld-editor.yaml`. `internal/elements.Symbol`
+no longer carries `category` at all — a Symbol is now a pure shape/class/
+name/template/terminals definition. `config.Config.Palette` is an ordered
+list of `PaletteGroup` (`name` + `items`), covering every kind of palette
+button, not just equipment — "Wires"/"Text" are ordinary groups now, not a
+special case. Every item is a bare xsde2svg `ObjectType` code — one single
+vocabulary, not a mix of codes and human-readable names: a real element
+shape, one of 4 fixed connector-kind codes (`"21"`/`"22"`/`"23"`/`"28"` for
+BusWork/OverheadLine/CableLine/LinkToObject — the same codes
+`internal/slddoc.Render` already uses for a rendered connector's own
+`data-type`), or Label's/DigitalDevice's own codes (`"5"`/`"134"`).
+`elements.Library.ValidatePalette` checks every item against those fixed
+codes or the loaded Symbols, called from `main.go` right after loading the
+element libraries — a typo in `palette:` fails loud at startup, the same
+way an unresolvable `elements.libraries` path already does. `/api/config`
+now also returns `palette`. Frontend: `ElementsPanel.tsx` renders
+`config.palette` as one generic list of collapsible groups instead of a
+hardcoded "Wires" section, hardcoded "Text" section, then category-grouped
+equipment — a new `lib/paletteItem.ts` (`classifyPaletteItem`) mirrors the
+backend's own code-based classification exactly. The default
+`config/sld-editor.yaml` (and the untracked local `sld-editor-debug.yaml`)
+reproduce today's exact layout, so this is a pure refactor, not a visible
+change — reordering the palette going forward is just editing that YAML
+file's own `palette:` list, no code change. Verified with `go build`/
+`vet`/`test` (all three `ValidatePalette` cases plus the existing
+`elements`/`api` suites), `npx tsc --noEmit`, a startup smoke test
+confirming `ValidatePalette` accepts the real config, and a live browser
+check confirming the rendered group/item order and every button's own
+label match byte-for-byte before and after the refactor — plus a live
+reorder test (moving "Indicators" to the front of `palette:` and
+restarting) confirming the panel actually reflects a config change with
+no code touched.

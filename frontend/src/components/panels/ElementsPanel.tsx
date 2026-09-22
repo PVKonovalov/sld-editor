@@ -1,14 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Type, Gauge, ChevronDown, ChevronRight } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import { PanelShell } from './PanelShell'
 import { t, type TranslationKey } from '../../i18n'
 import { elementIconMarkup } from '../../lib/elementIcon'
-import { WIRE_KIND_ICONS, WIRE_KINDS } from '../../lib/wireKindIcon'
+import { WIRE_KIND_ICONS } from '../../lib/wireKindIcon'
+import { classifyPaletteItem } from '../../lib/paletteItem'
 import { categoryDisplayName, elementDisplayName } from '../../lib/elementCatalogI18n'
 import type { ElementSymbol } from '../../types'
 
-// Labels for WIRE_KINDS' own palette buttons/hint text ('BusbarWire' was
+// Labels for the "Wires" group's own buttons/hint text ('BusbarWire' was
 // removed as a palette entry — see wireKindIcon.ts's own doc comment).
 const WIRE_KIND_LABELS: Record<'BusWork' | 'OverheadLine' | 'CableLine' | 'LinkToObject', TranslationKey> = {
   BusWork: 'connectorKind.BusWork',
@@ -17,12 +18,12 @@ const WIRE_KIND_LABELS: Record<'BusWork' | 'OverheadLine' | 'CableLine' | 'LinkT
   LinkToObject: 'connectorKind.LinkToObject',
 }
 
-// A group's own collapse/expand toggle — shared by the fixed Wires/Text
-// sections and every dynamic equipment category below them, so all three
-// kinds of group behave identically. Expanded state isn't persisted
-// anywhere (plain component state): every group starts collapsed and it
-// resets to that the next time the panel itself mounts, which is fine for
-// a session-only UI convenience like this.
+// A group's own collapse/expand toggle — every group (equipment or one of
+// the two built-in ones) behaves identically, per config.Config.Palette
+// being the one source of truth for all of them now. Expanded state isn't
+// persisted anywhere (plain component state): every group starts collapsed
+// and it resets to that the next time the panel itself mounts, which is
+// fine for a session-only UI convenience like this.
 function GroupHeader({ label, collapsed, onToggle }: { label: string; collapsed: boolean; onToggle: () => void }) {
   return (
     <button
@@ -36,9 +37,53 @@ function GroupHeader({ label, collapsed, onToggle }: { label: string; collapsed:
   )
 }
 
+// One palette button — shared by every PaletteItem kind (wireKind/special/
+// element), so the click-to-arm styling only needs to be written once.
+function PaletteButton({
+  title,
+  label,
+  icon,
+  active,
+  disabled,
+  onClick,
+}: {
+  title: string
+  label: string
+  icon: ReactNode
+  active: boolean
+  disabled: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      title={title}
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
+        active
+          ? 'border-accent bg-accent/20 text-white'
+          : 'border-surface-600 bg-surface-800 text-gray-300 hover:border-surface-500'
+      }`}
+    >
+      {icon}
+      <span className="line-clamp-2 text-center leading-tight">{label}</span>
+    </button>
+  )
+}
+
+function wireKindIcon(kind: keyof typeof WIRE_KIND_ICONS) {
+  return <svg viewBox="-32 -32 64 64" width={28} height={28} className="shrink-0" dangerouslySetInnerHTML={{ __html: WIRE_KIND_ICONS[kind] }} />
+}
+
+function elementIcon(el: ElementSymbol) {
+  return <svg viewBox="-32 -32 64 64" width={28} height={28} className="shrink-0" dangerouslySetInnerHTML={{ __html: elementIconMarkup(el) }} />
+}
+
 export function ElementsPanel({ onClose }: { onClose: () => void }) {
   const {
     elements,
+    config,
     diagram,
     armedSymbol,
     armSymbol,
@@ -50,22 +95,18 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
     armDigitalDevice,
   } = useDiagramContext()
 
-  const groups = useMemo(() => {
-    const byCategory = new Map<string, ElementSymbol[]>()
-    for (const el of elements) {
-      const key = el.category || t('elements.uncategorized')
-      const list = byCategory.get(key) ?? []
-      list.push(el)
-      byCategory.set(key, list)
-    }
-    return Array.from(byCategory.entries())
+  const elementsByShape = useMemo(() => {
+    const m = new Map<string, ElementSymbol>()
+    for (const el of elements) m.set(el.shape, el)
+    return m
   }, [elements])
 
-  // Keyed by 'wires'/'text' for the two fixed sections, by the raw
-  // category string for a dynamic one — tracks which groups are expanded
-  // rather than which are collapsed, so every group defaults to collapsed
-  // (empty set) without having to know the full list of category keys
-  // up front (they only exist once `elements` has loaded from the
+  const groups = config?.palette ?? []
+
+  // Keyed by each PaletteGroup's own name — tracks which groups are
+  // expanded rather than which are collapsed, so every group defaults to
+  // collapsed (empty set) without having to know the full list of group
+  // names up front (they only exist once `config` has loaded from the
   // backend). Collapsing a group doesn't touch armedSymbol/armedWireKind/
   // etc. themselves, so an element already armed from a group that then
   // gets collapsed stays armed (and its own hint text above keeps
@@ -96,108 +137,82 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
         </p>
       )}
       <div className="space-y-3">
-        <div>
-          <GroupHeader label={t('elements.wires')} collapsed={!expandedGroups.has('wires')} onToggle={() => toggleGroup('wires')} />
-          {expandedGroups.has('wires') && (
-            <div className="grid grid-cols-3 gap-1">
-              {WIRE_KINDS.map(kind => {
-                const active = armedWireKind === kind
-                return (
-                  <button
-                    key={kind}
-                    type="button"
-                    title={t(WIRE_KIND_LABELS[kind])}
-                    disabled={!diagram}
-                    onClick={() => armWireKind(active ? null : kind)}
-                    className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
-                      active
-                        ? 'border-accent bg-accent/20 text-white'
-                        : 'border-surface-600 bg-surface-800 text-gray-300 hover:border-surface-500'
-                    }`}
-                  >
-                    <svg
-                      viewBox="-32 -32 64 64"
-                      width={28}
-                      height={28}
-                      className="shrink-0"
-                      dangerouslySetInnerHTML={{ __html: WIRE_KIND_ICONS[kind] }}
-                    />
-                    <span className="line-clamp-2 text-center leading-tight">{t(WIRE_KIND_LABELS[kind])}</span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
-        <div>
-          <GroupHeader label={t('elements.text')} collapsed={!expandedGroups.has('text')} onToggle={() => toggleGroup('text')} />
-          {expandedGroups.has('text') && (
-            <div className="grid grid-cols-3 gap-1">
-              <button
-                type="button"
-                title={t('elements.text')}
-                disabled={!diagram}
-                onClick={() => armLabel(!armedLabel)}
-                className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
-                  armedLabel
-                    ? 'border-accent bg-accent/20 text-white'
-                    : 'border-surface-600 bg-surface-800 text-gray-300 hover:border-surface-500'
-                }`}
-              >
-                <Type size={20} className="shrink-0" />
-                <span className="line-clamp-2 text-center leading-tight">{t('elements.text')}</span>
-              </button>
-              <button
-                type="button"
-                title={t('elements.digitalDevice')}
-                disabled={!diagram}
-                onClick={() => armDigitalDevice(!armedDigitalDevice)}
-                className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
-                  armedDigitalDevice
-                    ? 'border-accent bg-accent/20 text-white'
-                    : 'border-surface-600 bg-surface-800 text-gray-300 hover:border-surface-500'
-                }`}
-              >
-                <Gauge size={20} className="shrink-0" />
-                <span className="line-clamp-2 text-center leading-tight">{t('elements.digitalDevice')}</span>
-              </button>
-            </div>
-          )}
-        </div>
-        {groups.map(([category, items]) => (
-          <div key={category}>
+        {groups.map(group => (
+          <div key={group.name}>
             <GroupHeader
-              label={categoryDisplayName(category)}
-              collapsed={!expandedGroups.has(category)}
-              onToggle={() => toggleGroup(category)}
+              label={categoryDisplayName(group.name)}
+              collapsed={!expandedGroups.has(group.name)}
+              onToggle={() => toggleGroup(group.name)}
             />
-            {expandedGroups.has(category) && (
+            {expandedGroups.has(group.name) && (
               <div className="grid grid-cols-3 gap-1">
-                {items.map(el => {
+                {group.items.map(item => {
+                  const classified = classifyPaletteItem(item)
+
+                  if (classified.kind === 'wireKind') {
+                    const kind = classified.value as keyof typeof WIRE_KIND_LABELS
+                    const active = armedWireKind === kind
+                    const label = t(WIRE_KIND_LABELS[kind])
+                    return (
+                      <PaletteButton
+                        key={item}
+                        title={label}
+                        label={label}
+                        icon={wireKindIcon(kind)}
+                        active={active}
+                        disabled={!diagram}
+                        onClick={() => armWireKind(active ? null : kind)}
+                      />
+                    )
+                  }
+
+                  if (classified.kind === 'special') {
+                    if (classified.value === 'label') {
+                      return (
+                        <PaletteButton
+                          key={item}
+                          title={t('elements.text')}
+                          label={t('elements.text')}
+                          icon={<Type size={20} className="shrink-0" />}
+                          active={armedLabel}
+                          disabled={!diagram}
+                          onClick={() => armLabel(!armedLabel)}
+                        />
+                      )
+                    }
+                    return (
+                      <PaletteButton
+                        key={item}
+                        title={t('elements.digitalDevice')}
+                        label={t('elements.digitalDevice')}
+                        icon={<Gauge size={20} className="shrink-0" />}
+                        active={armedDigitalDevice}
+                        disabled={!diagram}
+                        onClick={() => armDigitalDevice(!armedDigitalDevice)}
+                      />
+                    )
+                  }
+
+                  // An element PaletteItem always resolves — the backend
+                  // validates every shape reference against the loaded
+                  // element libraries at startup (elements.ValidatePalette)
+                  // — but a config predating that check, or hand-edited
+                  // afterward, could still be stale, so this stays
+                  // defensive rather than assuming.
+                  const el = elementsByShape.get(classified.shape)
+                  if (!el) return null
                   const active = armedSymbol?.shape === el.shape
                   const label = elementDisplayName(el)
                   return (
-                    <button
-                      key={el.shape}
-                      type="button"
+                    <PaletteButton
+                      key={item}
                       title={label}
+                      label={label}
+                      icon={elementIcon(el)}
+                      active={active}
                       disabled={!diagram}
                       onClick={() => armSymbol(active ? null : el)}
-                      className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
-                        active
-                          ? 'border-accent bg-accent/20 text-white'
-                          : 'border-surface-600 bg-surface-800 text-gray-300 hover:border-surface-500'
-                      }`}
-                    >
-                      <svg
-                        viewBox="-32 -32 64 64"
-                        width={28}
-                        height={28}
-                        className="shrink-0"
-                        dangerouslySetInnerHTML={{ __html: elementIconMarkup(el) }}
-                      />
-                      <span className="line-clamp-2 text-center leading-tight">{label}</span>
-                    </button>
+                    />
                   )
                 })}
               </div>

@@ -13,10 +13,19 @@ const BUSBAR_SHAPE = '24'
 const RECTANGLE_SHAPE = '3'
 const CIRCLE_SHAPE = '4'
 const ARROW_SHAPE = '2'
+const BUTTON_SHAPE = '113'
+const ROAD_SHAPE = '335'
 // Shapes placed by dragging out two opposite points rather than a single
 // click — see diagramOps.POINTS_BASED_CLASSES for the element-class
 // equivalent used once one's already on the diagram.
-const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([BUSBAR_SHAPE, RECTANGLE_SHAPE, CIRCLE_SHAPE, ARROW_SHAPE])
+const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
+  BUSBAR_SHAPE,
+  RECTANGLE_SHAPE,
+  CIRCLE_SHAPE,
+  ARROW_SHAPE,
+  BUTTON_SHAPE,
+  ROAD_SHAPE,
+])
 const HIGHLIGHT = '#3b82f6'
 const CONNECT_TARGET_COLOR = '#22c55e'
 // How many grid cells, per side, get batched into one grid-dot pattern
@@ -303,8 +312,9 @@ export function Canvas() {
   // diagram-space footprint. BusBarSection is skipped entirely: it renders
   // as a bare <polyline> with no fill at all, and its own thin line is
   // already covered by its points-based selection highlight/hit-testing, no
-  // click-tolerance box needed. A Rectangle, Circle, or Arrow, unlike a
-  // busbar, is skipped in the DOM-lookup sense (each is a bare
+  // click-tolerance box needed — a Road (also a bare, no-fill <polyline>)
+  // is skipped for the identical reason. A Rectangle, Circle, or Arrow,
+  // unlike a busbar, is skipped in the DOM-lookup sense (each is a bare
   // <rect>/<ellipse>/<path>, not a <g>) but *does* still get a real box
   // here, computed straight from its own diagram-state Points instead of
   // getBBox — a Rectangle's/Circle's own fill is very often "none"
@@ -325,8 +335,8 @@ export function Canvas() {
     }
     const boxes = new Map<number, ElementBox>()
     for (const el of diagram.elements) {
-      if (el.class === 'BusBarSection') continue
-      if ((el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow') && el.points) {
+      if (el.class === 'BusBarSection' || el.class === 'Road') continue
+      if ((el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button') && el.points) {
         const [p0, p1] = el.points
         const x = Math.min(p0.x, p1.x)
         const y = Math.min(p0.y, p1.y)
@@ -480,11 +490,18 @@ export function Canvas() {
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
       if (exclude?.kind === 'element' && el.id === exclude.elementId) continue
-      // A Rectangle/Circle/Arrow is a purely decorative annotation, never
-      // a valid wire endpoint — unlike every other class here, none even
-      // falls back to its own anchor (see diagramOps.connectElements' own
-      // matching guard).
-      if (el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow') continue
+      // A Rectangle/Circle/Arrow/Button/Road is a purely decorative
+      // annotation, never a valid wire endpoint — unlike every other class
+      // here, none even falls back to its own anchor (see
+      // diagramOps.connectElements' own matching guard).
+      if (
+        el.class === 'Rectangle' ||
+        el.class === 'Circle' ||
+        el.class === 'Arrow' ||
+        el.class === 'Button' ||
+        el.class === 'Road'
+      )
+        continue
       if (el.class === 'BusBarSection' && el.points && el.points.length >= 2) {
         if (!includeBusbars) continue
         const { index, point: nearest } = nearestSegmentOnPolyline(el.points, point)
@@ -703,12 +720,13 @@ export function Canvas() {
   // the actual placed element follow the cursor while dragging, not just
   // an abstract highlight. Reads each element's own current x/y/points from
   // diagram state (unchanged until mouseup) and offsets from there; a
-  // BusBarSection/Rectangle/Circle (see diagramOps.POINTS_BASED_CLASSES)
-  // has no single anchor to translate via a transform, so its own
-  // points-derived attributes are set directly instead — a busbar's
-  // <polyline points>, a rectangle's <rect x y> (its width/height are
-  // unaffected by a plain translate, only x/y shift), or a circle's
-  // <ellipse cx cy> (its own rx/ry likewise unaffected).
+  // BusBarSection/Rectangle/Circle/Button/Road (see
+  // diagramOps.POINTS_BASED_CLASSES) has no single anchor to translate via
+  // a transform, so its own points-derived attributes are set directly
+  // instead — a busbar's or road's <polyline points>, a rectangle's
+  // <rect x y> (its width/height are unaffected by a plain translate, only
+  // x/y shift), a circle's <ellipse cx cy> (its own rx/ry likewise
+  // unaffected), or a button's own <rect x y>/<text x y> pair.
   function dragElementsInDom(ids: number[], dx: number, dy: number) {
     const root = wrapperRef.current
     if (!root) return
@@ -716,7 +734,7 @@ export function Canvas() {
       const el = diagram!.elements.find(e => e.id === id)
       const node = root.querySelector(`[data-editor-kind="element"][id="${id}"]`)
       if (!el || !node) continue
-      if (el.class === 'BusBarSection' && el.points) {
+      if ((el.class === 'BusBarSection' || el.class === 'Road') && el.points) {
         node.setAttribute('points', el.points.map(p => `${p.x + dx},${p.y + dy}`).join(' '))
       } else if (el.class === 'Rectangle' && el.points) {
         node.setAttribute('x', String(Math.min(el.points[0].x, el.points[1].x) + dx))
@@ -733,6 +751,21 @@ export function Canvas() {
         const [p0, p1] = el.points
         const angle = (Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180) / Math.PI
         node.setAttribute('transform', `translate(${p0.x + dx},${p0.y + dy}) rotate(${angle})`)
+      } else if (el.class === 'Button' && el.points) {
+        // Unlike Rectangle's bare <rect>, a Button's own <rect>/<text> live
+        // inside a wrapping <g> with no transform of its own (matching real
+        // xsde2svg's own absolute-coordinate markup — see writeButton), so
+        // both children need their own x/y updated directly.
+        const x = Math.min(el.points[0].x, el.points[1].x) + dx
+        const y = Math.min(el.points[0].y, el.points[1].y) + dy
+        const w = Math.abs(el.points[1].x - el.points[0].x)
+        const h = Math.abs(el.points[1].y - el.points[0].y)
+        const rect = node.querySelector('rect')
+        rect?.setAttribute('x', String(x))
+        rect?.setAttribute('y', String(y))
+        const text = node.querySelector('text')
+        text?.setAttribute('x', String(x + w / 2))
+        text?.setAttribute('y', String(y + h / 2))
       } else {
         node.setAttribute('transform', `translate(${el.x + dx},${el.y + dy}) rotate(${el.orient ?? 0})`)
       }
@@ -805,7 +838,11 @@ export function Canvas() {
                   ? diagramOps.placeCircle(d, start, snappedEnd)
                   : shape === ARROW_SHAPE
                     ? diagramOps.placeArrow(d, start, snappedEnd)
-                    : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
+                    : shape === BUTTON_SHAPE
+                      ? diagramOps.placeButton(d, start, snappedEnd)
+                      : shape === ROAD_SHAPE
+                        ? diagramOps.placeRoad(d, start, snappedEnd)
+                        : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
             )
           }
           armSymbol(null)
@@ -1381,7 +1418,7 @@ export function Canvas() {
                 ))}
               {!ghost &&
                 selectedElements.map(el => {
-                  if ((el.class === 'BusBarSection' || el.class === 'Arrow') && el.points) {
+                  if ((el.class === 'BusBarSection' || el.class === 'Arrow' || el.class === 'Road') && el.points) {
                     return (
                       <polyline
                         key={el.id}
@@ -1393,7 +1430,7 @@ export function Canvas() {
                       />
                     )
                   }
-                  if (el.class === 'Rectangle' && el.points) {
+                  if ((el.class === 'Rectangle' || el.class === 'Button') && el.points) {
                     const [p0, p1] = el.points
                     return (
                       <rect
@@ -1594,7 +1631,7 @@ export function Canvas() {
                     </>
                   )
                 })()}
-              {newBusbar && armedSymbol?.shape === RECTANGLE_SHAPE ? (
+              {newBusbar && (armedSymbol?.shape === RECTANGLE_SHAPE || armedSymbol?.shape === BUTTON_SHAPE) ? (
                 <rect
                   x={Math.min(newBusbar.start.x, newBusbar.current.x)}
                   y={Math.min(newBusbar.start.y, newBusbar.current.y)}
@@ -1633,7 +1670,9 @@ export function Canvas() {
                 (selectedElement.class === 'BusBarSection' ||
                   selectedElement.class === 'Rectangle' ||
                   selectedElement.class === 'Circle' ||
-                  selectedElement.class === 'Arrow') &&
+                  selectedElement.class === 'Arrow' ||
+                  selectedElement.class === 'Button' ||
+                  selectedElement.class === 'Road') &&
                 selectedElement.points && (
                 <>
                   {/* Live preview while a corner/endpoint handle is being
@@ -1646,7 +1685,7 @@ export function Canvas() {
                     pointDrag.elementId === selectedElement.id &&
                     (() => {
                       const pts = selectedElement.points!.map((p, i) => (i === pointDrag.pointIndex ? pointDrag.point : p))
-                      if (selectedElement.class === 'Rectangle') {
+                      if (selectedElement.class === 'Rectangle' || selectedElement.class === 'Button') {
                         const [p0, p1] = pts
                         return (
                           <rect

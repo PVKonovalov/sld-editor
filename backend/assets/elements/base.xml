@@ -8,12 +8,15 @@
 
   Geometry and shape codes are ported from sld-svg's symbols.xml
   (github.com/PVKonovalov/sld-svg), the sibling project that defines this
-  XML format; class/name/category attributes are this editor's own
-  addition, used to group and label these shapes in the Elements palette.
-  A site can add further shapes without editing this file by pointing
-  elements.libraries (see config/sld-editor.yaml) at one or more additional
-  files in this same format — later libraries override an earlier one's
-  template for a shape they both define.
+  XML format; class/name attributes are this editor's own addition, used
+  to label these shapes in the Elements palette. Where each shape actually
+  shows up in that palette (which group, in what order) is a separate,
+  config-side concern — see config/sld-editor.yaml's own palette section —
+  not something this file has any say in. A site can add further shapes
+  without editing this file by pointing elements.libraries (see
+  config/sld-editor.yaml) at one or more additional files in this same
+  format — later libraries override an earlier one's template for a shape
+  they both define.
 
   Placeholders: {color} is the voltage class's display color, except for a
   Lamp (106) and FaultPassageIndicator (320003), which aren't part of the
@@ -57,7 +60,7 @@
   elements' bare anchors, not these.
 -->
 <symbols>
-  <symbol shape="24" class="BusBarSection" name="Busbar section" category="Busbars">
+  <symbol shape="24" class="BusBarSection" name="Busbar section">
     <!-- A busbar has no fixed template: its geometry is the element's own
          drawn Points (two or more vertices), rendered as a polyline
          directly by internal/slddoc.Render before this library is
@@ -66,7 +69,7 @@
     <template></template>
   </symbol>
 
-  <symbol shape="3" class="Rectangle" name="Rectangle" category="Annotations">
+  <symbol shape="3" class="Rectangle" name="Rectangle">
     <!-- Like Busbar section above, a Rectangle has no fixed template: its
          size varies per instance, and it isn't real electrical equipment
          at all (no terminals, no voltage, no state — see slddoc's own
@@ -78,7 +81,7 @@
     <template></template>
   </symbol>
 
-  <symbol shape="2" class="Arrow" name="Arrow" category="Annotations">
+  <symbol shape="2" class="Arrow" name="Arrow">
     <!-- Like Rectangle above, an Arrow has no fixed template: its length/
          angle vary per instance, and it isn't real electrical equipment
          at all (no terminals, no voltage, no state — see slddoc's own
@@ -91,7 +94,7 @@
     <template></template>
   </symbol>
 
-  <symbol shape="4" class="Circle" name="Circle" category="Annotations">
+  <symbol shape="4" class="Circle" name="Circle">
     <!-- Like Rectangle above, a Circle has no fixed template: its size
          varies per instance, and it isn't real electrical equipment at
          all (no terminals, no voltage, no state — see slddoc's own
@@ -104,6 +107,34 @@
     <template></template>
   </symbol>
 
+  <symbol shape="113" class="Button" name="3D button">
+    <!-- Like Rectangle above, a Button has no fixed template: its size
+         varies per instance, and it isn't real electrical equipment at all
+         (no terminals, no voltage, no state — see slddoc's own ClassButton
+         doc comment), so it's drawn straight from its own two Points
+         (opposite corners, the exact same convention Rectangle uses) plus
+         its own PropertyText/TextColor/Bold label by internal/slddoc.Render,
+         not template substitution. This entry exists only so the Elements
+         palette can offer "3D button" the same drag-two-corners way it
+         already offers "Rectangle"/"Circle". -->
+    <template></template>
+  </symbol>
+
+  <symbol shape="335" class="Road" name="Road">
+    <!-- Like Busbar section above, a Road has no fixed template: it's an
+         arbitrary multi-vertex polyline, and it isn't real electrical
+         equipment at all (no terminals, no voltage, no state — see
+         slddoc's own ClassRoad doc comment), so it's drawn straight from
+         its own Points by internal/slddoc.Render, not template
+         substitution. This entry exists only so the Elements palette can
+         offer "Road" the same drag-two-points way it already offers
+         "Busbar section"/"Arrow" (this editor can only draw a fresh Road
+         as a straight two-point line — same limitation as a fresh Busbar
+         section — a Road extracted from a real multi-bend file keeps every
+         one of its own original vertices, editable one at a time). -->
+    <template></template>
+  </symbol>
+
   <!-- r/fill are user-editable (Element.Radius/Fill) via {junctionRadius}/
        {junctionFill} — separate placeholders from the generic {radius},
        each with its own non-zero/"none" fallback so an already-placed
@@ -113,7 +144,7 @@
        Element.Radius/Fill's own doc comments (slddoc/model.go) for the
        real corpus evidence and internal/slddoc/render.go's own
        junctionRadius/junctionFill for the fallback logic itself. -->
-  <symbol shape="7" class="JunctionPoint" name="Junction point" category="Wiring">
+  <symbol shape="7" class="JunctionPoint" name="Junction point">
     <template><![CDATA[
 <circle cx="0" cy="0" r="{junctionRadius}" style="fill:{junctionFill};stroke:{color};stroke-width:1" />
 ]]></template>
@@ -126,7 +157,7 @@
        real electrical ports, one on each side (±10, already grid-aligned),
        since each side is still a genuine node a wire's own end can land
        on; nothing about the hop itself joins the two together. -->
-  <symbol shape="14" class="NonIntersection" name="Wire jump" category="Wiring">
+  <symbol shape="14" class="NonIntersection" name="Wire jump">
     <terminals>
       <terminal x="-10" y="0"/>
       <terminal x="10" y="0"/>
@@ -148,7 +179,7 @@
        stem itself, then two short diagonal strokes meeting at each tip
        (mirroring Arrow's own open chevron, just unfilled and at both
        ends unconditionally, not gated by a DoubleHeaded flag). -->
-  <symbol shape="56" class="CableConnector" name="Cable connector" category="Wiring">
+  <symbol shape="56" class="CableConnector" name="Cable connector">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -180,7 +211,7 @@
        corpus instance to confirm either against, so neither is modeled —
        every real instance found uses this same plain, unfilled look. No
        State of its own. -->
-  <symbol shape="32" class="CableJoint" name="Cable joint" category="Wiring">
+  <symbol shape="32" class="CableJoint" name="Cable joint">
     <terminals>
       <terminal x="0" y="-12"/>
       <terminal x="0" y="14"/>
@@ -191,7 +222,7 @@
 ]]></template>
   </symbol>
 
-  <symbol shape="41" class="Breaker" name="Breaker" category="Switching devices">
+  <symbol shape="41" class="Breaker" name="Breaker">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -216,7 +247,7 @@
        (applyTrolleyState) — the far chevrons stay fixed outside that group,
        same as a real xsde2svg export's own fixed disconnect-contact
        stubs. -->
-  <symbol shape="43" class="Breaker" name="Breaker (withdrawable)" category="Switching devices">
+  <symbol shape="43" class="Breaker" name="Breaker (withdrawable)">
     <terminals>
       <terminal x="0" y="-30"/>
       <terminal x="0" y="30"/>
@@ -231,7 +262,7 @@
 ]]></template>
   </symbol>
 
-  <symbol shape="42" class="LoadBreakSwitch" name="Load-break switch" category="Switching devices">
+  <symbol shape="42" class="LoadBreakSwitch" name="Load-break switch">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -243,7 +274,7 @@
 ]]></template>
   </symbol>
 
-  <symbol shape="162" class="Disconnector" name="Disconnector" category="Switching devices">
+  <symbol shape="162" class="Disconnector" name="Disconnector">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -286,7 +317,7 @@
        ("other") option is simply a copy of "open": an Intermediate State
        value (2) on already-saved data, or any other unrecognized one,
        still reads as Open rather than something drawn specially for it. -->
-  <symbol shape="164" class="Sectionalizer" name="Sectionalizer" category="Switching devices">
+  <symbol shape="164" class="Sectionalizer" name="Sectionalizer">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -319,7 +350,7 @@
        up with the fixed contact bars on either side — unlike Ground
        switch's own Intermediate, which had to invent a diagonal from
        scratch since it isn't built around the same symmetric gap). -->
-  <symbol shape="49" class="Disconnector" name="Disconnector (withdrawable)" category="Switching devices">
+  <symbol shape="49" class="Disconnector" name="Disconnector (withdrawable)">
     <terminals>
       <terminal x="0" y="-30"/>
       <terminal x="0" y="30"/>
@@ -350,7 +381,7 @@
        of its own (real corpus instances never carry a data-state) — Position
        status is its only own real per-instance behavior, the same as
        Fuse (withdrawable)'s (154) own precedent. -->
-  <symbol shape="51" class="Chassis" name="Chassis" category="Switching devices">
+  <symbol shape="51" class="Chassis" name="Chassis">
     <terminals>
       <terminal x="0" y="-30"/>
       <terminal x="0" y="30"/>
@@ -373,7 +404,7 @@
        corpus's own y=12 tip to end exactly at y=10 too (a deliberate,
        minor deviation from that byte-for-byte match), so the drawn line
        stops right at the terminal instead of overshooting past it. -->
-  <symbol shape="54" class="GroundSwitch" name="Ground switch" category="Switching devices">
+  <symbol shape="54" class="GroundSwitch" name="Ground switch">
     <terminals>
       <terminal x="0" y="10"/>
     </terminals>
@@ -430,7 +461,7 @@
        sde.Tech.Closed is a plain boolean), so the third {state:...}
        option duplicates the second (Open), same convention Sectionalizer
        uses. -->
-  <symbol shape="398" class="ShortCircuiter" name="Short-circuiter" category="Switching devices">
+  <symbol shape="398" class="ShortCircuiter" name="Short-circuiter">
     <terminals>
       <terminal x="0" y="10"/>
     </terminals>
@@ -454,7 +485,7 @@
        gap as every other switching device's own diagonal — invented at the
        same length as the parallel/perpendicular cases (±8, hence the
        ±5.7 ≈ 8·cos45°), not corpus-confirmed. -->
-  <symbol shape="76" class="Starter" name="Starter" category="Switching devices">
+  <symbol shape="76" class="Starter" name="Starter">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -469,7 +500,7 @@
        point — already grid-aligned, unlike Ground switch's own stub, so no
        shortening is needed here. The plate fan below is a dead end, same
        as Ground switch's own earth symbol — no terminal there either. -->
-  <symbol shape="31" class="Ground" name="Ground terminal" category="Grounding">
+  <symbol shape="31" class="Ground" name="Ground terminal">
     <terminals>
       <terminal x="0" y="-10"/>
     </terminals>
@@ -478,7 +509,7 @@
 ]]></template>
   </symbol>
 
-  <symbol shape="47" class="PowerTransformer" name="Power transformer" category="Transformers">
+  <symbol shape="47" class="PowerTransformer" name="Power transformer">
     <template><![CDATA[
 <circle cx="18" cy="0" r="22" style="fill:none;stroke:{color};stroke-width:2" />
 <path d="M 40 0 h 13" style="fill:none;stroke:{color};stroke-width:2" />
@@ -503,7 +534,7 @@
        drawn across its own center; stroke-width 2, matching the real
        source's own minimum for this shape (every other symbol here uses
        1, its own minimum). -->
-  <symbol shape="173" class="Generator" name="Generator" category="Generation">
+  <symbol shape="173" class="Generator" name="Generator">
     <terminals>
       <terminal x="0" y="0"/>
     </terminals>
@@ -519,7 +550,7 @@
        terminals sit exactly on its drawn tips, matching every other
        already-grid-aligned symbol's own terminals (e.g. Ground
        terminal's). -->
-  <symbol shape="34" class="CurrentTransformer" name="Current transformer" category="Measurement">
+  <symbol shape="34" class="CurrentTransformer" name="Current transformer">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -542,7 +573,7 @@
        color and the secondary (bottom circle) a fixed gray, matching a
        real corpus instance exactly (e.g. sld-viewer's
        PS_110kV_Example.svg, id="4473"). -->
-  <symbol shape="55" class="VoltageTransformer" name="Voltage transformer" category="Measurement">
+  <symbol shape="55" class="VoltageTransformer" name="Voltage transformer">
     <terminals>
       <terminal x="0" y="0"/>
     </terminals>
@@ -556,7 +587,7 @@
   <!-- The stem's own two ends (±20, already grid-aligned) are the real
        electrical connection points, same convention as every other
        vertical-stem symbol's terminals. -->
-  <symbol shape="33" class="ChokeCoil" name="Choke coil" category="Other equipment">
+  <symbol shape="33" class="ChokeCoil" name="Choke coil">
     <terminals>
       <terminal x="0" y="-20"/>
       <terminal x="0" y="20"/>
@@ -577,7 +608,7 @@
        instead of y=0). The stem's own two ends (±20, already grid-aligned)
        are the real electrical connection points, same convention as every
        other vertical-stem symbol's terminals. -->
-  <symbol shape="37" class="Reactor" name="Reactor" category="Other equipment">
+  <symbol shape="37" class="Reactor" name="Reactor">
     <terminals>
       <terminal x="0" y="-20"/>
       <terminal x="0" y="20"/>
@@ -610,7 +641,7 @@
        3. Only the top terminal (0,0) is a real electrical connection
        point — the earth side is a dead end, same convention as Ground
        terminal's/Ground switch's own single terminal. -->
-  <symbol shape="397" class="ReactorShunt" name="Reactor (shunt)" category="Other equipment">
+  <symbol shape="397" class="ReactorShunt" name="Reactor (shunt)">
     <terminals>
       <terminal x="0" y="0"/>
     </terminals>
@@ -622,7 +653,7 @@
   <!-- The two stems' own far ends (±10, already grid-aligned) are the real
        electrical connection points, same convention as every other
        vertical-stem symbol's terminals. -->
-  <symbol shape="35" class="SurgeArrester" name="Surge arrester" category="Protection">
+  <symbol shape="35" class="SurgeArrester" name="Surge arrester">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -643,7 +674,7 @@
        The stems' own far ends (±20, already grid-aligned) are the real
        electrical connection points, same convention as every other
        vertical-stem symbol's terminals. -->
-  <symbol shape="29" class="SurgeArrester" name="Surge arrester" category="Protection">
+  <symbol shape="29" class="SurgeArrester" name="Surge arrester">
     <terminals>
       <terminal x="0" y="-20"/>
       <terminal x="0" y="20"/>
@@ -664,7 +695,7 @@
        there) — not a centered anchor like 29/35 above, since this variant
        only has one real electrical connection; the earthed bottom is a
        dead end, same convention as every other one-port symbol here. -->
-  <symbol shape="168" class="SurgeArrester" name="Surge arrester (grounded)" category="Protection">
+  <symbol shape="168" class="SurgeArrester" name="Surge arrester (grounded)">
     <terminals>
       <terminal x="0" y="0"/>
     </terminals>
@@ -676,7 +707,7 @@
   <!-- The main line's own two ends (±10, already grid-aligned) are the real
        electrical connection points, same convention as every other
        vertical-stem symbol's terminals. -->
-  <symbol shape="203" class="Fuse" name="Fuse" category="Protection">
+  <symbol shape="203" class="Fuse" name="Fuse">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -695,7 +726,7 @@
        chevron tips (y=±31, fixed, outside the position-shifted group), not
        the fuse body itself (y=±22, inside the movable <g
        data-trolley="{Position}">, translated by {positionOffset}). -->
-  <symbol shape="154" class="Fuse" name="Fuse (withdrawable)" category="Protection">
+  <symbol shape="154" class="Fuse" name="Fuse (withdrawable)">
     <terminals>
       <terminal x="0" y="-31"/>
       <terminal x="0" y="31"/>
@@ -712,7 +743,7 @@
   <!-- The stem's own two ends (±10, already grid-aligned) are the real
        electrical connection points, same convention as every other
        vertical-stem symbol's terminals. -->
-  <symbol shape="388" class="Capacitor" name="Capacitor" category="Other equipment">
+  <symbol shape="388" class="Capacitor" name="Capacitor">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -729,7 +760,7 @@
        combined path's own first point) — the closed triangle plus its own
        two short accent bars near its base have no wire-connection point
        of their own, only the top stem does. -->
-  <symbol shape="172" class="CapacitorBank" name="Capacitor bank" category="Other equipment">
+  <symbol shape="172" class="CapacitorBank" name="Capacitor bank">
     <terminals>
       <terminal x="0" y="0"/>
     </terminals>
@@ -747,7 +778,7 @@
        (the combined path's own first point) — the same one-port
        convention Capacitor bank's own terminal above uses; the floating
        lower chevron has no wire-connection point of its own. -->
-  <symbol shape="52" class="HalfChassis" name="Half-chassis" category="Other equipment">
+  <symbol shape="52" class="HalfChassis" name="Half-chassis">
     <terminals>
       <terminal x="0" y="0"/>
     </terminals>
@@ -781,7 +812,7 @@
        (the real source's own Tech.Closed, 0 dashing the outline) —
        neither is recoverable on Extract, a known gap the same way
        Arrow's own DoubleHeaded isn't either. -->
-  <symbol shape="385" class="PackageSubstation" name="Package substation" category="Other equipment">
+  <symbol shape="385" class="PackageSubstation" name="Package substation">
     <terminals>
       <terminal x="0" y="-22"/>
     </terminals>
@@ -804,14 +835,14 @@
        free-choice/dashed-outline fields 385's own template does, for the
        same reasons (Abonent/Tech.Closed), neither recoverable on
        Extract. -->
-  <symbol shape="386" class="EnclosedSubstation" name="Enclosed substation" category="Other equipment">
+  <symbol shape="386" class="EnclosedSubstation" name="Enclosed substation">
     <terminals>
       <terminal x="0" y="-20"/>
     </terminals>
     <template></template>
   </symbol>
 
-  <symbol shape="106" class="Lamp" name="Lamp" category="Indicators">
+  <symbol shape="106" class="Lamp" name="Lamp">
     <template><![CDATA[
 <circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:slategray;stroke-width:2" />
 ]]></template>
@@ -831,7 +862,7 @@
        "FPI" out of the box — when unset so an already-placed/-saved
        instance's own look doesn't change; see PropertyText's own doc
        comment in model.go and Render's own defaultFPIText param). -->
-  <symbol shape="320003" class="FaultPassageIndicator" name="Fault passage indicator" category="Indicators">
+  <symbol shape="320003" class="FaultPassageIndicator" name="Fault passage indicator">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>

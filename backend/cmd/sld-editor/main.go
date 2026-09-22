@@ -44,6 +44,10 @@ func main() {
 	}
 	llog.Logger.Infof("loaded %d element symbol(s) from %d configured element library file(s)", len(lib.Symbols), len(cfg.Elements.Libraries))
 
+	if err := lib.ValidatePalette(cfg.Palette); err != nil {
+		llog.Logger.Fatalf("validating palette configuration: %v", err)
+	}
+
 	stateColors := make([]slddoc.StateColor, len(cfg.StateColors))
 	for i, sc := range cfg.StateColors {
 		stateColors[i] = slddoc.StateColor{State: sc.State, Label: sc.Label, Color: sc.Color}

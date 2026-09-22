@@ -7,27 +7,29 @@ import (
 	"strings"
 	"testing"
 
+	"sld-editor/internal/config"
+
 	"github.com/PVKonovalov/slddoc"
 )
 
 const baseFixture = `<symbols>
-  <symbol shape="41" class="Breaker" name="Breaker" category="Switching devices">
+  <symbol shape="41" class="Breaker" name="Breaker">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
     </terminals>
     <template><![CDATA[<path/>]]></template>
   </symbol>
-  <symbol shape="7" class="JunctionPoint" name="Junction point" category="Wiring">
+  <symbol shape="7" class="JunctionPoint" name="Junction point">
     <template><![CDATA[<circle/>]]></template>
   </symbol>
 </symbols>`
 
 const overrideFixture = `<symbols>
-  <symbol shape="41" class="Breaker" name="Custom breaker" category="Custom">
+  <symbol shape="41" class="Breaker" name="Custom breaker">
     <template><![CDATA[<rect/>]]></template>
   </symbol>
-  <symbol shape="900" class="Recloser" name="Recloser" category="Custom">
+  <symbol shape="900" class="Recloser" name="Recloser">
     <template><![CDATA[<path/>]]></template>
   </symbol>
 </symbols>`
@@ -118,5 +120,33 @@ func TestSymbolLibrary_RendersConfiguredShapes(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), `id="1"`) {
 		t.Errorf("expected shape 41's template to render: %s", buf.String())
+	}
+}
+
+func TestValidatePalette(t *testing.T) {
+	lib := &Library{Symbols: []Symbol{{Shape: "41", Class: "Breaker", Name: "Breaker"}}}
+
+	valid := []config.PaletteGroup{
+		{Name: "Wires", Items: []string{"21", "22"}},
+		{Name: "Text", Items: []string{"5", "134"}},
+		{Name: "Switching devices", Items: []string{"41"}},
+	}
+	if err := lib.ValidatePalette(valid); err != nil {
+		t.Errorf("ValidatePalette(valid) = %v, want nil", err)
+	}
+
+	cases := []struct {
+		name   string
+		groups []config.PaletteGroup
+	}{
+		{"unknown shape code", []config.PaletteGroup{{Name: "g", Items: []string{"999"}}}},
+		{"non-numeric junk", []config.PaletteGroup{{Name: "g", Items: []string{"bogus"}}}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if err := lib.ValidatePalette(c.groups); err == nil {
+				t.Errorf("ValidatePalette(%s) = nil, want an error", c.name)
+			}
+		})
 	}
 }

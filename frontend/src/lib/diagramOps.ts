@@ -16,17 +16,25 @@ import type {
 
 // Element classes whose own geometry is a drawn Points array (two or more
 // vertices) rather than a single x/y anchor+orient — BusBarSection (a real
-// electrical busbar), Rectangle, Circle, and Arrow (the latter three
-// purely decorative annotations, no electrical meaning at all — see
-// connectElements' own guard below). Shared by every place/move/paste/
-// point-drag helper that needs to treat "drag two corners/vertices to draw
-// or reshape" the same way regardless of which of the four classes it
-// actually is — including, for Rectangle/Circle/Arrow, the anchor (x/y)
-// recomputed as the two Points' own midpoint on every move/paste/drag:
-// harmless for an Arrow even though its own rendering (writeArrow) reads
-// Points[0]/[1] directly rather than x/y, since x/y only ever matters here
-// as a paste-target anchor, never for the real drawn geometry.
-const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set(['BusBarSection', 'Rectangle', 'Circle', 'Arrow'])
+// electrical busbar), Rectangle, Circle, Arrow, Button, and Road (the
+// latter five purely decorative annotations, no electrical meaning at all
+// — see connectElements' own guard below). Shared by every place/move/
+// paste/point-drag helper that needs to treat "drag two corners/vertices to
+// draw or reshape" the same way regardless of which of the six classes it
+// actually is — including, for Rectangle/Circle/Arrow/Button/Road, the
+// anchor (x/y) recomputed as the two Points' own midpoint on every
+// move/paste/drag: harmless for an Arrow even though its own rendering
+// (writeArrow) reads Points[0]/[1] directly rather than x/y, since x/y only
+// ever matters here as a paste-target anchor, never for the real drawn
+// geometry.
+const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
+  'BusBarSection',
+  'Rectangle',
+  'Circle',
+  'Arrow',
+  'Button',
+  'Road',
+])
 
 // A voltage-class <select>'s option value is either an existing class's own
 // id (as a string) or, for one of the server's default presets not yet
@@ -377,6 +385,72 @@ export function placeArrow(diagram: Diagram, start: Point, end: Point): Diagram 
     y: (start.y + end.y) / 2,
     points: [start, end],
     ...ARROW_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly placed Button's own colors/text — matching render.go's own
+// unset-Fill/Stroke/TextColor fallback ("none"/"white"/"white") explicitly,
+// the same reason RECTANGLE_DEFAULTS/LAMP_DEFAULTS spell theirs out.
+// propertyText defaults to a placeholder ("Button") rather than empty so a
+// freshly placed one isn't blank until Properties' own Text field is filled
+// in.
+const BUTTON_DEFAULTS = { fill: 'none', stroke: '#ffffff', strokeWidth: 1, textColor: '#ffffff', bold: false }
+
+/** Places a new Button spanning start..end — a purely decorative
+ * annotation widget, not real electrical equipment (see slddoc's own
+ * ClassButton doc comment): no Voltage, no Ports, never a valid
+ * connectElements/routing target. Drawn from its own Points the same
+ * drag-not-click way placeRectangle places a Rectangle, and for the same
+ * reason (its size varies per instance, there's no single "the" anchor to
+ * click). */
+export function placeButton(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Button',
+    shape: '113',
+    name: `Button-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    propertyText: 'Button',
+    ...BUTTON_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly placed Road's own color/width — matching render.go's own
+// unset-Stroke/StrokeWidth fallback ("white"/8) explicitly, the same
+// reason ARROW_DEFAULTS spells theirs out. No fill (an open line, like
+// Arrow).
+const ROAD_DEFAULTS = { stroke: '#ffffff', strokeWidth: 8 }
+
+/** Places a new Road spanning start..end — a purely decorative geographic
+ * background line, not real electrical equipment (see slddoc's own
+ * ClassRoad doc comment): no Voltage, no Ports, never a valid
+ * connectElements/routing target. Drawn from its own Points the same
+ * drag-not-click way placeBusbar places a BusBarSection (this editor can
+ * only draw a fresh Road as a straight two-point line this way — see
+ * base.xml's own shape-335 entry — a Road extracted from a real multi-bend
+ * file keeps every one of its own original vertices instead, editable one
+ * at a time via the same per-point drag handle every other points-based
+ * element already has). */
+export function placeRoad(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Road',
+    shape: '335',
+    name: `Road-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...ROAD_DEFAULTS,
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -821,17 +895,18 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
  * from whichever of from/to already has one (see drawConnectorPath's own
  * doc comment) — with no defaultVoltage param here, an element joined to
  * one with no voltage of its own at all just stays unset, same as before.
- * A no-op when either end is a Rectangle, Circle, or Arrow — a purely
- * decorative annotation, never a valid electrical endpoint (see slddoc's
- * own ClassRectangle/ClassCircle/ClassArrow doc comments); the routing
- * tool's own findConnectionTarget (Canvas.tsx) excludes all three from
- * candidates entirely for the same reason. */
+ * A no-op when either end is a Rectangle, Circle, Arrow, Button, or Road —
+ * a purely decorative annotation, never a valid electrical endpoint (see
+ * slddoc's own ClassRectangle/ClassCircle/ClassArrow/ClassButton/ClassRoad
+ * doc comments); the routing tool's own findConnectionTarget (Canvas.tsx)
+ * excludes all five from candidates entirely for the same reason. */
 export function connectElements(diagram: Diagram, fromId: number, toId: number): Diagram {
   if (fromId === toId) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
   const to = diagram.elements.find(e => e.id === toId)
   if (!from || !to) return diagram
-  const notConnectable = (el: DiagramElement) => el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow'
+  const notConnectable = (el: DiagramElement) =>
+    el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'Road'
   if (notConnectable(from) || notConnectable(to)) return diagram
 
   const ids = new IdSequence(diagram)

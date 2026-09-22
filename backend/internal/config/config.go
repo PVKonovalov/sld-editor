@@ -80,6 +80,18 @@ type Config struct {
 		// falls back to the literal "FPI" this project has always shown.
 		DefaultFPIText string `yaml:"default_fpi_text" env:"true"`
 	} `yaml:"indicators"`
+
+	// Palette lists the Elements panel's own collapsible groups, in
+	// display order — the single source of truth for palette layout,
+	// replacing the per-symbol category attribute internal/elements.Symbol
+	// used to carry (a Symbol is now a pure shape/class/name/template/
+	// terminals definition, with no opinion on where it shows up in the
+	// palette). Covers every kind of palette button, not just equipment:
+	// the "Wires"/"Text" sections are ordinary groups here too, not a
+	// special case. main.go validates every PaletteItem reference against
+	// the loaded element library at startup, the same "fail loud on
+	// misconfiguration" way Elements.Libraries itself is already checked.
+	Palette []PaletteGroup `yaml:"palette"`
 }
 
 // VoltageColor is one default palette entry.
@@ -106,4 +118,28 @@ type StateColor struct {
 type PositionState struct {
 	Position int    `yaml:"position" json:"position"`
 	Label    string `yaml:"label" json:"label"`
+}
+
+// PaletteGroup is one collapsible section of the Elements panel (e.g.
+// "Wires", "Text", "Switching devices"), in the order its own Items should
+// be shown. Name is looked up in the frontend's own
+// elementCatalog.category.<Name> i18n dictionary the same way an equipment
+// Symbol's own category used to be, falling back to the raw string when no
+// translation exists.
+//
+// Each Item is a bare xsde2svg ObjectType code, one and the same
+// vocabulary for every kind of palette entry — deliberately not a mix of
+// human-readable names for some kinds and codes for others: a real
+// internal/elements.Symbol's own Shape ("41", "335", ...), one of the 4
+// connector-kind codes (internal/elements.PaletteConnectorKinds — "21" for
+// BusWork, ...), or Label's/DigitalDevice's own codes
+// (internal/elements.PaletteLabelShape/PaletteDigitalDeviceShape, "5"/
+// "134") are all the same kind of value, distinguished only by which set
+// they fall in, never by their own shape. internal/elements.Library.
+// ValidatePalette checks every Item against those fixed code sets or this
+// Library's own loaded Symbols, so an unrecognized code still fails loud
+// at startup.
+type PaletteGroup struct {
+	Name  string   `yaml:"name" json:"name"`
+	Items []string `yaml:"items" json:"items"`
 }

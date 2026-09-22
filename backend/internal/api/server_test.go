@@ -24,7 +24,7 @@ func newTestServer(t *testing.T) *Server {
 	gin.SetMode(gin.TestMode)
 
 	lib := &elements.Library{Symbols: []elements.Symbol{
-		{Shape: "41", Class: "Breaker", Name: "Breaker", Category: "Switching devices", Template: `<path style="stroke:{color}"/>`},
+		{Shape: "41", Class: "Breaker", Name: "Breaker", Template: `<path style="stroke:{color}"/>`},
 	}}
 	store, err := storage.New(t.TempDir(), lib.SymbolLibrary(), "", nil)
 	if err != nil {

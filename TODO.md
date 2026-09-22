@@ -323,7 +323,43 @@ Rectangle's own `Fill`/`Stroke`/`StrokeWidth` fields rather than adding
 new ones, including the same Properties "Transparent" fill-reset button.
 `Extract`'s own `parseCircle` reads `cx`/`cy`/`rx`/`ry` straight off the
 bare `<ellipse>` tag, the same direct-attribute approach Rectangle's own
-`parseRectangle` uses).
+`parseRectangle` uses), **113** Объемная кнопка/3D button (an earlier "out
+of scope" call for this one turned out to be wrong — see
+[[project_xsde2svg_porting]]'s own "earlier judgments can be stale" note —
+the user asked for it anyway; same non-electrical status and same
+two-opposite-corners `Points`/`Fill`/`Stroke`/`StrokeWidth` convention as
+Rectangle, but unlike Rectangle/Arrow/Circle it's `<g>`-wrapped, not a bare
+tag, since it also draws its own centered label (reuses `PropertyText`,
+plus two new fields, `TextColor`/`Bold`, since real corpus shows both
+genuinely varying — a dark box with plain white text vs. a light box with
+bold dark text — unlike 385/386/FPI's own fixed-style overlay text).
+Real corpus (`grep -rl 'data-type="113"' EMA/ctrlroom/var/ctrlroom/sld/`)
+never shows a `data-state`/real voltage on one despite `element_113.go`
+computing both — every real instance found uses one fixed look, not a
+Closed-driven toggle, confirming this is a static navigation/action
+button (e.g. "Журнал событий"/Event log), not anything reflecting live
+switching state, so State/data-fill/data-voltage were deliberately not
+modeled. `Extract`'s own `parseButton` reads the `<rect>` child directly
+(same as `parseRectangle`) plus the sibling `<text>` (bold detected via
+`font-weight: bold` in its own style, the same `parseDigitalDevice`
+convention) — verified against both real corpus variants found, extracting
+byte-for-byte matching Fill/Stroke/TextColor/Bold/text. **335** Дорога/Road
+(another earlier "out of scope" call that turned out to be wrong — same
+note as 113 above): a purely decorative geographic background line, drawn
+as an arbitrary multi-vertex `Points` polyline — `BusBarSection`'s own
+convention, not Rectangle/Circle's two-opposite-corners one or Arrow's own
+two-ordered-endpoints one — reusing `Stroke`/`StrokeWidth` (both genuinely
+vary per real instance: orangered/blue/royalblue/white, widths 8/10/12),
+no new fields needed at all. Real instances are a bare `<polyline>`, no
+wrapping `<g>` and — unlike a real busbar's own bare polyline — no
+`data-name` either (`element_335.go` never emits one), so `writeRoad`/
+`parseRoad` reuse `writePolyline`/`parsePointList` directly rather than
+each needing their own bespoke geometry code the way Button's did. This
+editor can only draw a *fresh* Road as a straight two-point line (same
+limitation a fresh Busbar section already has — no way yet to add a bend
+point to a freshly-placed points-based element mid-edit, only drag
+existing ones); a Road extracted from a real multi-bend file keeps every
+one of its own original vertices, each individually draggable.
 
 Deferred — real xsde2svg shapes whose own source (`xsde2svg/internal/modus/
 element_<code>.go`) is substantially more involved than the shapes above,
@@ -338,14 +374,13 @@ each needing its own dedicated pass rather than a quick port:
 
 Deliberately out of scope (decorative/structural, not real electrical
 equipment — same reasoning that already excludes the generic draw
-primitives, data-type 1/16 — Rectangle (3), Arrow (2), and Circle (4) are
-the three generic primitives that *have* been ported, see above):
-poles/pylons (19/146/292), power-plant/
+primitives, data-type 1/16 — Rectangle (3), Arrow (2), Circle (4), Button
+(113), and Road (335) are the five generic primitives that *have* been
+ported, see above): poles/pylons (19/146/292), power-plant/
 substation pictogram icons (38/360), chassis/half-chassis cart graphics
 (51/52), a decorative connector-arrow (83),
-button/table/window HMI decoration (113/313/319), a road/geographic
-background element (335), and a generic "Device" placeholder (130, too
-vague to know what it actually draws).
+table/window HMI decoration (313/319), and a generic "Device" placeholder
+(130, too vague to know what it actually draws).
 
 ## Known pre-existing extract gaps
 

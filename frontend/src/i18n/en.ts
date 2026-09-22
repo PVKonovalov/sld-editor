@@ -35,11 +35,9 @@ export const dictionary = {
   'file.dropOverlay': 'Drop .xml file to load',
   'file.invalidXmlFile': 'Not a .xml file: {{name}}',
 
-  'elements.uncategorized': 'Other',
   'elements.empty': 'No element libraries configured.',
   'elements.pickHint': 'Click an element, then click the canvas to place it.',
   'elements.armedHint': 'Click the canvas to place a {{name}}. Esc to cancel.',
-  'elements.wires': 'Wires',
   'elements.wireArmedHint': 'Draw a wire as usual — it will be a {{name}}. Esc to cancel.',
   'elements.text': 'Text',
   'elements.labelArmedHint': 'Click the canvas to place a text label. Esc to cancel.',
@@ -50,13 +48,17 @@ export const dictionary = {
   'connectorKind.CableLine': 'Cable line',
   'connectorKind.LinkToObject': 'Object link',
 
-  // The bundled backend/assets/elements/base.xml catalog's own name/
-  // category strings, keyed by shape (elementCatalog.name.<shape>, a
-  // stable per-symbol id — two shapes can share a class but never a shape)
-  // and by the raw category string (elementCatalog.category.<category>) —
-  // see lib/elementCatalogI18n.ts, which looks these up with a raw-string
-  // fallback for anything from a site's own config-added element library
-  // file (elements.libraries in config), which has no key here at all.
+  // The bundled backend/assets/elements/base.xml catalog's own name
+  // strings, keyed by shape (elementCatalog.name.<shape>, a stable
+  // per-symbol id — two shapes can share a class but never a shape), and
+  // every config.Palette group's own display name (elementCatalog.
+  // category.<name>, including the two built-in "Wires"/"Text" groups —
+  // not just equipment ones any more) — see lib/elementCatalogI18n.ts,
+  // which looks both up with a raw-string fallback for anything with no
+  // key here (a site's own config-added element library file, or a
+  // palette group name it invented).
+  'elementCatalog.category.Wires': 'Wires',
+  'elementCatalog.category.Text': 'Text',
   'elementCatalog.category.Busbars': 'Busbars',
   'elementCatalog.category.Wiring': 'Wiring',
   'elementCatalog.category.Switching devices': 'Switching devices',
@@ -107,6 +109,8 @@ export const dictionary = {
   'elementCatalog.name.3': 'Rectangle',
   'elementCatalog.name.2': 'Arrow',
   'elementCatalog.name.4': 'Circle',
+  'elementCatalog.name.113': '3D button',
+  'elementCatalog.name.335': 'Road',
 
   'settings.noDiagram': 'Open or create a diagram to edit its settings.',
   'settings.gridSpacing': 'Grid spacing',
@@ -179,6 +183,8 @@ export const dictionary = {
   'properties.arrowStroke': 'Line color',
   'properties.arrowStrokeWidth': 'Line width',
   'properties.arrowDoubleHeaded': 'Double-headed',
+  'properties.buttonText': 'Text',
+  'properties.buttonTextColor': 'Text color',
   'properties.substationNType': 'Appearance',
   'properties.substationNTypeBox': 'Box',
   'properties.substationNTypeTriangle': 'Triangle',

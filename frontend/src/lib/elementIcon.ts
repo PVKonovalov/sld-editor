@@ -53,11 +53,28 @@ const PACKAGE_SUBSTATION_ICON =
 const ENCLOSED_SUBSTATION_ICON =
   '<rect x="-18" y="-18" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2" />' +
   '<path d="M -18 -18 L 18 -18 L 0 18 Z" fill="none" stroke="currentColor" stroke-width="2" />'
+// Button (shape 113) likewise has no template (see BUSBAR_ICON above) — same
+// "you drag this one" dashed-outline cue as RECTANGLE_ICON, plus a short
+// center line standing in for its own label text, distinguishing it from a
+// plain Rectangle.
+const BUTTON_ICON =
+  '<rect x="-20" y="-14" width="40" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 3" />' +
+  '<line x1="-11" y1="0" x2="11" y2="0" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />'
+
+// Road (shape 335) likewise has no template (see BUSBAR_ICON above) — a
+// solid (not dashed — real corpus never draws one transparent-ish/hollow)
+// bent polyline at a thick stroke width, matching a real instance's own
+// visual weight (real corpus shows 8-12) and distinguishing it from
+// BUSBAR_ICON's own plain thin straight line.
+const ROAD_ICON = '<path d="M -22 14 L -6 -8 L 10 -6 L 22 14" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />'
+
 const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '24': BUSBAR_ICON,
   '3': RECTANGLE_ICON,
   '2': ARROW_ICON,
   '4': CIRCLE_ICON,
+  '113': BUTTON_ICON,
+  '335': ROAD_ICON,
   '385': PACKAGE_SUBSTATION_ICON,
   '386': ENCLOSED_SUBSTATION_ICON,
 }

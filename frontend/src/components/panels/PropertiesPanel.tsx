@@ -636,16 +636,19 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isRectangle = el.class === 'Rectangle'
   const isCircle = el.class === 'Circle'
   const isArrow = el.class === 'Arrow'
+  const isButton = el.class === 'Button'
+  const isRoad = el.class === 'Road'
   const isPackageSubstation = el.class === 'PackageSubstation'
   const isEnclosedSubstation = el.class === 'EnclosedSubstation'
   const isJunctionPoint = el.class === 'JunctionPoint'
   // Neither a Lamp nor a FaultPassageIndicator reads a Voltage class color
   // (see diagramOps.placeElement's own matching exclusion) — both get a
-  // fixed color of their own instead. A Rectangle/Circle/Arrow isn't part
-  // of the electrical network at all (see slddoc's own
-  // ClassRectangle/ClassCircle/ClassArrow doc comments) — its own Stroke
-  // (plus, for a Rectangle/Circle, Fill) is its equivalent, shown below.
-  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator' || isRectangle || isCircle || isArrow
+  // fixed color of their own instead. A Rectangle/Circle/Arrow/Button/Road
+  // isn't part of the electrical network at all (see slddoc's own
+  // ClassRectangle/ClassCircle/ClassArrow/ClassButton/ClassRoad doc
+  // comments) — its own Stroke (plus, for a Rectangle/Circle/Button, Fill)
+  // is its equivalent, shown below.
+  const hasNoVoltage = isLamp || el.class === 'FaultPassageIndicator' || isRectangle || isCircle || isArrow || isButton || isRoad
 
   function patch(fields: Partial<DiagramElement>) {
     updateDiagram(d => ({
@@ -856,6 +859,72 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {isButton && (
+          <>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.buttonText')}</span>
+              <input
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.propertyText ?? ''}
+                onChange={e => patch({ propertyText: e.target.value })}
+              />
+            </label>
+            {/* Reuses Rectangle's own Fill/Stroke/StrokeWidth i18n keys and
+                transparent-default convention — a Button's own box model
+                is identical to Rectangle's (see diagramOps.BUTTON_DEFAULTS). */}
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.rectangleFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.buttonTextColor')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.textColor, '#ffffff')}
+                onChange={e => patch({ textColor: e.target.value })}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={!!el.bold} onChange={e => patch({ bold: e.target.checked })} />
+              <span className="text-gray-400">{t('properties.labelBold')}</span>
+            </label>
+          </>
+        )}
+
         {isPackageSubstation && (
           <>
             <label className="block text-xs">
@@ -1028,6 +1097,35 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {isRoad && (
+          <>
+            {/* Reuses Arrow's own Stroke/StrokeWidth i18n keys — a Road's
+                own line-color model is identical to Arrow's (no Fill, an
+                open line), just with a much thicker real-world default
+                width (diagramOps.ROAD_DEFAULTS) than the number input's
+                own min/fallback below assumes for every other class. */}
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.arrowStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.arrowStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 8}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+          </>
+        )}
+
         {el.class === 'PowerTransformer' && (
           <>
             <label className="flex items-center gap-1.5 text-xs">
@@ -1177,7 +1275,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow) && el.points ? (
+        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow || isButton || isRoad) && el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>
             <div className="space-y-2">
