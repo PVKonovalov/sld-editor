@@ -150,8 +150,8 @@ export const dictionary = {
   'properties.pointY': 'Point {{n}} Y',
   'properties.connectHint': 'Ctrl/Cmd-click another element on the canvas to connect them.',
   'properties.deleteElement': 'Delete element',
-  'properties.multiSelection': '{{count}} elements selected',
-  'properties.deleteElements': 'Delete elements',
+  'properties.multiSelection': '{{count}} items selected',
+  'properties.deleteElements': 'Delete selection',
   'properties.deleteConnector': 'Delete connector',
   'properties.lineStyle': 'Line style',
   'properties.lineStyleDefault': 'Default (dashed)',
@@ -242,10 +242,10 @@ export const dictionary = {
   'canvas.resetView': 'Reset view',
 
   'contextMenu.copy': 'Copy',
+  'contextMenu.startBuswork': 'Start buswork',
   'contextMenu.paste': 'Paste',
   'contextMenu.delete': 'Delete',
   'contextMenu.deleteSegment': 'Delete segment',
-  'contextMenu.deleteWire': 'Delete wire',
 } as const
 
 export type Dictionary = typeof dictionary

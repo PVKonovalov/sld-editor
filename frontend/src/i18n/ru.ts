@@ -146,8 +146,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.pointY': 'Точка {{n}}, Y',
   'properties.connectHint': 'Ctrl/Cmd + щелчок по другому элементу на схеме, чтобы соединить их.',
   'properties.deleteElement': 'Удалить элемент',
-  'properties.multiSelection': 'Выбрано элементов: {{count}}',
-  'properties.deleteElements': 'Удалить элементы',
+  'properties.multiSelection': 'Выбрано объектов: {{count}}',
+  'properties.deleteElements': 'Удалить выделенное',
   'properties.deleteConnector': 'Удалить связь',
   'properties.lineStyle': 'Стиль линии',
   'properties.lineStyleDefault': 'По умолчанию (штриховая)',
@@ -238,8 +238,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'canvas.resetView': 'Сбросить вид',
 
   'contextMenu.copy': 'Копировать',
+  'contextMenu.startBuswork': 'Начать ошиновку',
   'contextMenu.paste': 'Вставить',
   'contextMenu.delete': 'Удалить',
   'contextMenu.deleteSegment': 'Удалить сегмент',
-  'contextMenu.deleteWire': 'Удалить провод',
 }

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch'
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
-import { useDiagramContext } from '../state/useDiagramContext'
+import { useDiagramContext, type SelectionKind } from '../state/useDiagramContext'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
 import { clientToDiagramPoint, nearestSegmentOnPolyline, snapPointOnSegment, snapValue } from '../lib/geometry'
 import { t } from '../i18n'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
-import type { Diagram, Point } from '../types'
+import type { Diagram, DiagramElement, Connector, Label, DigitalDevice, Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
 const RECTANGLE_SHAPE = '3'
@@ -307,8 +307,8 @@ export function Canvas() {
     config,
     elements,
     selectedElementId,
-    selectedElementIds,
-    toggleElementSelection,
+    selection,
+    toggleSelection,
     selectedConnectorId,
     selectedLabelId,
     selectedDigitalDeviceId,
@@ -336,7 +336,12 @@ export function Canvas() {
   const [pointDrag, setPointDrag] = useState<PointDrag | null>(null)
   const [labelDrag, setLabelDrag] = useState<LabelDrag | null>(null)
   const [digitalDeviceDrag, setDigitalDeviceDrag] = useState<DigitalDeviceDrag | null>(null)
-  const [clipboard, setClipboard] = useState<diagramOps.ClipboardEntry[]>([])
+  const [clipboard, setClipboard] = useState<diagramOps.ClipboardGroup>({
+    elements: [],
+    connectors: [],
+    labels: [],
+    digitalDevices: [],
+  })
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [routing, setRouting] = useState<Routing | null>(null)
   const [routingCursor, setRoutingCursor] = useState<Point | null>(null)
@@ -363,6 +368,112 @@ export function Canvas() {
   // elementBoxes stale until some *other*, unrelated edit happened to
   // trigger a full render.
   const [patchVersion, setPatchVersion] = useState(0)
+
+  // The current mixed selection, split by kind — every drag/copy/paste/
+  // context-menu action that needs to treat "the whole selection" as one
+  // group works from these rather than filtering `selection` itself each
+  // time. Cheap enough (selection is never more than a handful of ids) to
+  // just recompute on every render rather than memoizing.
+  const elementSelection = new Set<number>()
+  const connectorSelection = new Set<number>()
+  const labelSelection = new Set<number>()
+  const digitalDeviceSelection = new Set<number>()
+  for (const [id, kind] of selection) {
+    if (kind === 'element') elementSelection.add(id)
+    else if (kind === 'connector') connectorSelection.add(id)
+    else if (kind === 'label') labelSelection.add(id)
+    else digitalDeviceSelection.add(id)
+  }
+
+  // What a drag started on (clickedId, clickedKind) should move: the whole
+  // current mixed selection, when the clicked item is already part of one
+  // holding more than one entry (matches the desktop convention "dragging
+  // any item in a multi-selection moves the whole group"), or otherwise
+  // just that one item on its own — the same either/or handleMouseDown's
+  // own element branch has always used, now shared by every kind.
+  function movingGroup(clickedId: number, clickedKind: SelectionKind) {
+    if (selection.get(clickedId) === clickedKind && selection.size > 1) {
+      return {
+        elementIds: elementSelection,
+        connectorIds: connectorSelection,
+        labelIds: labelSelection,
+        digitalDeviceIds: digitalDeviceSelection,
+      }
+    }
+    const empty = new Set<number>()
+    return {
+      elementIds: clickedKind === 'element' ? new Set([clickedId]) : empty,
+      connectorIds: clickedKind === 'connector' ? new Set([clickedId]) : empty,
+      labelIds: clickedKind === 'label' ? new Set([clickedId]) : empty,
+      digitalDeviceIds: clickedKind === 'digitaldevice' ? new Set([clickedId]) : empty,
+    }
+  }
+
+  // Starts a whole-selection drag from any one clicked item (element,
+  // connector, label, or digital device) — the unified counterpart of what
+  // used to be handleMouseDown's own element-only drag logic. point is the
+  // already-computed diagram-space mousedown position. Collapses the
+  // selection to just the clicked item first when it isn't already part of
+  // a multi-selection (matching every kind's own previous plain-click
+  // behavior); dragging a member of an actual multi-selection moves the
+  // whole group and leaves the selection itself untouched.
+  //
+  // Elements get their usual live DOM-preview via dragElementsInDom
+  // (ghost); at most one label and one digital device also get a live
+  // preview (dragLabelInDom/dragDigitalDeviceInDom) — connectors never do
+  // (they only ever reroute once the diagram itself updates on mouseup,
+  // the same as an element's own attached connector already does), and a
+  // *group* of more than one label or digital device doesn't either (their
+  // own drag state is a single id, not an array) — both are purely visual
+  // simplifications; the final committed position via moveSelection is
+  // correct regardless.
+  function startGroupDrag(point: Point, clickedId: number, clickedKind: SelectionKind) {
+    const moving = movingGroup(clickedId, clickedKind)
+    const totalCount =
+      moving.elementIds.size + moving.connectorIds.size + moving.labelIds.size + moving.digitalDeviceIds.size
+    if (totalCount <= 1) {
+      if (clickedKind === 'element') selectElement(clickedId)
+      else if (clickedKind === 'connector') selectConnector(clickedId)
+      else if (clickedKind === 'label') selectLabel(clickedId)
+      else selectDigitalDevice(clickedId)
+    }
+
+    const elementIds = [...moving.elementIds]
+    const previewLabelId = moving.labelIds.size === 1 ? [...moving.labelIds][0] : null
+    const previewDigitalDeviceId = moving.digitalDeviceIds.size === 1 ? [...moving.digitalDeviceIds][0] : null
+
+    const preview = (dx: number, dy: number) => {
+      if (elementIds.length > 0) dragElementsInDom(elementIds, dx, dy)
+      if (previewLabelId !== null) dragLabelInDom(previewLabelId, dx, dy)
+      if (previewDigitalDeviceId !== null) dragDigitalDeviceInDom(previewDigitalDeviceId, dx, dy)
+    }
+
+    const onMove = (ev: MouseEvent) => {
+      const p = toPoint(ev.clientX, ev.clientY)
+      const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
+      const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
+      if (elementIds.length > 0) setGhost({ ids: elementIds, dx, dy })
+      if (previewLabelId !== null) setLabelDrag({ id: previewLabelId, dx, dy })
+      if (previewDigitalDeviceId !== null) setDigitalDeviceDrag({ id: previewDigitalDeviceId, dx, dy })
+      preview(dx, dy)
+    }
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      const p = toPoint(ev.clientX, ev.clientY)
+      const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
+      const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
+      setGhost(null)
+      setLabelDrag(null)
+      setDigitalDeviceDrag(null)
+      if (dx !== 0 || dy !== 0) {
+        preview(dx, dy)
+        updateDiagram(d => diagramOps.moveSelection(d, moving, dx, dy))
+      }
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
 
   useEffect(() => {
     if (!diagram) {
@@ -648,6 +759,78 @@ export function Canvas() {
     return { x: snapValue(p.x, gridSpacing, snapEnabled), y: snapValue(p.y, gridSpacing, snapEnabled) }
   }
 
+  // A Rectangle/Circle/Arrow/Button/Road/PostPole/Line/PowerflowIndicator/
+  // Table/Table2 is a purely decorative annotation, never a valid wire
+  // endpoint — unlike every other class, none even falls back to its own
+  // anchor (see diagramOps.connectElements' own matching guard). Shared
+  // between findConnectionTarget's own search and the context menu's
+  // "Start buswork" item, which must offer it only for a routable element.
+  const NON_ROUTABLE_ELEMENT_CLASSES = new Set([
+    'Rectangle',
+    'Circle',
+    'Arrow',
+    'Button',
+    'Road',
+    'PostPole',
+    'Line',
+    'PowerflowIndicator',
+    'Table',
+    'Table2',
+  ])
+
+  // The nearest connectable point on el to point — a busbar's own polyline,
+  // or the nearest of a symbol's own declared Terminals (its bare anchor
+  // when it has none) — with no distance gate of its own; el is assumed
+  // already known routable (NON_ROUTABLE_ELEMENT_CLASSES already excluded).
+  // Shared by findConnectionTarget's own radius-gated search and the
+  // context menu's "Start buswork" item, which already knows exactly which
+  // element it means and needs the nearest point on it regardless of how
+  // far the right-click itself landed from a real terminal.
+  function nearestTargetOnElement(el: DiagramElement, point: Point): ConnectTarget {
+    if (el.class === 'BusBarSection' && el.points && el.points.length >= 2) {
+      const { index, point: nearest } = nearestSegmentOnPolyline(el.points, point)
+      const p = snapPointOnSegment(el.points[index], el.points[index + 1], nearest, gridSpacing, snapEnabled)
+      return { kind: 'element', elementId: el.id, point: p }
+    }
+    const terminals = diagramOps.symbolTerminals(el, elements) ?? [{ x: el.x, y: el.y }]
+    let best = terminals[0]
+    let bestDist = Infinity
+    for (const term of terminals) {
+      const dist = Math.hypot(term.x - point.x, term.y - point.y)
+      if (dist < bestDist) {
+        bestDist = dist
+        best = term
+      }
+    }
+    return { kind: 'element', elementId: el.id, point: best }
+  }
+
+  // The nearest connectable point on c to point — an OverheadLine only
+  // offers its own two true begin/end points (see findConnectionTarget's
+  // own doc comment on why), every other kind anywhere along its line — no
+  // distance gate of its own. Shared the same way nearestTargetOnElement is.
+  function nearestTargetOnConnector(c: Connector, point: Point): ConnectTarget {
+    if (c.kind === 'OverheadLine') {
+      const ends: [Point, number][] = [
+        [c.points[0], 0],
+        [c.points[c.points.length - 1], c.points.length - 2],
+      ]
+      let best = ends[0]
+      let bestDist = Infinity
+      for (const end of ends) {
+        const dist = Math.hypot(end[0].x - point.x, end[0].y - point.y)
+        if (dist < bestDist) {
+          bestDist = dist
+          best = end
+        }
+      }
+      return { kind: 'connector', connectorId: c.id, segmentIndex: best[1], point: best[0] }
+    }
+    const { index, point: nearest } = nearestSegmentOnPolyline(c.points, point)
+    const p = snapPointOnSegment(c.points[index], c.points[index + 1], nearest, gridSpacing, snapEnabled)
+    return { kind: 'connector', connectorId: c.id, segmentIndex: index, point: p }
+  }
+
   // Finds the nearest terminal-like point to a raw (unsnapped) cursor
   // position, within TERMINAL_HIT_RADIUS — used both to decide whether a
   // plain (or, for a busbar/connector, Ctrl/Cmd-) click should start a
@@ -663,80 +846,49 @@ export function Canvas() {
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
       if (exclude?.kind === 'element' && el.id === exclude.elementId) continue
-      // A Rectangle/Circle/Arrow/Button/Road/PostPole/Line/
-      // PowerflowIndicator/Table/Table2 is a purely decorative annotation,
-      // never a valid wire endpoint — unlike every other class here, none
-      // even falls back to its own anchor (see diagramOps.connectElements'
-      // own matching guard).
-      if (
-        el.class === 'Rectangle' ||
-        el.class === 'Circle' ||
-        el.class === 'Arrow' ||
-        el.class === 'Button' ||
-        el.class === 'Road' ||
-        el.class === 'PostPole' ||
-        el.class === 'Line' ||
-        el.class === 'PowerflowIndicator' ||
-        el.class === 'Table' ||
-        el.class === 'Table2'
-      )
-        continue
-      if (el.class === 'BusBarSection' && el.points && el.points.length >= 2) {
-        if (!includeBusbars) continue
-        const { index, point: nearest } = nearestSegmentOnPolyline(el.points, point)
-        const p = snapPointOnSegment(el.points[index], el.points[index + 1], nearest, gridSpacing, snapEnabled)
-        const dist = Math.hypot(p.x - point.x, p.y - point.y)
-        if (dist < bestDist) {
-          bestDist = dist
-          best = { kind: 'element', elementId: el.id, point: p }
-        }
-        continue
-      }
-      const terminals = diagramOps.symbolTerminals(el, elements) ?? [{ x: el.x, y: el.y }]
-      for (const term of terminals) {
-        const dist = Math.hypot(term.x - point.x, term.y - point.y)
-        if (dist < bestDist) {
-          bestDist = dist
-          best = { kind: 'element', elementId: el.id, point: term }
-        }
+      if (NON_ROUTABLE_ELEMENT_CLASSES.has(el.class)) continue
+      // A busbar with fewer than 2 points (mid-creation, before its second
+      // point exists) falls through to the plain-anchor terminal search
+      // below regardless of includeBusbars, same as any other element —
+      // only a real, drawable busbar is gated by it.
+      if (el.class === 'BusBarSection' && el.points && el.points.length >= 2 && !includeBusbars) continue
+      const candidate = nearestTargetOnElement(el, point)
+      const dist = Math.hypot(candidate.point.x - point.x, candidate.point.y - point.y)
+      if (dist < bestDist) {
+        bestDist = dist
+        best = candidate
       }
     }
     if (includeBusbars) {
       for (const c of diagram!.connectors) {
         if (exclude?.kind === 'connector' && c.id === exclude.connectorId) continue
-        if (c.kind === 'OverheadLine') {
-          // Unlike every other connector kind (tappable anywhere along its
-          // own line, via nearestSegmentOnPolyline below), an overhead
-          // line only accepts a connection at its own two true begin/end
-          // points — same tight TERMINAL_HIT_RADIUS an element's own
-          // terminal uses, not the loose "anywhere on the line" search.
-          // diagramOps.spliceConnectorAt already treats landing exactly on
-          // one of these as a plain existing-Node reuse rather than a
-          // real split, so this restriction is also what makes that the
-          // only way to land here at all.
-          const ends: [Point, number][] = [
-            [c.points[0], 0],
-            [c.points[c.points.length - 1], c.points.length - 2],
-          ]
-          for (const [p, segmentIndex] of ends) {
-            const dist = Math.hypot(p.x - point.x, p.y - point.y)
-            if (dist < bestDist) {
-              bestDist = dist
-              best = { kind: 'connector', connectorId: c.id, segmentIndex, point: p }
-            }
-          }
-          continue
-        }
-        const { index, point: nearest } = nearestSegmentOnPolyline(c.points, point)
-        const p = snapPointOnSegment(c.points[index], c.points[index + 1], nearest, gridSpacing, snapEnabled)
-        const dist = Math.hypot(p.x - point.x, p.y - point.y)
+        const candidate = nearestTargetOnConnector(c, point)
+        const dist = Math.hypot(candidate.point.x - point.x, candidate.point.y - point.y)
         if (dist < bestDist) {
           bestDist = dist
-          best = { kind: 'connector', connectorId: c.id, segmentIndex: index, point: p }
+          best = candidate
         }
       }
     }
     return best
+  }
+
+  // Starts the click-to-route tool from a specific already-known anchor
+  // (an element's/connector's own nearest point, computed by the context
+  // menu's "Start buswork" item — see nearestTargetOnElement/
+  // nearestTargetOnConnector) rather than from a live mousedown hit-test.
+  // Forces the kind to BusWork regardless of whatever's currently armed
+  // from the palette (armedWireKind, if any is stale-armed from an earlier
+  // unfinished pick), since this is the one explicit way to start a wire
+  // without visiting the palette at all — handleRoutingClick/
+  // handleWrapperDoubleClick's own `armedWireKind ?? 'BusWork'` fallback
+  // isn't enough on its own, since a stale non-BusWork arm would otherwise
+  // win over it.
+  function startBusworkFrom(from: RouteStart) {
+    armWireKind('BusWork')
+    setRouting({ from, path: [from.point] })
+    setRoutingCursor(from.point)
+    setConnectTarget(null)
   }
 
   // Tracks connectTarget continuously (both for idle hover-discovery of a
@@ -1170,61 +1322,29 @@ export function Canvas() {
     e.stopPropagation()
 
     if (hitKind === 'connector') {
-      selectConnector(hitId)
+      if (e.shiftKey) {
+        toggleSelection(hitId, 'connector')
+        return
+      }
+      startGroupDrag(point, hitId, 'connector')
       return
     }
 
     if (hitKind === 'label') {
-      const labelId = hitId
-      selectLabel(labelId)
-      const onMove = (ev: MouseEvent) => {
-        const p = toPoint(ev.clientX, ev.clientY)
-        const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
-        const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
-        setLabelDrag({ id: labelId, dx, dy })
-        dragLabelInDom(labelId, dx, dy)
+      if (e.shiftKey) {
+        toggleSelection(hitId, 'label')
+        return
       }
-      const onUp = (ev: MouseEvent) => {
-        window.removeEventListener('mousemove', onMove)
-        window.removeEventListener('mouseup', onUp)
-        const p = toPoint(ev.clientX, ev.clientY)
-        const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
-        const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
-        setLabelDrag(null)
-        if (dx !== 0 || dy !== 0) {
-          dragLabelInDom(labelId, dx, dy)
-          updateDiagram(d => diagramOps.moveLabel(d, labelId, dx, dy))
-        }
-      }
-      window.addEventListener('mousemove', onMove)
-      window.addEventListener('mouseup', onUp)
+      startGroupDrag(point, hitId, 'label')
       return
     }
 
     if (hitKind === 'digitaldevice') {
-      const digitalDeviceId = hitId
-      selectDigitalDevice(digitalDeviceId)
-      const onMove = (ev: MouseEvent) => {
-        const p = toPoint(ev.clientX, ev.clientY)
-        const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
-        const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
-        setDigitalDeviceDrag({ id: digitalDeviceId, dx, dy })
-        dragDigitalDeviceInDom(digitalDeviceId, dx, dy)
+      if (e.shiftKey) {
+        toggleSelection(hitId, 'digitaldevice')
+        return
       }
-      const onUp = (ev: MouseEvent) => {
-        window.removeEventListener('mousemove', onMove)
-        window.removeEventListener('mouseup', onUp)
-        const p = toPoint(ev.clientX, ev.clientY)
-        const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
-        const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
-        setDigitalDeviceDrag(null)
-        if (dx !== 0 || dy !== 0) {
-          dragDigitalDeviceInDom(digitalDeviceId, dx, dy)
-          updateDiagram(d => diagramOps.moveDigitalDevice(d, digitalDeviceId, dx, dy))
-        }
-      }
-      window.addEventListener('mousemove', onMove)
-      window.addEventListener('mouseup', onUp)
+      startGroupDrag(point, hitId, 'digitaldevice')
       return
     }
 
@@ -1235,7 +1355,7 @@ export function Canvas() {
     // desktop convention, and keeps Ctrl/Cmd-click free for
     // click-to-connect below.
     if (e.shiftKey) {
-      toggleElementSelection(elementId)
+      toggleSelection(elementId, 'element')
       return
     }
 
@@ -1245,35 +1365,7 @@ export function Canvas() {
       return
     }
 
-    // Dragging an element that's already part of a multi-selection moves
-    // every selected element together; dragging anything else (including a
-    // click on an unselected element while a multi-selection exists)
-    // replaces the selection with just that one, like a plain click always
-    // has.
-    const movingIds = selectedElementIds.has(elementId) && selectedElementIds.size > 1 ? [...selectedElementIds] : [elementId]
-    if (movingIds.length === 1) selectElement(elementId)
-
-    const onMove = (ev: MouseEvent) => {
-      const p = toPoint(ev.clientX, ev.clientY)
-      const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
-      const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
-      setGhost({ ids: movingIds, dx, dy })
-      dragElementsInDom(movingIds, dx, dy)
-    }
-    const onUp = (ev: MouseEvent) => {
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-      const p = toPoint(ev.clientX, ev.clientY)
-      const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
-      const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
-      setGhost(null)
-      if (dx !== 0 || dy !== 0) {
-        dragElementsInDom(movingIds, dx, dy)
-        updateDiagram(d => diagramOps.moveElements(d, movingIds, dx, dy))
-      }
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
+    startGroupDrag(point, elementId, 'element')
   }
 
   // Starts dragging one endpoint of a selected busbar's Points, from its
@@ -1423,29 +1515,27 @@ export function Canvas() {
     const diagramPoint = snapPoint(point)
     const hit = (e.target as HTMLElement).closest('[data-editor-kind]') as HTMLElement | null
 
+    // Right-clicking anything that's already part of a multi-selection
+    // holding more than one entry keeps that whole selection (so Copy/
+    // Delete act on all of it, whatever mix of kinds it holds), matching
+    // the usual desktop convention; right-clicking anything else replaces
+    // the selection with just that one item, the same as a plain click.
+    const keepsSelection = (id: number, kind: SelectionKind) => selection.get(id) === kind && selection.size > 1
+
     let elementId: number | null = null
     let connectorId: number | null = null
     if (hit) {
       const id = Number(hit.id)
       if (hit.dataset.editorKind === 'connector') {
         connectorId = id
-        selectConnector(id)
+        if (!keepsSelection(id, 'connector')) selectConnector(id)
       } else if (hit.dataset.editorKind === 'label') {
-        // No dedicated context-menu entries for a label yet (Delete/
-        // Backspace and Properties' own delete button already cover it) —
-        // just select it, same as a plain click would, rather than
-        // misreading its id as an element's and showing element-only items.
-        selectLabel(id)
+        if (!keepsSelection(id, 'label')) selectLabel(id)
       } else if (hit.dataset.editorKind === 'digitaldevice') {
-        // Same treatment as a label — no dedicated context-menu entries yet.
-        selectDigitalDevice(id)
+        if (!keepsSelection(id, 'digitaldevice')) selectDigitalDevice(id)
       } else {
         elementId = id
-        // Right-clicking an element that's already part of a multi-selection
-        // keeps that whole selection (so Copy/Delete act on all of it),
-        // matching the usual desktop convention; right-clicking anything
-        // else replaces the selection with just that one element.
-        if (!(selectedElementIds.has(id) && selectedElementIds.size > 1)) selectElement(id)
+        if (!keepsSelection(id, 'element')) selectElement(id)
       }
     } else {
       // Same real-bounding-box fallback handleMouseDown's own plain click
@@ -1454,7 +1544,7 @@ export function Canvas() {
       const boxHit = findElementBoxHit(point)
       if (boxHit !== null) {
         elementId = boxHit
-        if (!(selectedElementIds.has(boxHit) && selectedElementIds.size > 1)) selectElement(boxHit)
+        if (!keepsSelection(boxHit, 'element')) selectElement(boxHit)
       }
     }
     setContextMenu({ x: e.clientX, y: e.clientY, diagramPoint, elementId, connectorId })
@@ -1462,23 +1552,61 @@ export function Canvas() {
 
   const contextMenuItems: ContextMenuItem[] = contextMenu
     ? [
-        ...(contextMenu.elementId !== null
+        ...(selection.size > 0
           ? [
               {
                 label: t('contextMenu.copy'),
                 onSelect: () => {
-                  const ids = selectedElementIds.size > 0 ? selectedElementIds : new Set([contextMenu.elementId!])
-                  setClipboard(diagramOps.copyElements(diagram.elements.filter(e => ids.has(e.id))))
+                  setClipboard(
+                    diagramOps.copySelection(diagram, {
+                      elementIds: elementSelection,
+                      connectorIds: connectorSelection,
+                      labelIds: labelSelection,
+                      digitalDeviceIds: digitalDeviceSelection,
+                    }),
+                  )
+                },
+              },
+              { label: t('contextMenu.delete'), onSelect: deleteSelected },
+            ]
+          : []),
+        // Starts the click-to-route tool right from this element/connector
+        // without needing a wire kind armed from the palette first — always
+        // BusWork (see startBusworkFrom's own doc comment). Only offered
+        // for an element that's actually a valid wire endpoint (same
+        // exclusion findConnectionTarget's own search already applies).
+        ...(contextMenu.elementId !== null &&
+        !NON_ROUTABLE_ELEMENT_CLASSES.has(diagram.elements.find(e => e.id === contextMenu.elementId)?.class ?? '')
+          ? [
+              {
+                label: t('contextMenu.startBuswork'),
+                onSelect: () => {
+                  const el = diagram.elements.find(e => e.id === contextMenu.elementId)
+                  if (!el) return
+                  startBusworkFrom(nearestTargetOnElement(el, contextMenu.diagramPoint))
                 },
               },
             ]
           : []),
-        ...(contextMenu.elementId !== null ? [{ label: t('contextMenu.delete'), onSelect: deleteSelected }] : []),
-        // A connector gets two distinct deletions instead of the
-        // element's single one: "Delete segment" removes just the segment
-        // right-clicked (diagramOps.deleteConnectorSegment splits the rest
-        // into up to two independent, possibly-dangling connectors),
-        // "Delete wire" is the existing whole-connector removal.
+        ...(contextMenu.connectorId !== null
+          ? [
+              {
+                label: t('contextMenu.startBuswork'),
+                onSelect: () => {
+                  const connector = diagram.connectors.find(c => c.id === contextMenu.connectorId)
+                  if (!connector) return
+                  startBusworkFrom(nearestTargetOnConnector(connector, contextMenu.diagramPoint))
+                },
+              },
+            ]
+          : []),
+        // "Delete segment" removes just the segment right-clicked
+        // (diagramOps.deleteConnectorSegment splits the rest into up to
+        // two independent, possibly-dangling connectors) — always acts on
+        // this one connector regardless of the rest of the selection,
+        // unlike the generic Delete above (which already covers "delete
+        // the whole wire" whenever this connector is part of the current
+        // selection, so there's no separate "Delete wire" item any more).
         ...(contextMenu.connectorId !== null
           ? [
               {
@@ -1490,35 +1618,33 @@ export function Canvas() {
                   updateDiagram(d => diagramOps.deleteConnectorSegment(d, contextMenu.connectorId!, index))
                 },
               },
-              { label: t('contextMenu.deleteWire'), onSelect: deleteSelected },
             ]
           : []),
         {
           label: t('contextMenu.paste'),
-          disabled: clipboard.length === 0,
+          disabled:
+            clipboard.elements.length === 0 &&
+            clipboard.connectors.length === 0 &&
+            clipboard.labels.length === 0 &&
+            clipboard.digitalDevices.length === 0,
           onSelect: () => {
-            if (clipboard.length > 0)
-              updateDiagram(d => diagramOps.pasteElements(d, clipboard, contextMenu.diagramPoint, snapPoint))
+            updateDiagram(d => diagramOps.pasteGroup(d, clipboard, contextMenu.diagramPoint, snapPoint))
           },
         },
       ]
     : []
 
-  // Only meaningful for a single selection — a multi-selection (size > 1)
-  // has no one busbar to show draggable endpoint handles for, so this
-  // collapses to null the moment a second element joins the selection.
+  // Only meaningful for a single selection — a multi-selection (size > 1,
+  // of any mix of kinds) has no one busbar to show draggable endpoint
+  // handles for, so this collapses to null the moment a second item joins
+  // the selection.
   const selectedElement =
-    selectedElementId !== null && selectedElementIds.size <= 1
+    selectedElementId !== null && selection.size <= 1
       ? diagram.elements.find(el => el.id === selectedElementId)
       : null
-  const selectedElements = diagram.elements.filter(el => selectedElementIds.has(el.id))
+  const selectedElements = diagram.elements.filter(el => elementSelection.has(el.id))
   const selectedConnector =
     selectedConnectorId !== null ? diagram.connectors.find(c => c.id === selectedConnectorId) : null
-  const selectedLabel = selectedLabelId !== null ? diagram.labels.find(l => l.id === selectedLabelId) : null
-  const selectedDigitalDevice =
-    selectedDigitalDeviceId !== null
-      ? diagram.digitalDevices.find(dd => dd.id === selectedDigitalDeviceId)
-      : null
 
   // The not-yet-anchored tail of an in-progress route: snaps exactly onto
   // connectTarget when one's detected (so the preview shows precisely
@@ -1743,50 +1869,63 @@ export function Canvas() {
                     />
                   )
                 })}
-              {selectedConnector && (
-                <polyline
-                  points={selectedConnector.points.map(p => `${p.x},${p.y}`).join(' ')}
-                  fill="none"
-                  stroke={HIGHLIGHT}
-                  strokeWidth={6}
-                  strokeOpacity={0.5}
-                />
-              )}
-              {/* A selected label gets a red X at its own anchor point (x,y
-                  — where text-anchor/the first line's baseline actually
-                  starts), the same X-mark shape a terminal/node uses
-                  (TERMINAL_MARK_SIZE), rather than measuring the rendered
-                  text's real DOM bounding box. */}
-              {selectedLabel &&
-                (() => {
-                  const lx = selectedLabel.x + (labelDrag?.id === selectedLabel.id ? labelDrag.dx : 0)
-                  const ly = selectedLabel.y + (labelDrag?.id === selectedLabel.id ? labelDrag.dy : 0)
+              {/* Every selected connector gets this basic highlight
+                  (including selectedConnector itself) — full reshape/
+                  vertex handles below stay singular, tied to
+                  selectedConnector alone, since reshaping only ever makes
+                  sense for one connector at a time. */}
+              {[...connectorSelection]
+                .map(id => diagram!.connectors.find(c => c.id === id))
+                .filter((c): c is Connector => !!c)
+                .map(c => (
+                  <polyline
+                    key={c.id}
+                    points={c.points.map(p => `${p.x},${p.y}`).join(' ')}
+                    fill="none"
+                    stroke={HIGHLIGHT}
+                    strokeWidth={6}
+                    strokeOpacity={0.5}
+                  />
+                ))}
+              {/* Every selected label gets a red X at its own anchor point
+                  (x,y — where text-anchor/the first line's baseline
+                  actually starts), the same X-mark shape a terminal/node
+                  uses (TERMINAL_MARK_SIZE), rather than measuring the
+                  rendered text's real DOM bounding box; only whichever one
+                  is actually being drag-previewed (at most one — see
+                  startGroupDrag) gets labelDrag's own live offset. */}
+              {[...labelSelection]
+                .map(id => diagram!.labels.find(l => l.id === id))
+                .filter((l): l is Label => !!l)
+                .map(l => {
+                  const lx = l.x + (labelDrag?.id === l.id ? labelDrag.dx : 0)
+                  const ly = l.y + (labelDrag?.id === l.id ? labelDrag.dy : 0)
                   return (
                     <path
+                      key={l.id}
                       d={`M ${lx - SELECTION_MARK_SIZE} ${ly - SELECTION_MARK_SIZE} L ${lx + SELECTION_MARK_SIZE} ${ly + SELECTION_MARK_SIZE} M ${lx - SELECTION_MARK_SIZE} ${ly + SELECTION_MARK_SIZE} L ${lx + SELECTION_MARK_SIZE} ${ly - SELECTION_MARK_SIZE}`}
                       stroke="red"
                       strokeWidth={1}
                     />
                   )
-                })()}
+                })}
               {/* Same red X anchor-point marker convention as a selected
-                  label. */}
-              {selectedDigitalDevice &&
-                (() => {
-                  const dx =
-                    selectedDigitalDevice.x +
-                    (digitalDeviceDrag?.id === selectedDigitalDevice.id ? digitalDeviceDrag.dx : 0)
-                  const dy =
-                    selectedDigitalDevice.y +
-                    (digitalDeviceDrag?.id === selectedDigitalDevice.id ? digitalDeviceDrag.dy : 0)
+                  label, one per selected digital device. */}
+              {[...digitalDeviceSelection]
+                .map(id => diagram!.digitalDevices.find(dd => dd.id === id))
+                .filter((dd): dd is DigitalDevice => !!dd)
+                .map(dd => {
+                  const dx = dd.x + (digitalDeviceDrag?.id === dd.id ? digitalDeviceDrag.dx : 0)
+                  const dy = dd.y + (digitalDeviceDrag?.id === dd.id ? digitalDeviceDrag.dy : 0)
                   return (
                     <path
+                      key={dd.id}
                       d={`M ${dx - SELECTION_MARK_SIZE} ${dy - SELECTION_MARK_SIZE} L ${dx + SELECTION_MARK_SIZE} ${dy + SELECTION_MARK_SIZE} M ${dx - SELECTION_MARK_SIZE} ${dy + SELECTION_MARK_SIZE} L ${dx + SELECTION_MARK_SIZE} ${dy - SELECTION_MARK_SIZE}`}
                       stroke="red"
                       strokeWidth={1}
                     />
                   )
-                })()}
+                })}
               {selectedConnector &&
                 (() => {
                   const points = connectorPreviewPoints(selectedConnector.id, selectedConnector.points)

@@ -1,6 +1,11 @@
 import { createContext, useContext } from 'react'
 import type { Diagram, DiagramEntry, ElementSymbol, EditorConfig, EditorSettings, ConnectorKind } from '../types'
 
+// The four selectable kinds a mixed multi-selection can hold — matches
+// Render/RenderFragments' own data-editor-kind values ("digitaldevice",
+// not "digitalDevice").
+export type SelectionKind = 'element' | 'connector' | 'label' | 'digitaldevice'
+
 export interface DiagramContextValue {
   diagramName: string | null
   diagram: Diagram | null
@@ -42,16 +47,20 @@ export interface DiagramContextValue {
   armedLabel: boolean
   armedDigitalDevice: boolean
 
-  // The full element multi-selection — always a superset of
-  // selectedElementId (a plain click collapses it to that one id; a
-  // connector selection or an armed symbol clears it). Shift-click toggles
-  // an id in/out via toggleElementSelection instead of replacing it.
-  // Everything that only makes sense for a single element (Properties'
-  // full field editor, a BusBarSection's draggable point handles,
-  // Ctrl/Cmd-click-to-connect's anchor) keys off selectedElementId and
-  // ignores this set once it holds more than one id.
-  selectedElementIds: Set<number>
-  toggleElementSelection: (id: number) => void
+  // The full mixed multi-selection — any combination of elements,
+  // connectors, labels, and digital devices, keyed by id (unique across
+  // all four kinds — the same shared id space RenderFragments' own ids
+  // param already relies on) with each entry's own kind alongside it.
+  // Always a superset of whichever single selectedXxxId is currently set
+  // (a plain click collapses it to that one {id: kind} entry; arming
+  // anything clears it). Shift-click toggles an {id, kind} pair in/out via
+  // toggleSelection instead of replacing the whole selection. Everything
+  // that only makes sense for a single element (Properties' full field
+  // editor, a BusBarSection's draggable point handles, Ctrl/Cmd-click-to-
+  // connect's anchor) keys off selectedElementId and ignores this map once
+  // it holds more than one entry.
+  selection: Map<number, SelectionKind>
+  toggleSelection: (id: number, kind: SelectionKind) => void
 
   // The last voltage class the user picked in Properties (or Settings, or
   // the New Diagram dialog), remembered for the lifetime of the session

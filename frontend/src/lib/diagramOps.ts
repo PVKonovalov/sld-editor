@@ -810,43 +810,199 @@ export function pasteElement(
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
 
-/** Captures a whole multi-selection for a later Paste, in the same order
- * the elements were selected. */
-export function copyElements(els: DiagramElement[]): ClipboardEntry[] {
-  return els.map(copyElement)
+// What Copy captures for a connector: its own drawable fields, plus which
+// (if either) of the *same copy operation's* own elements[] entries it was
+// really attached to via a real Port — fromElementIndex/toElementIndex
+// index into ClipboardGroup.elements, null when that end wasn't a Port at
+// all (a tap onto a busbar or another connector's own line) or belonged to
+// an element outside the copied set. pasteGroup reconnects only the
+// non-null ends, to the matching *pasted* element's own fresh port —
+// every other end (including any tap case, even onto a busbar that's also
+// part of the same copy) comes out dangling, the same ordinary unconnected
+// state any route ended in mid-air already has; chasing every tap case
+// wasn't worth the complexity here.
+export type ClipboardConnectorEntry = Pick<
+  Connector,
+  'kind' | 'name' | 'voltage' | 'layer' | 'dashed' | 'lineStyle' | 'points'
+> & {
+  fromElementIndex: number | null
+  toElementIndex: number | null
 }
 
-/** Places a whole copied multi-selection as a rigid group: point becomes
- * where the group's own centroid (the average of every entry's own
- * anchor) lands, and every entry is placed at its original offset from
- * that centroid — so the selection's relative layout is preserved exactly,
- * the same way a single pasteElement preserves one busbar's own shape.
- * Falls back to placeElements' own convention for a one-entry group: its
- * centroid is just its own anchor, so it lands exactly at point, matching
- * pasteElement.
- *
- * Each entry's own raw (unsnapped) offset from the centroid is snapped
- * before placing it — the centroid of two or more on-grid anchors isn't
- * necessarily itself on-grid (the same reason updateBusbarPoint/pasteElement
- * snap a busbar's own endpoints rather than trusting its anchor), so
- * without this an ordinary (non-busbar) element in a pasted group could
- * land off-grid even though point itself is on-grid. */
-export function pasteElements(
+// What Copy captures for a label: like ClipboardEntry, minus id (a paste
+// always gets a fresh one) and for — that field is already documented as
+// informational-only, never a live link, so a pasted copy simply starts
+// unlinked rather than trying to preserve a reference to an element that
+// paste may not even also be copying.
+export type ClipboardLabelEntry = Omit<Label, 'id' | 'for'>
+
+// What Copy captures for a digital device: like ClipboardLabelEntry, minus
+// id — a DigitalDevice has no for-style link to drop, so this is just the
+// id-less shape directly.
+export type ClipboardDigitalDeviceEntry = Omit<DigitalDevice, 'id'>
+
+// The clipboard's own shape once Copy can capture more than one kind at
+// once — elements, connectors, labels, and digital devices selected
+// together, all placed by one Paste as a single rigid group (see
+// pasteGroup).
+export interface ClipboardGroup {
+  elements: ClipboardEntry[]
+  connectors: ClipboardConnectorEntry[]
+  labels: ClipboardLabelEntry[]
+  digitalDevices: ClipboardDigitalDeviceEntry[]
+}
+
+/** Captures a mixed multi-selection (any combination of element/connector/
+ * label/digital-device ids) for a later Paste — the unified counterpart of
+ * copyElement, now covering every selectable kind Canvas's own
+ * multi-select can hold. */
+export function copySelection(
   diagram: Diagram,
-  entries: ClipboardEntry[],
+  ids: { elementIds: Set<number>; connectorIds: Set<number>; labelIds: Set<number>; digitalDeviceIds: Set<number> },
+): ClipboardGroup {
+  const elements = diagram.elements.filter(e => ids.elementIds.has(e.id))
+  const elementIndexById = new Map(elements.map((e, i) => [e.id, i]))
+
+  const ownerElementIndex = (nodeId: number): number | null => {
+    for (const e of elements) {
+      if ((e.ports ?? []).some(p => p.node === nodeId)) return elementIndexById.get(e.id) ?? null
+    }
+    return null
+  }
+
+  const connectors: ClipboardConnectorEntry[] = diagram.connectors
+    .filter(c => ids.connectorIds.has(c.id))
+    .map(c => ({
+      kind: c.kind,
+      name: c.name,
+      voltage: c.voltage,
+      layer: c.layer,
+      dashed: c.dashed,
+      lineStyle: c.lineStyle,
+      points: c.points,
+      fromElementIndex: ownerElementIndex(c.from),
+      toElementIndex: ownerElementIndex(c.to),
+    }))
+
+  const labels: ClipboardLabelEntry[] = diagram.labels
+    .filter(l => ids.labelIds.has(l.id))
+    .map(({ id: _id, for: _for, ...rest }) => rest)
+
+  const digitalDevices: ClipboardDigitalDeviceEntry[] = diagram.digitalDevices
+    .filter(dd => ids.digitalDeviceIds.has(dd.id))
+    .map(({ id: _id, ...rest }) => rest)
+
+  return { elements: elements.map(copyElement), connectors, labels, digitalDevices }
+}
+
+// Translates a connector's own points as one rigid body: only the first
+// point is snapped (to (dx, dy) plus this connector's own first point),
+// and the resulting adjustment is then applied identically to every other
+// point — never snapping each point independently, which could distort or
+// de-orthogonalize a multi-bend path in a way a single rigid shift can't.
+function translateConnectorPoints(points: Point[], dx: number, dy: number, snap: (p: Point) => Point): Point[] {
+  if (points.length === 0) return points
+  const first = points[0]
+  const snappedFirst = snap({ x: first.x + dx, y: first.y + dy })
+  const adjDx = snappedFirst.x - first.x
+  const adjDy = snappedFirst.y - first.y
+  return points.map(p => ({ x: p.x + adjDx, y: p.y + adjDy }))
+}
+
+/** Places a whole copied mixed selection as a rigid group — the unified
+ * counterpart of the old pasteElements, now also covering connectors and
+ * labels. point becomes where the group's own centroid (the average of
+ * every element's/label's own anchor, plus every connector's own drawn
+ * points) lands; every entry is placed at its original offset from that
+ * centroid, so the selection's relative layout — including any connector
+ * geometry — is preserved exactly, the same way a single pasteElement
+ * preserves one busbar's own shape.
+ *
+ * Elements are placed first (via pasteElement, unchanged), in order, so
+ * each copied connector's own fromElementIndex/toElementIndex can be
+ * resolved to the matching *pasted* element's own new id and get a real
+ * fresh Port there — see ClipboardConnectorEntry's own doc comment for
+ * when an end instead comes out dangling. */
+export function pasteGroup(
+  diagram: Diagram,
+  group: ClipboardGroup,
   point: Point,
   snap: (p: Point) => Point = p => p,
 ): Diagram {
-  if (entries.length === 0) return diagram
+  const anchors: Point[] = [
+    ...group.elements.map(e => ({ x: e.x, y: e.y })),
+    ...group.labels.map(l => ({ x: l.x, y: l.y })),
+    ...group.digitalDevices.map(dd => ({ x: dd.x, y: dd.y })),
+    ...group.connectors.flatMap(c => c.points),
+  ]
+  if (anchors.length === 0) return diagram
   const centroid = {
-    x: entries.reduce((sum, e) => sum + e.x, 0) / entries.length,
-    y: entries.reduce((sum, e) => sum + e.y, 0) / entries.length,
+    x: anchors.reduce((sum, p) => sum + p.x, 0) / anchors.length,
+    y: anchors.reduce((sum, p) => sum + p.y, 0) / anchors.length,
   }
-  return entries.reduce(
-    (acc, entry) =>
-      pasteElement(acc, entry, snap({ x: point.x + (entry.x - centroid.x), y: point.y + (entry.y - centroid.y) }), snap),
-    diagram,
-  )
+  const dx = point.x - centroid.x
+  const dy = point.y - centroid.y
+
+  let acc = diagram
+  const newElementIds: number[] = []
+  for (const entry of group.elements) {
+    acc = pasteElement(acc, entry, snap({ x: entry.x + dx, y: entry.y + dy }), snap)
+    newElementIds.push(acc.elements[acc.elements.length - 1].id)
+  }
+
+  const ids = new IdSequence(acc)
+
+  if (group.labels.length > 0) {
+    const newLabels: Label[] = group.labels.map(entry => {
+      const p = snap({ x: entry.x + dx, y: entry.y + dy })
+      return { ...entry, id: ids.take(), x: p.x, y: p.y }
+    })
+    acc = { ...acc, labels: [...acc.labels, ...newLabels] }
+  }
+
+  if (group.digitalDevices.length > 0) {
+    const newDigitalDevices: DigitalDevice[] = group.digitalDevices.map(entry => {
+      const p = snap({ x: entry.x + dx, y: entry.y + dy })
+      return { ...entry, id: ids.take(), x: p.x, y: p.y }
+    })
+    acc = { ...acc, digitalDevices: [...acc.digitalDevices, ...newDigitalDevices] }
+  }
+
+  for (const entry of group.connectors) {
+    const points = translateConnectorPoints(entry.points, dx, dy, snap)
+    const start = points[0]
+    const end = points[points.length - 1]
+    const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
+    const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
+    const connectorId = ids.take()
+    const connector: Connector = {
+      id: connectorId,
+      kind: entry.kind,
+      name: entry.name,
+      voltage: entry.voltage,
+      layer: entry.layer,
+      dashed: entry.dashed,
+      lineStyle: entry.lineStyle,
+      from: fromNode.id,
+      to: toNode.id,
+      points,
+    }
+
+    let elements = acc.elements
+    const attach = (elementIndex: number | null, node: DiagramNode) => {
+      if (elementIndex === null) return
+      const elId = newElementIds[elementIndex]
+      elements = elements.map(e =>
+        e.id === elId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: node.id }] } : e,
+      )
+    }
+    attach(entry.fromElementIndex, fromNode)
+    attach(entry.toElementIndex, toNode)
+
+    acc = { ...acc, elements, nodes: [...acc.nodes, fromNode, toNode], connectors: [...acc.connectors, connector] }
+  }
+
+  return { ...acc, lastId: ids.lastId }
 }
 
 /** Translates an element by (dx, dy) — its anchor for most classes, or
@@ -871,32 +1027,83 @@ export function moveElement(diagram: Diagram, id: number, dx: number, dy: number
   }
 }
 
-/** Moves a whole set of elements together by (dx, dy) — same translation
- * moveElement applies to each one — and re-routes every connector attached
- * to any of their ports to follow ("Piece C", endpoint-follows-only, the
- * simplest useful version rather than full accordion re-layout): a
- * connector whose *both* ends belong to elements in ids translates as a
- * rigid whole (nothing about its shape needs to change, since every point
- * keeps the same relative position); one with only one end attached to a
- * moving element instead has just that end dragged to its new position,
- * with the segment touching it kept orthogonal the same way
- * moveConnectorVertex keeps an interior vertex's own segments orthogonal —
- * an ordinary interior neighbor slides along whichever axis preserves that
- * one segment's original orientation, while a neighbor that's actually the
- * connector's other (unmoving) true endpoint gets a new bend inserted next
- * to it instead, since it can't move. Only a plain whole-element drag goes
- * through here — a BusBarSection's own single-endpoint drag handle
- * (updateBusbarPoint) is a separate, harder case (there's no single
- * "moved by dx,dy" delta for the rest of the shape) and isn't rerouted. */
-export function moveElements(diagram: Diagram, ids: number[], dx: number, dy: number): Diagram {
-  const moving = new Set(ids)
+/** Moves a whole mixed selection (elements, connectors, and labels
+ * together) by (dx, dy) — the unified counterpart of the old moveElements,
+ * now also covering connectors/labels selected in their own right rather
+ * than just carried along by a moving element's port.
+ *
+ * Elements move exactly as moveElements always did. Every connector
+ * attached to a moving element's port is re-routed to follow ("Piece C",
+ * endpoint-follows-only): a connector whose *both* ends belong to moving
+ * elements translates as a rigid whole; one with only one end attached
+ * instead has just that end dragged to its new position, with the segment
+ * touching it kept orthogonal the same way moveConnectorVertex keeps an
+ * interior vertex's own segments orthogonal.
+ *
+ * A connector explicitly in ids.connectorIds (selected in its own right,
+ * not just touching a moving element) gets the same treatment as if both/
+ * one of its own ends were moving — except an end that's a real Port on an
+ * element that ISN'T also moving is deliberately left fixed (adding it
+ * would visually tear the wire's end away from equipment that isn't
+ * actually moving); an end that's a tap onto a busbar/another connector's
+ * own line, rather than a genuine Port, is always treated as free to move
+ * with the connector, the same simplification copySelection already makes
+ * for a tap junction.
+ *
+ * A label in ids.labelIds, or a digital device in ids.digitalDeviceIds,
+ * just has its own x/y shifted by (dx, dy) — neither has a Port/Node of
+ * its own to reroute anything through.
+ *
+ * Only a plain whole-selection drag goes through here — a BusBarSection's
+ * own single-endpoint drag handle (updateBusbarPoint) is a separate,
+ * harder case (there's no single "moved by dx,dy" delta for the rest of
+ * the shape) and isn't rerouted. */
+export function moveSelection(
+  diagram: Diagram,
+  ids: {
+    elementIds: Set<number>
+    connectorIds: Set<number>
+    labelIds: Set<number>
+    digitalDeviceIds: Set<number>
+  },
+  dx: number,
+  dy: number,
+): Diagram {
   const movedNodeIds = new Set<number>()
   for (const el of diagram.elements) {
-    if (!moving.has(el.id)) continue
+    if (!ids.elementIds.has(el.id)) continue
     for (const p of el.ports ?? []) movedNodeIds.add(p.node)
   }
 
-  const moved = ids.reduce((acc, id) => moveElement(acc, id, dx, dy), diagram)
+  if (ids.connectorIds.size > 0) {
+    const elementNodeIds = new Set<number>()
+    for (const el of diagram.elements) {
+      for (const p of el.ports ?? []) elementNodeIds.add(p.node)
+    }
+    for (const c of diagram.connectors) {
+      if (!ids.connectorIds.has(c.id)) continue
+      const fromIsFixedPort = elementNodeIds.has(c.from) && !movedNodeIds.has(c.from)
+      const toIsFixedPort = elementNodeIds.has(c.to) && !movedNodeIds.has(c.to)
+      if (!fromIsFixedPort) movedNodeIds.add(c.from)
+      if (!toIsFixedPort) movedNodeIds.add(c.to)
+    }
+  }
+
+  let moved = [...ids.elementIds].reduce((acc, id) => moveElement(acc, id, dx, dy), diagram)
+  if (ids.labelIds.size > 0) {
+    moved = {
+      ...moved,
+      labels: moved.labels.map(l => (ids.labelIds.has(l.id) ? { ...l, x: l.x + dx, y: l.y + dy } : l)),
+    }
+  }
+  if (ids.digitalDeviceIds.size > 0) {
+    moved = {
+      ...moved,
+      digitalDevices: moved.digitalDevices.map(dd =>
+        ids.digitalDeviceIds.has(dd.id) ? { ...dd, x: dd.x + dx, y: dd.y + dy } : dd,
+      ),
+    }
+  }
   if (movedNodeIds.size === 0) return moved
 
   const shift = (p: Point): Point => ({ x: p.x + dx, y: p.y + dy })

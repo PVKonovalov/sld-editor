@@ -303,7 +303,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     config,
     elements,
     selectedElementId,
-    selectedElementIds,
+    selection,
     selectedConnectorId,
     selectedLabelId,
     selectedDigitalDeviceId,
@@ -330,7 +330,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // of just "nothing selected", since those otherwise have no home to be
   // edited from after creation (NewDiagramDialog is the only other place
   // that sets them, and only at creation time).
-  if (!element && !connector && !label && !digitalDevice && selectedElementIds.size === 0) {
+  if (!element && !connector && !label && !digitalDevice && selection.size === 0) {
     return (
       <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
         <div className="space-y-3">
@@ -370,14 +370,15 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     )
   }
 
-  // A multi-selection (shift-click) has no single element's fields to show
-  // — just its size and a bulk delete acting on the whole set (see
-  // DiagramContext's deleteSelected).
-  if (selectedElementIds.size > 1) {
+  // A multi-selection (shift-click), possibly mixing elements/connectors/
+  // labels/digital devices, has no single item's fields to show — just its
+  // size and a bulk delete acting on the whole set (see DiagramContext's
+  // deleteSelected).
+  if (selection.size > 1) {
     return (
       <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
         <div className="space-y-3">
-          <p className="text-xs text-gray-400">{t('properties.multiSelection', { count: selectedElementIds.size })}</p>
+          <p className="text-xs text-gray-400">{t('properties.multiSelection', { count: selection.size })}</p>
           <DeleteButton label={t('properties.deleteElements')} onDelete={deleteSelected} />
         </div>
       </PanelShell>

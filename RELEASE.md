@@ -3899,3 +3899,81 @@ phantom Rectangle, a real unrelated Rectangle immediately before an
 unrelated reading is left as an ordinary Rectangle rather than being
 swept in, and two synthesized rects in the same document get distinct
 ids) and `sld-editor/backend`.
+
+2026-09-22: Added a "Start buswork" context menu item for any routable
+element, busbar, or connector (`frontend/src/components/Canvas.tsx`) —
+starts the click-to-route tool directly from wherever was right-clicked,
+without first visiting the Elements palette's own "Wires" section to arm
+a kind. Picks the nearest real terminal (element) or nearest point along
+the line, respecting an OverheadLine's begin/end-only rule (connector),
+to the right-click's own position (`nearestTargetOnElement`/
+`nearestTargetOnConnector`, factored out of `findConnectionTarget`'s own
+per-entity matching so both share the same logic), then starts routing
+with the kind forced to BusWork (`startBusworkFrom`, calling `armWireKind
+('BusWork')` explicitly rather than relying on the existing `armedWireKind
+?? 'BusWork'` completion-time fallback, since a stale non-BusWork arm
+left over from an abandoned palette pick would otherwise win over it).
+Not offered for a purely decorative element (Rectangle/Circle/Arrow/
+Button/Road/PostPole/Line/PowerflowIndicator/Table/Table2), matching every
+other place these are excluded as valid wire endpoints. Added
+`contextMenu.startBuswork` to both `en.ts`/`ru.ts`. Verified with `npx tsc
+--noEmit` and a live round trip in the app: placed two Breakers, right-
+clicked one, selected "Start buswork" (routing started immediately, no
+palette interaction), and completed the route — confirmed via the DOM
+that the resulting connector's `data-type="21"` (Buswork) and its own
+first point exactly matched the breaker's own top terminal
+(element anchor (540,530) + local (0,-10) = (540,520), the connector's
+literal first point).
+
+2026-09-22: Extended Shift+click multi-select to a single mixed selection
+across elements, connectors, labels, and digital devices together —
+previously Shift+click only worked for elements (`selectedElementIds`);
+clicking a second wire or text label just replaced the selection instead
+of adding to it. `DiagramContext`'s selection state is now one
+`selection: Map<number, SelectionKind>` (element/connector/label/
+digitaldevice ids share one id space, the same one `RenderFragments`'
+own `ids` param already relies on) instead of an element-only Set, with
+a new `toggleSelection(id, kind)` replacing `toggleElementSelection`.
+Dragging any item that's part of a >1-entry selection now moves the
+whole mixed group together (`diagramOps.moveSelection`, replacing
+`moveElements`): elements move and reroute their own attached
+connectors as before; an explicitly-selected connector not already
+carried along by a moving element's port is added to the same reroute
+pass (translating rigidly when both ends are free, or with the usual
+orthogonal partial-follow when only one is — an end anchored to a real
+Port on an element that ISN'T also moving is deliberately left fixed,
+so the wire doesn't visually tear away from equipment that isn't
+actually moving); labels/digital devices just get their own x/y
+shifted. Whole-body dragging is genuinely new for a connector — a plain
+click there used to only ever select it, never move it. Right-clicking
+any item that's part of a multi-selection now preserves the whole
+mixed selection (previously only elements did this; right-clicking a
+connector/label/digital device always collapsed to just that one item).
+Copy/Paste is now unified too (`diagramOps.copySelection`/`pasteGroup`,
+replacing the element-only `copyElements`/`pasteElements`) and extended
+to connectors and digital devices (labels already had no copy/paste at
+all before this): a copied connector reconnects to the corresponding
+*pasted* elements' own new ports only when both its endpoints' owning
+elements are also in the same copy/paste operation (full rigid-group
+fidelity); every other end (a tap onto a busbar/another connector, or an
+endpoint whose owning element wasn't also copied) pastes as an ordinary
+dangling end — the same normal, unremarkable state this app already
+treats any unconnected wire end as. A copied label drops its `for` link
+(already documented as informational-only, never live). `deleteSelected`
+now dispatches every entry in the mixed selection to the right remove
+function in one `updateDiagram` call. The Properties panel's bulk-
+selection view and the context menu's Copy/Delete/Paste items all switch
+on `selection.size`/contents instead of the old element-only checks; the
+now-redundant standalone "Delete wire" context-menu item was removed
+(the generalized "Delete" already covers it whenever a connector is
+selected). Verified with `npx tsc --noEmit` and a live round trip:
+shift-clicked a breaker, its own attached wire, and a text label into one
+3-item mixed selection (confirmed via the Properties panel's "3 items
+selected" bulk view), dragged the breaker (wire rerouted, label moved by
+the same delta — confirmed via the DOM that all three actually updated,
+not just a drag preview), copied and pasted the group elsewhere (new
+breaker + a correctly-dangling wire, since the wire's other original
+endpoint's owning element wasn't part of the copy + a new label, all
+confirmed via the DOM), and deleted the original 3-item selection
+(confirmed exactly those three ids were removed, leaving the untouched
+second breaker and the pasted copies alone).
