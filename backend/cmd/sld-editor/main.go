@@ -3,21 +3,27 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
+	"time"
 
-	"github.com/PVKonovalov/slddoc"
 	"sld-editor/internal/api"
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
 	"sld-editor/internal/storage"
 	"sld-editor/pkg/configuration"
 	"sld-editor/pkg/llog"
+
+	"github.com/PVKonovalov/slddoc"
+	"github.com/pkg/browser"
 )
 
 func main() {
 	configFile := flag.String("config", "config/sld-editor.yaml", "path to the YAML configuration file")
+	openBrowser := flag.Bool("open-browser", false, "open the browser automatically")
 	flag.Parse()
 
 	var cfg config.Config
@@ -61,6 +67,18 @@ func main() {
 
 	srv := api.NewServer(store, lib, &cfg)
 	llog.Logger.Infof("sld-editor listening on %s", cfg.Server.Bind)
+
+	if *openBrowser {
+		if _, port, ok := strings.Cut(cfg.Server.Bind, ":"); ok {
+			go func() {
+				time.Sleep(1 * time.Second)
+				if err := browser.OpenURL(fmt.Sprintf("http://localhost:%s", port)); err != nil {
+					llog.Logger.Errorf("opening browser: %v", err)
+				}
+			}()
+		}
+	}
+
 	if err := srv.Run(ctx, cfg.Server.Bind); err != nil {
 		llog.Logger.Fatalf("server error: %v", err)
 	}

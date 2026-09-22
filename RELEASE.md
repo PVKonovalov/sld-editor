@@ -3338,3 +3338,13 @@ compress it itself; a bigger, separate change (see TODO.md's own
 "Reducing frontend/backend traffic" section for that and the other,
 higher-effort option considered: incremental/patch-based re-rendering
 instead of a full diagram+full SVG round trip on every edit).
+
+2026-09-22: Added an `-open-browser` CLI flag (`cmd/sld-editor/main.go`,
+default off) that, once the server starts listening, opens the editor's
+URL in the user's default browser via `github.com/pkg/browser`
+(`http://localhost:<port>`, the port parsed from `server.bind`) after a
+1-second delay to give the HTTP listener time to come up. Convenience
+for local/desktop use (`go run ./cmd/sld-editor -open-browser`, or a
+built binary run the same way) so the app doesn't have to be manually
+opened in a browser tab every time it's started; has no effect on a
+headless/server deployment that doesn't pass the flag.
