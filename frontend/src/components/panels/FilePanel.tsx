@@ -1,14 +1,18 @@
 import { useRef, useState } from 'react'
+import { Folder, ArrowUp } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import { PanelShell } from './PanelShell'
 import { NewDiagramDialog } from '../NewDiagramDialog'
 import { t } from '../../i18n'
 import * as api from '../../lib/api'
 import { downloadText, readFileAsText, stripXmlExtension } from '../../lib/fileTransfer'
+import { joinDiagramPath, parentDir } from '../../lib/diagramPath'
 
 export function FilePanel({ onClose }: { onClose: () => void }) {
   const {
+    currentDir,
     diagrams,
+    browseDir,
     diagramName,
     diagram,
     dirty,
@@ -56,22 +60,52 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
 
         <section>
           <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{t('file.open')}</h3>
+          <p className="text-[11px] text-gray-500 mb-1 truncate">
+            {t('file.currentDir', { dir: currentDir || '/' })}
+          </p>
           {diagrams.length === 0 && <p className="text-xs text-gray-500">{t('file.noDiagrams')}</p>}
           <ul className="space-y-1">
-            {diagrams.map(d => (
-              <li key={d.name}>
+            {currentDir !== '' && (
+              <li>
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => run(() => openDiagram(d.name))}
-                  className={`w-full text-left px-2 py-1 rounded text-xs hover:bg-surface-600 truncate ${
-                    d.name === diagramName ? 'bg-surface-600 text-white' : 'text-gray-300'
-                  }`}
+                  onClick={() => run(() => browseDir(parentDir(currentDir)))}
+                  className="w-full flex items-center gap-1.5 text-left px-2 py-1 rounded text-xs hover:bg-surface-600 text-gray-300"
                 >
-                  {d.name}
+                  <ArrowUp size={14} className="shrink-0" />
+                  ..
                 </button>
               </li>
-            ))}
+            )}
+            {diagrams.map(d =>
+              d.isDir ? (
+                <li key={`dir:${d.name}`}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => run(() => browseDir(joinDiagramPath(currentDir, d.name)))}
+                    className="w-full flex items-center gap-1.5 text-left px-2 py-1 rounded text-xs hover:bg-surface-600 text-gray-300 truncate"
+                  >
+                    <Folder size={14} className="shrink-0" />
+                    <span className="truncate">{d.name}</span>
+                  </button>
+                </li>
+              ) : (
+                <li key={`file:${d.name}`}>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => run(() => openDiagram(joinDiagramPath(currentDir, d.name)))}
+                    className={`w-full text-left px-2 py-1 rounded text-xs hover:bg-surface-600 truncate ${
+                      joinDiagramPath(currentDir, d.name) === diagramName ? 'bg-surface-600 text-white' : 'text-gray-300'
+                    }`}
+                  >
+                    {d.name}
+                  </button>
+                </li>
+              ),
+            )}
           </ul>
         </section>
 
@@ -88,6 +122,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
           </button>
 
           <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{t('file.saveAs')}</h3>
+          {currentDir && <p className="text-[11px] text-gray-500 mb-1">{t('file.creatingIn', { dir: currentDir })}</p>}
           <div className="flex gap-1">
             <input
               className="flex-1 min-w-0 bg-surface-800 border border-surface-600 rounded px-2 py-1 text-xs"
@@ -101,7 +136,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
               disabled={busy || !diagramName || !saveAsName.trim()}
               onClick={() =>
                 run(async () => {
-                  await saveDiagramAs(saveAsName.trim())
+                  await saveDiagramAs(joinDiagramPath(currentDir, saveAsName.trim()))
                   setSaveAsName('')
                 })
               }

@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
-import type { Diagram, DiagramInfo, ElementSymbol, EditorConfig, EditorSettings, ConnectorKind } from '../types'
+import { parentDir } from '../lib/diagramPath'
+import type { Diagram, DiagramEntry, ElementSymbol, EditorConfig, EditorSettings, ConnectorKind } from '../types'
 import { DiagramContext, type DiagramContextValue } from './useDiagramContext'
 
 export function DiagramProvider({ children }: { children: ReactNode }) {
   const [diagramName, setDiagramName] = useState<string | null>(null)
   const [diagram, setDiagram] = useState<Diagram | null>(null)
   const [dirty, setDirty] = useState(false)
-  const [diagrams, setDiagrams] = useState<DiagramInfo[]>([])
+  const [currentDir, setCurrentDir] = useState('')
+  const [diagrams, setDiagrams] = useState<DiagramEntry[]>([])
   const [elements, setElements] = useState<ElementSymbol[]>([])
   const [config, setConfig] = useState<EditorConfig | null>(null)
   const [selectedElementId, setSelectedElementIdState] = useState<number | null>(null)
@@ -23,18 +25,25 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [defaultVoltage, setDefaultVoltage] = useState<number | undefined>(undefined)
   const [error, setError] = useState<string | null>(null)
 
-  const refreshDiagrams = useCallback(async () => {
-    setDiagrams((await api.listDiagrams()) ?? [])
+  // Navigates the File panel's own folder browser to dir (a folder row's
+  // own full path, ".."'s parentDir(currentDir), or a just-opened/-saved
+  // diagram's own containing folder) and re-fetches its immediate
+  // contents. The one place diagrams/currentDir are ever both set, so
+  // they can never drift apart the way two separate setters could.
+  const browseDir = useCallback(async (dir: string) => {
+    const entries = await api.listDiagrams(dir)
+    setCurrentDir(dir)
+    setDiagrams(entries ?? [])
   }, [])
 
   useEffect(() => {
-    refreshDiagrams().catch(e => setError((e as Error).message))
+    browseDir('').catch(e => setError((e as Error).message))
     api
       .listElements()
       .then(els => setElements(els ?? []))
       .catch(e => setError((e as Error).message))
     api.getConfig().then(setConfig).catch(e => setError((e as Error).message))
-  }, [refreshDiagrams])
+  }, [browseDir])
 
   // Keeps the browser tab title in sync with whichever diagram is open —
   // the same "*" dirty marker FilePanel's own Save button already shows,
@@ -202,14 +211,14 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
       setError(warning ?? null)
-      await refreshDiagrams()
+      await browseDir(parentDir(name))
       if (preset) {
         const saved = await api.saveDiagram(name, d)
         setDiagram(saved.diagram)
         setError(saved.warning ?? null)
       }
     },
-    [refreshDiagrams, clearSelection, config],
+    [browseDir, clearSelection, config],
   )
 
   const openDiagram = useCallback(
@@ -227,8 +236,13 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setDirty(d !== raw)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
+      // Keeps the File panel's own browser showing wherever this diagram
+      // actually lives — most often a no-op re-fetch of the folder it was
+      // just opened from, but also correct if openDiagram is ever called
+      // some other way (e.g. a future "recent files" list).
+      await browseDir(parentDir(name))
     },
-    [clearSelection],
+    [clearSelection, browseDir],
   )
 
   // suggestedName is the dropped/picked file's own name (with its .xml
@@ -245,8 +259,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setDirty(true)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
+      await browseDir(parentDir(suggestedName))
     },
-    [clearSelection],
+    [clearSelection, browseDir],
   )
 
   const saveDiagram = useCallback(async () => {
@@ -255,8 +270,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setDiagram(d)
     setDirty(false)
     setError(warning ?? null)
-    await refreshDiagrams()
-  }, [diagramName, diagram, refreshDiagrams])
+    await browseDir(currentDir)
+  }, [diagramName, diagram, browseDir, currentDir])
 
   const saveDiagramAs = useCallback(
     async (name: string) => {
@@ -266,9 +281,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setDiagram(d)
       setDirty(false)
       setError(warning ?? null)
-      await refreshDiagrams()
+      await browseDir(parentDir(name))
     },
-    [diagram, refreshDiagrams],
+    [diagram, browseDir],
   )
 
   const updateDiagram = useCallback((updater: (d: Diagram) => Diagram) => {
@@ -317,7 +332,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       diagramName,
       diagram,
       dirty,
+      currentDir,
       diagrams,
+      browseDir,
       elements,
       config,
       error,
@@ -343,7 +360,6 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       armDigitalDevice,
       deleteSelected,
       clearError,
-      refreshDiagrams,
       newDiagram,
       openDiagram,
       loadDiagramFromXML,
@@ -356,7 +372,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       diagramName,
       diagram,
       dirty,
+      currentDir,
       diagrams,
+      browseDir,
       elements,
       config,
       error,
@@ -382,7 +400,6 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       armDigitalDevice,
       deleteSelected,
       clearError,
-      refreshDiagrams,
       newDiagram,
       openDiagram,
       loadDiagramFromXML,

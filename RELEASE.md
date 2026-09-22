@@ -3665,3 +3665,45 @@ check against both real corpus directories found on disk (`sld`/`sld1`,
 live app (placed, direction/color/orientation edited live, dragged,
 saved, reloaded — the saved XML/rendered SVG both matched real xsde2svg
 markup byte-for-byte).
+
+Date: 2026-09-22 — Added subdirectory support to the diagrams directory:
+the File panel's own Open list is now a folder browser instead of a flat
+list — subdirectories (lucide `Folder` icon) shown before diagrams, both
+groups sorted alphabetically (case-insensitive; diagrams previously
+sorted newest-first, now consistent with folders), a `..` row (lucide
+`ArrowUp`) to move up a level when not at the root, and a "Location: …"
+line for orientation. A diagram's own name is now a `/`-separated path
+relative to the diagrams root (e.g. `region1/substation-5`) rather than a
+bare flat name; New/Save As create inside whatever folder is currently
+browsed (shown as an "In: …/" hint, still overridable by typing further
+`/` segments into the name field), and saving/creating under a
+not-yet-existing folder segment is the only way one gets created — no
+separate "New Folder" action. `storage.safeName`, which used to reject
+any name containing `/` outright, now validates each `/`-separated
+segment individually (still rejecting empty/`.`/`..`/backslash/whitespace
+segments — path traversal stays fully blocked) and `Save` gained an
+`os.MkdirAll` for the target's own parent directory; `List` gained a
+`dir` argument and now returns one directory's own immediate contents
+only (subdirectories first, then diagrams, each alphabetical) rather than
+a flat recursive-looking list — it never recurses, so the frontend
+fetches one level at a time as the user navigates. The name/dir-bearing
+HTTP endpoints (`getDiagram`/`saveDiagram`/`renderDiagramSVG`/
+`listDiagrams`) moved from a Gin `:name` path segment to a `name`/`dir`
+query parameter — a route param can never match a literal `/`, so a
+subdirectory-qualified name could never have reached these handlers
+under the old routes at all, and a `*name` catch-all would have
+conflicted with the existing `/svg`-suffixed route in Gin's own router;
+routes are now `GET/PUT /api/diagrams/open|save|svg?name=…` and
+`GET /api/diagrams?dir=…` (`POST /api/diagrams`, create, is unchanged —
+`name` already travelled in the JSON body). A bad name/dir now reports a
+proper `storage.ErrInvalidName` mapped to 400, rather than a generic 500.
+Verified with `go build`/`vet`/`test` (new/updated tests covering a
+subdirectory end-to-end through both `storage` and the HTTP layer,
+alphabetical ordering, and traversal rejection), `npx tsc --noEmit`, and
+a live round trip through the app (created a diagram directly under a
+new nested path typed in one step, Save As'd into a second new nested
+folder from there, navigated up two levels via `..` back to the root,
+confirmed both new folders listed alongside a real pre-existing one
+found already sitting in the diagrams directory — invisible before this
+change, since the old flat `List()` silently skipped every subdirectory
+entry outright).

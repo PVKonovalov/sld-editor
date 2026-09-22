@@ -343,8 +343,16 @@ export interface Diagram {
   digitalDevices: DigitalDevice[]
 }
 
-export interface DiagramInfo {
+// Matches backend/internal/storage.Entry — one item in a single directory's
+// listing (GET /api/diagrams?dir=...): either a subdirectory (isDir true,
+// modTime the directory's own, not especially meaningful) the File panel's
+// browser can navigate into, or a stored diagram (isDir false). name is
+// always the bare last path segment, never the full path from the store's
+// own root — the File panel joins it with whatever directory is currently
+// browsed to get a diagram's real openable name.
+export interface DiagramEntry {
   name: string
+  isDir: boolean
   modTime: string
 }
 

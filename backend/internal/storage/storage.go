@@ -25,6 +25,12 @@ var ErrExists = errors.New("storage: diagram already exists")
 // exist.
 var ErrNotFound = errors.New("storage: diagram not found")
 
+// ErrInvalidName is returned by any call whose name/dir argument fails
+// safeName/safePathSegments' own validation (path traversal, an empty
+// segment, ...) — distinct from ErrExists/ErrNotFound so the API layer can
+// map it to 400 Bad Request rather than a generic 500.
+var ErrInvalidName = errors.New("storage: invalid name")
+
 const xmlExt = ".xml"
 const svgExt = ".svg"
 
@@ -55,34 +61,58 @@ func New(dir string, lib *slddoc.SymbolLibrary, defaultFPIText string, fpiColors
 	return &Store{dir: dir, lib: lib, stateColors: stateColors, fpiColors: fpiColors, defaultFPIText: defaultFPIText}, nil
 }
 
-// Info describes one stored diagram, for the File > Open listing.
-type Info struct {
+// Entry describes one item in a single directory's listing, for the File >
+// Open browser: either a subdirectory (IsDir true, ModTime the directory's
+// own, not especially meaningful) the browser can navigate into, or a
+// stored diagram (IsDir false). Name is always the bare last path segment —
+// never the full path from the store's root — matching what List's own dir
+// argument is relative to.
+type Entry struct {
 	Name    string    `json:"name"`
+	IsDir   bool      `json:"isDir"`
 	ModTime time.Time `json:"modTime"`
 }
 
-// List returns every diagram in the store, most recently modified first.
-func (s *Store) List() ([]Info, error) {
-	entries, err := os.ReadDir(s.dir)
+// List returns one directory's immediate contents — dir is a path relative
+// to the store's own root ("" for the root itself) — subdirectories first,
+// then diagrams, each group sorted alphabetically (case-insensitive) by
+// Name. A subdirectory entry's own IsDir lets the caller navigate into it;
+// List itself never recurses.
+func (s *Store) List(dir string) ([]Entry, error) {
+	full, err := s.dirPath(dir)
 	if err != nil {
-		return nil, fmt.Errorf("storage: listing %s: %w", s.dir, err)
+		return nil, err
 	}
-	infos := []Info{}
-	for _, e := range entries {
-		if e.IsDir() || filepath.Ext(e.Name()) != xmlExt {
-			continue
-		}
+	items, err := os.ReadDir(full)
+	if err != nil {
+		return nil, fmt.Errorf("storage: listing %s: %w", full, err)
+	}
+	var dirs, files []Entry
+	for _, e := range items {
 		fi, err := e.Info()
 		if err != nil {
 			return nil, err
 		}
-		infos = append(infos, Info{
-			Name:    strings.TrimSuffix(e.Name(), xmlExt),
-			ModTime: fi.ModTime(),
-		})
+		if e.IsDir() {
+			dirs = append(dirs, Entry{Name: e.Name(), IsDir: true, ModTime: fi.ModTime()})
+			continue
+		}
+		if filepath.Ext(e.Name()) != xmlExt {
+			continue
+		}
+		files = append(files, Entry{Name: strings.TrimSuffix(e.Name(), xmlExt), ModTime: fi.ModTime()})
 	}
-	sort.Slice(infos, func(i, j int) bool { return infos[i].ModTime.After(infos[j].ModTime) })
-	return infos, nil
+	byName := func(entries []Entry) func(i, j int) bool {
+		return func(i, j int) bool {
+			return strings.ToLower(entries[i].Name) < strings.ToLower(entries[j].Name)
+		}
+	}
+	sort.Slice(dirs, byName(dirs))
+	sort.Slice(files, byName(files))
+	entries := make([]Entry, 0, len(dirs)+len(files))
+	entries = append(entries, dirs...)
+	entries = append(entries, files...)
+	return entries, nil
 }
 
 // Load reads and parses a diagram's .xml file.
@@ -133,6 +163,13 @@ func (s *Store) Save(name string, d *slddoc.Diagram) (renderWarning, err error) 
 	if err != nil {
 		return nil, err
 	}
+	// A name with subdirectory segments (e.g. "region1/substation-5") may
+	// name a folder that doesn't exist on disk yet — this is the only way
+	// a new one is created (no separate "New Folder" action): saving into
+	// it just makes it. A no-op when the directory already exists.
+	if err := os.MkdirAll(filepath.Dir(xmlPath), 0o755); err != nil {
+		return nil, fmt.Errorf("storage: creating directory for %s: %w", name, err)
+	}
 
 	xf, err := os.Create(xmlPath)
 	if err != nil {
@@ -167,31 +204,67 @@ func (s *Store) Render(d *slddoc.Diagram, w io.Writer, mode slddoc.RenderMode) e
 	return slddoc.Render(d, s.lib, w, mode, s.defaultFPIText, s.fpiColors, s.stateColors...)
 }
 
-// safeName rejects a diagram name that could escape the store's directory
-// or collide with the .xml/.svg extensions the store manages itself.
-func safeName(name string) error {
+// safePathSegments splits a "/"-separated relative path (a diagram name, or
+// a List dir argument) into its individual segments, rejecting any that
+// could escape the store's own root: empty (a leading/trailing/doubled
+// "/"), ".", "..", a literal backslash (Windows' own separator — never
+// meaningful here, and accepting it would make "a\..\b" ambiguous), or
+// carrying leading/trailing whitespace. path itself may be "" (the store's
+// own root — only List ever passes that; a diagram name never resolves to
+// the root), in which case this returns no segments and no error.
+func safePathSegments(path string) ([]string, error) {
+	if path == "" {
+		return nil, nil
+	}
+	if strings.TrimSpace(path) != path {
+		return nil, fmt.Errorf("%w: %q must not have leading/trailing whitespace", ErrInvalidName, path)
+	}
+	segments := strings.Split(path, "/")
+	for _, seg := range segments {
+		if seg == "" || seg == "." || seg == ".." || strings.ContainsRune(seg, '\\') {
+			return nil, fmt.Errorf("%w: %q", ErrInvalidName, path)
+		}
+		if strings.TrimSpace(seg) != seg {
+			return nil, fmt.Errorf("%w: %q", ErrInvalidName, path)
+		}
+	}
+	return segments, nil
+}
+
+// safeName rejects a diagram name that could escape the store's directory,
+// same as safePathSegments, but additionally never accepts "" — unlike a
+// List dir argument, a diagram always names a real file, never the root
+// itself.
+func safeName(name string) ([]string, error) {
 	if name == "" {
-		return fmt.Errorf("storage: diagram name must not be empty")
+		return nil, fmt.Errorf("%w: diagram name must not be empty", ErrInvalidName)
 	}
-	if strings.ContainsAny(name, "/\\") || name == "." || name == ".." {
-		return fmt.Errorf("storage: invalid diagram name %q", name)
-	}
-	if strings.TrimSpace(name) != name {
-		return fmt.Errorf("storage: diagram name %q must not have leading/trailing whitespace", name)
-	}
-	return nil
+	return safePathSegments(name)
 }
 
 func (s *Store) xmlPath(name string) (string, error) {
-	if err := safeName(name); err != nil {
+	segments, err := safeName(name)
+	if err != nil {
 		return "", err
 	}
-	return filepath.Join(s.dir, name+xmlExt), nil
+	return filepath.Join(s.dir, filepath.Join(segments...)+xmlExt), nil
 }
 
 func (s *Store) svgPath(name string) (string, error) {
-	if err := safeName(name); err != nil {
+	segments, err := safeName(name)
+	if err != nil {
 		return "", err
 	}
-	return filepath.Join(s.dir, name+svgExt), nil
+	return filepath.Join(s.dir, filepath.Join(segments...)+svgExt), nil
+}
+
+// dirPath resolves a List dir argument ("" for the store's own root) to a
+// real filesystem path, with the same traversal protection xmlPath/svgPath
+// give a diagram name.
+func (s *Store) dirPath(dir string) (string, error) {
+	segments, err := safePathSegments(dir)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(s.dir, filepath.Join(segments...)), nil
 }

@@ -18,6 +18,8 @@ export const dictionary = {
   'file.create': 'Create',
   'file.open': 'Open',
   'file.noDiagrams': 'No saved diagrams yet.',
+  'file.currentDir': 'Location: {{dir}}',
+  'file.creatingIn': 'In: {{dir}}/',
   'file.save': 'Save',
   'file.saveAs': 'Save As',
   'file.newDiagramTitle': 'New diagram',

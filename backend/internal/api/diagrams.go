@@ -12,13 +12,22 @@ import (
 	"sld-editor/internal/storage"
 )
 
+// listDiagrams implements the File panel's folder browser: dir (query
+// param, "" for the store's own root) names the one directory to list —
+// List itself never recurses, so navigating into a subdirectory is a
+// separate request with a deeper dir, not a client-side filter over one big
+// recursive listing.
 func (s *Server) listDiagrams(c *gin.Context) {
-	infos, err := s.store.List()
+	entries, err := s.store.List(c.Query("dir"))
+	if errors.Is(err, storage.ErrInvalidName) {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
 	if err != nil {
 		errJSON(c, http.StatusInternalServerError, err)
 		return
 	}
-	c.JSON(http.StatusOK, infos)
+	c.JSON(http.StatusOK, entries)
 }
 
 type createDiagramRequest struct {
@@ -59,6 +68,10 @@ func (s *Server) createDiagram(c *gin.Context) {
 		errJSON(c, http.StatusConflict, err)
 		return
 	}
+	if errors.Is(err, storage.ErrInvalidName) {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
 	if err != nil {
 		errJSON(c, http.StatusInternalServerError, err)
 		return
@@ -66,10 +79,22 @@ func (s *Server) createDiagram(c *gin.Context) {
 	c.JSON(http.StatusCreated, diagramResponse(d, warn))
 }
 
+// getDiagram, saveDiagram, and renderDiagramSVG all take name as a query
+// parameter (?name=region1/substation-5) rather than a Gin :name path
+// segment — a Gin route param never matches a literal "/", so a
+// subdirectory-qualified name couldn't reach these handlers at all under
+// the old /diagrams/:name pattern; a *name catch-all would work for these
+// two alone, but conflicts with /diagrams/:name/svg's own extra path
+// segment in Gin's router, so all three were moved to query params instead
+// for one consistent scheme.
 func (s *Server) getDiagram(c *gin.Context) {
-	d, err := s.store.Load(c.Param("name"))
+	d, err := s.store.Load(c.Query("name"))
 	if errors.Is(err, storage.ErrNotFound) {
 		errJSON(c, http.StatusNotFound, err)
+		return
+	}
+	if errors.Is(err, storage.ErrInvalidName) {
+		errJSON(c, http.StatusBadRequest, err)
 		return
 	}
 	if err != nil {
@@ -90,7 +115,11 @@ func (s *Server) saveDiagram(c *gin.Context) {
 		return
 	}
 
-	warn, err := s.store.Save(c.Param("name"), &d)
+	warn, err := s.store.Save(c.Query("name"), &d)
+	if errors.Is(err, storage.ErrInvalidName) {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
 	if err != nil {
 		errJSON(c, http.StatusInternalServerError, err)
 		return
@@ -99,9 +128,13 @@ func (s *Server) saveDiagram(c *gin.Context) {
 }
 
 func (s *Server) renderDiagramSVG(c *gin.Context) {
-	d, err := s.store.Load(c.Param("name"))
+	d, err := s.store.Load(c.Query("name"))
 	if errors.Is(err, storage.ErrNotFound) {
 		errJSON(c, http.StatusNotFound, err)
+		return
+	}
+	if errors.Is(err, storage.ErrInvalidName) {
+		errJSON(c, http.StatusBadRequest, err)
 		return
 	}
 	if err != nil {

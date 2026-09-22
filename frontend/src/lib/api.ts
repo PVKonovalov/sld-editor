@@ -1,7 +1,7 @@
 import type {
   Diagram,
   DiagramWire,
-  DiagramInfo,
+  DiagramEntry,
   ElementSymbol,
   EditorConfig,
 } from '../types'
@@ -36,8 +36,13 @@ interface DiagramResponse {
   warning?: string
 }
 
-export async function listDiagrams(): Promise<DiagramInfo[]> {
-  const res = await fetch(`${BASE}/diagrams`)
+/** Lists one directory's immediate contents — dir is a path relative to the
+ * server's own diagrams root ("" for the root itself), matching
+ * backend/internal/storage.Store.List: subdirectories first, then
+ * diagrams. Never recurses — navigating into a subdirectory is a separate
+ * call with a deeper dir. */
+export async function listDiagrams(dir: string): Promise<DiagramEntry[]> {
+  const res = await fetch(`${BASE}/diagrams?dir=${encodeURIComponent(dir)}`)
   return asJSON(res)
 }
 
@@ -55,8 +60,18 @@ export async function createDiagram(
   return { diagram: normalizeDiagram(data.diagram), warning: data.warning }
 }
 
+// name (a diagram's full path from the store's own root, e.g.
+// "region1/substation-5") travels as a query parameter, not a URL path
+// segment — a "/" inside a path *segment* would otherwise need encoding as
+// literal %2F, which most servers (Gin included) treat as an ordinary
+// character within that one segment rather than a separator, so a
+// subdirectory-qualified name could never reach the backend's own :name
+// route this way. As a query parameter's value, encodeURIComponent's own
+// %2F round-trips back to a real "/" once Go's net/url decodes the query
+// string, matching backend/internal/api's own getDiagram/saveDiagram,
+// which read name from c.Query, not c.Param.
 export async function getDiagram(name: string): Promise<Diagram> {
-  const res = await fetch(`${BASE}/diagrams/${encodeURIComponent(name)}`)
+  const res = await fetch(`${BASE}/diagrams/open?name=${encodeURIComponent(name)}`)
   return normalizeDiagram(await asJSON<DiagramWire>(res))
 }
 
@@ -64,7 +79,7 @@ export async function saveDiagram(
   name: string,
   diagram: Diagram,
 ): Promise<{ diagram: Diagram; warning?: string }> {
-  const res = await fetch(`${BASE}/diagrams/${encodeURIComponent(name)}`, {
+  const res = await fetch(`${BASE}/diagrams/save?name=${encodeURIComponent(name)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(diagram),

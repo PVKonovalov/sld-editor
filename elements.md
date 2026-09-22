@@ -80,5 +80,5 @@
 398 — Короткозамыкатель (Short-circuiter)
 399 — Автомат силовой (Power circuit breaker)
 3206 — Присоединение РЗД, Разъединитель, Контакт размык./замык.дугогасит. (RZD connection, disconnector, arc-extinguishing contacts)
-320001 - Направление перетока (Powerflow direction)
+320001 + Направление перетока (Powerflow direction)
 320002 - Лампа на опоре ( Lamp on pole)

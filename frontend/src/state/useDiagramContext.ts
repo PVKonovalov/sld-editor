@@ -1,11 +1,24 @@
 import { createContext, useContext } from 'react'
-import type { Diagram, DiagramInfo, ElementSymbol, EditorConfig, EditorSettings, ConnectorKind } from '../types'
+import type { Diagram, DiagramEntry, ElementSymbol, EditorConfig, EditorSettings, ConnectorKind } from '../types'
 
 export interface DiagramContextValue {
   diagramName: string | null
   diagram: Diagram | null
   dirty: boolean
-  diagrams: DiagramInfo[]
+  // The File panel's own folder browser: currentDir is the directory
+  // (relative to the server's diagrams root, "" for the root itself)
+  // diagrams currently lists the immediate contents of — subdirectories
+  // first (DiagramEntry.isDir), then diagrams, matching backend/internal/
+  // storage.Store.List exactly (it never recurses, so this is always just
+  // one directory's own contents, not a flattened tree). browseDir
+  // navigates to a different directory (a folder row, or "..") and
+  // re-fetches; opening/creating/saving a diagram also re-browses to its
+  // own containing folder afterward (see DiagramProvider's own doc
+  // comments), so this always reflects wherever the current diagramName
+  // actually lives once one is open.
+  currentDir: string
+  diagrams: DiagramEntry[]
+  browseDir: (dir: string) => Promise<void>
   elements: ElementSymbol[]
   config: EditorConfig | null
   error: string | null
@@ -60,7 +73,6 @@ export interface DiagramContextValue {
   deleteSelected: () => void
 
   clearError: () => void
-  refreshDiagrams: () => Promise<void>
   // defaultVoltageName: a server voltage-color preset's name (see
   // EditorConfig.voltageColors) to seed the new diagram's own
   // editor.defaultVoltage with — see DiagramProvider's own newDiagram doc

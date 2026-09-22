@@ -76,15 +76,15 @@ func TestDiagramLifecycle(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list: status = %d", rec.Code)
 	}
-	var infos []storage.Info
-	if err := json.Unmarshal(rec.Body.Bytes(), &infos); err != nil {
+	var entries []storage.Entry
+	if err := json.Unmarshal(rec.Body.Bytes(), &entries); err != nil {
 		t.Fatal(err)
 	}
-	if len(infos) != 1 || infos[0].Name != "sub-1" {
-		t.Fatalf("list = %+v, want one diagram named sub-1", infos)
+	if len(entries) != 1 || entries[0].Name != "sub-1" || entries[0].IsDir {
+		t.Fatalf("list = %+v, want one diagram named sub-1", entries)
 	}
 
-	rec = doJSON(t, s, http.MethodGet, "/api/diagrams/sub-1", nil)
+	rec = doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=sub-1", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get: status = %d, body = %s", rec.Code, rec.Body.String())
 	}
@@ -94,12 +94,12 @@ func TestDiagramLifecycle(t *testing.T) {
 	}
 	d.Elements = append(d.Elements, slddoc.Element{ID: 1, Class: slddoc.ClassBreaker, Shape: "41", Layer: slddoc.BaseLayer, X: 5, Y: 5})
 
-	rec = doJSON(t, s, http.MethodPut, "/api/diagrams/sub-1", d)
+	rec = doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=sub-1", d)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("save: status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	rec = doJSON(t, s, http.MethodGet, "/api/diagrams/sub-1/svg", nil)
+	rec = doJSON(t, s, http.MethodGet, "/api/diagrams/svg?name=sub-1", nil)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("svg: status = %d", rec.Code)
 	}
@@ -107,9 +107,46 @@ func TestDiagramLifecycle(t *testing.T) {
 		t.Errorf("rendered svg missing saved element: %s", rec.Body.String())
 	}
 
-	rec = doJSON(t, s, http.MethodGet, "/api/diagrams/missing", nil)
+	rec = doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=missing", nil)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("get missing: status = %d, want 404", rec.Code)
+	}
+}
+
+// TestDiagramLifecycle_Subdirectory covers a name with a folder segment
+// (e.g. "region1/sub-2") end to end through the HTTP layer — the one thing
+// the old :name-path-segment routes could never do at all (Gin never
+// matches a literal "/" inside a single :name segment), and the whole
+// point of moving name to a query parameter.
+func TestDiagramLifecycle_Subdirectory(t *testing.T) {
+	s := newTestServer(t)
+
+	rec := doJSON(t, s, http.MethodPost, "/api/diagrams", createDiagramRequest{Name: "region1/sub-2"})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	rec = doJSON(t, s, http.MethodGet, "/api/diagrams", nil)
+	var root []storage.Entry
+	if err := json.Unmarshal(rec.Body.Bytes(), &root); err != nil {
+		t.Fatal(err)
+	}
+	if len(root) != 1 || root[0].Name != "region1" || !root[0].IsDir {
+		t.Fatalf("root list = %+v, want one subdirectory named region1", root)
+	}
+
+	rec = doJSON(t, s, http.MethodGet, "/api/diagrams?dir=region1", nil)
+	var sub []storage.Entry
+	if err := json.Unmarshal(rec.Body.Bytes(), &sub); err != nil {
+		t.Fatal(err)
+	}
+	if len(sub) != 1 || sub[0].Name != "sub-2" || sub[0].IsDir {
+		t.Fatalf("region1 list = %+v, want one diagram named sub-2", sub)
+	}
+
+	rec = doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=region1/sub-2", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get: status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -135,10 +172,10 @@ func TestRenderPreview_DoesNotPersist(t *testing.T) {
 	}
 
 	rec = doJSON(t, s, http.MethodGet, "/api/diagrams", nil)
-	var infos []storage.Info
-	_ = json.Unmarshal(rec.Body.Bytes(), &infos)
-	if len(infos) != 0 {
-		t.Errorf("render preview should not persist a diagram: %+v", infos)
+	var entries []storage.Entry
+	_ = json.Unmarshal(rec.Body.Bytes(), &entries)
+	if len(entries) != 0 {
+		t.Errorf("render preview should not persist a diagram: %+v", entries)
 	}
 }
 

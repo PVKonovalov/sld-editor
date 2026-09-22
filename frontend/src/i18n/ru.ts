@@ -22,6 +22,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'file.create': 'Создать',
   'file.open': 'Открыть',
   'file.noDiagrams': 'Сохранённых схем пока нет.',
+  'file.currentDir': 'Расположение: {{dir}}',
+  'file.creatingIn': 'В папке: {{dir}}/',
   'file.save': 'Сохранить',
   'file.saveAs': 'Сохранить как',
   'file.newDiagramTitle': 'Новая схема',

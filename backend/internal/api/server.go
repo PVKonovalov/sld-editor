@@ -93,11 +93,15 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) routes() {
 	grp := s.router.Group("/api")
+	// name (getDiagram/saveDiagram/renderDiagramSVG) and dir (listDiagrams)
+	// travel as query parameters, not :name path segments — see
+	// getDiagram's own doc comment for why a subdirectory-qualified name
+	// needs that.
 	grp.GET("/diagrams", s.listDiagrams)
 	grp.POST("/diagrams", s.createDiagram)
-	grp.GET("/diagrams/:name", s.getDiagram)
-	grp.PUT("/diagrams/:name", s.saveDiagram)
-	grp.GET("/diagrams/:name/svg", s.renderDiagramSVG)
+	grp.GET("/diagrams/open", s.getDiagram)
+	grp.PUT("/diagrams/save", s.saveDiagram)
+	grp.GET("/diagrams/svg", s.renderDiagramSVG)
 	grp.POST("/render", s.renderPreview)
 	grp.POST("/export/xml", s.exportDiagramXML)
 	grp.POST("/export/svg", s.exportDiagramSVG)

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
+import { joinDiagramPath } from '../lib/diagramPath'
 import { t } from '../i18n'
 
 /** A centered modal (backdrop click or Esc dismisses, matching
@@ -12,7 +13,7 @@ import { t } from '../i18n'
  * preset into the diagram's first VoltageClass and its own
  * editor.defaultVoltage. */
 export function NewDiagramDialog({ onClose }: { onClose: () => void }) {
-  const { newDiagram, config } = useDiagramContext()
+  const { newDiagram, config, currentDir } = useDiagramContext()
   const [name, setName] = useState('')
   const [width, setWidth] = useState('')
   const [height, setHeight] = useState('')
@@ -26,7 +27,7 @@ export function NewDiagramDialog({ onClose }: { onClose: () => void }) {
     setError(null)
     try {
       await newDiagram(
-        name.trim(),
+        joinDiagramPath(currentDir, name.trim()),
         width ? Number(width) : undefined,
         height ? Number(height) : undefined,
         defaultVoltageName || undefined,
@@ -45,6 +46,7 @@ export function NewDiagramDialog({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
         <div className="pointer-events-auto w-80 rounded border border-surface-600 bg-surface-700 p-4 shadow-lg space-y-3">
           <h2 className="text-sm font-semibold text-gray-100">{t('file.newDiagramTitle')}</h2>
+          {currentDir && <p className="text-[11px] text-gray-500">{t('file.creatingIn', { dir: currentDir })}</p>}
 
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('file.name')}</span>
