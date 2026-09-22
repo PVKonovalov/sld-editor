@@ -40,21 +40,19 @@
 #   make                 # every OS/arch x locale combination
 #   make linux           # linux/amd64, both locales
 #   make windows         # windows/amd64, both locales
-#   make macos           # darwin/arm64 + darwin/amd64, both locales
+#   make macos           # darwin/arm64, both locales
 #   make linux-en
 #   make linux-ru
 #   make windows-en
 #   make windows-ru
 #   make macos-arm64-en
 #   make macos-arm64-ru
-#   make macos-amd64-en
-#   make macos-amd64-ru
 #   make docker-build    # linux+windows targets, run inside a pinned container
 #   make clean
 
 .PHONY: all linux windows macos \
         linux-en linux-ru windows-en windows-ru \
-        macos-arm64-en macos-arm64-ru macos-amd64-en macos-amd64-ru \
+        macos-arm64-en macos-arm64-ru \
         frontend-en frontend-ru docker-build clean
 
 BUILD_DIR    := build
@@ -69,7 +67,7 @@ linux: linux-en linux-ru
 
 windows: windows-en windows-ru
 
-macos: macos-arm64-en macos-arm64-ru macos-amd64-en macos-amd64-ru
+macos: macos-arm64-en macos-arm64-ru
 
 linux-en: $(BUILD_DIR)
 	$(MAKE) frontend-en
@@ -94,14 +92,6 @@ macos-arm64-en: $(BUILD_DIR)
 macos-arm64-ru: $(BUILD_DIR)
 	$(MAKE) frontend-ru
 	cd $(BACKEND_DIR) && GOOS=darwin GOARCH=arm64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-macos-arm64-ru ./cmd/sld-editor
-
-macos-amd64-en: $(BUILD_DIR)
-	$(MAKE) frontend-en
-	cd $(BACKEND_DIR) && GOOS=darwin GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-macos-amd64-en ./cmd/sld-editor
-
-macos-amd64-ru: $(BUILD_DIR)
-	$(MAKE) frontend-ru
-	cd $(BACKEND_DIR) && GOOS=darwin GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-macos-amd64-ru ./cmd/sld-editor
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
