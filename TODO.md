@@ -24,13 +24,13 @@ via the Performance API), with zero frontend change, since every browser
 already negotiates and decompresses gzip transparently. Doesn't touch the
 request direction (the diagram JSON posted up) at all.
 
-In progress: **incremental/patch-based re-rendering** instead of a full
+Done: **incremental/patch-based re-rendering** instead of a full
 diagram-in/full-SVG-out round trip on every edit — the real fix for the
 "big diagram, small edit" case (gzip helps bandwidth, not the fact that a
 full document is generated/transferred/DOM-replaced for a one-element
 change).
 
-Done, backend: `internal/slddoc.RenderFragments` (`slddoc/render.go`) — a
+Backend: `internal/slddoc.RenderFragments` (`slddoc/render.go`) — a
 sibling to `Render` that runs the same whole-diagram voltage/topology
 resolution pass but only writes markup for a requested `ids []int`
 (elements/connectors/labels/digital devices are one shared id space, so a
@@ -46,25 +46,38 @@ same "preview only, never touches storage" way `POST /api/render`
 already does, taking `{diagram, ids}` and returning `{fragments: {id:
 markup}, warning?}`.
 
-Not started, frontend: `Canvas.tsx`'s own debounced commit path still
-always calls the old full `/api/render` and replaces the whole injected
-SVG's own `innerHTML`. Needs: a `lastRenderedDiagram` ref updated only on
-a successful render; a diff against it on each debounce firing — cheap
-via reference-inequality per id across `elements`/`connectors`/`labels`/
+Frontend: `Canvas.tsx`'s debounced commit path now diffs the latest
+diagram against `lastRenderedRef` (the diagram as of the last successful
+render) on every firing, via `diagramOps.diffDiagramForRender` — cheap
+reference-inequality per id across `elements`/`connectors`/`labels`/
 `digitalDevices`, since every `diagramOps` mutator already does
-immutable, per-id array updates (untouched entries keep their old object
-reference); call `/api/render/fragments` and patch just the touched
-`[data-editor-kind][id=X]` DOM nodes (`outerHTML`/`replaceWith`) when
-every touched id already existed in `lastRenderedDiagram` (no adds, no
-removes — sidesteps the question of *where* in the DOM a genuinely new
-node should be inserted relative to the z-order tiers `Render` only
-expresses via document order); otherwise (an id added/removed, or
-`voltageClasses`/`editor`/`layers` changed by reference — a voltage-class
-color edit repaints every element that references it, not just one) fall
-back to the existing full `/api/render` path unchanged. The initial
-diagram open and Save also keep using the full-document endpoints they
-already do — this only ever optimizes the interactive-editing hot path
-once a diagram is already loaded.
+immutable, per-id array updates (an untouched entry keeps its old object
+reference, so no field-by-field comparison or mutator instrumentation is
+needed). Three outcomes: `'none'` (nothing rendering-relevant changed —
+skip the round trip entirely), `'patch'` (only a fixed set of
+already-existing ids changed in place — `api.renderPreviewFragments` +
+`patchFragmentsInDom`, which looks up each `[data-editor-kind][id=X]`
+node the same way `dragElementsInDom`/`elementBoxes` already do and
+swaps it via `parseSvgFragment`+`replaceWith`, keeping whatever DOM
+position the prior full render gave it), or `'full'` (an id added/
+removed, or `width`/`height`/`voltageClasses`/`editor`/`layers` changed
+by reference — a VoltageClass's own color edit repaints every element
+that references it, not just one, and an add/remove raises the question
+of *where* a brand-new node belongs relative to `elementZOrder`'s own
+tiers, which only exist as document order in a full `Render` — the
+existing `api.renderPreview`/`setSvg`/`dangerouslySetInnerHTML` path,
+unchanged). A `patchVersion` counter, bumped after each successful patch,
+gives the `elementBoxes` effect (which depends on `svg`, unchanged by a
+patch) a signal to recompute click-tolerance boxes against the
+just-patched geometry. The initial diagram open and Save still use the
+full-document endpoints they already did — this only ever optimizes the
+interactive-editing hot path once a diagram is already loaded. Verified
+live: dragging/editing an existing element's state/reassigning it to an
+already-on-the-diagram VoltageClass each fire exactly one
+`/api/render/fragments` call and patch correctly in place; placing a new
+element, or editing a VoltageClass's own color (repainting every element
+sharing it), each still fire the original full `/api/render`; Save +
+reload round-trips correctly either way.
 
 ## Equipment shapes not yet ported
 

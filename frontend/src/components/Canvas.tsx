@@ -7,7 +7,7 @@ import * as diagramOps from '../lib/diagramOps'
 import { clientToDiagramPoint, nearestSegmentOnPolyline, snapPointOnSegment, snapValue } from '../lib/geometry'
 import { t } from '../i18n'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
-import type { Point } from '../types'
+import type { Diagram, Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
 const RECTANGLE_SHAPE = '3'
@@ -168,6 +168,66 @@ function appendOrthogonalPoint(path: Point[], end: Point): Point[] {
   return [...path, end]
 }
 
+// Parses one RenderFragments-returned fragment string (always exactly one
+// top-level SVG node — a <g>, or a bare <rect>/<circle>/<ellipse>/
+// <polyline>/<path>/<text>, matching whichever of those the element/
+// connector/label/digital device in question renders as — see
+// internal/slddoc.Render's own doc comment on RenderMode/bare-tag shapes)
+// into a real, detached DOM node ready to swap in for its own stale one.
+// Can't use a plain <div>.innerHTML for this — the HTML parser doesn't
+// namespace bare SVG tags correctly — so the fragment is parsed as XML
+// wrapped in its own <svg> root instead, matching the same trick sld-viewer
+// and this component's own dangerouslySetInnerHTML rely on implicitly (an
+// <svg> element's own innerHTML setter *does* parse its children with the
+// right namespace, unlike a generic Element's). Returns null on a parse
+// failure (malformed markup, which should never happen against this
+// backend's own output, but a corrupt/truncated response over a bad
+// connection is exactly the scenario this whole feature exists for) — the
+// caller then just leaves the stale node in place rather than risking
+// tearing out a live DOM node for nothing.
+function parseSvgFragment(markup: string): Element | null {
+  const doc = new DOMParser().parseFromString(
+    `<svg xmlns="http://www.w3.org/2000/svg">${markup}</svg>`,
+    'image/svg+xml',
+  )
+  if (doc.querySelector('parsererror')) return null
+  return doc.documentElement.firstElementChild
+}
+
+// Patches root's own existing DOM nodes in place from a RenderFragments
+// response, the incremental counterpart to replacing the whole injected
+// SVG's own innerHTML: for each {id, kind} in targets (diagramOps.
+// diffDiagramForRender's own 'patch' result), looks up the current node by
+// the same [data-editor-kind][id=X] selector every other click/drag/
+// hit-test in this file already uses, and swaps it for the freshly parsed
+// replacement — keeping whatever position in the DOM (and so z-order) the
+// prior full render already gave it, since a 'patch' diff only ever covers
+// ids that already existed (see diffDiagramForRender's own doc comment for
+// why an add/remove forces a full render instead). fragments is keyed by
+// id as a string (this is JSON decoded from the wire, where every object
+// key is necessarily a string even though both ends think of it as a
+// number) — an id present in targets but missing from fragments (the
+// backend's own "no longer in the diagram at all" skip — shouldn't happen
+// here, since a 'patch' diff only names ids that are still present in the
+// diagram just posted, but handled the same defensive way regardless) or a
+// lookup/parse failure just leaves that one node stale rather than
+// aborting the whole patch.
+function patchFragmentsInDom(
+  root: Element,
+  targets: { id: number; kind: diagramOps.DataEditorKind }[],
+  fragments: Record<string, string>,
+) {
+  for (const { id, kind } of targets) {
+    const markup = fragments[String(id)]
+    if (markup === undefined) continue
+    const node = root.querySelector(`[data-editor-kind="${kind}"][id="${id}"]`)
+    if (!node) continue
+    const replacement = parseSvgFragment(markup)
+    if (!replacement) continue
+    node.replaceWith(replacement)
+  }
+}
+
 // Zoom in/out/fit-to-view buttons overlaid on the canvas, mirroring
 // sld-viewer's own ZoomControls (SldPanel.tsx) — mounted as a sibling of
 // TransformComponent, inside TransformWrapper, since useControls() only
@@ -217,18 +277,25 @@ function ZoomControls({ width, height }: { width: number; height: number }) {
   )
 }
 
-// Renders the current in-memory diagram by asking the backend to render it
-// (POST /api/render, debounced), rather than reimplementing
-// internal/slddoc's symbol-template rendering in the browser. Selection,
-// drag, click-to-place and click-to-connect are all handled here by
-// hit-testing a click against the data-editor-kind ("element" or
-// "connector") marker Render writes on every selectable node, and reading
-// its plain DOM id (the element/connector's own bare integer id, parsed
-// back out of the string the DOM always represents it as) — then mutating
-// diagram state directly. The resulting re-render (debounced) is what
-// keeps the displayed SVG in sync; a lightweight local "ghost" overlay
-// gives instant feedback for an in-progress drag/draw without waiting on
-// that round trip.
+// Renders the current in-memory diagram by asking the backend to render it,
+// debounced, rather than reimplementing internal/slddoc's symbol-template
+// rendering in the browser. Selection, drag, click-to-place and
+// click-to-connect are all handled here by hit-testing a click against the
+// data-editor-kind ("element"/"connector"/"label"/"digitaldevice") marker
+// Render/RenderFragments write on every selectable node, and reading its
+// plain DOM id (the entity's own bare integer id, parsed back out of the
+// string the DOM always represents it as) — then mutating diagram state
+// directly. Each debounce firing diffs the latest diagram against
+// lastRenderedRef (diagramOps.diffDiagramForRender) to pick how to catch
+// the displayed SVG up: POST /api/render/fragments and patch just the
+// changed nodes in place (patchFragmentsInDom) when only a fixed set of
+// already-existing elements/connectors/labels/digital devices changed;
+// POST /api/render (the original, whole-document path — setSvg below,
+// injected via dangerouslySetInnerHTML) for anything an id-level patch
+// can't express (an add/remove, or a diagram-wide change like a
+// VoltageClass's own color); nothing at all for a no-op. A lightweight
+// local "ghost" overlay gives instant feedback for an in-progress
+// drag/draw without waiting on either round trip.
 export function Canvas() {
   const {
     diagram,
@@ -273,20 +340,69 @@ export function Canvas() {
   const [selectedVertex, setSelectedVertex] = useState<SelectedVertex | null>(null)
   const [elementBoxes, setElementBoxes] = useState<Map<number, ElementBox>>(new Map())
   const wrapperRef = useRef<HTMLDivElement>(null)
+  // The diagram exactly as of the last successful render (full or
+  // incremental) — the baseline diffDiagramForRender compares the latest
+  // diagram against on every debounce firing, so a diff always covers
+  // everything changed since something was actually confirmed on screen,
+  // not just the single most recent edit (several edits can land within
+  // one debounce window). null before the first render of a freshly
+  // opened/created diagram, which always takes the full-render path (see
+  // below) since there's nothing yet to diff against.
+  const lastRenderedRef = useRef<Diagram | null>(null)
+  // Bumped after every successful incremental patch, purely to give the
+  // elementBoxes effect below a signal to recompute — that effect already
+  // depends on svg, but svg itself never changes for a patch (only real
+  // DOM nodes are mutated directly, the same instant-DOM-first approach
+  // dragElementsInDom already uses elsewhere), so without this a patched
+  // element's own possibly-changed geometry (a drag, a resize) would leave
+  // elementBoxes stale until some *other*, unrelated edit happened to
+  // trigger a full render.
+  const [patchVersion, setPatchVersion] = useState(0)
 
   useEffect(() => {
     if (!diagram) {
       setSvg('')
       setWarning(null)
+      lastRenderedRef.current = null
       return
     }
     let cancelled = false
     const handle = setTimeout(() => {
+      const baseline = lastRenderedRef.current
+      const diff = baseline ? diagramOps.diffDiagramForRender(baseline, diagram) : { kind: 'full' as const }
+
+      if (diff.kind === 'none') {
+        // Nothing rendering-relevant actually changed (e.g. a no-op
+        // updateDiagram) — skip the round trip entirely, but still adopt
+        // diagram as the new baseline so a *later* diff doesn't end up
+        // comparing against an increasingly stale reference.
+        lastRenderedRef.current = diagram
+        return
+      }
+
+      if (diff.kind === 'patch') {
+        api
+          .renderPreviewFragments(diagram, diff.targets.map(target => target.id))
+          .then(res => {
+            if (cancelled) return
+            const root = wrapperRef.current
+            if (root) patchFragmentsInDom(root, diff.targets, res.fragments)
+            lastRenderedRef.current = diagram
+            setWarning(res.warning ?? null)
+            setPatchVersion(v => v + 1)
+          })
+          .catch(e => {
+            if (!cancelled) setWarning((e as Error).message)
+          })
+        return
+      }
+
       api
         .renderPreview(diagram)
         .then(res => {
           if (cancelled) return
           setSvg(res.svg)
+          lastRenderedRef.current = diagram
           setWarning(res.warning ?? null)
         })
         .catch(e => {
@@ -402,7 +518,7 @@ export function Canvas() {
       boxes.set(el.id, { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY })
     }
     setElementBoxes(boxes)
-  }, [svg, diagram])
+  }, [svg, diagram, patchVersion])
 
   /** Finds the smallest (by area) symbol element whose own real bounding
    * box — padded by BOX_HIT_PAD for click tolerance — contains point;

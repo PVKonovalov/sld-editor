@@ -99,6 +99,28 @@ export async function renderPreview(diagram: Diagram): Promise<{ svg: string; wa
   return asJSON(res)
 }
 
+/** renderPreview's incremental counterpart: given the full diagram (still
+ * needed server-side for voltage/topology resolution, which can span ids
+ * outside ids itself) and the set of element/connector/label/digital-device
+ * ids that actually changed since the canvas's own last successful render,
+ * returns only those ids' own fresh markup — keyed by id, JSON's own object
+ * keys always strings even though these started as numbers on both ends —
+ * for Canvas.tsx to patch its existing DOM nodes in place instead of
+ * replacing its whole injected SVG. See backend/internal/slddoc.
+ * RenderFragments' own doc comment for the full contract (an id no longer
+ * in diagram at all is silently skipped, not an error). */
+export async function renderPreviewFragments(
+  diagram: Diagram,
+  ids: number[],
+): Promise<{ fragments: Record<string, string>; warning?: string }> {
+  const res = await fetch(`${BASE}/render/fragments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ diagram, ids }),
+  })
+  return asJSON(res)
+}
+
 /** Renders a diagram (saved or not) to its on-disk XML shape, for the
  * browser to download directly to the user's own machine — not tied to the
  * server's own diagrams directory the way saveDiagram/getDiagram are. */

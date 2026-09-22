@@ -148,6 +148,90 @@ export function ensureLastId(diagram: Diagram): Diagram {
   return d
 }
 
+// Matches a rendered node's own data-editor-kind attribute (internal/
+// slddoc's Render/RenderFragments) — "digitaldevice", not "digitalDevice",
+// same lowercase-no-separator convention Canvas.tsx's own querySelector
+// calls already use for one.
+export type DataEditorKind = 'element' | 'connector' | 'label' | 'digitaldevice'
+
+export type DiagramRenderDiff =
+  | { kind: 'none' }
+  | { kind: 'full' }
+  | { kind: 'patch'; targets: { id: number; kind: DataEditorKind }[] }
+
+// Diffs one of the four id-keyed arrays by reference — every diagramOps
+// mutator does immutable, per-id updates (only the touched entry gets a
+// new object; everything else keeps its old reference), so a plain `!==`
+// per id is enough to find exactly what changed, no field-by-field
+// comparison or mutator instrumentation needed. Returns whether anything
+// was added or removed (an "structural" change, forcing a full render —
+// see diffDiagramForRender), appending any in-place-changed id's own
+// {id, kind} to targets as a side effect.
+function diffArrayIds<T extends { id: number }>(
+  previous: T[],
+  next: T[],
+  kind: DataEditorKind,
+  targets: { id: number; kind: DataEditorKind }[],
+): boolean {
+  const previousById = new Map(previous.map(x => [x.id, x]))
+  const nextIds = new Set(next.map(x => x.id))
+  let structural = false
+  for (const x of next) {
+    const old = previousById.get(x.id)
+    if (!old) {
+      structural = true
+      continue
+    }
+    if (old !== x) targets.push({ id: x.id, kind })
+  }
+  for (const id of previousById.keys()) {
+    if (!nextIds.has(id)) structural = true
+  }
+  return structural
+}
+
+/** Diffs two versions of the same open diagram (the one behind Canvas.tsx's
+ * own last successful render, and the current one) to decide how to
+ * refresh the displayed SVG cheaply — see TODO.md's own "Reducing frontend/
+ * backend traffic" section for the fuller rationale:
+ * - 'none': nothing rendering-relevant changed at all (skip the network
+ *   round trip entirely — e.g. a no-op updateDiagram call).
+ * - 'patch': only a fixed set of already-existing elements/connectors/
+ *   labels/digital devices changed in place — fetch just their own fresh
+ *   markup (api.renderPreviewFragments) and patch those DOM nodes
+ *   directly, instead of replacing the whole injected SVG.
+ * - 'full': anything was added or removed, or width/height/voltageClasses/
+ *   editor/layers changed by reference — each of those can repaint
+ *   arbitrarily many ids at once (a VoltageClass's own color change, e.g.,
+ *   isn't itself one of "the ids that changed"), or (add/remove) raises the
+ *   question of *where* in the DOM a brand-new node belongs relative to
+ *   elementZOrder's own tiers, which only exist as document order in a full
+ *   Render — the existing api.renderPreview whole-document path stays
+ *   exactly as it always has for this case. */
+export function diffDiagramForRender(previous: Diagram, next: Diagram): DiagramRenderDiff {
+  if (
+    previous.width !== next.width ||
+    previous.height !== next.height ||
+    previous.voltageClasses !== next.voltageClasses ||
+    previous.editor !== next.editor ||
+    previous.layers !== next.layers
+  ) {
+    return { kind: 'full' }
+  }
+
+  const targets: { id: number; kind: DataEditorKind }[] = []
+  let structural = false
+  structural = diffArrayIds(previous.elements, next.elements, 'element', targets) || structural
+  structural = diffArrayIds(previous.connectors, next.connectors, 'connector', targets) || structural
+  structural = diffArrayIds(previous.labels, next.labels, 'label', targets) || structural
+  structural =
+    diffArrayIds(previous.digitalDevices, next.digitalDevices, 'digitaldevice', targets) || structural
+
+  if (structural) return { kind: 'full' }
+  if (targets.length === 0) return { kind: 'none' }
+  return { kind: 'patch', targets }
+}
+
 function defaultLayer(diagram: Diagram): number {
   return diagram.layers[0]?.id ?? 0
 }

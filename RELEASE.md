@@ -3740,3 +3740,47 @@ fragments, no type-comments/z-order in a fragment) and `sld-editor/
 backend` (a new end-to-end HTTP test against `/api/render/fragments`,
 plus the existing full suite confirming the `Render`/`renderElement`
 refactor didn't change a single byte of existing output).
+
+Date: 2026-09-22 — Frontend half of "Reducing frontend/backend
+traffic"'s own incremental-rendering plan (see TODO.md), wiring up the
+backend `RenderFragments`/`/api/render/fragments` support added earlier
+today: `Canvas.tsx`'s debounced commit path now diffs the latest diagram
+against a `lastRenderedRef` snapshot (the diagram as of its own last
+successful render) on every firing, via a new pure
+`diagramOps.diffDiagramForRender` — reference-inequality per id across
+`elements`/`connectors`/`labels`/`digitalDevices`, safe and cheap because
+every `diagramOps` mutator already does immutable, per-id array updates
+(an untouched entry always keeps its old object reference, so no
+field-by-field diffing or mutator instrumentation was needed). Three
+outcomes: nothing rendering-relevant changed at all (skip the network
+round trip entirely — e.g. a no-op `updateDiagram`); only a fixed set of
+already-existing elements/connectors/labels/digital devices changed in
+place (`api.renderPreviewFragments` + a new `patchFragmentsInDom`, which
+looks up each `[data-editor-kind][id=X]` node — the same selector
+`dragElementsInDom`/click-hit-testing already use — and swaps it for a
+freshly parsed replacement via a new `parseSvgFragment`, keeping whatever
+DOM position/z-order the prior full render already gave it); or anything
+an id-level patch can't express — an add/remove (where a brand-new node
+would even belong in the DOM relative to `elementZOrder`'s own tiers,
+which only exist as document order in a full render, is deliberately not
+solved here) or `width`/`height`/`voltageClasses`/`editor`/`layers`
+changing by reference (a VoltageClass's own color edit, e.g., repaints
+every element that references it, not just one) — which still takes the
+original full `POST /api/render` + `dangerouslySetInnerHTML` path
+unchanged. A new `patchVersion` counter, bumped after each successful
+patch, gives the existing `elementBoxes` effect (which depends on `svg`,
+never touched by a patch) a signal to recompute click-tolerance boxes
+against the just-patched geometry — without it a dragged/resized
+element's own selection box would stay stale until some unrelated full
+render happened to catch it up. The initial diagram open and Save are
+untouched, still always using the full-document endpoints they always
+did. Verified with `npx tsc --noEmit` and a live round trip: dragging an
+element, toggling its State, and reassigning it to a VoltageClass already
+present on the diagram each fired exactly one `/api/render/fragments`
+call and patched correctly in place (color/position/selection box all
+confirmed visually); placing a brand-new element, and editing a shared
+VoltageClass's own color (confirmed repainting both elements that
+referenced it, not just the one being edited in Properties at the time),
+each still fired the original full `/api/render`; Save followed by a
+full page reload round-tripped every one of those edits correctly either
+way.
