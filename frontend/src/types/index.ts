@@ -89,6 +89,8 @@ export type ElementClass =
   | 'PackageSubstation'
   | 'EnclosedSubstation'
   | 'PowerflowIndicator'
+  | 'Table'
+  | 'Table2'
 
 // Matches slddoc.WindingScheme — a PowerTransformer winding's own
 // connection scheme. Only the three values with a real connection glyph in
@@ -239,6 +241,34 @@ export interface DiagramElement {
   // displacement input the format doesn't carry), so it's typed in and
   // stored verbatim, not derived from the windings' own scheme.
   vectorGroupLabel?: string
+  // Table2 (shape 313) only — its own row/column grid, matching backend/
+  // internal/slddoc's own Element.RowHeights/ColumnWidths/Cells. X/Y is
+  // the grid's own top-left anchor (unlike every Points-based decorative
+  // shape); rowHeights[i]/columnWidths[j] is row i's/column j's own real
+  // size, cumulative-summed from that anchor to place each cell. A (row,
+  // col) with no matching TableCell entry at all is simply not drawn —
+  // see backend/internal/slddoc's own ClassTable2/TableCell doc comments
+  // for the full model (deliberately no cell-merging, no multi-paragraph
+  // cell text).
+  rowHeights?: number[]
+  columnWidths?: number[]
+  cells?: TableCell[]
+}
+
+// Matches backend/internal/slddoc.TableCell — one real cell of a Table2
+// (shape 313) grid. Row/Col are 0-based positions into the owning
+// DiagramElement's own rowHeights/columnWidths. fill/textColor are
+// optional per-cell overrides of the table's own fill/black default —
+// empty means "use the table's own default" (see the Go type's own doc
+// comment); this editor's own Properties UI doesn't expose editing these
+// directly yet (see PropertiesPanel), but preserves whatever Extract
+// recovered from a real diagram.
+export interface TableCell {
+  row: number
+  col: number
+  text?: string
+  fill?: string
+  textColor?: string
 }
 
 // Matches backend/internal/slddoc.ConnectorKind.

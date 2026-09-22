@@ -451,6 +451,52 @@ Verified against both real corpus directories found on disk (`sld`/`sld1`,
 matching the raw `data-type="320001"` count found by direct search
 exactly.
 
+**312** Таблица/Table — a purely decorative annotation box, drag-two-corners
+like Rectangle/Button. Real source (`element_312.go`) only actually draws
+the simple case modeled here (≤2 corner Points; a real instance with more
+than that — an attempt at a real multi-cell grid via this shape — is
+explicitly skipped by the real exporter itself, telling the operator to
+use 313 instead) — found **zero** real corpus instances of `data-type="312"`
+in either corpus directory, so this one's correctness rests on matching
+the real source's own formula exactly rather than corpus confirmation.
+Reuses existing fields entirely, no new ones: Fill/Stroke/StrokeWidth/
+Points (Rectangle/Button's own convention), LineStyle (Line's own dash
+enum, but its own real dash values — `"6,5"`/`"70 20 25 20"`, a
+coincidental partial overlap with Line's own and a `CableLine` connector's
+own respectively, not a pattern), PropertyText/TextColor (Button's own
+centered-label convention), and — new reuse — Orient, which (uniquely
+among every Points-based shape so far) rotates just the label around the
+box's own center, not the box itself.
+
+**313** Таблица 2/Table 2 — a purely decorative multi-row/multi-column
+grid, click-to-place (starts as a small default 2×2 grid — see
+`diagramOps.table2Defaults`) since its own real geometry can't be
+expressed as two dragged corners. New `RowHeights`/`ColumnWidths`/`Cells`
+Element fields (a genuinely new "resizable grid" concept, unlike anything
+ported before this) — deliberately **not modeled**: the real source's own
+cell-merging (a real instance using it still extracts, its own
+would-be-merged cells just render separately) and multi-paragraph cell
+text (reduced to one line). Found 916 real `data-type="313"` cell
+instances across 16 corpus files, but with **no id and no
+table-membership marker of any kind** on a real cell — at this project's
+own request, the real xsde2svg source itself (`element_312.go`/
+`element_313.go`/`modus.go`) was changed to wrap a whole table's own
+output in a single `<g id data-type="312"|"313">`, the same fix already
+made for shapes 7/106/385/386, so Extract can recognize one at all — a
+diagram exported by an xsde2svg build from before that fix simply doesn't
+have its own table(s) recognized (same "not yet understood, skipped"
+treatment 313 already implicitly had before this session, not a
+regression). Within that wrapping `<g>`, row/column boundaries (and so
+each cell's own position) are reconstructed purely from the cells' own
+real drawn rectangle geometry — there's still no row/col index anywhere
+in the format itself — verified end to end via a dedicated round-trip
+test (render a known grid, parse the result straight back, confirm every
+field matches) rather than real corpus, for the same reason 312 relies on
+one. Properties UI covers row/column count (resizing preserves every
+still-valid cell), per-row height/per-column width, and per-cell text;
+per-cell Fill/TextColor overrides aren't editable there yet (still
+correctly stored/rendered for anything Extract recovers).
+
 Deferred — real xsde2svg shapes whose own source (`xsde2svg/internal/modus/
 element_<code>.go`) is substantially more involved than the shapes above,
 each needing its own dedicated pass rather than a quick port:
@@ -464,17 +510,20 @@ each needing its own dedicated pass rather than a quick port:
 
 Deliberately out of scope (decorative/structural, not real electrical
 equipment — same reasoning that already excludes every shape below;
-Rectangle (3), Arrow (2), Circle (4), Line (1), Button (113), and Road
-(335) are the six generic draw primitives, and Post-type pole (292) the
-one anchor-based marker, that *have* been ported, see above): Polygon
+Rectangle (3), Arrow (2), Circle (4), Line (1), Button (113), Road (335),
+and Table (312) are the seven generic draw primitives, Table2 (313) the
+one resizable-grid shape, and Post-type pole (292) the one anchor-based
+marker, that *have* been ported, see above): Polygon
 (16, the one remaining generic draw primitive — a closed, filled shape,
 structurally closer to Rectangle than Line, but not yet checked against
 real corpus), other poles/pylons (19/146 — anchor/angle pole, power pole —
 neither confirmed to share 292's own simple round-or-square geometry),
 power-plant/substation pictogram icons (38/360), chassis/half-chassis cart
 graphics (51/52), a decorative connector-arrow (83),
-table/window HMI decoration (313/319), and a generic "Device" placeholder
-(130, too vague to know what it actually draws).
+a small-window HMI decoration (319, structurally unrelated to Table2 despite
+the "table/window" grouping this line used to lump them under), and a
+generic "Device" placeholder (130, too vague to know what it actually
+draws).
 
 ## Known pre-existing extract gaps
 

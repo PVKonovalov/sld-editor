@@ -95,6 +95,26 @@ const LINE_ICON = '<line x1="-22" y1="16" x2="22" y2="-16" stroke="currentColor"
 const POWERFLOW_INDICATOR_ICON =
   '<text x="0" y="9" text-anchor="middle" font-size="28" font-weight="bold" fill="currentColor">→</text>'
 
+// Table (shape 312) also has no template — same "you drag this one"
+// dashed-outline cue as RECTANGLE_ICON/BUTTON_ICON, plus a 2x2 cross
+// standing in for its own row/column structure, distinguishing it from a
+// plain Rectangle or a Button's own single center line.
+const TABLE_ICON =
+  '<rect x="-20" y="-14" width="40" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 3" />' +
+  '<line x1="0" y1="-14" x2="0" y2="14" stroke="currentColor" stroke-width="1.5" />' +
+  '<line x1="-20" y1="0" x2="20" y2="0" stroke="currentColor" stroke-width="1.5" />'
+
+// Table2 (shape 313) also has no template — same solid, click-to-place
+// "real equipment" convention POLE_ICON/POWERFLOW_INDICATOR_ICON use
+// (unlike Table above, this one isn't drag-to-draw), drawn as a plain
+// solid 2x2 grid — a static preview has no real row/column count to
+// reflect, so this is just illustrative, not a literal default-grid
+// preview.
+const TABLE2_ICON =
+  '<rect x="-18" y="-14" width="36" height="28" fill="none" stroke="currentColor" stroke-width="2" />' +
+  '<line x1="0" y1="-14" x2="0" y2="14" stroke="currentColor" stroke-width="2" />' +
+  '<line x1="-18" y1="0" x2="18" y2="0" stroke="currentColor" stroke-width="2" />'
+
 const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '24': BUSBAR_ICON,
   '3': RECTANGLE_ICON,
@@ -105,6 +125,8 @@ const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '292': POLE_ICON,
   '1': LINE_ICON,
   '320001': POWERFLOW_INDICATOR_ICON,
+  '312': TABLE_ICON,
+  '313': TABLE2_ICON,
   '385': PACKAGE_SUBSTATION_ICON,
   '386': ENCLOSED_SUBSTATION_ICON,
 }

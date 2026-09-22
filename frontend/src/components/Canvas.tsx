@@ -16,9 +16,13 @@ const ARROW_SHAPE = '2'
 const BUTTON_SHAPE = '113'
 const ROAD_SHAPE = '335'
 const LINE_SHAPE = '1'
+const TABLE_SHAPE = '312'
 // Shapes placed by dragging out two opposite points rather than a single
 // click — see diagramOps.POINTS_BASED_CLASSES for the element-class
-// equivalent used once one's already on the diagram.
+// equivalent used once one's already on the diagram. Table2 (313) is
+// deliberately not here — it's click-to-place, like PostPole/Lamp (see
+// diagramOps.table2Defaults' own doc comment for why its own grid
+// geometry can't be expressed as two dragged corners at all).
 const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
   BUSBAR_SHAPE,
   RECTANGLE_SHAPE,
@@ -27,6 +31,7 @@ const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
   BUTTON_SHAPE,
   ROAD_SHAPE,
   LINE_SHAPE,
+  TABLE_SHAPE,
 ])
 const HIGHLIGHT = '#3b82f6'
 const CONNECT_TARGET_COLOR = '#22c55e'
@@ -447,7 +452,13 @@ export function Canvas() {
   // over per-shape-accurate hit geometry. A PostPole (also a bare
   // <rect>/<circle>, also often unfilled) gets the identical treatment,
   // just computed from its own X/Y/Radius instead of Points, since it's a
-  // single anchor, not a Points-based shape.
+  // single anchor, not a Points-based shape. Table (312, wrapped in a real
+  // <g> like Button, but still treated the same Points-based way as an
+  // optimization — no DOM query needed when the geometry's already known
+  // from diagram state) and Table2 (313, a single X/Y anchor plus the sum
+  // of its own rowHeights/columnWidths, computed the same
+  // straight-from-diagram-state way PostPole's own is) get matching
+  // treatment below too.
   useEffect(() => {
     const root = wrapperRef.current
     if (!root || !diagram) {
@@ -457,7 +468,10 @@ export function Canvas() {
     const boxes = new Map<number, ElementBox>()
     for (const el of diagram.elements) {
       if (el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line') continue
-      if ((el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button') && el.points) {
+      if (
+        (el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'Table') &&
+        el.points
+      ) {
         const [p0, p1] = el.points
         const x = Math.min(p0.x, p1.x)
         const y = Math.min(p0.y, p1.y)
@@ -489,6 +503,17 @@ export function Canvas() {
         // anchor regardless of Orient, same as PostPole's own box.
         const half = 13
         boxes.set(el.id, { x: el.x - half, y: el.y - half, width: half * 2, height: half * 2 })
+        continue
+      }
+      if (el.class === 'Table2') {
+        // Also computed directly from diagram state rather than DOM
+        // geometry — a Table2's own real footprint (unlike a symbol's
+        // local-frame template) is simply its own X,Y anchor plus the sum
+        // of its own rowHeights/columnWidths, no rotation/local-frame
+        // translation involved at all.
+        const width = (el.columnWidths ?? []).reduce((sum, w) => sum + w, 0)
+        const height = (el.rowHeights ?? []).reduce((sum, h) => sum + h, 0)
+        boxes.set(el.id, { x: el.x, y: el.y, width, height })
         continue
       }
       // No tag restriction (not just `g[...]`) — PackageSubstation's own
@@ -638,10 +663,11 @@ export function Canvas() {
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
       if (exclude?.kind === 'element' && el.id === exclude.elementId) continue
-      // A Rectangle/Circle/Arrow/Button/Road/PostPole/Line/PowerflowIndicator
-      // is a purely decorative annotation, never a valid wire endpoint —
-      // unlike every other class here, none even falls back to its own
-      // anchor (see diagramOps.connectElements' own matching guard).
+      // A Rectangle/Circle/Arrow/Button/Road/PostPole/Line/
+      // PowerflowIndicator/Table/Table2 is a purely decorative annotation,
+      // never a valid wire endpoint — unlike every other class here, none
+      // even falls back to its own anchor (see diagramOps.connectElements'
+      // own matching guard).
       if (
         el.class === 'Rectangle' ||
         el.class === 'Circle' ||
@@ -650,7 +676,9 @@ export function Canvas() {
         el.class === 'Road' ||
         el.class === 'PostPole' ||
         el.class === 'Line' ||
-        el.class === 'PowerflowIndicator'
+        el.class === 'PowerflowIndicator' ||
+        el.class === 'Table' ||
+        el.class === 'Table2'
       )
         continue
       if (el.class === 'BusBarSection' && el.points && el.points.length >= 2) {
@@ -871,17 +899,21 @@ export function Canvas() {
   // the actual placed element follow the cursor while dragging, not just
   // an abstract highlight. Reads each element's own current x/y/points from
   // diagram state (unchanged until mouseup) and offsets from there; a
-  // BusBarSection/Rectangle/Circle/Button/Road/Line (see
+  // BusBarSection/Rectangle/Circle/Button/Road/Line/Table (see
   // diagramOps.POINTS_BASED_CLASSES) has no single anchor to translate via
   // a transform, so its own points-derived attributes are set directly
   // instead — a busbar's, road's, or line's <polyline points>, a
   // rectangle's <rect x y> (its width/height are unaffected by a plain
   // translate, only x/y shift), a circle's <ellipse cx cy> (its own
-  // rx/ry likewise unaffected), or a button's own <rect x y>/<text x y>
-  // pair. PostPole and PowerflowIndicator, though each a single anchor (not
-  // Points-based), get the identical bare-tag treatment for the identical
-  // reason — no wrapping <g> a translate() could shift (see writePole/
-  // writePowerflowIndicator).
+  // rx/ry likewise unaffected), or a button's/table's own <rect x y>/
+  // <text x y> pair. PostPole and PowerflowIndicator, though each a single
+  // anchor (not Points-based), get the identical bare-tag treatment for
+  // the identical reason — no wrapping <g> a translate() could shift (see
+  // writePole/writePowerflowIndicator). Table2 is the one exception that
+  // *does* get a translate(): its own wrapping <g> normally carries no
+  // transform of its own either, but with potentially many per-cell
+  // children, adding one temporarily during the drag is simpler than
+  // shifting every child individually — see its own branch below.
   function dragElementsInDom(ids: number[], dx: number, dy: number) {
     const root = wrapperRef.current
     if (!root) return
@@ -921,6 +953,37 @@ export function Canvas() {
         const text = node.querySelector('text')
         text?.setAttribute('x', String(x + w / 2))
         text?.setAttribute('y', String(y + h / 2))
+      } else if (el.class === 'Table' && el.points) {
+        // Same wrapping-<g>-of-absolute-coordinate-children structure as
+        // Button just above (see writeTable) — its own label additionally
+        // rotates around the box's own center when el.orient is set (see
+        // ClassTable's own doc comment), so unlike Button's own the
+        // text's own transform needs updating too, not just its x/y.
+        const x = Math.min(el.points[0].x, el.points[1].x) + dx
+        const y = Math.min(el.points[0].y, el.points[1].y) + dy
+        const w = Math.abs(el.points[1].x - el.points[0].x)
+        const h = Math.abs(el.points[1].y - el.points[0].y)
+        const rect = node.querySelector('rect')
+        rect?.setAttribute('x', String(x))
+        rect?.setAttribute('y', String(y))
+        const text = node.querySelector('text')
+        if (text) {
+          const cx = x + w / 2
+          const cy = y + h / 2
+          text.setAttribute('x', String(cx))
+          text.setAttribute('y', String(cy))
+          if (el.orient) text.setAttribute('transform', `rotate(${el.orient},${cx},${cy})`)
+        }
+      } else if (el.class === 'Table2') {
+        // A Table2's own children (one bare <path> per cell, plus an
+        // optional <text> per labeled one — see writeTable2) are all drawn
+        // in absolute coordinates too, but there can be many of them; far
+        // simpler to give the whole wrapping <g> itself a translate()
+        // during the drag preview (it carries none normally) than to walk
+        // and shift every child individually — the eventual mouseup commit
+        // re-renders from the authoritative backend markup either way, so
+        // this only ever needs to look right for the duration of the drag.
+        node.setAttribute('transform', `translate(${dx},${dy})`)
       } else if (el.class === 'PostPole') {
         // Also a bare tag with no wrapping <g> (see writePole) — its own
         // x/y are absolute, not a local-frame origin a translate() could
@@ -1027,7 +1090,9 @@ export function Canvas() {
                         ? diagramOps.placeRoad(d, start, snappedEnd)
                         : shape === LINE_SHAPE
                           ? diagramOps.placeLine(d, start, snappedEnd)
-                          : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
+                          : shape === TABLE_SHAPE
+                            ? diagramOps.placeTable(d, start, snappedEnd)
+                            : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
             )
           }
           armSymbol(null)
@@ -1618,7 +1683,7 @@ export function Canvas() {
                       />
                     )
                   }
-                  if ((el.class === 'Rectangle' || el.class === 'Button') && el.points) {
+                  if ((el.class === 'Rectangle' || el.class === 'Button' || el.class === 'Table') && el.points) {
                     const [p0, p1] = el.points
                     return (
                       <rect
@@ -1819,7 +1884,10 @@ export function Canvas() {
                     </>
                   )
                 })()}
-              {newBusbar && (armedSymbol?.shape === RECTANGLE_SHAPE || armedSymbol?.shape === BUTTON_SHAPE) ? (
+              {newBusbar &&
+              (armedSymbol?.shape === RECTANGLE_SHAPE ||
+                armedSymbol?.shape === BUTTON_SHAPE ||
+                armedSymbol?.shape === TABLE_SHAPE) ? (
                 <rect
                   x={Math.min(newBusbar.start.x, newBusbar.current.x)}
                   y={Math.min(newBusbar.start.y, newBusbar.current.y)}
@@ -1861,7 +1929,8 @@ export function Canvas() {
                   selectedElement.class === 'Arrow' ||
                   selectedElement.class === 'Button' ||
                   selectedElement.class === 'Road' ||
-                  selectedElement.class === 'Line') &&
+                  selectedElement.class === 'Line' ||
+                  selectedElement.class === 'Table') &&
                 selectedElement.points && (
                 <>
                   {/* Live preview while a corner/endpoint handle is being
@@ -1874,7 +1943,7 @@ export function Canvas() {
                     pointDrag.elementId === selectedElement.id &&
                     (() => {
                       const pts = selectedElement.points!.map((p, i) => (i === pointDrag.pointIndex ? pointDrag.point : p))
-                      if (selectedElement.class === 'Rectangle' || selectedElement.class === 'Button') {
+                      if (selectedElement.class === 'Rectangle' || selectedElement.class === 'Button' || selectedElement.class === 'Table') {
                         const [p0, p1] = pts
                         return (
                           <rect

@@ -3784,3 +3784,118 @@ referenced it, not just the one being edited in Properties at the time),
 each still fired the original full `/api/render`; Save followed by a
 full page reload round-tripped every one of those edits correctly either
 way.
+
+Date: 2026-09-22 — Ported xsde2svg shapes 312 (Table) and 313
+(Table 2), both purely decorative annotations (no Ports/
+Voltage, never a connectElements/routing endpoint). **312** is
+drag-two-corners like Rectangle/Button, reusing existing Element fields
+entirely — Fill/Stroke/StrokeWidth/Points, LineStyle (its own real dash
+values, `"6,5"`/`"70 20 25 20"`), PropertyText/TextColor for an optional
+centered label — plus, new among Points-based shapes, Orient, which
+rotates just that label around the box's own center, not the box itself.
+Real source only actually draws the ≤2-corner case modeled here (a real
+multi-cell attempt via this shape is explicitly skipped by the exporter,
+which tells the operator to use 313 instead); found zero real corpus
+instances of `data-type="312"` in either corpus directory, so this one
+was verified against the real source formula directly, not corpus.
+**313** is click-to-place, starting as a small default 2×2 grid (its own
+real geometry — an N-row-by-M-column table — can't be expressed as two
+dragged corners): new `RowHeights`/`ColumnWidths`/`Cells []TableCell`
+Element fields, deliberately not modeling the real source's own
+cell-merging (a real instance using it still extracts, its own
+would-be-merged cells just render separately) or multi-paragraph cell
+text. Found 916 real `data-type="313"` cell instances across 16 corpus
+files, but a real cell carries no id and no table-membership marker of
+any kind — at this project's own request, the real xsde2svg source
+itself (`element_312.go`/`element_313.go`/`modus.go` in the sibling
+`xsde2svg` checkout) was changed to wrap a whole table's own output in a
+single `<g id data-type="312"|"313">`, the same fix already made for
+shapes 7/106/385/386, so Extract has something to recognize a whole
+table by at all; a diagram exported by an xsde2svg build from before
+that fix simply doesn't have its own table(s) recognized (the same "not
+yet understood, skipped" treatment 313 already implicitly had, not a
+regression). `slddoc`: `ClassTable`/`writeTable`/`parseTable` and
+`ClassTable2`/`writeTable2`/`parseTable2`, both wrapping in the new `<g>`
+(no real single-file precedent for 313 specifically, since real cells
+carry no grouping of their own at all — this editor's own necessary
+synthesis); `parseTable2` reconstructs row/column boundaries purely from
+the cells' own drawn rectangle geometry (`tableBoundaries`/
+`boundaryIndex`, a small tolerance-based edge-clustering algorithm), and
+recovers the table's own default cell background as the majority real
+fill among its cells (`mostCommon`), correctly reconstructing the
+rendered result exactly either way regardless of which cells "consume"
+the default vs. get an explicit `TableCell.Fill` override. Also fixed a
+latent bug this surfaced: `emptyPathWrapperLine` (the regex that strips a
+meaningless empty `<geometry/>`/`<windings/>` wrapper encoding/xml would
+otherwise always emit — see its own doc comment) didn't know about the
+three new `rows`/`columns`/`cells` wrapper tags, so every non-Table2
+Element was carrying three spurious empty ones; now included in that
+same fix. Backend (`sld-editor`): `base.xml` symbol entries (both with
+empty templates, matching every other bypass-rendered shape), added to
+the "Annotations" palette group. Frontend: `placeTable`
+(drag-two-corners, alongside `placeRectangle`/`placeButton`) and
+`table2Defaults`/`resizeTable2`/`updateTable2RowHeight`/
+`updateTable2ColumnWidth`/`updateTable2CellText`; `Table` added
+everywhere `POINTS_BASED_CLASSES` already covers Rectangle/Button
+(`elementBoxes`, `dragElementsInDom`, selection highlight, reshape
+handles), `Table2` gets its own new anchor-plus-grid-sum box computation
+and a `translate()`-the-whole-group drag preview (simpler than shifting
+every per-cell child individually, since the real commit re-renders from
+authoritative backend markup right after anyway); Properties gets a
+Table section (Fill/Stroke/StrokeWidth/LineStyle/Text/Text
+color/Orientation-as-text-rotation) and a new Table2 section (row/column
+count — resizing preserves every still-valid cell's own content —
+per-row height/per-column width, and a text grid for per-cell content;
+per-cell Fill/TextColor overrides aren't exposed in Properties yet, still
+correctly stored/rendered for anything Extract recovers). Verified with
+`go build`/`vet`/`test` (`slddoc`: 4 new `TestRender_Table*`/
+`TestRender_Table2*` tests, `TestParseTable`/`TestParseTable2_*`
+including a full render-then-parse round-trip test for 313's own geometry
+reconstruction, a `TestSaveLoadRoundTrip_Table2` for the new XML fields,
+and an updated `TestSave_OmitsEmptyPathWrapperTags` covering the
+`rows`/`columns`/`cells` fix; `sld-editor/backend`), `npx tsc --noEmit`,
+and a live round trip through the app: placed and dragged a Table (label
+text/rotation/dashed border all confirmed), placed a Table2, edited cell
+text, resized its column count (confirmed existing cell content
+preserved in place), dragged the whole table, saved, restarted the dev
+server (picking up the `slddoc` fix), and reloaded — every field
+(including the now-clean XML with no stray empty wrapper tags) round-tripped
+correctly.
+
+2026-09-22: Fixed a color bug in DigitalDevice (shape 134) extraction —
+the real xsde2svg source (`element134`) draws each reading's own colored
+status background as a bare, untyped, id-less `<rect>` immediately
+preceding its `data-type="134"` `<text>`, but `Extract` only ever read the
+text node, silently dropping the background entirely (every extracted
+reading rendered as plain dull text with no colored box, instead of the
+real yellow/green/orange-style status coloring). Deliberately did not
+touch xsde2svg itself (no `<g>` wrapper added around shape 134, unlike the
+earlier 7/106/385/386/312/313 fixes) since the live SCADA system already
+targets `data-type="134"` directly for animation, and wrapping it risked
+breaking that. Instead, `slddoc.Extract` now recognizes this exact
+pattern by sibling position: when a `data-type="134"` node parses
+successfully, its immediately-preceding top-level sibling, if it's a bare
+untyped/id-less `<rect>`, is extracted as its own standalone Rectangle
+(shape 3) element (`parseDigitalDeviceBackgroundRect`, `slddoc/labels.go`)
+reusing `parseRectangle`'s own Fill/Stroke/StrokeWidth/Points logic. Since
+the real source never gives this rect its own id, `Extract` now assigns it
+a real, collision-free one itself (`maxNumericID`, `slddoc/extract.go`,
+a one-time scan of every real numeric `id` already used anywhere in the
+source document) rather than leaving it at 0/unset — id 0 doubles as
+"unset" elsewhere in this model, and every synthesized rect sharing it
+would also collide with each other; `Diagram.LastID` is updated to match,
+so the frontend's own `IdSequence` continues cleanly from there. This is
+a positional heuristic, not a real link: the background renders correctly
+underneath the reading's own text (`Render` always finishes its full
+Elements pass, which includes this Rectangle, before starting its
+DigitalDevices pass — verified with a dedicated ordering check), but the
+box and the reading are two fully independent elements in the editor
+(dragging/deleting one doesn't affect the other). Verified with
+`go build`/`vet`/`test` in `slddoc` (`TestExtract_
+DigitalDeviceBackgroundRect`: a rect+text pair extracts as both a
+Rectangle and a DigitalDevice with a fresh non-colliding id and an
+updated `LastID`, a reading with no preceding rect extracts with no
+phantom Rectangle, a real unrelated Rectangle immediately before an
+unrelated reading is left as an ordinary Rectangle rather than being
+swept in, and two synthesized rects in the same document get distinct
+ids) and `sld-editor/backend`.

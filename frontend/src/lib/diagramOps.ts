@@ -12,21 +12,24 @@ import type {
   Label,
   DigitalDevice,
   TerminalDirection,
+  TableCell,
 } from '../types'
 
 // Element classes whose own geometry is a drawn Points array (two or more
 // vertices) rather than a single x/y anchor+orient — BusBarSection (a real
-// electrical busbar), Rectangle, Circle, Arrow, Button, Road, and Line (the
-// latter six purely decorative annotations, no electrical meaning at all
-// — see connectElements' own guard below). Shared by every place/move/
-// paste/point-drag helper that needs to treat "drag two corners/vertices to
-// draw or reshape" the same way regardless of which of the seven classes
-// it actually is — including, for Rectangle/Circle/Arrow/Button/Road/Line,
-// the anchor (x/y) recomputed as the two Points' own midpoint on every
-// move/paste/drag: harmless for an Arrow even though its own rendering
-// (writeArrow) reads Points[0]/[1] directly rather than x/y, since x/y only
-// ever matters here as a paste-target anchor, never for the real drawn
-// geometry.
+// electrical busbar), Rectangle, Circle, Arrow, Button, Road, Line, and
+// Table (the latter seven purely decorative annotations, no electrical
+// meaning at all — see connectElements' own guard below). Shared by every
+// place/move/paste/point-drag helper that needs to treat "drag two
+// corners/vertices to draw or reshape" the same way regardless of which of
+// the eight classes it actually is — including, for Rectangle/Circle/
+// Arrow/Button/Road/Line/Table, the anchor (x/y) recomputed as the two
+// Points' own midpoint on every move/paste/drag: harmless for an Arrow
+// even though its own rendering (writeArrow) reads Points[0]/[1] directly
+// rather than x/y, since x/y only ever matters here as a paste-target
+// anchor, never for the real drawn geometry. Table2 is deliberately not
+// here — its own geometry is anchor (x/y) plus rowHeights/columnWidths,
+// not Points at all (see DiagramElement's own doc comment).
 const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'BusBarSection',
   'Rectangle',
@@ -35,6 +38,7 @@ const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'Button',
   'Road',
   'Line',
+  'Table',
 ])
 
 // A voltage-class <select>'s option value is either an existing class's own
@@ -386,11 +390,15 @@ export function placeElement(
     // place path instead of one of those four's own dedicated drag-to-draw
     // one, since its own geometry is a single anchor, not drawn Points.
     // Neither is a PowerflowIndicator — same non-electrical status, its own
-    // color comes from textColor, not a voltage class.
+    // color comes from textColor, not a voltage class. Neither is a
+    // Table2 (313) — same non-electrical status as Table (312)/Rectangle/
+    // Button, just click-to-place (a single anchor) instead of one of
+    // those three's own dedicated drag-to-draw.
     ...(elementClass === 'Lamp' ||
     elementClass === 'FaultPassageIndicator' ||
     elementClass === 'PostPole' ||
-    elementClass === 'PowerflowIndicator'
+    elementClass === 'PowerflowIndicator' ||
+    elementClass === 'Table2'
       ? {}
       : { voltage: defaultVoltage }),
     x: point.x,
@@ -405,6 +413,7 @@ export function placeElement(
     ...(WITHDRAWABLE_SHAPES.has(symbol.shape) ? { position: POSITION_NORMAL } : {}),
     ...(elementClass === 'FaultPassageIndicator' ? fpiDefaults(defaultFpiText) : {}),
     ...(elementClass === 'PowerTransformer' ? powerTransformerDefaults(defaultVoltage) : {}),
+    ...(elementClass === 'Table2' ? table2Defaults() : {}),
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -540,6 +549,142 @@ export function placeButton(diagram: Diagram, start: Point, end: Point): Diagram
     ...BUTTON_DEFAULTS,
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly placed Table's own colors — matching render.go's own
+// unset-Fill/Stroke/TextColor fallback ("none"/"white"/"black")
+// explicitly, the same reason BUTTON_DEFAULTS spells its own out. Unlike
+// Button, propertyText is left empty (no placeholder text) — a Table is
+// often just a plain annotated box with no label at all, matching real
+// corpus more often than Button's own always-labeled convention.
+const TABLE_DEFAULTS = { fill: 'none', stroke: '#ffffff', strokeWidth: 1, textColor: '#000000' }
+
+/** Places a new Table spanning start..end — a purely decorative
+ * annotation box, not real electrical equipment (see slddoc's own
+ * ClassTable doc comment): no Voltage, no Ports, never a valid
+ * connectElements/routing target. Drawn from its own Points the same
+ * drag-not-click way placeRectangle/placeButton place theirs. */
+export function placeTable(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Table',
+    shape: '312',
+    name: `Table-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...TABLE_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly placed Table2's own default grid — a plain 2x2 with no cell
+// text, giving the user something real to immediately see/select/resize
+// in Properties rather than an invisible zero-row/zero-column instance
+// (writeTable2 draws nothing at all until rowHeights/columnWidths are both
+// non-empty). Row/column sizes match the same default grid spacing most
+// diagrams start with, so a freshly placed table already looks roughly
+// on-grid. Called from placeElement's own dispatch below — Table2 is
+// click-to-place (a single anchor point, like PostPole/Lamp), not
+// drag-two-corners like Table (312)/Rectangle/Button, since its own real
+// geometry (an N-row-by-M-column grid) isn't expressible as two dragged
+// corners at all; it always starts as this fixed small default grid,
+// resized afterward via Properties' own row/column count fields — the
+// same "seed a real starting value via a small generator function" PowerTransformer's
+// own powerTransformerDefaults already does for its own array field.
+const TABLE2_ROWS = 2
+const TABLE2_COLS = 2
+const TABLE2_ROW_HEIGHT = 20
+const TABLE2_COL_WIDTH = 60
+
+function table2Defaults(): Pick<DiagramElement, 'rowHeights' | 'columnWidths' | 'cells' | 'stroke' | 'strokeWidth' | 'fill'> {
+  const cells: TableCell[] = []
+  for (let row = 0; row < TABLE2_ROWS; row++) {
+    for (let col = 0; col < TABLE2_COLS; col++) {
+      cells.push({ row, col })
+    }
+  }
+  return {
+    rowHeights: Array(TABLE2_ROWS).fill(TABLE2_ROW_HEIGHT),
+    columnWidths: Array(TABLE2_COLS).fill(TABLE2_COL_WIDTH),
+    cells,
+    stroke: '#ffffff',
+    strokeWidth: 1,
+    fill: 'none',
+  }
+}
+
+/** Resizes a Table2's own grid to exactly rows x cols (each clamped to at
+ * least 1 — a table with zero rows or columns draws nothing at all, see
+ * writeTable2's own doc comment), preserving every still-valid cell's own
+ * real content (text/fill/textColor) and row height/column width. A newly
+ * added row/column gets TABLE2_ROW_HEIGHT/TABLE2_COL_WIDTH, the same
+ * default table2Defaults itself starts a freshly placed table with; every
+ * (row, col) position in the new grid gets a real TableCell entry (blank
+ * if none existed before), so the grid stays fully populated the same way
+ * a freshly placed one always is. Used by Properties' own row/column
+ * count fields. */
+export function resizeTable2(diagram: Diagram, id: number, rows: number, cols: number): Diagram {
+  const safeRows = Math.max(1, rows)
+  const safeCols = Math.max(1, cols)
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.id !== id || e.class !== 'Table2') return e
+      const oldRowHeights = e.rowHeights ?? []
+      const oldColumnWidths = e.columnWidths ?? []
+      const rowHeights = Array.from({ length: safeRows }, (_, i) => oldRowHeights[i] ?? TABLE2_ROW_HEIGHT)
+      const columnWidths = Array.from({ length: safeCols }, (_, j) => oldColumnWidths[j] ?? TABLE2_COL_WIDTH)
+      const byPos = new Map((e.cells ?? []).map(c => [`${c.row}:${c.col}`, c]))
+      const cells: TableCell[] = []
+      for (let row = 0; row < safeRows; row++) {
+        for (let col = 0; col < safeCols; col++) {
+          cells.push(byPos.get(`${row}:${col}`) ?? { row, col })
+        }
+      }
+      return { ...e, rowHeights, columnWidths, cells }
+    }),
+  }
+}
+
+/** Updates one already-existing row's own height or column's own width in
+ * place — row/col must already be a valid index (see resizeTable2 to add
+ * or remove one); out of range is a no-op. */
+export function updateTable2RowHeight(diagram: Diagram, id: number, row: number, height: number): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.id !== id || e.class !== 'Table2' || !e.rowHeights || row < 0 || row >= e.rowHeights.length) return e
+      return { ...e, rowHeights: e.rowHeights.map((h, i) => (i === row ? height : h)) }
+    }),
+  }
+}
+
+export function updateTable2ColumnWidth(diagram: Diagram, id: number, col: number, width: number): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.id !== id || e.class !== 'Table2' || !e.columnWidths || col < 0 || col >= e.columnWidths.length) return e
+      return { ...e, columnWidths: e.columnWidths.map((w, i) => (i === col ? width : w)) }
+    }),
+  }
+}
+
+/** Updates one already-existing cell's own text — row/col must already be
+ * a valid grid position (see resizeTable2); a (row, col) not currently
+ * present is a no-op, which shouldn't happen in practice since resizeTable2
+ * always keeps every valid position populated. */
+export function updateTable2CellText(diagram: Diagram, id: number, row: number, col: number, text: string): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.id !== id || e.class !== 'Table2' || !e.cells) return e
+      return { ...e, cells: e.cells.map(c => (c.row === row && c.col === col ? { ...c, text } : c)) }
+    }),
+  }
 }
 
 // A freshly placed Road's own color/width — matching render.go's own
@@ -1047,12 +1192,12 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
  * doc comment) — with no defaultVoltage param here, an element joined to
  * one with no voltage of its own at all just stays unset, same as before.
  * A no-op when either end is a Rectangle, Circle, Arrow, Button, Road,
- * PostPole, Line, or PowerflowIndicator — a purely decorative annotation,
- * never a valid electrical endpoint (see slddoc's own ClassRectangle/
- * ClassCircle/ClassArrow/ClassButton/ClassRoad/ClassPostPole/ClassLine/
- * ClassPowerflowIndicator doc comments); the routing tool's own
- * findConnectionTarget (Canvas.tsx) excludes all eight from candidates
- * entirely for the same reason. */
+ * PostPole, Line, PowerflowIndicator, Table, or Table2 — a purely
+ * decorative annotation, never a valid electrical endpoint (see slddoc's
+ * own ClassRectangle/ClassCircle/ClassArrow/ClassButton/ClassRoad/
+ * ClassPostPole/ClassLine/ClassPowerflowIndicator/ClassTable/ClassTable2
+ * doc comments); the routing tool's own findConnectionTarget (Canvas.tsx)
+ * excludes all ten from candidates entirely for the same reason. */
 export function connectElements(diagram: Diagram, fromId: number, toId: number): Diagram {
   if (fromId === toId) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
@@ -1066,7 +1211,9 @@ export function connectElements(diagram: Diagram, fromId: number, toId: number):
     el.class === 'Road' ||
     el.class === 'PostPole' ||
     el.class === 'Line' ||
-    el.class === 'PowerflowIndicator'
+    el.class === 'PowerflowIndicator' ||
+    el.class === 'Table' ||
+    el.class === 'Table2'
   if (notConnectable(from) || notConnectable(to)) return diagram
 
   const ids = new IdSequence(diagram)

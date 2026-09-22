@@ -695,18 +695,21 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isPostPole = el.class === 'PostPole'
   const isLine = el.class === 'Line'
   const isPowerflowIndicator = el.class === 'PowerflowIndicator'
+  const isTable = el.class === 'Table'
+  const isTable2 = el.class === 'Table2'
   const isPackageSubstation = el.class === 'PackageSubstation'
   const isEnclosedSubstation = el.class === 'EnclosedSubstation'
   const isJunctionPoint = el.class === 'JunctionPoint'
   // Neither a Lamp nor a FaultPassageIndicator reads a Voltage class color
   // (see diagramOps.placeElement's own matching exclusion) — both get a
   // fixed color of their own instead. A Rectangle/Circle/Arrow/Button/Road/
-  // PostPole/Line/PowerflowIndicator isn't part of the electrical network
-  // at all (see slddoc's own ClassRectangle/ClassCircle/ClassArrow/
-  // ClassButton/ClassRoad/ClassPostPole/ClassLine/ClassPowerflowIndicator
-  // doc comments) — its own Stroke (plus, for a Rectangle/Circle/Button/
-  // PostPole, Fill, or for a PowerflowIndicator, TextColor) is its
-  // equivalent, shown below.
+  // PostPole/Line/PowerflowIndicator/Table/Table2 isn't part of the
+  // electrical network at all (see slddoc's own ClassRectangle/
+  // ClassCircle/ClassArrow/ClassButton/ClassRoad/ClassPostPole/ClassLine/
+  // ClassPowerflowIndicator/ClassTable/ClassTable2 doc comments) — its own
+  // Stroke (plus, for a Rectangle/Circle/Button/PostPole/Table/Table2,
+  // Fill, or for a PowerflowIndicator/Table, TextColor) is its equivalent,
+  // shown below.
   const hasNoVoltage =
     isLamp ||
     el.class === 'FaultPassageIndicator' ||
@@ -717,7 +720,9 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     isRoad ||
     isPostPole ||
     isLine ||
-    isPowerflowIndicator
+    isPowerflowIndicator ||
+    isTable ||
+    isTable2
 
   function patch(fields: Partial<DiagramElement>) {
     updateDiagram(d => ({
@@ -1314,6 +1319,250 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {isTable && (
+          <>
+            {/* Reuses Rectangle's own Fill/Stroke i18n keys (identical
+                free-text-color model) plus Line's own LineStyle select and
+                Button's own Text/Text color fields — a Table (312) is
+                structurally Rectangle + optional centered label +
+                LineStyle, matching writeTable exactly. */}
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.rectangleFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.lineStyle')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.lineStyle ?? ''}
+                onChange={e => patch({ lineStyle: (e.target.value || undefined) as ConnectorLineStyle | undefined })}
+              >
+                {LINE_STYLES.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {t(opt.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.buttonText')}</span>
+              <input
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.propertyText ?? ''}
+                onChange={e => patch({ propertyText: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.buttonTextColor')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.textColor, '#000000')}
+                onChange={e => patch({ textColor: e.target.value })}
+              />
+            </label>
+            {/* Table falls into the Points-editor branch below, not the
+                generic Orientation/Mirror else-branch every anchor-based
+                class gets — but unlike Rectangle/Circle/Arrow/Button/Road/
+                Line, its own Orient field is real here (see slddoc's own
+                Element.Orient doc comment): it rotates just the label
+                around the box's own center, the box itself never rotates.
+                Mirror is never shown — writeTable never applies it. */}
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.tableTextRotation')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.orient ?? 0}
+                onChange={e => patch({ orient: Number(e.target.value) })}
+              >
+                {ORIENTATIONS.map(o => (
+                  <option key={o} value={o}>
+                    {o}°
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+
+        {isTable2 && (
+          <>
+            {/* Also reuses Rectangle's own Fill/Stroke i18n keys plus
+                Line's own LineStyle select — Table2's own grid-wide
+                default cell background/grid line color/dash, matching
+                writeTable2. Row/column count and per-row/column size are
+                its own new concept (no other shape has a resizable grid);
+                per-cell Fill/TextColor overrides aren't exposed here yet
+                (still preserved/rendered correctly for anything Extract
+                recovers — see TableCell's own doc comment). */}
+            <div className="grid grid-cols-2 gap-1">
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.tableRows')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.rowHeights?.length ?? 1}
+                  onChange={e =>
+                    updateDiagram(d => diagramOps.resizeTable2(d, el.id, Number(e.target.value), el.columnWidths?.length ?? 1))
+                  }
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.tableColumns')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.columnWidths?.length ?? 1}
+                  onChange={e =>
+                    updateDiagram(d => diagramOps.resizeTable2(d, el.id, el.rowHeights?.length ?? 1, Number(e.target.value)))
+                  }
+                />
+              </label>
+            </div>
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.rectangleFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#ffffff')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.lineStyle')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.lineStyle ?? ''}
+                onChange={e => patch({ lineStyle: (e.target.value || undefined) as ConnectorLineStyle | undefined })}
+              >
+                {LINE_STYLES.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {t(opt.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div>
+              <span className="block text-xs text-gray-400 mb-1">{t('properties.tableRowHeights')}</span>
+              <div className="grid grid-cols-4 gap-1">
+                {(el.rowHeights ?? []).map((h, i) => (
+                  <input
+                    key={i}
+                    type="number"
+                    min={1}
+                    className="w-full bg-surface-800 border border-surface-600 rounded px-1 py-1 text-[11px]"
+                    value={h}
+                    onChange={e => updateDiagram(d => diagramOps.updateTable2RowHeight(d, el.id, i, Number(e.target.value)))}
+                  />
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="block text-xs text-gray-400 mb-1">{t('properties.tableColumnWidths')}</span>
+              <div className="grid grid-cols-4 gap-1">
+                {(el.columnWidths ?? []).map((w, i) => (
+                  <input
+                    key={i}
+                    type="number"
+                    min={1}
+                    className="w-full bg-surface-800 border border-surface-600 rounded px-1 py-1 text-[11px]"
+                    value={w}
+                    onChange={e => updateDiagram(d => diagramOps.updateTable2ColumnWidth(d, el.id, i, Number(e.target.value)))}
+                  />
+                ))}
+              </div>
+            </div>
+            <div>
+              <span className="block text-xs text-gray-400 mb-1">{t('properties.tableCells')}</span>
+              <div className="space-y-1">
+                {Array.from({ length: el.rowHeights?.length ?? 0 }, (_, row) => (
+                  <div
+                    key={row}
+                    className="grid gap-1"
+                    style={{ gridTemplateColumns: `repeat(${el.columnWidths?.length ?? 0}, minmax(0,1fr))` }}
+                  >
+                    {Array.from({ length: el.columnWidths?.length ?? 0 }, (_, col) => {
+                      const cell = el.cells?.find(c => c.row === row && c.col === col)
+                      return (
+                        <input
+                          key={col}
+                          type="text"
+                          className="w-full bg-surface-800 border border-surface-600 rounded px-1 py-0.5 text-[11px]"
+                          value={cell?.text ?? ''}
+                          onChange={e => updateDiagram(d => diagramOps.updateTable2CellText(d, el.id, row, col, e.target.value))}
+                        />
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
         {el.class === 'PowerTransformer' && (
           <>
             <label className="flex items-center gap-1.5 text-xs">
@@ -1463,7 +1712,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow || isButton || isRoad || isLine) &&
+        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow || isButton || isRoad || isLine || isTable) &&
         el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>
@@ -1512,8 +1761,12 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           // either, and both its own round and (axis-aligned, 4-fold
           // symmetric) square variants look identical at every orientation
           // this editor supports (see slddoc's own ClassPostPole doc
-          // comment) — Mirror is equally inert for the same reason.
-          !isLamp && !isPostPole && (
+          // comment) — Mirror is equally inert for the same reason. Table2
+          // gets the same skip too — it has no Orient/Mirror concept in
+          // the model at all (see slddoc's own ClassTable2 doc comment;
+          // unlike Table (312), whose own Orient rotates just its label
+          // and is shown in the Points-editor branch above instead).
+          !isLamp && !isPostPole && !isTable2 && (
             <>
               <label className="block text-xs">
                 <span className="block text-gray-400 mb-1">{t('properties.orientation')}</span>
