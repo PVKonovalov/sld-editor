@@ -382,7 +382,53 @@ same treatment Lamp's own equally-inert Orientation already gets. Verified
 against 2961 real corpus instances (zero shape-292 extraction failures,
 geometry/fill/stroke/square/orient all matching) — the 4 total extraction
 failures found across that same corpus run were pre-existing PowerTransformer
-(shape 47) edge cases, unrelated.
+(shape 47) edge cases, unrelated. **1** Линия/Line (the very first
+xsde2svg `ObjectType` code — originally the canonical example of "a
+generic draw primitive," explicitly excluded by name in this same
+section's own header, until the user asked for it anyway, same as
+113/335/292 above): a purely decorative generic line, not real electrical
+equipment — its own geometry is an arbitrary multi-vertex `Points`
+polyline, `BusBarSection`'s/Road's own convention, reusing `Stroke`/
+`StrokeWidth` (both genuinely vary per real instance — real corpus shows
+black/gray/white/red/yellow/hex colors, widths 1-10) with no `Fill` of its
+own (an open line, like Arrow/Road). Unlike Road, its own color is never
+even loosely voltage-like in the real source — it comes purely from a
+line-style table — so there's no ambiguity there. Also gained a new
+`LineStyle` field (reusing `ConnectorLineStyle`, the same solid/dashed/
+dashDot enum a `CableLine` connector's own `lineStyle` already uses, but
+resolved through its own real dash values — `"6,5"`/`"9 2 2 2"`, different
+literal numbers than `CableLine`'s own `"70 20 25 20"` — confirmed
+genuinely used in ~10% of real corpus instances found; `dotted` has no
+real source counterpart for this shape and is never produced by
+`Extract`). No wrapping `<g>` and no `data-name` (same gap Road's own
+source has); `writeLine`/`parseLine` don't reuse `writePolyline` for the
+dash portion — the same "resolve the real dash string first, don't rely
+on a generic bool flag" approach `writeNamedLine` already uses for a
+`CableLine` connector's own dash. Verified against both real corpus
+directories found on disk (`sld`/`sld1`, ~25,900 real Line instances
+combined): zero shape-1 extraction failures, and the dash-pattern
+breakdown (25078 solid / 775 dashed / 2 dashDot) matches the real
+`stroke-dasharray` counts found by direct search almost exactly.
+
+**320001** Направление перетока/Powerflow direction — a purely decorative
+annotation glyph (no Ports/Voltage, never a connectElements/routing
+endpoint), not the usual template-substitution shape: a single bold arrow
+character ("→"/"←", selected by State the same nil-defaults-to-0
+convention every other State field uses) drawn at its own anchor, rotated
+by the ordinary Orient mechanism. Reuses two existing Element fields
+rather than adding new ones — State for the two-way direction, TextColor
+(previously Button-only) for the glyph's own fill color, resolved from
+the real source's own Color1, not from any VoltageClass. No wrapping `<g>`
+and no `data-name`, same convention Line/Road/PostPole already use; a
+dedicated `writePowerflowIndicator`/`parsePowerflowIndicator` bypass the
+template lookup/generic parse the same way those do. Unlike PostPole's
+own conditional rotate, the real source always emits both the `rotate()`
+transform and its own `data-angle` attribute even at angle 0, so Orient is
+read directly from `data-angle` on Extract rather than via `parseRotate`.
+Verified against both real corpus directories found on disk (`sld`/`sld1`,
+5,872 real instances combined): zero shape-320001 extraction failures,
+matching the raw `data-type="320001"` count found by direct search
+exactly.
 
 Deferred — real xsde2svg shapes whose own source (`xsde2svg/internal/modus/
 element_<code>.go`) is substantially more involved than the shapes above,
@@ -396,14 +442,16 @@ each needing its own dedicated pass rather than a quick port:
   adding a shape.
 
 Deliberately out of scope (decorative/structural, not real electrical
-equipment — same reasoning that already excludes the generic draw
-primitives, data-type 1/16 — Rectangle (3), Arrow (2), Circle (4), Button
-(113), and Road (335) are the five generic primitives, and Post-type pole
-(292) the one anchor-based marker, that *have* been ported, see above):
-other poles/pylons (19/146 — anchor/angle pole, power pole — neither
-confirmed to share 292's own simple round-or-square geometry), power-plant/
-substation pictogram icons (38/360), chassis/half-chassis cart graphics
-(51/52), a decorative connector-arrow (83),
+equipment — same reasoning that already excludes every shape below;
+Rectangle (3), Arrow (2), Circle (4), Line (1), Button (113), and Road
+(335) are the six generic draw primitives, and Post-type pole (292) the
+one anchor-based marker, that *have* been ported, see above): Polygon
+(16, the one remaining generic draw primitive — a closed, filled shape,
+structurally closer to Rectangle than Line, but not yet checked against
+real corpus), other poles/pylons (19/146 — anchor/angle pole, power pole —
+neither confirmed to share 292's own simple round-or-square geometry),
+power-plant/substation pictogram icons (38/360), chassis/half-chassis cart
+graphics (51/52), a decorative connector-arrow (83),
 table/window HMI decoration (313/319), and a generic "Device" placeholder
 (130, too vague to know what it actually draws).
 

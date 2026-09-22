@@ -78,6 +78,23 @@ const POLE_ICON =
   '<circle cx="0" cy="0" r="16" fill="none" stroke="currentColor" stroke-width="2" />' +
   '<circle cx="0" cy="0" r="4" fill="currentColor" stroke="none" />'
 
+// Line (shape 1) likewise has no template (see BUSBAR_ICON above) — a
+// plain diagonal thin line, matching a real instance's own default weight
+// (real corpus mostly shows width 1, unlike Road's own much thicker
+// convention) and drawn at an angle (unlike BUSBAR_ICON's own horizontal
+// one) since real corpus shows a Line running at an arbitrary angle far
+// more often than a busbar's own conventionally-horizontal one.
+const LINE_ICON = '<line x1="-22" y1="16" x2="22" y2="-16" stroke="currentColor" stroke-width="2" />'
+
+// PowerflowIndicator (shape 320001) also has no template — same solid,
+// click-to-place "real equipment" convention POLE_ICON uses, drawn as the
+// same bold arrow glyph writePowerflowIndicator itself draws (always the
+// "→" variant here — a static preview has no State to reflect, same
+// reasoning elementIcon's own {state:a|b|c} substitution always picks its
+// first option).
+const POWERFLOW_INDICATOR_ICON =
+  '<text x="0" y="9" text-anchor="middle" font-size="28" font-weight="bold" fill="currentColor">→</text>'
+
 const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '24': BUSBAR_ICON,
   '3': RECTANGLE_ICON,
@@ -86,6 +103,8 @@ const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '113': BUTTON_ICON,
   '335': ROAD_ICON,
   '292': POLE_ICON,
+  '1': LINE_ICON,
+  '320001': POWERFLOW_INDICATOR_ICON,
   '385': PACKAGE_SUBSTATION_ICON,
   '386': ENCLOSED_SUBSTATION_ICON,
 }

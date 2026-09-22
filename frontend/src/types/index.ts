@@ -85,8 +85,10 @@ export type ElementClass =
   | 'Button'
   | 'Road'
   | 'PostPole'
+  | 'Line'
   | 'PackageSubstation'
   | 'EnclosedSubstation'
+  | 'PowerflowIndicator'
 
 // Matches slddoc.WindingScheme — a PowerTransformer winding's own
 // connection scheme. Only the three values with a real connection glyph in
@@ -143,6 +145,10 @@ export interface DiagramElement {
   // Mirror field. Meaningless for a BusBarSection (its own drawn `points`
   // are already absolute geometry, no local template to flip).
   mirror?: boolean
+  // Also a PowerflowIndicator's (shape 320001) own two-way arrow direction:
+  // nil/0 draws "→", any other value draws "←" — not a real switching
+  // status, matching backend/internal/slddoc's own Element.State doc
+  // comment.
   state?: number | null
   position?: number | null
   fillOff?: string
@@ -163,17 +169,17 @@ export interface DiagramElement {
   // PostPole (292) for its own marker interior.
   fill?: string
   // A Rectangle's/Circle's own border color, an Arrow's (shape 2)/Road's
-  // (shape 335) own line color, a Button's own box border color, or a
-  // PostPole's (292) own marker border color — same free-text convention
-  // as fill.
+  // (shape 335)/Line's (shape 1) own line color, a Button's own box
+  // border color, or a PostPole's (292) own marker border color — same
+  // free-text convention as fill.
   stroke?: string
-  // A Rectangle's/Circle's own border thickness, an Arrow's/Road's own
-  // line thickness, or a Button's own box border thickness, matching
-  // backend/internal/slddoc's own Element.StrokeWidth. Unset/0 means the
-  // real xsde2svg default of 1 for every one of these except Road, whose
-  // own unset default is much thicker (see that field's own Go doc
-  // comment). Unused by PostPole (292) — its own border is always 1,
-  // matching the real source's own hardcoded value.
+  // A Rectangle's/Circle's own border thickness, an Arrow's/Road's/
+  // Line's own line thickness, or a Button's own box border thickness,
+  // matching backend/internal/slddoc's own Element.StrokeWidth. Unset/0
+  // means the real xsde2svg default of 1 for every one of these except
+  // Road, whose own unset default is much thicker (see that field's own
+  // Go doc comment). Unused by PostPole (292) — its own border is always
+  // 1, matching the real source's own hardcoded value.
   strokeWidth?: number
   // Arrow (shape 2) only — draws its own open chevron arrowhead at both
   // points instead of just the second one, matching backend/internal/
@@ -183,6 +189,14 @@ export interface DiagramElement {
   // its default round one, matching backend/internal/slddoc's own
   // Element.Square.
   square?: boolean
+  // Line (shape 1) only — its own dash pattern, matching backend/
+  // internal/slddoc's own Element.LineStyle. Reuses ConnectorLineStyle
+  // (the same solid/dashed/dashDot choice a CableLine connector's own
+  // lineStyle already offers), but resolved through its own real dash
+  // values, distinct from CableLine's — see that Go field's own doc
+  // comment. Empty/unset means solid, unlike Connector.lineStyle's own
+  // empty-means-dashed default.
+  lineStyle?: ConnectorLineStyle
   // PackageSubstation (shape 385) only — selects between its own two real
   // appearance variants, matching backend/internal/slddoc's own
   // Element.NType: 0/unset draws a box-in-box pictogram with a lead stub,
@@ -205,7 +219,9 @@ export interface DiagramElement {
   propertyText?: string
   // Button (shape 113) only — its own PropertyText color, matching
   // backend/internal/slddoc's own Element.TextColor. Unset falls back to
-  // white, the more common real corpus case.
+  // white, the more common real corpus case. Also used by
+  // PowerflowIndicator (320001) for its own arrow glyph's fill color;
+  // unset falls back to black there instead, matching Line's own default.
   textColor?: string
   // Button (shape 113) only — draws its own PropertyText in bold, matching
   // backend/internal/slddoc's own Element.Bold.

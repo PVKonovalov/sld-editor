@@ -47,6 +47,19 @@ const CABLE_LINE_STYLES: { value: ConnectorLineStyle | ''; labelKey: Translation
   { value: 'dotted', labelKey: 'properties.lineStyleDotted' },
 ]
 
+// A Line element's (shape 1) own dash choices — reuses ConnectorLineStyle
+// like CABLE_LINE_STYLES above, but only the 2 real variants
+// element_1.go's own source actually produces (no 'dotted', which has no
+// real counterpart for this shape — see slddoc's own ClassLine doc
+// comment), and '' means "Solid" directly rather than CABLE_LINE_STYLES'
+// own "Default" (which resolves to dashed) — Line's own unset default
+// really is solid.
+const LINE_STYLES: { value: ConnectorLineStyle | ''; labelKey: TranslationKey }[] = [
+  { value: '', labelKey: 'properties.lineStyleSolid' },
+  { value: 'dashed', labelKey: 'properties.lineStyleDashed' },
+  { value: 'dashDot', labelKey: 'properties.lineStyleDashDot' },
+]
+
 // A PowerTransformer's per-winding Scheme/Grounding/Terminal choices —
 // mirrors slddoc's own WindingScheme/NeutralGrounding/TerminalDirection
 // enums exactly.
@@ -134,6 +147,15 @@ const SUBSTATION_STATE_DASHED = 0
 // that field's own doc comment.
 const SUBSTATION_NTYPE_BOX = 0
 const SUBSTATION_NTYPE_TRIANGLE = 1
+
+// PowerflowIndicator's own State (backend/internal/slddoc's own
+// Element.State, reused rather than a dedicated field) isn't an
+// Open/Close/Intermediate switching-device concept either — it's a plain
+// two-way arrow direction, so it gets its own small Forward/Backward
+// dropdown here instead. 0/unset reads as Forward ("→"), matching
+// writePowerflowIndicator's own nil-defaults-to-"→" convention.
+const POWERFLOW_DIRECTION_FORWARD = 0
+const POWERFLOW_DIRECTION_BACKWARD = 1
 
 // A handful of common web-safe SVG font-family values for a Label's own
 // Font dropdown — an empty Label.font (this list's first entry) falls
@@ -671,18 +693,31 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isButton = el.class === 'Button'
   const isRoad = el.class === 'Road'
   const isPostPole = el.class === 'PostPole'
+  const isLine = el.class === 'Line'
+  const isPowerflowIndicator = el.class === 'PowerflowIndicator'
   const isPackageSubstation = el.class === 'PackageSubstation'
   const isEnclosedSubstation = el.class === 'EnclosedSubstation'
   const isJunctionPoint = el.class === 'JunctionPoint'
   // Neither a Lamp nor a FaultPassageIndicator reads a Voltage class color
   // (see diagramOps.placeElement's own matching exclusion) — both get a
   // fixed color of their own instead. A Rectangle/Circle/Arrow/Button/Road/
-  // PostPole isn't part of the electrical network at all (see slddoc's own
-  // ClassRectangle/ClassCircle/ClassArrow/ClassButton/ClassRoad/
-  // ClassPostPole doc comments) — its own Stroke (plus, for a Rectangle/
-  // Circle/Button/PostPole, Fill) is its equivalent, shown below.
+  // PostPole/Line/PowerflowIndicator isn't part of the electrical network
+  // at all (see slddoc's own ClassRectangle/ClassCircle/ClassArrow/
+  // ClassButton/ClassRoad/ClassPostPole/ClassLine/ClassPowerflowIndicator
+  // doc comments) — its own Stroke (plus, for a Rectangle/Circle/Button/
+  // PostPole, Fill, or for a PowerflowIndicator, TextColor) is its
+  // equivalent, shown below.
   const hasNoVoltage =
-    isLamp || el.class === 'FaultPassageIndicator' || isRectangle || isCircle || isArrow || isButton || isRoad || isPostPole
+    isLamp ||
+    el.class === 'FaultPassageIndicator' ||
+    isRectangle ||
+    isCircle ||
+    isArrow ||
+    isButton ||
+    isRoad ||
+    isPostPole ||
+    isLine ||
+    isPowerflowIndicator
 
   function patch(fields: Partial<DiagramElement>) {
     updateDiagram(d => ({
@@ -1212,6 +1247,73 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {isLine && (
+          <>
+            {/* Reuses Arrow's own Stroke/StrokeWidth i18n keys — a Line's
+                own line-color model is identical to Arrow's/Road's (no
+                Fill, an open line) — plus its own LineStyle select (see
+                LINE_STYLES). */}
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.arrowStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#000000')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.arrowStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.lineStyle')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.lineStyle ?? ''}
+                onChange={e => patch({ lineStyle: (e.target.value || undefined) as ConnectorLineStyle | undefined })}
+              >
+                {LINE_STYLES.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {t(opt.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+
+        {isPowerflowIndicator && (
+          <>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.powerflowDirection')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.state ?? POWERFLOW_DIRECTION_FORWARD}
+                onChange={e => patch({ state: Number(e.target.value) })}
+              >
+                <option value={POWERFLOW_DIRECTION_FORWARD}>{t('properties.powerflowForward')}</option>
+                <option value={POWERFLOW_DIRECTION_BACKWARD}>{t('properties.powerflowBackward')}</option>
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.powerflowColor')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.textColor, '#000000')}
+                onChange={e => patch({ textColor: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+
         {el.class === 'PowerTransformer' && (
           <>
             <label className="flex items-center gap-1.5 text-xs">
@@ -1361,7 +1463,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow || isButton || isRoad) && el.points ? (
+        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow || isButton || isRoad || isLine) &&
+        el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>
             <div className="space-y-2">
@@ -1426,14 +1529,21 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   ))}
                 </select>
               </label>
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={el.mirror ?? false}
-                  onChange={e => patch({ mirror: e.target.checked || undefined })}
-                />
-                <span className="text-gray-400">{t('properties.mirror')}</span>
-              </label>
+              {/* PowerflowIndicator's own arrow glyph has no Mirror concept
+                  in the real source at all (unlike Orientation, which does
+                  rotate it) — writePowerflowIndicator never applies it, so
+                  the checkbox is skipped here the same reason Orientation
+                  itself is skipped for Lamp/PostPole just above. */}
+              {!isPowerflowIndicator && (
+                <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={el.mirror ?? false}
+                    onChange={e => patch({ mirror: e.target.checked || undefined })}
+                  />
+                  <span className="text-gray-400">{t('properties.mirror')}</span>
+                </label>
+              )}
             </>
           )
         )}

@@ -3551,3 +3551,117 @@ Verified with `npx tsc --noEmit` and live against two real diagrams:
 every kind (Element, a `BusbarWire`/`OverheadLine` Connector, a Label, a
 DigitalDevice) showing its own correct "Type:ID" line, `BusbarWire`
 correctly falling back to no code.
+
+2026-09-22: Added shape 1 (Line) — the very first xsde2svg
+`ObjectType` code, and until now the textbook example of a "generic draw
+primitive" `TODO.md` explicitly excluded by name (same "earlier judgment
+was wrong" pattern as 113/335/292 before it). A purely decorative generic
+line, not real electrical equipment (no Ports/Voltage/State, never a
+connectElements/routing endpoint — same as Rectangle/Road). Its own
+geometry is an arbitrary multi-vertex `Points` polyline (`BusBarSection`'s/
+Road's own convention), reusing `Stroke`/`StrokeWidth` (both genuinely
+vary per real instance — real corpus shows black/gray/white/red/yellow/hex
+colors, widths 1-10) with no `Fill` of its own. Unlike Road, its own color
+is never even loosely voltage-like in the real source — it comes purely
+from a line-style table. Also gained a new `Element.LineStyle` field,
+reusing `ConnectorLineStyle` (the same solid/dashed/dashDot choice a
+`CableLine` connector's own `lineStyle` already offers) but resolved
+through its own real dash values (`"6,5"`/`"9 2 2 2"` — different literal
+numbers than `CableLine`'s own `"70 20 25 20"`, confirmed genuinely used
+in ~10% of real corpus instances found; `LineStyleDotted` has no real
+source counterpart for this shape). `slddoc`: `ClassLine`, `writeLine`/
+`parseLine` (no wrapping `<g>`, no `data-name` — same gap Road's own
+source has; doesn't reuse `writePolyline` for the dash portion, the same
+"resolve the real dash string first" approach `writeNamedLine` already
+uses for a `CableLine` connector's own dash). A pre-existing test
+(`extract_test.go`) that used shape 1 as its own example of "a recognized
+shape v1 doesn't understand electrically, must be skipped" needed
+updating to reflect the new reality (extracted as a real `ClassLine`
+element now, not skipped) — its own fixture also had a non-numeric
+`id="border"` that had never mattered before since Extract never actually
+parsed that id, now fixed to a real numeric one. Frontend: `placeLine`/
+`LINE_DEFAULTS` (black/1, matching the real source's own defaults), added
+to `POINTS_BASED_CLASSES` and every Canvas drag-to-draw/reshape/highlight/
+hit-test spot `Road` already had, a `base.xml` palette entry ("Line",
+Annotations group) with a new `elementIcon.ts` preview (a plain diagonal
+thin line, distinguishing it from `BusBarSection`'s own thicker horizontal
+one), and a Properties panel section (Stroke/Stroke width, reusing Arrow's
+own i18n keys, plus a new Line style dropdown reusing `CableLine`'s own
+i18n labels but its own smaller 2-real-variant option list — `''`/Solid
+is Line's own real default, unlike `CableLine`'s own "empty means dashed"
+convention). Verified with `go build`/`vet`/`test` (`slddoc` + `backend`,
+including the updated `extract_test.go`), `npx tsc --noEmit`, a standalone
+`Extract` check against both real corpus directories found on disk
+(`sld`/`sld1`, ~25,900 real Line instances combined: zero shape-1
+extraction failures, dash breakdown 25078 solid/775 dashed/2 dashDot
+matching the real `stroke-dasharray` counts found by direct search almost
+exactly), and a full round trip via the live app (drawn, selected, both
+dash variants toggled live in the DOM, saved, reloaded) plus an `Extract`
+check against the app's own saved output.
+
+Date: 2026-09-22 — Fixed a real `Extract` mislabeling bug: a plain
+Buswork connector (real xsde2svg `data-type="21"`, "Ошиновка") was being
+imported as `KindBusbarWire` instead of `KindBusWork`, so Properties
+showed it as "Busbar wire" with no `:21` type code instead of the correct
+"Buswork:21". Root cause was `slddoc`'s own `connectorKindByType` map
+(the reverse of `render.go`'s authoritative `connectorTypeCode`, used by
+`Extract`'s `parseConnector`): it mapped `"21"` to `KindBusbarWire`, but
+`"21"` has always been `KindBusWork`'s own code — `KindBusbarWire` has no
+xsde2svg code of its own at all (it was removed as a palette choice, see
+`wireKindIcon.ts`'s own doc comment, so this editor itself never produces
+one; a real diagram only ever gets one via `Extract` misreading a genuine
+Buswork connector, exactly this bug). Fixed the map entry, and added a
+`Load()`-time legacy rewrite (alongside the pre-existing `ObjectLink`/
+shape-71 rewrites) so an already-saved diagram carrying a stray
+`KindBusbarWire` connector from before this fix self-heals back to
+`KindBusWork` the next time it's opened, without needing a fresh
+`Extract` re-import. `slddoc`: fixed `connectorKindByType["21"]`, added
+the `Load()` rewrite, fixed `TestSaveLoadRoundTrip` (had silently relied
+on the buggy mapping via an unchecked `KindBusbarWire` fixture — switched
+to `KindOverheadLine` with an explicit `Kind` assertion), and added two
+new regression tests: `TestLoad_RewritesLegacyBusbarWire` (save/load
+round trip of a stray `KindBusbarWire` connector, asserts it comes back
+as `KindBusWork`) and `TestParseConnector_Kind` (table-driven, all four
+real connector `data-type` codes 21/22/23/28 against `parseConnector`
+directly). Verified with `go build`/`vet`/`test` (`slddoc` + `backend`),
+and against real production data: all 186 diagrams under `diagrams/`
+load with zero errors and zero `KindBusbarWire` connectors remaining
+after `Load()` (previously up to 11,867 connectors across 145 of those
+files carried the mislabeled kind); confirmed live in the running app
+that the specific reported connector (id 148795659, in
+"Энергомониторинг_Л-5_Почеп - Л-3_Зеленая") now shows "Buswork:21" in
+Properties as expected. The fix self-heals a diagram in memory on next
+open, same as the pre-existing legacy rewrites, but only persists to
+disk on that diagram's next explicit save — the affected on-disk files
+were not proactively batch-resaved.
+
+Date: 2026-09-22 — Ported xsde2svg shape 320001, 
+(Powerflow direction), a purely decorative status indicator: a single
+bold arrow glyph ("→"/"←", chosen by a two-way State toggle) drawn at its
+own anchor and rotated by the ordinary Orientation mechanism — no
+electrical Ports/Voltage of its own, so it's never a valid
+connectElements/routing endpoint, same status as Line/Road/PostPole.
+Added to the Elements panel's "Indicators" group alongside Lamp/Digital
+device/Fault passage indicator. `slddoc`: new `ClassPowerflowIndicator`,
+`writePowerflowIndicator`/`parsePowerflowIndicator` bypass the usual
+template-substitution/generic-parse path the same way Line/Road/PostPole
+already do — reuses the existing `State` field for direction and
+`TextColor` (previously Button-only) for the glyph's own per-instance
+color, rather than adding new fields; draws above connectors in z-order,
+like Junction point/Lamp/Fault passage indicator, since a real instance
+sits directly on top of a wire. Frontend: click-to-place like PostPole (a
+bare `<text>` tag, no wrapping `<g>`, needing the same click-tolerance
+box/DOM-drag handling PostPole already has in `Canvas.tsx`); Properties
+gets its own small Direction (Forward/Backward)/Color section, with
+Orientation shown (it genuinely rotates the glyph) but Mirror hidden (the
+real source has no such concept for this shape, unlike Orientation).
+Verified with `go build`/`vet`/`test` (`slddoc` + `backend`, including a
+new `TestParsePowerflowIndicator`, covering both the "→"/"←" glyph and
+Orient recovery from a real corpus instance's own `data-angle`), `npx tsc
+--noEmit`, an `Extract`
+check against both real corpus directories found on disk (`sld`/`sld1`,
+5,872 real instances combined, zero extraction failures, matching the raw
+`data-type="320001"` count exactly), and a full round trip through the
+live app (placed, direction/color/orientation edited live, dragged,
+saved, reloaded — the saved XML/rendered SVG both matched real xsde2svg
+markup byte-for-byte).

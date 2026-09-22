@@ -15,6 +15,7 @@ const CIRCLE_SHAPE = '4'
 const ARROW_SHAPE = '2'
 const BUTTON_SHAPE = '113'
 const ROAD_SHAPE = '335'
+const LINE_SHAPE = '1'
 // Shapes placed by dragging out two opposite points rather than a single
 // click — see diagramOps.POINTS_BASED_CLASSES for the element-class
 // equivalent used once one's already on the diagram.
@@ -25,6 +26,7 @@ const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
   ARROW_SHAPE,
   BUTTON_SHAPE,
   ROAD_SHAPE,
+  LINE_SHAPE,
 ])
 const HIGHLIGHT = '#3b82f6'
 const CONNECT_TARGET_COLOR = '#22c55e'
@@ -312,9 +314,9 @@ export function Canvas() {
   // diagram-space footprint. BusBarSection is skipped entirely: it renders
   // as a bare <polyline> with no fill at all, and its own thin line is
   // already covered by its points-based selection highlight/hit-testing, no
-  // click-tolerance box needed — a Road (also a bare, no-fill <polyline>)
-  // is skipped for the identical reason. A Rectangle, Circle, or Arrow,
-  // unlike a busbar, is skipped in the DOM-lookup sense (each is a bare
+  // click-tolerance box needed — a Road/Line (also a bare, no-fill
+  // <polyline>) is skipped for the identical reason. A Rectangle, Circle,
+  // or Arrow, unlike a busbar, is skipped in the DOM-lookup sense (each is a bare
   // <rect>/<ellipse>/<path>, not a <g>) but *does* still get a real box
   // here, computed straight from its own diagram-state Points instead of
   // getBBox — a Rectangle's/Circle's own fill is very often "none"
@@ -338,7 +340,7 @@ export function Canvas() {
     }
     const boxes = new Map<number, ElementBox>()
     for (const el of diagram.elements) {
-      if (el.class === 'BusBarSection' || el.class === 'Road') continue
+      if (el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line') continue
       if ((el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button') && el.points) {
         const [p0, p1] = el.points
         const x = Math.min(p0.x, p1.x)
@@ -359,6 +361,18 @@ export function Canvas() {
         // whether the drawn marker itself is round or square.
         const radius = el.radius || 10
         boxes.set(el.id, { x: el.x - radius, y: el.y - radius, width: radius * 2, height: radius * 2 })
+        continue
+      }
+      if (el.class === 'PowerflowIndicator') {
+        // Same reasoning as PostPole just above — a bare <text> tag whose
+        // own x/y are already the real diagram anchor (writePowerflowIndicator
+        // draws transform="rotate(...)" only, no translate), so getBBox()
+        // would double-count position if run through the generic
+        // placeLocalPoint path below. Half-width matches half the drawn
+        // glyph's own fixed 26px font-size, a plain square around the
+        // anchor regardless of Orient, same as PostPole's own box.
+        const half = 13
+        boxes.set(el.id, { x: el.x - half, y: el.y - half, width: half * 2, height: half * 2 })
         continue
       }
       // No tag restriction (not just `g[...]`) — PackageSubstation's own
@@ -508,17 +522,19 @@ export function Canvas() {
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
       if (exclude?.kind === 'element' && el.id === exclude.elementId) continue
-      // A Rectangle/Circle/Arrow/Button/Road/PostPole is a purely
-      // decorative annotation, never a valid wire endpoint — unlike every
-      // other class here, none even falls back to its own anchor (see
-      // diagramOps.connectElements' own matching guard).
+      // A Rectangle/Circle/Arrow/Button/Road/PostPole/Line/PowerflowIndicator
+      // is a purely decorative annotation, never a valid wire endpoint —
+      // unlike every other class here, none even falls back to its own
+      // anchor (see diagramOps.connectElements' own matching guard).
       if (
         el.class === 'Rectangle' ||
         el.class === 'Circle' ||
         el.class === 'Arrow' ||
         el.class === 'Button' ||
         el.class === 'Road' ||
-        el.class === 'PostPole'
+        el.class === 'PostPole' ||
+        el.class === 'Line' ||
+        el.class === 'PowerflowIndicator'
       )
         continue
       if (el.class === 'BusBarSection' && el.points && el.points.length >= 2) {
@@ -739,16 +755,17 @@ export function Canvas() {
   // the actual placed element follow the cursor while dragging, not just
   // an abstract highlight. Reads each element's own current x/y/points from
   // diagram state (unchanged until mouseup) and offsets from there; a
-  // BusBarSection/Rectangle/Circle/Button/Road (see
+  // BusBarSection/Rectangle/Circle/Button/Road/Line (see
   // diagramOps.POINTS_BASED_CLASSES) has no single anchor to translate via
   // a transform, so its own points-derived attributes are set directly
-  // instead — a busbar's or road's <polyline points>, a rectangle's
-  // <rect x y> (its width/height are unaffected by a plain translate, only
-  // x/y shift), a circle's <ellipse cx cy> (its own rx/ry likewise
-  // unaffected), or a button's own <rect x y>/<text x y> pair. PostPole,
-  // though a single anchor (not Points-based), gets the identical bare-tag
-  // treatment for the identical reason — no wrapping <g> a translate()
-  // could shift (see writePole).
+  // instead — a busbar's, road's, or line's <polyline points>, a
+  // rectangle's <rect x y> (its width/height are unaffected by a plain
+  // translate, only x/y shift), a circle's <ellipse cx cy> (its own
+  // rx/ry likewise unaffected), or a button's own <rect x y>/<text x y>
+  // pair. PostPole and PowerflowIndicator, though each a single anchor (not
+  // Points-based), get the identical bare-tag treatment for the identical
+  // reason — no wrapping <g> a translate() could shift (see writePole/
+  // writePowerflowIndicator).
   function dragElementsInDom(ids: number[], dx: number, dy: number) {
     const root = wrapperRef.current
     if (!root) return
@@ -756,7 +773,7 @@ export function Canvas() {
       const el = diagram!.elements.find(e => e.id === id)
       const node = root.querySelector(`[data-editor-kind="element"][id="${id}"]`)
       if (!el || !node) continue
-      if ((el.class === 'BusBarSection' || el.class === 'Road') && el.points) {
+      if ((el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line') && el.points) {
         node.setAttribute('points', el.points.map(p => `${p.x + dx},${p.y + dy}`).join(' '))
       } else if (el.class === 'Rectangle' && el.points) {
         node.setAttribute('x', String(Math.min(el.points[0].x, el.points[1].x) + dx))
@@ -804,6 +821,18 @@ export function Canvas() {
           node.setAttribute('cy', String(y))
         }
         if (el.orient) node.setAttribute('transform', `rotate(${el.orient},${x},${y})`)
+      } else if (el.class === 'PowerflowIndicator') {
+        // Also a bare <text> tag with no wrapping <g> (see
+        // writePowerflowIndicator) — its own x/y are absolute, with the
+        // tag's own y offset +3 from the real anchor (the glyph's own
+        // vertical shift) while the rotate() transform's own center stays
+        // at the unshifted anchor, matching writePowerflowIndicator's own
+        // split exactly.
+        const x = el.x + dx
+        const y = el.y + dy
+        node.setAttribute('x', String(x))
+        node.setAttribute('y', String(y + 3))
+        node.setAttribute('transform', `rotate(${el.orient ?? 0},${x},${y})`)
       } else {
         node.setAttribute('transform', `translate(${el.x + dx},${el.y + dy}) rotate(${el.orient ?? 0})`)
       }
@@ -880,7 +909,9 @@ export function Canvas() {
                       ? diagramOps.placeButton(d, start, snappedEnd)
                       : shape === ROAD_SHAPE
                         ? diagramOps.placeRoad(d, start, snappedEnd)
-                        : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
+                        : shape === LINE_SHAPE
+                          ? diagramOps.placeLine(d, start, snappedEnd)
+                          : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
             )
           }
           armSymbol(null)
@@ -1456,7 +1487,10 @@ export function Canvas() {
                 ))}
               {!ghost &&
                 selectedElements.map(el => {
-                  if ((el.class === 'BusBarSection' || el.class === 'Arrow' || el.class === 'Road') && el.points) {
+                  if (
+                    (el.class === 'BusBarSection' || el.class === 'Arrow' || el.class === 'Road' || el.class === 'Line') &&
+                    el.points
+                  ) {
                     return (
                       <polyline
                         key={el.id}
@@ -1710,7 +1744,8 @@ export function Canvas() {
                   selectedElement.class === 'Circle' ||
                   selectedElement.class === 'Arrow' ||
                   selectedElement.class === 'Button' ||
-                  selectedElement.class === 'Road') &&
+                  selectedElement.class === 'Road' ||
+                  selectedElement.class === 'Line') &&
                 selectedElement.points && (
                 <>
                   {/* Live preview while a corner/endpoint handle is being

@@ -69,6 +69,22 @@
     <template></template>
   </symbol>
 
+  <symbol shape="1" class="Line" name="Line">
+    <!-- Like Busbar section above, a Line has no fixed template: it's an
+         arbitrary multi-vertex polyline, and it isn't real electrical
+         equipment at all (no terminals, no voltage, no state — see
+         slddoc's own ClassLine doc comment), so it's drawn straight from
+         its own Points by internal/slddoc.Render, not template
+         substitution. This entry exists only so the Elements palette can
+         offer "Line" the same drag-two-points way it already offers
+         "Busbar section"/"Road" (this editor can only draw a fresh Line
+         as a straight two-point line — same limitation a fresh Busbar
+         section already has — a Line extracted from a real multi-bend
+         file keeps every one of its own original vertices, editable one
+         at a time). -->
+    <template></template>
+  </symbol>
+
   <symbol shape="3" class="Rectangle" name="Rectangle">
     <!-- Like Busbar section above, a Rectangle has no fixed template: its
          size varies per instance, and it isn't real electrical equipment
@@ -887,5 +903,17 @@
 <text x="0" y="0" style="fill:{fpiColor};text-anchor:middle;dominant-baseline:middle;font-size:8px;font-family:Arial" >{fpiText}</text>
 </g>
 ]]></template>
+  </symbol>
+
+  <symbol shape="320001" class="PowerflowIndicator" name="Powerflow direction">
+    <!-- Like PostPole above, a PowerflowIndicator has no fixed template: it's
+         a single rotated arrow glyph ("→"/"←", selected by State) drawn
+         directly by internal/slddoc.Render (writePowerflowIndicator), not
+         template substitution — it isn't real electrical equipment at all
+         (no terminals, no voltage — see slddoc's own ClassPowerflowIndicator
+         doc comment). This entry exists only so the Elements palette can
+         offer "Powerflow direction" the same click-to-place way it already
+         offers PostPole/Lamp/JunctionPoint. -->
+    <template></template>
   </symbol>
 </symbols>

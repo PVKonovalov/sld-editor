@@ -16,13 +16,13 @@ import type {
 
 // Element classes whose own geometry is a drawn Points array (two or more
 // vertices) rather than a single x/y anchor+orient — BusBarSection (a real
-// electrical busbar), Rectangle, Circle, Arrow, Button, and Road (the
-// latter five purely decorative annotations, no electrical meaning at all
+// electrical busbar), Rectangle, Circle, Arrow, Button, Road, and Line (the
+// latter six purely decorative annotations, no electrical meaning at all
 // — see connectElements' own guard below). Shared by every place/move/
 // paste/point-drag helper that needs to treat "drag two corners/vertices to
-// draw or reshape" the same way regardless of which of the six classes it
-// actually is — including, for Rectangle/Circle/Arrow/Button/Road, the
-// anchor (x/y) recomputed as the two Points' own midpoint on every
+// draw or reshape" the same way regardless of which of the seven classes
+// it actually is — including, for Rectangle/Circle/Arrow/Button/Road/Line,
+// the anchor (x/y) recomputed as the two Points' own midpoint on every
 // move/paste/drag: harmless for an Arrow even though its own rendering
 // (writeArrow) reads Points[0]/[1] directly rather than x/y, since x/y only
 // ever matters here as a paste-target anchor, never for the real drawn
@@ -34,6 +34,7 @@ const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'Arrow',
   'Button',
   'Road',
+  'Line',
 ])
 
 // A voltage-class <select>'s option value is either an existing class's own
@@ -248,6 +249,16 @@ function fpiDefaults(defaultFpiText?: string): Pick<DiagramElement, 'state' | 'r
   }
 }
 
+// A freshly placed PowerflowIndicator starts with a real, visible black
+// glyph color — matching render.go's own unset-TextColor fallback ("black")
+// explicitly, the same reason POLE_DEFAULTS spells its own out as a real
+// hex value (#000000, not the literal "black") so the color picker shows a
+// real swatch directly. state is left unset — nil already renders the same
+// "→" default writePowerflowIndicator falls back to.
+const POWERFLOW_INDICATOR_DEFAULTS: Pick<DiagramElement, 'textColor'> = {
+  textColor: '#000000',
+}
+
 // A freshly placed PowerTransformer starts as a plain 2-winding wye/wye
 // unit — matching the palette icon's own static preview (base.xml's own
 // shape-47 template, used only for that preview, not the real diagram
@@ -290,7 +301,12 @@ export function placeElement(
     // ClassPostPole doc comment), just placed via this generic click-to-
     // place path instead of one of those four's own dedicated drag-to-draw
     // one, since its own geometry is a single anchor, not drawn Points.
-    ...(elementClass === 'Lamp' || elementClass === 'FaultPassageIndicator' || elementClass === 'PostPole'
+    // Neither is a PowerflowIndicator — same non-electrical status, its own
+    // color comes from textColor, not a voltage class.
+    ...(elementClass === 'Lamp' ||
+    elementClass === 'FaultPassageIndicator' ||
+    elementClass === 'PostPole' ||
+    elementClass === 'PowerflowIndicator'
       ? {}
       : { voltage: defaultVoltage }),
     x: point.x,
@@ -298,6 +314,7 @@ export function placeElement(
     ...(DEFAULT_CLOSED_CLASSES.has(elementClass) ? { state: STATE_CLOSE } : {}),
     ...(elementClass === 'Lamp' ? LAMP_DEFAULTS : {}),
     ...(elementClass === 'PostPole' ? POLE_DEFAULTS : {}),
+    ...(elementClass === 'PowerflowIndicator' ? POWERFLOW_INDICATOR_DEFAULTS : {}),
     ...(elementClass === 'GroundSwitch' || elementClass === 'ShortCircuiter'
       ? { orient: GROUND_TYPE_DEFAULT_ORIENT, state: GROUND_TYPE_DEFAULT_STATE }
       : {}),
@@ -470,6 +487,37 @@ export function placeRoad(diagram: Diagram, start: Point, end: Point): Diagram {
     y: (start.y + end.y) / 2,
     points: [start, end],
     ...ROAD_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly placed Line's own color/width — matching render.go's own
+// unset-Stroke/StrokeWidth fallback ("black"/1) explicitly, the same
+// reason ROAD_DEFAULTS spells theirs out. No fill (an open line, like
+// Arrow/Road); lineStyle left unset (solid, the real default either way).
+const LINE_DEFAULTS = { stroke: '#000000', strokeWidth: 1 }
+
+/** Places a new Line spanning start..end — a purely decorative generic
+ * line, not real electrical equipment (see slddoc's own ClassLine doc
+ * comment): no Voltage, no Ports, never a valid connectElements/routing
+ * target. Drawn from its own Points the same drag-not-click way
+ * placeRoad places a Road (this editor can only draw a fresh Line as a
+ * straight two-point line this way — see base.xml's own shape-1 entry —
+ * a Line extracted from a real multi-bend file keeps every one of its
+ * own original vertices instead, editable one at a time). */
+export function placeLine(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Line',
+    shape: '1',
+    name: `Line-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...LINE_DEFAULTS,
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -914,11 +962,12 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
  * from whichever of from/to already has one (see drawConnectorPath's own
  * doc comment) — with no defaultVoltage param here, an element joined to
  * one with no voltage of its own at all just stays unset, same as before.
- * A no-op when either end is a Rectangle, Circle, Arrow, Button, Road, or
- * PostPole — a purely decorative annotation, never a valid electrical
- * endpoint (see slddoc's own ClassRectangle/ClassCircle/ClassArrow/
- * ClassButton/ClassRoad/ClassPostPole doc comments); the routing tool's
- * own findConnectionTarget (Canvas.tsx) excludes all six from candidates
+ * A no-op when either end is a Rectangle, Circle, Arrow, Button, Road,
+ * PostPole, Line, or PowerflowIndicator — a purely decorative annotation,
+ * never a valid electrical endpoint (see slddoc's own ClassRectangle/
+ * ClassCircle/ClassArrow/ClassButton/ClassRoad/ClassPostPole/ClassLine/
+ * ClassPowerflowIndicator doc comments); the routing tool's own
+ * findConnectionTarget (Canvas.tsx) excludes all eight from candidates
  * entirely for the same reason. */
 export function connectElements(diagram: Diagram, fromId: number, toId: number): Diagram {
   if (fromId === toId) return diagram
@@ -931,7 +980,9 @@ export function connectElements(diagram: Diagram, fromId: number, toId: number):
     el.class === 'Arrow' ||
     el.class === 'Button' ||
     el.class === 'Road' ||
-    el.class === 'PostPole'
+    el.class === 'PostPole' ||
+    el.class === 'Line' ||
+    el.class === 'PowerflowIndicator'
   if (notConnectable(from) || notConnectable(to)) return diagram
 
   const ids = new IdSequence(diagram)
