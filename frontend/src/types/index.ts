@@ -335,6 +335,29 @@ export interface DigitalDevice {
   unit?: string
 }
 
+// One unsupported xsde2svg data-type code an .svg import skipped: its
+// human-readable name (slddoc.ObjectTypeName, "" when unknown) and how many
+// top-level nodes carried it.
+export interface ImportSkippedEntry {
+  code: string
+  name: string
+  count: number
+}
+
+// POST /api/import/svg's own report (the backend's api.importReport):
+// what slddoc.Extract captured from a dropped .svg, plus what it couldn't —
+// skipped lists unsupported data-type codes (code-sorted), failed lists
+// element ids whose geometry didn't parse.
+export interface ImportReport {
+  elements: number
+  connectors: number
+  labels: number
+  digitalDevices: number
+  nodes: number
+  skipped: ImportSkippedEntry[]
+  failed: string[]
+}
+
 // The wire shape (a Go nil slice serializes as JSON null): use
 // normalizeDiagram in lib/api.ts to get the array-always shape below
 // everywhere else in the app.

@@ -1,5 +1,28 @@
 import { createContext, useContext } from 'react'
-import type { Diagram, DiagramEntry, ElementSymbol, EditorConfig, EditorSettings, ConnectorKind } from '../types'
+import type {
+  Diagram,
+  DiagramEntry,
+  ElementSymbol,
+  EditorConfig,
+  EditorSettings,
+  ConnectorKind,
+  ImportReport,
+} from '../types'
+
+// A dropped/picked file whose target name (fileName minus extension)
+// already exists on the server — parked until ConfirmReloadDialog's
+// Reload/Cancel decides whether it replaces the open diagram.
+export interface PendingImport {
+  text: string
+  fileName: string
+  name: string
+}
+
+// One .svg import's own record, for the import log dialog.
+export interface ImportLog {
+  fileName: string
+  report: ImportReport
+}
 
 // The four selectable kinds a mixed multi-selection can hold — matches
 // Render/RenderFragments' own data-editor-kind values ("digitaldevice",
@@ -89,12 +112,32 @@ export interface DiagramContextValue {
   // leaving the diagram merely dirty.
   newDiagram: (name: string, width?: number, height?: number, defaultVoltageName?: string) => Promise<void>
   openDiagram: (name: string) => Promise<void>
-  // Parses a .xml file's own text (from a file picker or drag-and-drop on
-  // the user's own machine, not the server's diagrams list) and makes it
-  // the working diagram, named after suggestedName (its filename, minus
-  // extension) — marked dirty so Save persists it server-side under that
-  // name, the same upsert saveDiagramAs already does.
-  loadDiagramFromXML: (xmlText: string, suggestedName: string) => Promise<void>
+  // Parses a .xml file's own text — or reconstructs a diagram from an
+  // xsde2svg-style .svg's (slddoc.Extract), picked by fileName's extension
+  // — from a file picker or drag-and-drop on the user's own machine (not
+  // the server's diagrams list) and makes it the working diagram, named
+  // after fileName minus its extension — marked dirty so Save persists it
+  // server-side under that name, the same upsert saveDiagramAs already
+  // does. An .svg import also sets importLog and opens the import log
+  // dialog, and defaults the diagram's own editor.defaultVoltage to its
+  // most-used extracted voltage class. Rejects for an unsupported extension.
+  loadDiagramFromFile: (text: string, fileName: string) => Promise<void>
+  // What a drop/pick calls: loadDiagramFromFile straight away, unless a
+  // diagram of the same name already exists on the server — then it sets
+  // pendingImport instead, for ConfirmReloadDialog to ask first.
+  importDiagramFile: (text: string, fileName: string) => Promise<void>
+  pendingImport: PendingImport | null
+  // Reload: load pendingImport (the next Save overwrites the server copy).
+  confirmPendingImport: () => Promise<void>
+  // Cancel: drop pendingImport, leaving the open diagram untouched.
+  cancelPendingImport: () => void
+  // The last .svg import's own file name + slddoc.Extract report, for the
+  // import log dialog — kept only while that imported diagram stays open
+  // (cleared by openDiagram/newDiagram/an .xml import), so the File panel
+  // can offer to re-open it.
+  importLog: ImportLog | null
+  importLogOpen: boolean
+  setImportLogOpen: (open: boolean) => void
   saveDiagram: () => Promise<void>
   saveDiagramAs: (name: string) => Promise<void>
   updateDiagram: (updater: (d: Diagram) => Diagram) => void

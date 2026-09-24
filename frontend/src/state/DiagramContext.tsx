@@ -1,9 +1,18 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
-import { parentDir } from '../lib/diagramPath'
-import type { Diagram, DiagramEntry, ElementSymbol, EditorConfig, EditorSettings, ConnectorKind } from '../types'
-import { DiagramContext, type DiagramContextValue, type SelectionKind } from './useDiagramContext'
+import { baseName, parentDir } from '../lib/diagramPath'
+import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
+import { t } from '../i18n'
+import type {
+  Diagram,
+  DiagramEntry,
+  ElementSymbol,
+  EditorConfig,
+  EditorSettings,
+  ConnectorKind,
+} from '../types'
+import { DiagramContext, type DiagramContextValue, type ImportLog, type PendingImport, type SelectionKind } from './useDiagramContext'
 
 export function DiagramProvider({ children }: { children: ReactNode }) {
   const [diagramName, setDiagramName] = useState<string | null>(null)
@@ -23,6 +32,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [armedLabel, setArmedLabelState] = useState(false)
   const [armedDigitalDevice, setArmedDigitalDeviceState] = useState(false)
   const [defaultVoltage, setDefaultVoltage] = useState<number | undefined>(undefined)
+  const [importLog, setImportLog] = useState<ImportLog | null>(null)
+  const [importLogOpen, setImportLogOpen] = useState(false)
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   // Navigates the File panel's own folder browser to dir (a folder row's
@@ -232,6 +244,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setDirty(false)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
+      setImportLog(null)
+      setImportLogOpen(false)
       setError(warning ?? null)
       await browseDir(parentDir(name))
       if (preset) {
@@ -258,6 +272,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setDirty(d !== raw)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
+      setImportLog(null)
+      setImportLogOpen(false)
       // Keeps the File panel's own browser showing wherever this diagram
       // actually lives — most often a no-op re-fetch of the folder it was
       // just opened from, but also correct if openDiagram is ever called
@@ -267,24 +283,76 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [clearSelection, browseDir],
   )
 
-  // suggestedName is the dropped/picked file's own name (with its .xml
-  // extension stripped by the caller) — used as-is as the diagram name, so
-  // a subsequent Save just writes/overwrites the server's own copy under
-  // that name (same upsert semantics saveDiagramAs already has) rather
-  // than requiring a separate Save As first.
-  const loadDiagramFromXML = useCallback(
-    async (xmlText: string, suggestedName: string) => {
-      const raw = await api.importDiagramXML(xmlText)
+  // fileName is the dropped/picked file's own name: its extension picks the
+  // import path (.xml parsed as-is, .svg reconstructed via slddoc.Extract),
+  // and, stripped, it's used as-is as the diagram name — so a subsequent
+  // Save just writes/overwrites the server's own copy under that name (same
+  // upsert semantics saveDiagramAs already has) rather than requiring a
+  // separate Save As first. An .svg import additionally records its own
+  // report as importLog (and opens the import log dialog), and — since
+  // Extract never sets one — defaults editor.defaultVoltage to whichever
+  // extracted voltage class the diagram uses most (mostUsedVoltage).
+  const loadDiagramFromFile = useCallback(
+    async (text: string, fileName: string) => {
+      const kind = diagramFileKind(fileName)
+      if (!kind) throw new Error(t('file.invalidDiagramFile', { name: fileName }))
+      let raw: Diagram
+      let log: ImportLog | null = null
+      if (kind === 'svg') {
+        const { diagram: extracted, report } = await api.importDiagramSVG(text)
+        raw = extracted
+        log = { fileName, report }
+        const voltage = diagramOps.mostUsedVoltage(extracted)
+        if (voltage !== undefined && extracted.editor?.defaultVoltage === undefined) {
+          raw = { ...extracted, editor: { ...extracted.editor, defaultVoltage: voltage } }
+        }
+      } else {
+        raw = await api.importDiagramXML(text)
+      }
       const d = diagramOps.ensureLastId(raw)
+      const suggestedName = stripDiagramExtension(fileName)
       setDiagramName(suggestedName)
       setDiagram(d)
       setDirty(true)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
+      setError(null)
+      setImportLog(log)
+      setImportLogOpen(log !== null)
       await browseDir(parentDir(suggestedName))
     },
     [clearSelection, browseDir],
   )
+
+  // importDiagramFile is what a drop/pick actually calls: it checks
+  // whether a diagram already exists on the server under the name the
+  // import would take (the same path the next Save writes — see
+  // loadDiagramFromFile) and, if so, parks the file as pendingImport for
+  // ConfirmReloadDialog to ask "Reload or not" instead of loading it
+  // straight away; otherwise it loads immediately.
+  const importDiagramFile = useCallback(
+    async (text: string, fileName: string) => {
+      if (!diagramFileKind(fileName)) throw new Error(t('file.invalidDiagramFile', { name: fileName }))
+      const name = stripDiagramExtension(fileName)
+      const siblings = await api.listDiagrams(parentDir(name))
+      if (siblings.some(e => !e.isDir && e.name === baseName(name))) {
+        setPendingImport({ text, fileName, name })
+        return
+      }
+      await loadDiagramFromFile(text, fileName)
+    },
+    [loadDiagramFromFile],
+  )
+
+  // Loads the parked pendingImport ("Reload") — cleared only once that
+  // succeeds, so a failure leaves ConfirmReloadDialog open to show it.
+  const confirmPendingImport = useCallback(async () => {
+    if (!pendingImport) return
+    await loadDiagramFromFile(pendingImport.text, pendingImport.fileName)
+    setPendingImport(null)
+  }, [pendingImport, loadDiagramFromFile])
+
+  const cancelPendingImport = useCallback(() => setPendingImport(null), [])
 
   const saveDiagram = useCallback(async () => {
     if (!diagramName || !diagram) return
@@ -381,7 +449,14 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       clearError,
       newDiagram,
       openDiagram,
-      loadDiagramFromXML,
+      loadDiagramFromFile,
+      importDiagramFile,
+      pendingImport,
+      confirmPendingImport,
+      cancelPendingImport,
+      importLog,
+      importLogOpen,
+      setImportLogOpen,
       saveDiagram,
       saveDiagramAs,
       updateDiagram,
@@ -421,7 +496,14 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       clearError,
       newDiagram,
       openDiagram,
-      loadDiagramFromXML,
+      loadDiagramFromFile,
+      importDiagramFile,
+      pendingImport,
+      confirmPendingImport,
+      cancelPendingImport,
+      importLog,
+      importLogOpen,
+      setImportLogOpen,
       saveDiagram,
       saveDiagramAs,
       updateDiagram,

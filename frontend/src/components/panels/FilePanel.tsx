@@ -5,7 +5,7 @@ import { PanelShell } from './PanelShell'
 import { NewDiagramDialog } from '../NewDiagramDialog'
 import { t } from '../../i18n'
 import * as api from '../../lib/api'
-import { downloadText, readFileAsText, stripXmlExtension } from '../../lib/fileTransfer'
+import { downloadText, readFileAsText } from '../../lib/fileTransfer'
 import { joinDiagramPath, parentDir } from '../../lib/diagramPath'
 
 export function FilePanel({ onClose }: { onClose: () => void }) {
@@ -17,7 +17,9 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
     diagram,
     dirty,
     openDiagram,
-    loadDiagramFromXML,
+    importDiagramFile,
+    importLog,
+    setImportLogOpen,
     saveDiagram,
     saveDiagramAs,
     error,
@@ -184,7 +186,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xml,application/xml,text/xml"
+            accept=".xml,.svg,application/xml,text/xml,image/svg+xml"
             className="hidden"
             onChange={e => {
               const file = e.target.files?.[0]
@@ -192,7 +194,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
               if (!file) return
               run(async () => {
                 const text = await readFileAsText(file)
-                await loadDiagramFromXML(text, stripXmlExtension(file.name))
+                await importDiagramFile(text, file.name)
               })
             }}
           />
@@ -205,6 +207,15 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
             {t('file.loadFromFile')}
           </button>
           <p className="text-[11px] text-gray-500 mt-1">{t('file.dropHint')}</p>
+          {importLog && (
+            <button
+              type="button"
+              onClick={() => setImportLogOpen(true)}
+              className="w-full mt-2 px-2 py-1 text-xs rounded border border-surface-600 hover:bg-surface-600 text-gray-200"
+            >
+              {t('file.showImportLog')}
+            </button>
+          )}
         </section>
 
         {(localError || error) && <p className="text-xs text-red-400">{localError ?? error}</p>}

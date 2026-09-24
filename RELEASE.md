@@ -3977,3 +3977,66 @@ endpoint's owning element wasn't part of the copy + a new label, all
 confirmed via the DOM), and deleted the original 3-item selection
 (confirmed exactly those three ids were removed, leaving the untouched
 second breaker and the pasted copies alone).
+
+2026-09-24: Import an xsde2svg-style `.svg` by dropping (or picking) it
+instead of a `.xml`. New `POST /api/import/svg` runs the sibling `slddoc`
+module's own `Extract` (the same reconstruction `sld-svg`'s
+`svg-sld extract` CLI performs) and returns `{diagram, report}`; the
+server's `voltage_colors` presets double as Extract's voltage hints, so a
+color matching a preset comes back as a named voltage class (e.g.
+"110 kV") rather than the raw color. Frontend: `loadDiagramFromXML` became
+`loadDiagramFromFile(text, fileName)`, picking the XML or SVG import path
+by extension (`lib/fileTransfer.ts`'s `diagramFileKind`/
+`stripDiagramExtension`); the drop handler and the File panel's picker both
+accept `.svg` now. Whatever Extract couldn't capture (unsupported
+data-type codes with counts, element ids whose geometry failed to parse)
+is shown as a non-fatal "Imported with omissions" warning instead of being
+silently dropped. New i18n keys `file.invalidDiagramFile` (replacing
+`file.invalidXmlFile`), `file.importWithOmissions`, `file.importSkipped`,
+`file.importFailed`. Verified against every SVG in
+`sld-viewer/assets/sld/`.
+
+2026-09-24: Import log and default voltage for an imported `.svg`. Each
+`.svg` import now opens an Import log dialog
+(`frontend/src/components/ImportLogDialog.tsx`) listing what
+`slddoc.Extract` captured (element/connector/label/digital-device/node
+counts), each extracted voltage class with its color and how many
+elements/connectors use it, every skipped unsupported data-type code with
+its readable name and count, and the element ids whose geometry failed to
+parse — replacing the one-line "Imported with omissions" warning. The log
+stays available from the File panel's "Show import log" button while the
+imported diagram remains open (`DiagramContext.importLog`, cleared by
+open/new/an `.xml` import). An imported diagram's `editor.defaultVoltage`
+now defaults to its most-used voltage class (`diagramOps.voltageUsage`/
+`mostUsedVoltage`), changeable from the dialog's own Default voltage
+picker. Backend: `POST /api/import/svg`'s `report.skipped` changed from a
+code -> count map to a code-sorted `[{code, name, count}]` list (its only
+caller, `lib/api.ts`'s `importDiagramSVG`, updated with it); `name` comes
+from a new `slddoc.ObjectTypeName(code)` in the sibling `slddoc` module,
+which exposes the names its `shapeName`/`unrecognizedShapeName` tables
+already held (also reused by Extract's own `addMissingLabel`). i18n: new
+`importLog.*` keys and `file.showImportLog`; the now-unused
+`file.importWithOmissions`/`importSkipped`/`importFailed` were removed.
+
+2026-09-24: Confirm before a dropped/picked file replaces an existing
+diagram. Dropping (or picking) a `.xml`/`.svg` whose name, minus its
+extension, matches a diagram already on the server now shows a "Diagram
+already exists" dialog (`frontend/src/components/ConfirmReloadDialog.tsx`)
+instead of loading it straight away: Reload loads the file as before (the
+next Save overwrites the server copy), Cancel (or Esc/backdrop click)
+leaves the open diagram untouched. A name with no match loads immediately
+as before. Frontend only — the check reuses `GET /api/diagrams?dir=`:
+new `DiagramContext.importDiagramFile` (now what `App.tsx`'s drop handler
+and the File panel's picker call), `pendingImport`/
+`confirmPendingImport`/`cancelPendingImport`, and
+`lib/diagramPath.ts`'s `baseName`. New i18n keys `reload.title`/
+`reload.message`/`reload.reload`.
+
+2026-09-24: Added a favicon — a white busbar with a closed breaker feeder
+on the app's accent blue (`frontend/public/favicon.svg`), plus
+`favicon.ico` (16/32 px), `favicon-16.png`/`favicon-32.png` and a 180 px
+`apple-touch-icon.png` generated from it with `rsvg-convert` as fallbacks
+for browsers (notably Safari) with unreliable SVG favicon support. Linked
+from `frontend/index.html`; Vite copies `public/` into `dist/`, so the
+embedded production binary serves them too (verified `/favicon.ico` etc.
+return 200 from a binary built with the new `dist/` embedded).

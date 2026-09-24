@@ -4,6 +4,7 @@ import type {
   DiagramEntry,
   ElementSymbol,
   EditorConfig,
+  ImportReport,
 } from '../types'
 
 const BASE = '/api'
@@ -162,6 +163,19 @@ export async function importDiagramXML(xmlText: string): Promise<Diagram> {
     body: xmlText,
   })
   return normalizeDiagram(await asJSON<DiagramWire>(res))
+}
+
+// Reconstructs a diagram from a dropped/picked xsde2svg-style .svg
+// (slddoc.Extract on the backend), returning Extract's own report of what
+// it couldn't capture alongside it.
+export async function importDiagramSVG(svgText: string): Promise<{ diagram: Diagram; report: ImportReport }> {
+  const res = await fetch(`${BASE}/import/svg`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'image/svg+xml' },
+    body: svgText,
+  })
+  const data = await asJSON<{ diagram: DiagramWire; report: ImportReport }>(res)
+  return { diagram: normalizeDiagram(data.diagram), report: data.report }
 }
 
 export async function listElements(): Promise<ElementSymbol[]> {

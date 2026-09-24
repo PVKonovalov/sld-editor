@@ -111,6 +111,40 @@ class IdSequence {
   }
 }
 
+// voltageUsage counts, per VoltageClass id, how many elements (each
+// PowerTransformer winding counted separately, since each carries its own)
+// and connectors reference it — not a mutator, an inspection helper like
+// voltageClassOptions. Unset (0/absent) references aren't counted. Used by
+// an .svg import to pick the diagram's default voltage (mostUsedVoltage)
+// and by the import log dialog to show each extracted class's usage.
+export function voltageUsage(diagram: Diagram): Map<number, number> {
+  const counts = new Map<number, number>()
+  const add = (v: number | undefined) => {
+    if (v) counts.set(v, (counts.get(v) ?? 0) + 1)
+  }
+  for (const el of diagram.elements) {
+    add(el.voltage)
+    el.windings?.forEach(w => add(w.voltage))
+  }
+  for (const c of diagram.connectors) add(c.voltage)
+  return counts
+}
+
+// mostUsedVoltage is the VoltageClass id voltageUsage counts the most
+// references to (ties broken by the lower id, for determinism), or
+// undefined when nothing references any class at all.
+export function mostUsedVoltage(diagram: Diagram): number | undefined {
+  let best: number | undefined
+  let bestCount = 0
+  for (const [id, n] of voltageUsage(diagram)) {
+    if (n > bestCount || (n === bestCount && best !== undefined && id < best)) {
+      best = id
+      bestCount = n
+    }
+  }
+  return best
+}
+
 /** Backfills lastId for a diagram saved before this editor tracked one (or
  * one that has never had an id assigned by it), by scanning every existing
  * element/node/connector/voltage-class/label id for the highest value

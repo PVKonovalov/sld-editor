@@ -5,6 +5,9 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -257,6 +260,85 @@ func (s *Server) importDiagramXML(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, d)
+}
+
+// importReport is slddoc.Report's own JSON form (that struct carries no
+// json tags of its own, being shared with the sld-svg CLI) — what the
+// frontend's import log dialog shows, rather than silently dropping what
+// Extract couldn't understand. Skipped is flattened from Report.Skipped's
+// code -> count map into a code-sorted list, each entry carrying its own
+// human-readable name (slddoc.ObjectTypeName) alongside.
+type importReport struct {
+	Elements       int                  `json:"elements"`
+	Connectors     int                  `json:"connectors"`
+	Labels         int                  `json:"labels"`
+	DigitalDevices int                  `json:"digitalDevices"`
+	Nodes          int                  `json:"nodes"`
+	Skipped        []importSkippedEntry `json:"skipped"`
+	Failed         []string             `json:"failed"`
+}
+
+type importSkippedEntry struct {
+	Code  string `json:"code"`
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+func newImportReport(r slddoc.Report) importReport {
+	skipped := make([]importSkippedEntry, 0, len(r.Skipped))
+	for code, n := range r.Skipped {
+		skipped = append(skipped, importSkippedEntry{Code: code, Name: slddoc.ObjectTypeName(code), Count: n})
+	}
+	// Numeric order for real (all-digit) codes, falling back to plain
+	// string order for anything else.
+	sort.Slice(skipped, func(i, j int) bool {
+		a, errA := strconv.Atoi(skipped[i].Code)
+		b, errB := strconv.Atoi(skipped[j].Code)
+		if errA == nil && errB == nil {
+			return a < b
+		}
+		return skipped[i].Code < skipped[j].Code
+	})
+	failed := r.Failed
+	if failed == nil {
+		failed = []string{}
+	}
+	return importReport{
+		Elements:       r.Elements,
+		Connectors:     r.Connectors,
+		Labels:         r.Labels,
+		DigitalDevices: r.DigitalDevices,
+		Nodes:          r.Nodes,
+		Skipped:        skipped,
+		Failed:         failed,
+	}
+}
+
+// importDiagramSVG is importDiagramXML's counterpart for a dropped/picked
+// xsde2svg-generated .svg: slddoc.Extract reconstructs a Diagram from the
+// rendered markup itself. The server's own voltage_colors presets double
+// as Extract's voltage hints (color -> class name), so a color matching a
+// preset comes back as a properly named voltage class (e.g. "110 kV")
+// instead of the raw color placeholder Extract falls back to.
+func (s *Server) importDiagramSVG(c *gin.Context) {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+	hints := make(map[string]string, len(s.cfg.VoltageColors))
+	for _, vc := range s.cfg.VoltageColors {
+		hints[strings.ToLower(strings.TrimSpace(vc.Color))] = vc.Name
+	}
+	d, report, err := slddoc.Extract(body, "", hints)
+	if err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"diagram": d,
+		"report":  newImportReport(report),
+	})
 }
 
 func diagramResponse(d *slddoc.Diagram, renderWarning error) gin.H {
