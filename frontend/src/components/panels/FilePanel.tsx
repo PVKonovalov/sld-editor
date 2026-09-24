@@ -4,7 +4,7 @@ import { useDiagramContext } from '../../state/useDiagramContext'
 import { PanelShell } from './PanelShell'
 import { NewDiagramDialog } from '../NewDiagramDialog'
 import { t } from '../../i18n'
-import { readFileAsText } from '../../lib/fileTransfer'
+import { readFileAsText, readFilesAsText } from '../../lib/fileTransfer'
 import { joinDiagramPath, parentDir } from '../../lib/diagramPath'
 
 export function FilePanel({ onClose }: { onClose: () => void }) {
@@ -15,6 +15,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
     diagramName,
     openDiagram,
     importDiagramFile,
+    importDiagramFiles,
     importLog,
     setImportLogOpen,
     error,
@@ -111,14 +112,20 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
             ref={fileInputRef}
             type="file"
             accept=".xsld,.svg,image/svg+xml"
+            multiple
             className="hidden"
             onChange={e => {
-              const file = e.target.files?.[0]
+              const files = Array.from(e.target.files ?? [])
               e.target.value = ''
-              if (!file) return
+              if (files.length === 0) return
               run(async () => {
-                const text = await readFileAsText(file)
-                await importDiagramFile(text, file.name)
+                // One file opens in the editor; several are saved straight
+                // into the current folder (importDiagramFiles).
+                if (files.length === 1) {
+                  await importDiagramFile(await readFileAsText(files[0]), files[0].name)
+                } else {
+                  await importDiagramFiles(await readFilesAsText(files))
+                }
               })
             }}
           />

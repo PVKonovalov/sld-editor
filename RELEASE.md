@@ -4120,3 +4120,34 @@ Height. The File panel keeps New, Open and Import (including "Show import
 log", which belongs to the last import). Save As now writes next to the open
 diagram (its own folder) instead of into whichever folder the File panel is
 browsing; a typed name can still carry `/` segments to nest deeper.
+
+2026-09-24: Fixed a dropped/picked file being imported into the diagrams
+root instead of the folder the File panel is browsing: the import's target
+name is now `<current folder>/<file name>` (`importTargetName` in
+`DiagramContext`), used consistently for the "already exists?" check, the
+Reload confirmation (fixed on `pendingImport`, so browsing elsewhere before
+answering doesn't change it) and the opened diagram's own name.
+
+2026-09-24: Several files can be imported at once — dropped together, or
+picked together in "Load from file…" (now a multi-select picker). A single
+file still opens in the editor as before; several files are each parsed
+(.xsld) or reconstructed (.svg), given the same fixes a single import gets
+(`lib/importDiagram.ts`'s `prepareImport`: id backfill, preset voltage-class
+names, most-used default voltage for .svg) and saved straight to the server
+into the current folder, one after another — a failing file doesn't stop the
+rest, and the open diagram is left untouched. A name that already exists is
+skipped. The new `components/BatchImportDialog.tsx` then lists each file as
+Saved / Exists — skipped / Failed (with its message) and offers "Overwrite
+skipped (N)". en/ru strings added; drop hint/overlay texts updated.
+
+2026-09-24: Added `make package` and `make release` to the root Makefile.
+`package` packs every binary in `build/` (skipping older archives and stray
+`*.gz` files) into `build/sld-editor-<VERSION>.tar.gz` — the same git-tag
+`VERSION` the binaries carry — under one top-level `sld-editor-<VERSION>/`
+folder, together with `config/sld-editor.yaml` and `assets/elements/` taken
+from `backend/` (the config's diagrams dir rewritten from `../diagrams` to
+`diagrams`) and an empty `diagrams/` folder, so an unpacked archive runs
+as-is from its own folder. It fails with a clear message when nothing is
+built yet. `release` = `all` + `package`. Verified by unpacking an archive
+and starting the binary from it (config, element library and UI all
+resolved).

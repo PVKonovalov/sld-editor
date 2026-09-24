@@ -42,3 +42,9 @@ export function readFileAsText(file: File): Promise<string> {
     reader.readAsText(file)
   })
 }
+
+/** Reads every picked/dropped file as text, in order — for a multi-file
+ * import (DiagramContext.importDiagramFiles). */
+export function readFilesAsText(files: File[]): Promise<{ text: string; fileName: string }[]> {
+  return Promise.all(files.map(async file => ({ text: await readFileAsText(file), fileName: file.name })))
+}

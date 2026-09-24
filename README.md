@@ -82,6 +82,8 @@ make windows-ru
 make macos-arm64-en
 make macos-arm64-ru
 make docker-build    # linux+windows targets, run inside a pinned container
+make package         # pack build/ into build/sld-editor-<version>.tar.gz
+make release         # make (all targets) + make package
 make clean
 ```
 
@@ -89,6 +91,17 @@ Binaries are written to `build/`. Each one is a normal, standalone executable â€
 run it directly (`./sld-editor-linux-en -config config/sld-editor.yaml`, or
 double-click the `.exe` on Windows) and it serves both the API and the embedded UI
 on its own bind address.
+
+### Distribution archive
+
+`make package` packs every binary currently in `build/` into
+`build/sld-editor-<version>.tar.gz` (older archives and stray `*.gz` files are
+left out). Everything sits under one `sld-editor-<version>/` folder, together
+with what the binaries need at runtime: `config/sld-editor.yaml` and
+`assets/elements/` (taken from `backend/`, with the config's diagrams dir set to
+`diagrams`) and an empty `diagrams/` folder. Unpack it and run a binary from
+inside that folder, e.g. `./sld-editor-linux-en`. `make release` builds every
+target first, then packages.
 
 ### Version
 

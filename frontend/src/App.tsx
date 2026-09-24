@@ -10,8 +10,9 @@ import { Canvas } from './components/Canvas'
 import { ImportLogDialog } from './components/ImportLogDialog'
 import { ConfirmReloadDialog } from './components/ConfirmReloadDialog'
 import { AboutDialog } from './components/AboutDialog'
+import { BatchImportDialog } from './components/BatchImportDialog'
 import { DefaultVoltageDialog } from './components/DefaultVoltageDialog'
-import { diagramFileKind, readFileAsText } from './lib/fileTransfer'
+import { diagramFileKind, readFileAsText, readFilesAsText } from './lib/fileTransfer'
 import { t } from './i18n'
 
 type LeftPanelId = Exclude<PanelId, 'properties'>
@@ -31,6 +32,8 @@ function Shell() {
     selectedLabelId,
     selectedDigitalDeviceId,
     importDiagramFile,
+    importDiagramFiles,
+    batchImport,
     pendingImport,
     importLogOpen,
     defaultVoltagePromptOpen,
@@ -73,13 +76,23 @@ function Shell() {
     if (!hasFiles(e)) return
     e.preventDefault()
     setDragCounter(0)
-    const file = e.dataTransfer.files[0]
-    if (!file) return
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length === 0) return
+    setDropError(null)
+    // Several files are saved straight into the File panel's current
+    // folder (importDiagramFiles, which reports an unsupported file in its
+    // own result dialog); a single one opens in the editor as before.
+    if (files.length > 1) {
+      readFilesAsText(files)
+        .then(importDiagramFiles)
+        .catch(err => setDropError((err as Error).message))
+      return
+    }
+    const file = files[0]
     if (!diagramFileKind(file.name)) {
       setDropError(t('file.invalidDiagramFile', { name: file.name }))
       return
     }
-    setDropError(null)
     readFileAsText(file)
       .then(text => importDiagramFile(text, file.name))
       .catch(err => setDropError((err as Error).message))
@@ -151,6 +164,7 @@ function Shell() {
       {importLogOpen && <ImportLogDialog onClose={() => setImportLogOpen(false)} />}
       {defaultVoltagePromptOpen && !pendingImport && <DefaultVoltageDialog />}
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+      {batchImport && <BatchImportDialog />}
       {dropError && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-red-900/90 text-red-100 text-xs rounded px-3 py-2 shadow">
           <span>{dropError}</span>

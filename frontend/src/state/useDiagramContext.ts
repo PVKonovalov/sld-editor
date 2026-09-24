@@ -18,6 +18,31 @@ export interface PendingImport {
   name: string
 }
 
+// One locally dropped/picked file, already read as text.
+export interface ImportFile {
+  text: string
+  fileName: string
+}
+
+// One file's outcome in a multi-file import: saved to the server as name
+// (message: a non-fatal render warning, if any), skipped because name
+// already exists there, or failed (message: why).
+export interface BatchImportItem {
+  fileName: string
+  name: string
+  status: 'saved' | 'skipped' | 'failed'
+  message?: string
+}
+
+// The last multi-file import, for BatchImportDialog: the folder it
+// targeted, the files themselves (kept so skipped ones can be re-run with
+// overwrite) and each one's outcome.
+export interface BatchImport {
+  dir: string
+  files: ImportFile[]
+  items: BatchImportItem[]
+}
+
 // One .svg import's own record, for the import log dialog.
 export interface ImportLog {
   fileName: string
@@ -113,18 +138,15 @@ export interface DiagramContextValue {
   newDiagram: (name: string, width?: number, height?: number, defaultVoltageName?: string) => Promise<void>
   openDiagram: (name: string) => Promise<void>
   // Parses a .xsld file's own text — or reconstructs a diagram from an
-  // xsde2svg-style .svg's (slddoc.Extract), picked by fileName's extension
-  // — from a file picker or drag-and-drop on the user's own machine (not
-  // the server's diagrams list) and makes it the working diagram, named
-  // after fileName minus its extension — marked dirty so Save persists it
-  // server-side under that name, the same upsert saveDiagramAs already
-  // does. An .svg import also sets importLog and opens the import log
-  // dialog, and defaults the diagram's own editor.defaultVoltage to its
-  // most-used extracted voltage class. Rejects for an unsupported extension.
-  loadDiagramFromFile: (text: string, fileName: string) => Promise<void>
-  // What a drop/pick calls: loadDiagramFromFile straight away, unless a
-  // diagram of the same name already exists on the server — then it sets
-  // pendingImport instead, for ConfirmReloadDialog to ask first.
+  // xsde2svg-style .svg's (lib/importDiagram's prepareImport) — and makes it
+  // the working diagram under name (the server path the next Save writes),
+  // marked dirty. An .svg import also sets importLog and opens the import
+  // log dialog. Rejects for an unsupported extension.
+  loadDiagramFromFile: (text: string, fileName: string, name: string) => Promise<void>
+  // What a single-file drop/pick calls: loads it as currentDir/<file name
+  // minus extension> straight away, unless a diagram of that name already
+  // exists on the server — then it sets pendingImport instead, for
+  // ConfirmReloadDialog to ask first.
   importDiagramFile: (text: string, fileName: string) => Promise<void>
   pendingImport: PendingImport | null
   // Reload: load pendingImport (the next Save overwrites the server copy).
@@ -143,6 +165,15 @@ export interface DiagramContextValue {
   // DefaultVoltageDialog to ask for one; cleared by picking one or skipping.
   defaultVoltagePromptOpen: boolean
   setDefaultVoltagePromptOpen: (open: boolean) => void
+  // What a multi-file drop/pick calls: saves every file straight to the
+  // server into currentDir (skipping names that already exist), opening
+  // none of them, and records the outcome as batchImport for
+  // BatchImportDialog.
+  importDiagramFiles: (files: ImportFile[]) => Promise<void>
+  batchImport: BatchImport | null
+  // Re-runs the last batch's skipped files, overwriting the server copies.
+  overwriteBatchSkipped: () => Promise<void>
+  closeBatchImport: () => void
   saveDiagram: () => Promise<void>
   saveDiagramAs: (name: string) => Promise<void>
   updateDiagram: (updater: (d: Diagram) => Diagram) => void

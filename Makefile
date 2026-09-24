@@ -48,12 +48,14 @@
 #   make macos-arm64-en
 #   make macos-arm64-ru
 #   make docker-build    # linux+windows targets, run inside a pinned container
+#   make package         # build/sld-editor-<VERSION>.tar.gz from whatever is built
+#   make release         # all + package
 #   make clean
 
 .PHONY: all linux windows macos \
         linux-en linux-ru windows-en windows-ru \
         macos-arm64-en macos-arm64-ru \
-        frontend-en frontend-ru docker-build clean
+        frontend-en frontend-ru docker-build package release clean
 
 # VERSION is the build's own version, from the git tag it was built from
 # (e.g. v1.0.0, v1.0.0-3-gabc1234 for commits after it, a -dirty suffix
@@ -71,6 +73,8 @@ FRONTEND_DIR := frontend
 BACKEND_DIR  := backend
 WEBUI_DIST   := $(BACKEND_DIR)/internal/webui/dist
 DOCKER_IMAGE := sld-editor-build
+PACKAGE_NAME := sld-editor-$(VERSION)
+PACKAGE_DIR  := $(BUILD_DIR)/.package
 
 all: linux windows macos
 
@@ -136,6 +140,33 @@ frontend-ru:
 docker-build:
 	docker build -t $(DOCKER_IMAGE) -f Dockerfile.build .
 	docker run --rm -v "$(abspath ..)":/workspace -w /workspace/sld-editor $(DOCKER_IMAGE) make linux windows VERSION=$(VERSION)
+
+# Packs whatever binaries are in build/ (every OS/arch x locale built so
+# far; older archives and stray *.gz files are left out) into
+# build/sld-editor-<VERSION>.tar.gz, under one top-level
+# sld-editor-<VERSION>/ folder, together with what they need at runtime:
+# config/sld-editor.yaml and assets/elements/ fresh from backend/ (the
+# config's diagrams dir rewritten from "../diagrams" — relative to
+# backend/ during development — to "diagrams", next to the binaries) and
+# an empty diagrams/ folder. Run a binary from inside that folder so its
+# default -config config/sld-editor.yaml resolves.
+package:
+	@ls $(BUILD_DIR)/sld-editor-* 2>/dev/null | grep -v -e '\.gz$$' >/dev/null || \
+		{ echo "no binaries in $(BUILD_DIR)/ - run make (or a platform target) first" >&2; exit 1; }
+	rm -rf $(PACKAGE_DIR)
+	mkdir -p $(PACKAGE_DIR)/$(PACKAGE_NAME)/config $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets $(PACKAGE_DIR)/$(PACKAGE_NAME)/diagrams
+	for f in $(BUILD_DIR)/sld-editor-*; do \
+		case "$$f" in *.gz) ;; *) cp "$$f" $(PACKAGE_DIR)/$(PACKAGE_NAME)/ ;; esac; \
+	done
+	cp -R $(BACKEND_DIR)/assets/elements $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets/
+	sed 's|dir: "\.\./diagrams"|dir: "diagrams"|' $(BACKEND_DIR)/config/sld-editor.yaml > $(PACKAGE_DIR)/$(PACKAGE_NAME)/config/sld-editor.yaml
+	COPYFILE_DISABLE=1 tar -czf $(BUILD_DIR)/$(PACKAGE_NAME).tar.gz -C $(PACKAGE_DIR) $(PACKAGE_NAME)
+	rm -rf $(PACKAGE_DIR)
+	@echo "created $(BUILD_DIR)/$(PACKAGE_NAME).tar.gz"
+
+# Builds every target, then packages them.
+release: all
+	$(MAKE) package
 
 clean:
 	rm -rf $(BUILD_DIR)

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
-import { baseName, parentDir } from '../lib/diagramPath'
+import { baseName, joinDiagramPath, parentDir } from '../lib/diagramPath'
 import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
+import { prepareImport } from '../lib/importDiagram'
 import { t } from '../i18n'
 import type {
   Diagram,
@@ -12,7 +13,23 @@ import type {
   EditorSettings,
   ConnectorKind,
 } from '../types'
-import { DiagramContext, type DiagramContextValue, type ImportLog, type PendingImport, type SelectionKind } from './useDiagramContext'
+import {
+  DiagramContext,
+  type BatchImport,
+  type BatchImportItem,
+  type DiagramContextValue,
+  type ImportFile,
+  type ImportLog,
+  type PendingImport,
+  type SelectionKind,
+} from './useDiagramContext'
+
+// importTargetName is the server path a dropped/picked file is imported
+// under: the File panel's current folder joined with the file's own name
+// minus its .xsld/.svg extension.
+function importTargetName(dir: string, fileName: string): string {
+  return joinDiagramPath(dir, stripDiagramExtension(fileName))
+}
 
 export function DiagramProvider({ children }: { children: ReactNode }) {
   const [diagramName, setDiagramName] = useState<string | null>(null)
@@ -35,6 +52,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [importLog, setImportLog] = useState<ImportLog | null>(null)
   const [importLogOpen, setImportLogOpen] = useState(false)
   const [defaultVoltagePromptOpen, setDefaultVoltagePromptOpen] = useState(false)
+  const [batchImport, setBatchImport] = useState<BatchImport | null>(null)
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -290,35 +308,18 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [clearSelection, browseDir, config],
   )
 
-  // fileName is the dropped/picked file's own name: its extension picks the
-  // import path (.xsld parsed as-is, .svg reconstructed via slddoc.Extract),
-  // and, stripped, it's used as-is as the diagram name — so a subsequent
-  // Save just writes/overwrites the server's own copy under that name (same
-  // upsert semantics saveDiagramAs already has) rather than requiring a
-  // separate Save As first. An .svg import additionally records its own
-  // report as importLog (and opens the import log dialog), and — since
-  // Extract never sets one — defaults editor.defaultVoltage to whichever
-  // extracted voltage class the diagram uses most (mostUsedVoltage).
+  // Loads a dropped/picked file (see lib/importDiagram's prepareImport for
+  // the .xsld/.svg paths) and makes it the working diagram under name — the
+  // server path the next Save writes, i.e. the File panel's own current
+  // folder joined with the file's name minus its extension (see
+  // importTargetName) — marked dirty rather than saved, the same upsert
+  // semantics saveDiagramAs already has. An .svg import also records its own
+  // report as importLog (and opens the import log dialog).
   const loadDiagramFromFile = useCallback(
-    async (text: string, fileName: string) => {
-      const kind = diagramFileKind(fileName)
-      if (!kind) throw new Error(t('file.invalidDiagramFile', { name: fileName }))
-      let raw: Diagram
-      let log: ImportLog | null = null
-      if (kind === 'svg') {
-        const { diagram: extracted, report } = await api.importDiagramSVG(text)
-        raw = extracted
-        log = { fileName, report }
-        const voltage = diagramOps.mostUsedVoltage(extracted)
-        if (voltage !== undefined && extracted.editor?.defaultVoltage === undefined) {
-          raw = { ...extracted, editor: { ...extracted.editor, defaultVoltage: voltage } }
-        }
-      } else {
-        raw = await api.importDiagramXML(text)
-      }
-      const d = diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config)
-      const suggestedName = stripDiagramExtension(fileName)
-      setDiagramName(suggestedName)
+    async (text: string, fileName: string, name: string) => {
+      const { diagram: d, report } = await prepareImport(text, fileName, config)
+      const log: ImportLog | null = report ? { fileName, report } : null
+      setDiagramName(name)
       setDiagram(d)
       setDirty(true)
       setDefaultVoltage(d.editor?.defaultVoltage)
@@ -329,40 +330,100 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       // An .svg import already gets a Default voltage picker in its own
       // import log dialog; only a plain .xsld import asks separately.
       setDefaultVoltagePromptOpen(log === null && diagramOps.needsDefaultVoltage(d))
-      await browseDir(parentDir(suggestedName))
+      await browseDir(parentDir(name))
     },
     [clearSelection, browseDir, config],
   )
 
-  // importDiagramFile is what a drop/pick actually calls: it checks
+  // importDiagramFile is what a single-file drop/pick calls: it checks
   // whether a diagram already exists on the server under the name the
-  // import would take (the same path the next Save writes — see
-  // loadDiagramFromFile) and, if so, parks the file as pendingImport for
-  // ConfirmReloadDialog to ask "Reload or not" instead of loading it
-  // straight away; otherwise it loads immediately.
+  // import would take (importTargetName — inside the File panel's current
+  // folder) and, if so, parks the file as pendingImport, with that name
+  // fixed, for ConfirmReloadDialog to ask "Reload or not"; otherwise it
+  // loads immediately.
   const importDiagramFile = useCallback(
     async (text: string, fileName: string) => {
       if (!diagramFileKind(fileName)) throw new Error(t('file.invalidDiagramFile', { name: fileName }))
-      const name = stripDiagramExtension(fileName)
+      const name = importTargetName(currentDir, fileName)
       const siblings = await api.listDiagrams(parentDir(name))
       if (siblings.some(e => !e.isDir && e.name === baseName(name))) {
         setPendingImport({ text, fileName, name })
         return
       }
-      await loadDiagramFromFile(text, fileName)
+      await loadDiagramFromFile(text, fileName, name)
     },
-    [loadDiagramFromFile],
+    [loadDiagramFromFile, currentDir],
   )
 
   // Loads the parked pendingImport ("Reload") — cleared only once that
   // succeeds, so a failure leaves ConfirmReloadDialog open to show it.
   const confirmPendingImport = useCallback(async () => {
     if (!pendingImport) return
-    await loadDiagramFromFile(pendingImport.text, pendingImport.fileName)
+    await loadDiagramFromFile(pendingImport.text, pendingImport.fileName, pendingImport.name)
     setPendingImport(null)
   }, [pendingImport, loadDiagramFromFile])
 
+  // Imports several files at once straight to the server, into dir (the
+  // File panel's current folder), without opening any of them — the open
+  // diagram stays untouched. Each file is prepared (prepareImport) and saved
+  // as dir/<file name>; one that fails doesn't stop the rest. A name that
+  // already exists on the server (or was already taken by an earlier file
+  // in this same batch) is skipped unless overwrite is set. Returns one
+  // BatchImportItem per file, in order.
+  const runBatchImport = useCallback(
+    async (files: ImportFile[], dir: string, overwrite: boolean): Promise<BatchImportItem[]> => {
+      const existing = new Set(
+        overwrite ? [] : (await api.listDiagrams(dir)).filter(e => !e.isDir).map(e => e.name),
+      )
+      const items: BatchImportItem[] = []
+      for (const file of files) {
+        const name = importTargetName(dir, file.fileName)
+        if (!diagramFileKind(file.fileName)) {
+          items.push({ fileName: file.fileName, name, status: 'failed', message: t('file.invalidDiagramFile', { name: file.fileName }) })
+          continue
+        }
+        if (existing.has(baseName(name))) {
+          items.push({ fileName: file.fileName, name, status: 'skipped' })
+          continue
+        }
+        try {
+          const { diagram: d } = await prepareImport(file.text, file.fileName, config)
+          const { warning } = await api.saveDiagram(name, d)
+          existing.add(baseName(name))
+          items.push({ fileName: file.fileName, name, status: 'saved', message: warning })
+        } catch (e) {
+          items.push({ fileName: file.fileName, name, status: 'failed', message: (e as Error).message })
+        }
+      }
+      return items
+    },
+    [config],
+  )
+
+  const importDiagramFiles = useCallback(
+    async (files: ImportFile[]) => {
+      const dir = currentDir
+      const items = await runBatchImport(files, dir, false)
+      setBatchImport({ dir, files, items })
+      await browseDir(dir)
+    },
+    [currentDir, runBatchImport, browseDir],
+  )
+
+  // Re-runs just the skipped files of the last batch, overwriting the
+  // server's own copies.
+  const overwriteBatchSkipped = useCallback(async () => {
+    if (!batchImport) return
+    const skipped = batchImport.items.filter(i => i.status === 'skipped').map(i => i.fileName)
+    const files = batchImport.files.filter(f => skipped.includes(f.fileName))
+    const redone = await runBatchImport(files, batchImport.dir, true)
+    const byFile = new Map(redone.map(i => [i.fileName, i]))
+    setBatchImport({ ...batchImport, items: batchImport.items.map(i => byFile.get(i.fileName) ?? i) })
+    await browseDir(batchImport.dir)
+  }, [batchImport, runBatchImport, browseDir])
+
   const cancelPendingImport = useCallback(() => setPendingImport(null), [])
+  const closeBatchImport = useCallback(() => setBatchImport(null), [])
 
   const saveDiagram = useCallback(async () => {
     if (!diagramName || !diagram) return
@@ -469,6 +530,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setImportLogOpen,
       defaultVoltagePromptOpen,
       setDefaultVoltagePromptOpen,
+      importDiagramFiles,
+      batchImport,
+      overwriteBatchSkipped,
+      closeBatchImport,
       saveDiagram,
       saveDiagramAs,
       updateDiagram,
@@ -518,6 +583,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setImportLogOpen,
       defaultVoltagePromptOpen,
       setDefaultVoltagePromptOpen,
+      importDiagramFiles,
+      batchImport,
+      overwriteBatchSkipped,
+      closeBatchImport,
       saveDiagram,
       saveDiagramAs,
       updateDiagram,
