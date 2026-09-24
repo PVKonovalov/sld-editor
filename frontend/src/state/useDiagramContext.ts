@@ -138,6 +138,11 @@ export interface DiagramContextValue {
   importLog: ImportLog | null
   importLogOpen: boolean
   setImportLogOpen: (open: boolean) => void
+  // Set when an opened (or .xsld-imported) diagram has no usable
+  // editor.defaultVoltage of its own (diagramOps.needsDefaultVoltage), for
+  // DefaultVoltageDialog to ask for one; cleared by picking one or skipping.
+  defaultVoltagePromptOpen: boolean
+  setDefaultVoltagePromptOpen: (open: boolean) => void
   saveDiagram: () => Promise<void>
   saveDiagramAs: (name: string) => Promise<void>
   updateDiagram: (updater: (d: Diagram) => Diagram) => void

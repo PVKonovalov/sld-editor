@@ -40,7 +40,7 @@ voltage_colors:
     color: "#00a0f0"
   - name: "220 kV"
     color: "#d02020"
-  - name: 330 KV
+  - name: "330 kV"
     color: "#d04040"
 
 # Global Open/Close/Intermediate legend a switching device's state-driven

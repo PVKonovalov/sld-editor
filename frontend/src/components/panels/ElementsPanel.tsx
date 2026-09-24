@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Type, Gauge, ChevronDown, ChevronRight } from 'lucide-react'
+import { Type, Gauge } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import { PanelShell } from './PanelShell'
+import { GroupHeader } from './GroupHeader'
 import { t, type TranslationKey } from '../../i18n'
 import { elementIconMarkup } from '../../lib/elementIcon'
 import { WIRE_KIND_ICONS } from '../../lib/wireKindIcon'
@@ -16,25 +17,6 @@ const WIRE_KIND_LABELS: Record<'BusWork' | 'OverheadLine' | 'CableLine' | 'LinkT
   OverheadLine: 'connectorKind.OverheadLine',
   CableLine: 'connectorKind.CableLine',
   LinkToObject: 'connectorKind.LinkToObject',
-}
-
-// A group's own collapse/expand toggle — every group (equipment or one of
-// the two built-in ones) behaves identically, per config.Config.Palette
-// being the one source of truth for all of them now. Expanded state isn't
-// persisted anywhere (plain component state): every group starts collapsed
-// and it resets to that the next time the panel itself mounts, which is
-// fine for a session-only UI convenience like this.
-function GroupHeader({ label, collapsed, onToggle }: { label: string; collapsed: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className="flex items-center gap-1 w-full text-xs uppercase tracking-wide text-gray-400 mb-1 hover:text-gray-200"
-    >
-      {collapsed ? <ChevronRight size={14} className="shrink-0" /> : <ChevronDown size={14} className="shrink-0" />}
-      <span>{label}</span>
-    </button>
-  )
 }
 
 // One palette button — shared by every PaletteItem kind (wireKind/special/

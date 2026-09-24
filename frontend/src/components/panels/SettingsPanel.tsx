@@ -1,5 +1,3 @@
-import { useState } from 'react'
-import { Trash2 } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { PanelShell } from './PanelShell'
@@ -7,7 +5,6 @@ import { t } from '../../i18n'
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const { diagram, config, updateEditorSettings, updateDiagram, setDefaultVoltage } = useDiagramContext()
-  const [presetName, setPresetName] = useState('')
 
   const defaults = config?.editor
   const gridSpacing = diagram?.editor?.gridSpacing ?? defaults?.gridSpacing ?? 10
@@ -23,13 +20,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     const { diagram: withClass, voltage } = diagramOps.resolveVoltageSelection(diagram, config, rawValue)
     updateDiagram(() => ({ ...withClass, editor: { ...withClass.editor, defaultVoltage: voltage } }))
     setDefaultVoltage(voltage)
-  }
-
-  function addPreset() {
-    const preset = config?.voltageColors.find(v => v.name === presetName)
-    if (!preset) return
-    updateDiagram(d => diagramOps.addVoltageClass(d, preset.name, preset.color))
-    setPresetName('')
   }
 
   return (
@@ -106,68 +96,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
               ))}
             </select>
           </label>
-        )}
-
-        {diagram && (
-          <div>
-            <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{t('settings.voltageClasses')}</h3>
-
-            {diagram.voltageClasses.length === 0 && (
-              <p className="text-xs text-gray-500 mb-2">{t('settings.noVoltageClasses')}</p>
-            )}
-
-            <div className="space-y-1 mb-2">
-              {diagram.voltageClasses.map(vc => (
-                <div key={vc.id} className="flex items-center gap-1">
-                  <input
-                    type="color"
-                    value={vc.color}
-                    onChange={e => updateDiagram(d => diagramOps.updateVoltageClass(d, vc.id, { color: e.target.value }))}
-                    className="w-6 h-6 shrink-0 bg-surface-800 border border-surface-600 rounded"
-                  />
-                  <input
-                    type="text"
-                    value={vc.name}
-                    onChange={e => updateDiagram(d => diagramOps.updateVoltageClass(d, vc.id, { name: e.target.value }))}
-                    className="flex-1 min-w-0 bg-surface-800 border border-surface-600 rounded px-1.5 py-1 text-xs"
-                  />
-                  <button
-                    type="button"
-                    aria-label={t('settings.deleteVoltageClass')}
-                    onClick={() => updateDiagram(d => diagramOps.removeVoltageClass(d, vc.id))}
-                    className="text-red-400 hover:text-red-300 shrink-0"
-                  >
-                    <Trash2 size={13} />
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {config && config.voltageColors.length > 0 && (
-              <div className="flex gap-1">
-                <select
-                  value={presetName}
-                  onChange={e => setPresetName(e.target.value)}
-                  className="flex-1 min-w-0 bg-surface-800 border border-surface-600 rounded px-1.5 py-1 text-xs"
-                >
-                  <option value="">{t('settings.pickVoltage')}</option>
-                  {config.voltageColors.map(v => (
-                    <option key={v.name} value={v.name}>
-                      {v.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  disabled={!presetName}
-                  onClick={addPreset}
-                  className="px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white shrink-0"
-                >
-                  {t('settings.addVoltageClass')}
-                </button>
-              </div>
-            )}
-          </div>
         )}
       </div>
     </PanelShell>

@@ -9,6 +9,7 @@ import { PropertiesPanel } from './components/panels/PropertiesPanel'
 import { Canvas } from './components/Canvas'
 import { ImportLogDialog } from './components/ImportLogDialog'
 import { ConfirmReloadDialog } from './components/ConfirmReloadDialog'
+import { DefaultVoltageDialog } from './components/DefaultVoltageDialog'
 import { diagramFileKind, readFileAsText } from './lib/fileTransfer'
 import { t } from './i18n'
 
@@ -30,6 +31,7 @@ function Shell() {
     importDiagramFile,
     pendingImport,
     importLogOpen,
+    defaultVoltagePromptOpen,
     setImportLogOpen,
   } = useDiagramContext()
   const hadSelection = useRef(false)
@@ -140,6 +142,7 @@ function Shell() {
       )}
       {pendingImport && <ConfirmReloadDialog />}
       {importLogOpen && <ImportLogDialog onClose={() => setImportLogOpen(false)} />}
+      {defaultVoltagePromptOpen && !pendingImport && <DefaultVoltageDialog />}
       {dropError && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-red-900/90 text-red-100 text-xs rounded px-3 py-2 shadow">
           <span>{dropError}</span>

@@ -5,6 +5,7 @@ import type {
   Connector,
   ConnectorKind,
   VoltageClass,
+  Layer,
   ElementClass,
   Point,
   ElementSymbol,
@@ -143,6 +144,15 @@ export function mostUsedVoltage(diagram: Diagram): number | undefined {
     }
   }
   return best
+}
+
+// needsDefaultVoltage reports whether a diagram has no usable
+// editor.defaultVoltage of its own — unset/0, or referencing a voltage
+// class no longer on the diagram — so opening it should ask for one
+// (DefaultVoltageDialog).
+export function needsDefaultVoltage(diagram: Diagram): boolean {
+  const id = diagram.editor?.defaultVoltage
+  return !id || !diagram.voltageClasses.some(vc => vc.id === id)
 }
 
 /** Backfills lastId for a diagram saved before this editor tracked one (or
@@ -2439,4 +2449,75 @@ export function updateVoltageClass(diagram: Diagram, id: number, patch: Partial<
  * leaves it unassigned in effect until reassigned to something real. */
 export function removeVoltageClass(diagram: Diagram, id: number): Diagram {
   return { ...diagram, voltageClasses: diagram.voltageClasses.filter(vc => vc.id !== id) }
+}
+
+/** Renames every voltage class still named after its own color (or not
+ * named at all) — how slddoc.Extract names a color it had no voltage hint
+ * for, e.g. `name="#962896" color="#962896"` — to the server preset
+ * (config.voltageColors, from the yaml's voltage_colors) with the same
+ * color, compared case-insensitively. A class the user already renamed is
+ * never touched. Returns the same diagram reference when nothing matched,
+ * so a caller can tell whether anything changed (the same convention
+ * ensureLastId uses). */
+export function applyPresetVoltageNames(diagram: Diagram, config: EditorConfig | null): Diagram {
+  const presets = config?.voltageColors ?? []
+  if (presets.length === 0) return diagram
+  let changed = false
+  const voltageClasses = diagram.voltageClasses.map(vc => {
+    const color = vc.color.trim().toLowerCase()
+    const name = vc.name.trim().toLowerCase()
+    if (name !== '' && name !== color) return vc
+    const preset = presets.find(p => p.color.trim().toLowerCase() === color)
+    if (!preset || preset.name === vc.name) return vc
+    changed = true
+    return { ...vc, name: preset.name }
+  })
+  return changed ? { ...diagram, voltageClasses } : diagram
+}
+
+// BASE_LAYER mirrors internal/slddoc's BaseLayer: the always-present layer
+// every object falls back to, which can't be deleted.
+export const BASE_LAYER = 0
+
+/** Adds a new, empty visibility layer, its id taken from the diagram's own
+ * shared IdSequence. */
+export function addLayer(diagram: Diagram, name: string): Diagram {
+  const ids = new IdSequence(diagram)
+  const layer: Layer = { id: ids.take(), name }
+  return { ...diagram, lastId: ids.lastId, layers: [...diagram.layers, layer] }
+}
+
+export function updateLayer(diagram: Diagram, id: number, patch: Partial<Layer>): Diagram {
+  return { ...diagram, layers: diagram.layers.map(l => (l.id === id ? { ...l, ...patch } : l)) }
+}
+
+/** Removes a layer (never BASE_LAYER), moving every element/connector/
+ * label/digital device still on it back to BASE_LAYER, so nothing is left
+ * referencing a layer that no longer exists — unlike removeVoltageClass,
+ * which leaves its references dangling, since every object must always
+ * carry exactly one resolvable layer. */
+export function removeLayer(diagram: Diagram, id: number): Diagram {
+  if (id === BASE_LAYER) return diagram
+  const move = <T extends { layer: number }>(items: T[]): T[] =>
+    items.some(x => x.layer === id) ? items.map(x => (x.layer === id ? { ...x, layer: BASE_LAYER } : x)) : items
+  return {
+    ...diagram,
+    layers: diagram.layers.filter(l => l.id !== id),
+    elements: move(diagram.elements),
+    connectors: move(diagram.connectors),
+    labels: move(diagram.labels),
+    digitalDevices: move(diagram.digitalDevices),
+  }
+}
+
+// layerUsage counts, per Layer id, how many elements/connectors/labels/
+// digital devices sit on it — an inspection helper like voltageUsage.
+export function layerUsage(diagram: Diagram): Map<number, number> {
+  const counts = new Map<number, number>()
+  const add = (layer: number) => counts.set(layer, (counts.get(layer) ?? 0) + 1)
+  for (const x of diagram.elements) add(x.layer)
+  for (const x of diagram.connectors) add(x.layer)
+  for (const x of diagram.labels) add(x.layer)
+  for (const x of diagram.digitalDevices) add(x.layer)
+  return counts
 }

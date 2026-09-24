@@ -4065,3 +4065,37 @@ drop zone accept only `.xsld` and `.svg`, and "Download XSLD" saves
 type, not the extension. sld-svg's `svg-sld extract`/`render` switched to
 `.xsld` as well; element library files (`base.xml`, `symbols.xml`) keep
 `.xml`.
+
+2026-09-24: Opening a diagram now asks for its voltage level when the file
+doesn't set one. After `openDiagram` (File panel) or a dropped/picked
+`.xsld`, a new `DefaultVoltageDialog` ("Diagram voltage level") appears
+whenever `editor.defaultVoltage` is missing or points to a voltage class
+that no longer exists (`diagramOps.needsDefaultVoltage`). It lists the
+diagram's own voltage classes with usage counts, preselects the most-used
+one, and also offers the server's voltage presets (a preset not yet on the
+diagram is added to it). OK stores the pick as `editor.defaultVoltage` and
+marks the diagram dirty so the next Save writes it; Skip/Esc leaves it
+unset until the diagram is reopened. Not shown for `.svg` imports (the
+import log dialog already has this picker) or new diagrams (the New dialog
+asks). en/ru strings added.
+
+2026-09-24: The Properties panel's diagram view (nothing selected) now has
+two collapsible groups, both starting collapsed: **Layers** — rename, add
+(`diagramOps.addLayer`) or delete (`removeLayer`) the diagram's `<layers>`,
+with a per-layer object count (`layerUsage`); the base layer `0` can't be
+deleted, and deleting any other layer moves its elements, connectors, labels
+and digital devices to layer `0` — and **Voltage classes** — the
+color/name/delete/add-from-preset editor for `<voltageClasses>`, now with a
+per-class usage count, moved here from the Settings panel (Settings keeps
+only the Default voltage picker). The collapsible group header was factored
+out of the Elements panel into `components/panels/GroupHeader.tsx`, and the
+voltage-class i18n keys moved from `settings.*` to `diagram.*`.
+
+2026-09-24: Voltage classes named after their own color are renamed from
+the server's `voltage_colors` presets when a diagram is opened or imported
+(`diagramOps.applyPresetVoltageNames`): a class whose name is empty or equals
+its color (e.g. `name="#962896" color="#962896"`, as Extract names a color
+it had no hint for) takes the name of the preset with the same color,
+compared case-insensitively (`10 kV`). A class already renamed by hand is
+left alone. When anything was renamed the diagram is marked dirty, so the
+next Save writes the new names into the `.xsld`.

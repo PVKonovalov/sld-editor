@@ -34,6 +34,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [defaultVoltage, setDefaultVoltage] = useState<number | undefined>(undefined)
   const [importLog, setImportLog] = useState<ImportLog | null>(null)
   const [importLogOpen, setImportLogOpen] = useState(false)
+  const [defaultVoltagePromptOpen, setDefaultVoltagePromptOpen] = useState(false)
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -246,6 +247,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       clearSelection()
       setImportLog(null)
       setImportLogOpen(false)
+      setDefaultVoltagePromptOpen(false)
       setError(warning ?? null)
       await browseDir(parentDir(name))
       if (preset) {
@@ -260,7 +262,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const openDiagram = useCallback(
     async (name: string) => {
       const raw = await api.getDiagram(name)
-      const d = diagramOps.ensureLastId(raw)
+      // Both return the same reference when there's nothing to fix, so
+      // d !== raw below still means "something actually changed".
+      const d = diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config)
       setDiagramName(name)
       setDiagram(d)
       // ensureLastId returns the same object reference when it found
@@ -269,18 +273,21 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       // with every other one) needs to reach disk, not just this
       // in-memory session, so it's flagged dirty the same as any other
       // edit rather than silently staying fixed only until the tab closes.
+      // The same goes for a voltage class renamed from its preset
+      // (applyPresetVoltageNames).
       setDirty(d !== raw)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
       setImportLog(null)
       setImportLogOpen(false)
+      setDefaultVoltagePromptOpen(diagramOps.needsDefaultVoltage(d))
       // Keeps the File panel's own browser showing wherever this diagram
       // actually lives — most often a no-op re-fetch of the folder it was
       // just opened from, but also correct if openDiagram is ever called
       // some other way (e.g. a future "recent files" list).
       await browseDir(parentDir(name))
     },
-    [clearSelection, browseDir],
+    [clearSelection, browseDir, config],
   )
 
   // fileName is the dropped/picked file's own name: its extension picks the
@@ -309,7 +316,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       } else {
         raw = await api.importDiagramXML(text)
       }
-      const d = diagramOps.ensureLastId(raw)
+      const d = diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config)
       const suggestedName = stripDiagramExtension(fileName)
       setDiagramName(suggestedName)
       setDiagram(d)
@@ -319,9 +326,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setError(null)
       setImportLog(log)
       setImportLogOpen(log !== null)
+      // An .svg import already gets a Default voltage picker in its own
+      // import log dialog; only a plain .xsld import asks separately.
+      setDefaultVoltagePromptOpen(log === null && diagramOps.needsDefaultVoltage(d))
       await browseDir(parentDir(suggestedName))
     },
-    [clearSelection, browseDir],
+    [clearSelection, browseDir, config],
   )
 
   // importDiagramFile is what a drop/pick actually calls: it checks
@@ -457,6 +467,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       importLog,
       importLogOpen,
       setImportLogOpen,
+      defaultVoltagePromptOpen,
+      setDefaultVoltagePromptOpen,
       saveDiagram,
       saveDiagramAs,
       updateDiagram,
@@ -504,6 +516,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       importLog,
       importLogOpen,
       setImportLogOpen,
+      defaultVoltagePromptOpen,
+      setDefaultVoltagePromptOpen,
       saveDiagram,
       saveDiagramAs,
       updateDiagram,
