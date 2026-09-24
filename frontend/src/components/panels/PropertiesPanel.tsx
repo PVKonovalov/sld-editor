@@ -3,6 +3,7 @@ import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { PanelShell } from './PanelShell'
 import { LayersSection, VoltageClassesSection } from './DiagramSections'
+import { DiagramFileSection } from './DiagramFileSection'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
 import { CONNECTOR_KIND_CODES, LABEL_SHAPE, DIGITAL_DEVICE_SHAPE } from '../../lib/paletteItem'
@@ -366,6 +367,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               />
             </label>
           </div>
+          <DiagramFileSection />
           <LayersSection />
           <VoltageClassesSection />
         </div>

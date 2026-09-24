@@ -4111,3 +4111,12 @@ startup and has a new `-version` flag. `make docker-build` passes the host's
 version into the container. A new About button at the bottom of the sidebar
 opens `components/AboutDialog.tsx` with the program icon, name, version and
 a short description (en/ru).
+
+2026-09-24: Moved the open diagram's own file actions — Save, Save As and
+Export (Download XSLD / Download SVG) — from the left File panel to the
+Properties panel's diagram view (nothing selected), in a new
+`components/panels/DiagramFileSection.tsx` placed under File name/Width/
+Height. The File panel keeps New, Open and Import (including "Show import
+log", which belongs to the last import). Save As now writes next to the open
+diagram (its own folder) instead of into whichever folder the File panel is
+browsing; a typed name can still carry `/` segments to nest deeper.
