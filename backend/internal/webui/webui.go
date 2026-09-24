@@ -10,10 +10,12 @@
 // repo root Makefile) copies whichever locale's built frontend it wants
 // into this package's own dist/ directory immediately before invoking
 // `go build` — this file always embeds "whatever's currently in dist/".
-// dist/ itself always carries at least a placeholder index.html (see its
-// own comment) so `go:embed` never fails for an ordinary `go run`/
-// `go build`/`go vet`/`go test` outside that build script, where dist/
-// was never populated with a real frontend build at all.
+// dist/ is build output and not tracked in git except for an empty
+// .gitkeep, which `all:` (unlike a plain pattern) includes — so
+// `go:embed` never fails for an ordinary `go run`/`go build`/`go vet`/
+// `go test` outside that build script, where dist/ was never populated
+// with a real frontend build at all (such a binary serves no UI; use the
+// Vite dev server during development).
 package webui
 
 import "embed"

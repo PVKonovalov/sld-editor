@@ -42,14 +42,17 @@ frontend/node_modules/
 frontend/dist/
 frontend/dist-en/
 frontend/dist-ru/
+# Generated before every dev/build run by frontend/scripts/
+# generate-active-locale.mjs (re-exports the chosen locale's dictionary).
+frontend/src/i18n/active.ts
 
 # The production build script (see the repo root Makefile) copies a
 # locale's built frontend here right before `go build` so go:embed picks
-# it up — see backend/internal/webui's own doc comment. Everything except
-# the always-present placeholder index.html is runtime-generated, not
-# source.
+# it up — see backend/internal/webui's own doc comment. All of it is
+# build output; only an empty .gitkeep is tracked, so go:embed still finds
+# the directory in a fresh clone.
 /backend/internal/webui/dist/*
-!/backend/internal/webui/dist/index.html
+!/backend/internal/webui/dist/.gitkeep
 
 # Production build output (see the repo root Makefile)
 /build/

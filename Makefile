@@ -120,12 +120,14 @@ frontend-en:
 	rm -rf $(WEBUI_DIST)
 	mkdir -p $(WEBUI_DIST)
 	cp -r $(FRONTEND_DIR)/dist-en/. $(WEBUI_DIST)/
+	touch $(WEBUI_DIST)/.gitkeep
 
 frontend-ru:
 	cd $(FRONTEND_DIR) && npm install && APP_VERSION=$(VERSION) npm run build:ru
 	rm -rf $(WEBUI_DIST)
 	mkdir -p $(WEBUI_DIST)
 	cp -r $(FRONTEND_DIR)/dist-ru/. $(WEBUI_DIST)/
+	touch $(WEBUI_DIST)/.gitkeep
 
 # Runs this same Makefile's own linux/windows targets inside a container
 # with Go/Node pinned (see Dockerfile.build), rather than requiring either
@@ -172,4 +174,5 @@ clean:
 	rm -rf $(BUILD_DIR)
 	rm -rf $(WEBUI_DIST)
 	mkdir -p $(WEBUI_DIST)
+	touch $(WEBUI_DIST)/.gitkeep
 	git -C $(BACKEND_DIR)/internal/webui checkout -- dist/index.html 2>/dev/null || true

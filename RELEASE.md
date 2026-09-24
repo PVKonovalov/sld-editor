@@ -4151,3 +4151,15 @@ as-is from its own folder. It fails with a clear message when nothing is
 built yet. `release` = `all` + `package`. Verified by unpacking an archive
 and starting the binary from it (config, element library and UI all
 resolved).
+
+2026-09-24: Stopped committing generated frontend files, so a build no
+longer leaves the git tree dirty (and a tagged build no longer gets a
+`-dirty` version). `frontend/src/i18n/active.ts` (written by
+`generate-active-locale.mjs` before every dev/build run) and
+`backend/internal/webui/dist/index.html` (overwritten by every `make` with
+the real built page, whose hashed assets were never committed anyway) are
+removed from git and ignored. `webui/dist/` now tracks only an empty
+`.gitkeep`, which `//go:embed all:dist` accepts, so `go build`/`go run` still
+work in a fresh clone (verified with dist/ holding only `.gitkeep`); the
+Makefile's `frontend-en`/`frontend-ru`/`clean` targets recreate it after
+wiping the folder.
