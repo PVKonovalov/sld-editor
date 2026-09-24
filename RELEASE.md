@@ -4040,3 +4040,16 @@ for browsers (notably Safari) with unreliable SVG favicon support. Linked
 from `frontend/index.html`; Vite copies `public/` into `dist/`, so the
 embedded production binary serves them too (verified `/favicon.ico` etc.
 return 200 from a binary built with the new `dist/` embedded).
+
+2026-09-24: Wrote a reference specification of the diagram XML format,
+`slddoc/FORMAT.md` (in the shared slddoc module, since it owns the
+format). It covers document structure, id rules (`lastId`, shared id space,
+0 = unset), every section and attribute (layers, voltage classes, nodes,
+elements with ports/geometry/windings/Table2 grid, connectors, labels,
+digital devices), the node-based topology model including how busbars
+connect (ports in editor-drawn diagrams vs. geometry-only in Extract
+output), class-specific attributes, the element shape and connector kind
+code tables (port counts checked against the existing corpus), the legacy
+values `Load` rewrites, and a complete example. The example was verified to
+load with `slddoc.Load` and save back byte-for-byte identical. Linked from
+the slddoc and sld-svg READMEs.
