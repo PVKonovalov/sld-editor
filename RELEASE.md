@@ -4053,3 +4053,15 @@ code tables (port counts checked against the existing corpus), the legacy
 values `Load` rewrites, and a complete example. The example was verified to
 load with `slddoc.Load` and save back byte-for-byte identical. Linked from
 the slddoc and sld-svg READMEs.
+
+2026-09-24: Diagram source files now use the dedicated `.xsld` extension
+instead of `.xml` (the content is unchanged — slddoc's XML format, see
+`slddoc/FORMAT.md`). The backend store lists, loads and saves
+`<name>.xsld` (+ `<name>.svg`); the File panel's picker and the window-wide
+drop zone accept only `.xsld` and `.svg`, and "Download XSLD" saves
+`<name>.xsld` (en/ru strings updated). No backward compatibility: existing
+`.xml` diagrams are no longer listed or importable until renamed to
+`.xsld`. `POST /api/import/xml` keeps its path, since it names the content
+type, not the extension. sld-svg's `svg-sld extract`/`render` switched to
+`.xsld` as well; element library files (`base.xml`, `symbols.xml`) keep
+`.xml`.

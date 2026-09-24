@@ -40,8 +40,28 @@ func TestCreateSaveLoad(t *testing.T) {
 		t.Errorf("Width = %v, want 100", got.Width)
 	}
 
+	if _, err := os.Stat(filepath.Join(s.dir, "substation-1.xsld")); err != nil {
+		t.Errorf("expected the diagram to be written as .xsld: %v", err)
+	}
 	if _, err := os.Stat(filepath.Join(s.dir, "substation-1.svg")); err != nil {
 		t.Errorf("expected a companion .svg to be written: %v", err)
+	}
+}
+
+func TestList_IgnoresLegacyXML(t *testing.T) {
+	s := newTestStore(t)
+	if err := os.WriteFile(filepath.Join(s.dir, "old.xml"), []byte("<diagram/>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Create("new", &slddoc.Diagram{Width: 1, Height: 1}); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	entries, err := s.List("")
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name != "new" {
+		t.Errorf("List = %+v, want only the .xsld diagram \"new\"", entries)
 	}
 }
 

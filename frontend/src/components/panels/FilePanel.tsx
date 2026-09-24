@@ -159,7 +159,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
                 run(async () => {
                   if (!diagram) return
                   const xml = await api.exportDiagramXML(diagram)
-                  downloadText(`${diagramName ?? 'diagram'}.xml`, xml, 'application/xml')
+                  downloadText(`${diagramName ?? 'diagram'}.xsld`, xml, 'application/xml')
                 })
               }
               className="flex-1 px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
@@ -186,7 +186,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xml,.svg,application/xml,text/xml,image/svg+xml"
+            accept=".xsld,.svg,image/svg+xml"
             className="hidden"
             onChange={e => {
               const file = e.target.files?.[0]

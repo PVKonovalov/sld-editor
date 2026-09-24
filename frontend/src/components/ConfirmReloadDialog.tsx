@@ -3,7 +3,7 @@ import { useDiagramContext } from '../state/useDiagramContext'
 import { t } from '../i18n'
 
 /** A centered modal (backdrop click or Esc cancels, same as
- * NewDiagramDialog/ImportLogDialog) shown when a dropped/picked .xml/.svg
+ * NewDiagramDialog/ImportLogDialog) shown when a dropped/picked .xsld/.svg
  * would take the name of a diagram that already exists on the server
  * (DiagramContext's pendingImport): Reload loads the file anyway — the
  * next Save then overwrites the server copy — Cancel leaves the currently

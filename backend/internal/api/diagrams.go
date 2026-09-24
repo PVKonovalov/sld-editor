@@ -244,7 +244,7 @@ func (s *Server) exportDiagramSVG(c *gin.Context) {
 	c.Data(http.StatusOK, "image/svg+xml", buf.Bytes())
 }
 
-// importDiagramXML parses a raw .xml file dropped/picked on the client
+// importDiagramXML parses a raw .xsld file dropped/picked on the client
 // (see Load's own doc comment) and hands back the same JSON shape
 // getDiagram does, so the frontend can treat a locally loaded file exactly
 // like one opened from the server's own diagrams list.

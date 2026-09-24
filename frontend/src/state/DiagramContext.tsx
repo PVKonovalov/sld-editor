@@ -227,7 +227,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // from the New Diagram dialog) to seed this brand-new diagram with —
   // added as its first VoltageClass and recorded as Editor.DefaultVoltage,
   // then saved immediately (a second write right after the initial create)
-  // so the very first .xml on disk already carries it, not just an
+  // so the very first .xsld on disk already carries it, not just an
   // in-memory, still-dirty value waiting on the user's next explicit Save.
   const newDiagram = useCallback(
     async (name: string, width?: number, height?: number, defaultVoltageName?: string) => {
@@ -284,7 +284,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   )
 
   // fileName is the dropped/picked file's own name: its extension picks the
-  // import path (.xml parsed as-is, .svg reconstructed via slddoc.Extract),
+  // import path (.xsld parsed as-is, .svg reconstructed via slddoc.Extract),
   // and, stripped, it's used as-is as the diagram name — so a subsequent
   // Save just writes/overwrites the server's own copy under that name (same
   // upsert semantics saveDiagramAs already has) rather than requiring a

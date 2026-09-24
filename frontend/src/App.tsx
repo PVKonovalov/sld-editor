@@ -35,7 +35,7 @@ function Shell() {
   const hadSelection = useRef(false)
   const hadDiagram = useRef(false)
 
-  // A window-wide drop zone for loading a .xml/.svg file from the user's own
+  // A window-wide drop zone for loading a .xsld/.svg file from the user's own
   // machine (see FilePanel's own "Load from file…" button for the
   // file-picker equivalent) — dragCounter (not a plain boolean) is needed
   // because a dragenter/dragleave pair fires for every descendant element

@@ -112,7 +112,7 @@ export interface DiagramContextValue {
   // leaving the diagram merely dirty.
   newDiagram: (name: string, width?: number, height?: number, defaultVoltageName?: string) => Promise<void>
   openDiagram: (name: string) => Promise<void>
-  // Parses a .xml file's own text — or reconstructs a diagram from an
+  // Parses a .xsld file's own text — or reconstructs a diagram from an
   // xsde2svg-style .svg's (slddoc.Extract), picked by fileName's extension
   // — from a file picker or drag-and-drop on the user's own machine (not
   // the server's diagrams list) and makes it the working diagram, named
@@ -133,7 +133,7 @@ export interface DiagramContextValue {
   cancelPendingImport: () => void
   // The last .svg import's own file name + slddoc.Extract report, for the
   // import log dialog — kept only while that imported diagram stays open
-  // (cleared by openDiagram/newDiagram/an .xml import), so the File panel
+  // (cleared by openDiagram/newDiagram/an .xsld import), so the File panel
   // can offer to re-open it.
   importLog: ImportLog | null
   importLogOpen: boolean

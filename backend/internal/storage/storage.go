@@ -1,5 +1,6 @@
 // Package storage persists diagrams as a pair of files on disk: a
-// <name>.xml source of truth (internal/slddoc's format) and a companion
+// <name>.xsld source of truth (internal/slddoc's XML format, see
+// slddoc/FORMAT.md) and a companion
 // <name>.svg rendering, kept alongside it for anything that just wants to
 // display the diagram without understanding the XML.
 package storage
@@ -31,7 +32,10 @@ var ErrNotFound = errors.New("storage: diagram not found")
 // map it to 400 Bad Request rather than a generic 500.
 var ErrInvalidName = errors.New("storage: invalid name")
 
-const xmlExt = ".xml"
+// xmlExt is a diagram source file's own extension. The content is plain XML
+// (slddoc's format); the dedicated extension just tells a diagram apart from
+// any other XML file (e.g. an element library).
+const xmlExt = ".xsld"
 const svgExt = ".svg"
 
 // Store is a directory of diagram files.
@@ -115,7 +119,7 @@ func (s *Store) List(dir string) ([]Entry, error) {
 	return entries, nil
 }
 
-// Load reads and parses a diagram's .xml file.
+// Load reads and parses a diagram's .xsld file.
 func (s *Store) Load(name string) (*slddoc.Diagram, error) {
 	path, err := s.xmlPath(name)
 	if err != nil {
@@ -153,7 +157,7 @@ func (s *Store) Create(name string, d *slddoc.Diagram) (renderWarning, err error
 	return s.Save(name, d)
 }
 
-// Save writes d as name's .xml file — the diagram's authoritative record —
+// Save writes d as name's .xsld file — the diagram's authoritative record —
 // then renders and writes its companion .svg. A shape the configured
 // element libraries don't cover is reported back as renderWarning (naming
 // every missing shape), but never fails the save: err is non-nil only for

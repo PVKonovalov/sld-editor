@@ -153,7 +153,7 @@ export async function exportDiagramSVG(diagram: Diagram): Promise<string> {
   return res.text()
 }
 
-/** Parses a raw .xml file's own text (loaded from the user's machine, e.g.
+/** Parses a raw .xsld file's own text (loaded from the user's machine, e.g.
  * via a file picker or drag-and-drop) into a Diagram, the same shape
  * getDiagram returns for one opened from the server's own diagrams list. */
 export async function importDiagramXML(xmlText: string): Promise<Diagram> {
