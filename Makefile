@@ -52,7 +52,7 @@
 #   make release         # all + package
 #   make clean
 
-.PHONY: all linux windows macos \
+.PHONY: all all-ru linux windows macos \
         linux-en linux-ru windows-en windows-ru \
         macos-arm64-en macos-arm64-ru \
         frontend-en frontend-ru docker-build package release clean
@@ -77,6 +77,8 @@ PACKAGE_NAME := sld-editor-$(VERSION)
 PACKAGE_DIR  := $(BUILD_DIR)/.package
 
 all: linux windows macos
+
+all-ru: linux-ru windows-ru macos-arm64-ru
 
 linux: linux-en linux-ru
 
@@ -168,6 +170,9 @@ package:
 
 # Builds every target, then packages them.
 release: all
+	$(MAKE) package
+
+release-ru: all-ru
 	$(MAKE) package
 
 clean:
