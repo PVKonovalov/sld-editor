@@ -103,9 +103,11 @@ func (s *Server) routes() {
 	grp.PUT("/diagrams/save", s.saveDiagram)
 	grp.GET("/diagrams/svg", s.renderDiagramSVG)
 	grp.POST("/render", s.renderPreview)
+	grp.POST("/render/fragments", s.renderPreviewFragments)
 	grp.POST("/export/xml", s.exportDiagramXML)
 	grp.POST("/export/svg", s.exportDiagramSVG)
 	grp.POST("/import/xml", s.importDiagramXML)
+	grp.POST("/import/svg", s.importDiagramSVG)
 	grp.GET("/elements", s.listElements)
 	grp.GET("/config", s.getConfig)
 

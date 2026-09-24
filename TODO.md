@@ -24,39 +24,60 @@ via the Performance API), with zero frontend change, since every browser
 already negotiates and decompresses gzip transparently. Doesn't touch the
 request direction (the diagram JSON posted up) at all.
 
-Considered, not started: **incremental/patch-based re-rendering** instead
-of a full diagram-in/full-SVG-out round trip on every edit — the real fix
-for the "big diagram, small edit" case (gzip helps bandwidth, not the
-fact that a full document is generated/transferred/DOM-replaced for a
-one-element change). Sketch:
-- A new endpoint (or a flag on the existing one) takes the full Diagram
-  (still needed for voltage-class/topology resolution, which spans the
-  whole document) plus the set of element/connector/label ids that
-  actually changed since the last successful render, and returns *only*
-  those ids' own freshly rendered fragments (keyed by id), not a whole
-  `<svg>` document.
-- `internal/slddoc.Render` would need a sibling (or an `only []int`
-  filter) that still does its normal whole-diagram voltage/topology
-  resolution pass but writes markup for just the requested ids.
-- The frontend would look up each returned fragment's own existing DOM
-  node by id (the same `[data-editor-kind][id=X]` pattern
-  `dragElementsInDom`/`elementBoxes` already use) and replace just that
-  node, instead of replacing the whole injected SVG's own `innerHTML`;
-  a deleted id would need to come back as an explicit "removed" list so
-  its own DOM node gets removed rather than left orphaned.
-- Real complication: a **diagram-wide** change (e.g. editing a
-  VoltageClass's own color in Settings) affects every element that
-  references it, not just one — the "just re-render the touched ids"
-  model breaks down there and would still need a full re-render; this is
-  fine since that kind of edit is rare compared to per-element edits.
-- Another: rapid edits touching *different* elements before the debounce
-  fires need the *union* of every touched id since the last successful
-  render, not just the latest one — `Canvas.tsx`'s own debounce logic
-  would need a touched-ids accumulator, not just the latest full Diagram.
-- The initial diagram open (and Save, which needs the full document
-  anyway) would still use the existing full-render path unchanged — this
-  only optimizes the interactive-editing hot path once a diagram is
-  already loaded.
+Done: **incremental/patch-based re-rendering** instead of a full
+diagram-in/full-SVG-out round trip on every edit — the real fix for the
+"big diagram, small edit" case (gzip helps bandwidth, not the fact that a
+full document is generated/transferred/DOM-replaced for a one-element
+change).
+
+Backend: `internal/slddoc.RenderFragments` (`slddoc/render.go`) — a
+sibling to `Render` that runs the same whole-diagram voltage/topology
+resolution pass but only writes markup for a requested `ids []int`
+(elements/connectors/labels/digital devices are one shared id space, so a
+plain int works as the lookup key regardless of which kind an id turns
+out to be — see `Diagram.LastID`'s own doc comment), returned as
+`map[int]string` rather than written to an `io.Writer`. No type-comment
+headers and no `elementZOrder` tiering (both only meaningful for a full,
+ordered document) — a fragment is meant to replace one already-positioned
+DOM node in place. An id no longer present in the diagram at all is
+silently skipped, not an error. New `POST /api/render/fragments`
+(`internal/api/diagrams.go`'s `renderPreviewFragments`) exposes it the
+same "preview only, never touches storage" way `POST /api/render`
+already does, taking `{diagram, ids}` and returning `{fragments: {id:
+markup}, warning?}`.
+
+Frontend: `Canvas.tsx`'s debounced commit path now diffs the latest
+diagram against `lastRenderedRef` (the diagram as of the last successful
+render) on every firing, via `diagramOps.diffDiagramForRender` — cheap
+reference-inequality per id across `elements`/`connectors`/`labels`/
+`digitalDevices`, since every `diagramOps` mutator already does
+immutable, per-id array updates (an untouched entry keeps its old object
+reference, so no field-by-field comparison or mutator instrumentation is
+needed). Three outcomes: `'none'` (nothing rendering-relevant changed —
+skip the round trip entirely), `'patch'` (only a fixed set of
+already-existing ids changed in place — `api.renderPreviewFragments` +
+`patchFragmentsInDom`, which looks up each `[data-editor-kind][id=X]`
+node the same way `dragElementsInDom`/`elementBoxes` already do and
+swaps it via `parseSvgFragment`+`replaceWith`, keeping whatever DOM
+position the prior full render gave it), or `'full'` (an id added/
+removed, or `width`/`height`/`voltageClasses`/`editor`/`layers` changed
+by reference — a VoltageClass's own color edit repaints every element
+that references it, not just one, and an add/remove raises the question
+of *where* a brand-new node belongs relative to `elementZOrder`'s own
+tiers, which only exist as document order in a full `Render` — the
+existing `api.renderPreview`/`setSvg`/`dangerouslySetInnerHTML` path,
+unchanged). A `patchVersion` counter, bumped after each successful patch,
+gives the `elementBoxes` effect (which depends on `svg`, unchanged by a
+patch) a signal to recompute click-tolerance boxes against the
+just-patched geometry. The initial diagram open and Save still use the
+full-document endpoints they already did — this only ever optimizes the
+interactive-editing hot path once a diagram is already loaded. Verified
+live: dragging/editing an existing element's state/reassigning it to an
+already-on-the-diagram VoltageClass each fire exactly one
+`/api/render/fragments` call and patch correctly in place; placing a new
+element, or editing a VoltageClass's own color (repainting every element
+sharing it), each still fire the original full `/api/render`; Save +
+reload round-trips correctly either way.
 
 ## Equipment shapes not yet ported
 
@@ -430,6 +451,52 @@ Verified against both real corpus directories found on disk (`sld`/`sld1`,
 matching the raw `data-type="320001"` count found by direct search
 exactly.
 
+**312** Таблица/Table — a purely decorative annotation box, drag-two-corners
+like Rectangle/Button. Real source (`element_312.go`) only actually draws
+the simple case modeled here (≤2 corner Points; a real instance with more
+than that — an attempt at a real multi-cell grid via this shape — is
+explicitly skipped by the real exporter itself, telling the operator to
+use 313 instead) — found **zero** real corpus instances of `data-type="312"`
+in either corpus directory, so this one's correctness rests on matching
+the real source's own formula exactly rather than corpus confirmation.
+Reuses existing fields entirely, no new ones: Fill/Stroke/StrokeWidth/
+Points (Rectangle/Button's own convention), LineStyle (Line's own dash
+enum, but its own real dash values — `"6,5"`/`"70 20 25 20"`, a
+coincidental partial overlap with Line's own and a `CableLine` connector's
+own respectively, not a pattern), PropertyText/TextColor (Button's own
+centered-label convention), and — new reuse — Orient, which (uniquely
+among every Points-based shape so far) rotates just the label around the
+box's own center, not the box itself.
+
+**313** Таблица 2/Table 2 — a purely decorative multi-row/multi-column
+grid, click-to-place (starts as a small default 2×2 grid — see
+`diagramOps.table2Defaults`) since its own real geometry can't be
+expressed as two dragged corners. New `RowHeights`/`ColumnWidths`/`Cells`
+Element fields (a genuinely new "resizable grid" concept, unlike anything
+ported before this) — deliberately **not modeled**: the real source's own
+cell-merging (a real instance using it still extracts, its own
+would-be-merged cells just render separately) and multi-paragraph cell
+text (reduced to one line). Found 916 real `data-type="313"` cell
+instances across 16 corpus files, but with **no id and no
+table-membership marker of any kind** on a real cell — at this project's
+own request, the real xsde2svg source itself (`element_312.go`/
+`element_313.go`/`modus.go`) was changed to wrap a whole table's own
+output in a single `<g id data-type="312"|"313">`, the same fix already
+made for shapes 7/106/385/386, so Extract can recognize one at all — a
+diagram exported by an xsde2svg build from before that fix simply doesn't
+have its own table(s) recognized (same "not yet understood, skipped"
+treatment 313 already implicitly had before this session, not a
+regression). Within that wrapping `<g>`, row/column boundaries (and so
+each cell's own position) are reconstructed purely from the cells' own
+real drawn rectangle geometry — there's still no row/col index anywhere
+in the format itself — verified end to end via a dedicated round-trip
+test (render a known grid, parse the result straight back, confirm every
+field matches) rather than real corpus, for the same reason 312 relies on
+one. Properties UI covers row/column count (resizing preserves every
+still-valid cell), per-row height/per-column width, and per-cell text;
+per-cell Fill/TextColor overrides aren't editable there yet (still
+correctly stored/rendered for anything Extract recovers).
+
 Deferred — real xsde2svg shapes whose own source (`xsde2svg/internal/modus/
 element_<code>.go`) is substantially more involved than the shapes above,
 each needing its own dedicated pass rather than a quick port:
@@ -443,17 +510,20 @@ each needing its own dedicated pass rather than a quick port:
 
 Deliberately out of scope (decorative/structural, not real electrical
 equipment — same reasoning that already excludes every shape below;
-Rectangle (3), Arrow (2), Circle (4), Line (1), Button (113), and Road
-(335) are the six generic draw primitives, and Post-type pole (292) the
-one anchor-based marker, that *have* been ported, see above): Polygon
+Rectangle (3), Arrow (2), Circle (4), Line (1), Button (113), Road (335),
+and Table (312) are the seven generic draw primitives, Table2 (313) the
+one resizable-grid shape, and Post-type pole (292) the one anchor-based
+marker, that *have* been ported, see above): Polygon
 (16, the one remaining generic draw primitive — a closed, filled shape,
 structurally closer to Rectangle than Line, but not yet checked against
 real corpus), other poles/pylons (19/146 — anchor/angle pole, power pole —
 neither confirmed to share 292's own simple round-or-square geometry),
 power-plant/substation pictogram icons (38/360), chassis/half-chassis cart
 graphics (51/52), a decorative connector-arrow (83),
-table/window HMI decoration (313/319), and a generic "Device" placeholder
-(130, too vague to know what it actually draws).
+a small-window HMI decoration (319, structurally unrelated to Table2 despite
+the "table/window" grouping this line used to lump them under), and a
+generic "Device" placeholder (130, too vague to know what it actually
+draws).
 
 ## Known pre-existing extract gaps
 

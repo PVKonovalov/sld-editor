@@ -12,21 +12,24 @@ import type {
   Label,
   DigitalDevice,
   TerminalDirection,
+  TableCell,
 } from '../types'
 
 // Element classes whose own geometry is a drawn Points array (two or more
 // vertices) rather than a single x/y anchor+orient — BusBarSection (a real
-// electrical busbar), Rectangle, Circle, Arrow, Button, Road, and Line (the
-// latter six purely decorative annotations, no electrical meaning at all
-// — see connectElements' own guard below). Shared by every place/move/
-// paste/point-drag helper that needs to treat "drag two corners/vertices to
-// draw or reshape" the same way regardless of which of the seven classes
-// it actually is — including, for Rectangle/Circle/Arrow/Button/Road/Line,
-// the anchor (x/y) recomputed as the two Points' own midpoint on every
-// move/paste/drag: harmless for an Arrow even though its own rendering
-// (writeArrow) reads Points[0]/[1] directly rather than x/y, since x/y only
-// ever matters here as a paste-target anchor, never for the real drawn
-// geometry.
+// electrical busbar), Rectangle, Circle, Arrow, Button, Road, Line, and
+// Table (the latter seven purely decorative annotations, no electrical
+// meaning at all — see connectElements' own guard below). Shared by every
+// place/move/paste/point-drag helper that needs to treat "drag two
+// corners/vertices to draw or reshape" the same way regardless of which of
+// the eight classes it actually is — including, for Rectangle/Circle/
+// Arrow/Button/Road/Line/Table, the anchor (x/y) recomputed as the two
+// Points' own midpoint on every move/paste/drag: harmless for an Arrow
+// even though its own rendering (writeArrow) reads Points[0]/[1] directly
+// rather than x/y, since x/y only ever matters here as a paste-target
+// anchor, never for the real drawn geometry. Table2 is deliberately not
+// here — its own geometry is anchor (x/y) plus rowHeights/columnWidths,
+// not Points at all (see DiagramElement's own doc comment).
 const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'BusBarSection',
   'Rectangle',
@@ -35,6 +38,7 @@ const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'Button',
   'Road',
   'Line',
+  'Table',
 ])
 
 // A voltage-class <select>'s option value is either an existing class's own
@@ -107,6 +111,40 @@ class IdSequence {
   }
 }
 
+// voltageUsage counts, per VoltageClass id, how many elements (each
+// PowerTransformer winding counted separately, since each carries its own)
+// and connectors reference it — not a mutator, an inspection helper like
+// voltageClassOptions. Unset (0/absent) references aren't counted. Used by
+// an .svg import to pick the diagram's default voltage (mostUsedVoltage)
+// and by the import log dialog to show each extracted class's usage.
+export function voltageUsage(diagram: Diagram): Map<number, number> {
+  const counts = new Map<number, number>()
+  const add = (v: number | undefined) => {
+    if (v) counts.set(v, (counts.get(v) ?? 0) + 1)
+  }
+  for (const el of diagram.elements) {
+    add(el.voltage)
+    el.windings?.forEach(w => add(w.voltage))
+  }
+  for (const c of diagram.connectors) add(c.voltage)
+  return counts
+}
+
+// mostUsedVoltage is the VoltageClass id voltageUsage counts the most
+// references to (ties broken by the lower id, for determinism), or
+// undefined when nothing references any class at all.
+export function mostUsedVoltage(diagram: Diagram): number | undefined {
+  let best: number | undefined
+  let bestCount = 0
+  for (const [id, n] of voltageUsage(diagram)) {
+    if (n > bestCount || (n === bestCount && best !== undefined && id < best)) {
+      best = id
+      bestCount = n
+    }
+  }
+  return best
+}
+
 /** Backfills lastId for a diagram saved before this editor tracked one (or
  * one that has never had an id assigned by it), by scanning every existing
  * element/node/connector/voltage-class/label id for the highest value
@@ -146,6 +184,90 @@ export function ensureLastId(diagram: Diagram): Diagram {
   }
 
   return d
+}
+
+// Matches a rendered node's own data-editor-kind attribute (internal/
+// slddoc's Render/RenderFragments) — "digitaldevice", not "digitalDevice",
+// same lowercase-no-separator convention Canvas.tsx's own querySelector
+// calls already use for one.
+export type DataEditorKind = 'element' | 'connector' | 'label' | 'digitaldevice'
+
+export type DiagramRenderDiff =
+  | { kind: 'none' }
+  | { kind: 'full' }
+  | { kind: 'patch'; targets: { id: number; kind: DataEditorKind }[] }
+
+// Diffs one of the four id-keyed arrays by reference — every diagramOps
+// mutator does immutable, per-id updates (only the touched entry gets a
+// new object; everything else keeps its old reference), so a plain `!==`
+// per id is enough to find exactly what changed, no field-by-field
+// comparison or mutator instrumentation needed. Returns whether anything
+// was added or removed (an "structural" change, forcing a full render —
+// see diffDiagramForRender), appending any in-place-changed id's own
+// {id, kind} to targets as a side effect.
+function diffArrayIds<T extends { id: number }>(
+  previous: T[],
+  next: T[],
+  kind: DataEditorKind,
+  targets: { id: number; kind: DataEditorKind }[],
+): boolean {
+  const previousById = new Map(previous.map(x => [x.id, x]))
+  const nextIds = new Set(next.map(x => x.id))
+  let structural = false
+  for (const x of next) {
+    const old = previousById.get(x.id)
+    if (!old) {
+      structural = true
+      continue
+    }
+    if (old !== x) targets.push({ id: x.id, kind })
+  }
+  for (const id of previousById.keys()) {
+    if (!nextIds.has(id)) structural = true
+  }
+  return structural
+}
+
+/** Diffs two versions of the same open diagram (the one behind Canvas.tsx's
+ * own last successful render, and the current one) to decide how to
+ * refresh the displayed SVG cheaply — see TODO.md's own "Reducing frontend/
+ * backend traffic" section for the fuller rationale:
+ * - 'none': nothing rendering-relevant changed at all (skip the network
+ *   round trip entirely — e.g. a no-op updateDiagram call).
+ * - 'patch': only a fixed set of already-existing elements/connectors/
+ *   labels/digital devices changed in place — fetch just their own fresh
+ *   markup (api.renderPreviewFragments) and patch those DOM nodes
+ *   directly, instead of replacing the whole injected SVG.
+ * - 'full': anything was added or removed, or width/height/voltageClasses/
+ *   editor/layers changed by reference — each of those can repaint
+ *   arbitrarily many ids at once (a VoltageClass's own color change, e.g.,
+ *   isn't itself one of "the ids that changed"), or (add/remove) raises the
+ *   question of *where* in the DOM a brand-new node belongs relative to
+ *   elementZOrder's own tiers, which only exist as document order in a full
+ *   Render — the existing api.renderPreview whole-document path stays
+ *   exactly as it always has for this case. */
+export function diffDiagramForRender(previous: Diagram, next: Diagram): DiagramRenderDiff {
+  if (
+    previous.width !== next.width ||
+    previous.height !== next.height ||
+    previous.voltageClasses !== next.voltageClasses ||
+    previous.editor !== next.editor ||
+    previous.layers !== next.layers
+  ) {
+    return { kind: 'full' }
+  }
+
+  const targets: { id: number; kind: DataEditorKind }[] = []
+  let structural = false
+  structural = diffArrayIds(previous.elements, next.elements, 'element', targets) || structural
+  structural = diffArrayIds(previous.connectors, next.connectors, 'connector', targets) || structural
+  structural = diffArrayIds(previous.labels, next.labels, 'label', targets) || structural
+  structural =
+    diffArrayIds(previous.digitalDevices, next.digitalDevices, 'digitaldevice', targets) || structural
+
+  if (structural) return { kind: 'full' }
+  if (targets.length === 0) return { kind: 'none' }
+  return { kind: 'patch', targets }
 }
 
 function defaultLayer(diagram: Diagram): number {
@@ -302,11 +424,15 @@ export function placeElement(
     // place path instead of one of those four's own dedicated drag-to-draw
     // one, since its own geometry is a single anchor, not drawn Points.
     // Neither is a PowerflowIndicator — same non-electrical status, its own
-    // color comes from textColor, not a voltage class.
+    // color comes from textColor, not a voltage class. Neither is a
+    // Table2 (313) — same non-electrical status as Table (312)/Rectangle/
+    // Button, just click-to-place (a single anchor) instead of one of
+    // those three's own dedicated drag-to-draw.
     ...(elementClass === 'Lamp' ||
     elementClass === 'FaultPassageIndicator' ||
     elementClass === 'PostPole' ||
-    elementClass === 'PowerflowIndicator'
+    elementClass === 'PowerflowIndicator' ||
+    elementClass === 'Table2'
       ? {}
       : { voltage: defaultVoltage }),
     x: point.x,
@@ -321,6 +447,7 @@ export function placeElement(
     ...(WITHDRAWABLE_SHAPES.has(symbol.shape) ? { position: POSITION_NORMAL } : {}),
     ...(elementClass === 'FaultPassageIndicator' ? fpiDefaults(defaultFpiText) : {}),
     ...(elementClass === 'PowerTransformer' ? powerTransformerDefaults(defaultVoltage) : {}),
+    ...(elementClass === 'Table2' ? table2Defaults() : {}),
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -458,6 +585,142 @@ export function placeButton(diagram: Diagram, start: Point, end: Point): Diagram
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
 
+// A freshly placed Table's own colors — matching render.go's own
+// unset-Fill/Stroke/TextColor fallback ("none"/"white"/"black")
+// explicitly, the same reason BUTTON_DEFAULTS spells its own out. Unlike
+// Button, propertyText is left empty (no placeholder text) — a Table is
+// often just a plain annotated box with no label at all, matching real
+// corpus more often than Button's own always-labeled convention.
+const TABLE_DEFAULTS = { fill: 'none', stroke: '#ffffff', strokeWidth: 1, textColor: '#000000' }
+
+/** Places a new Table spanning start..end — a purely decorative
+ * annotation box, not real electrical equipment (see slddoc's own
+ * ClassTable doc comment): no Voltage, no Ports, never a valid
+ * connectElements/routing target. Drawn from its own Points the same
+ * drag-not-click way placeRectangle/placeButton place theirs. */
+export function placeTable(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Table',
+    shape: '312',
+    name: `Table-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...TABLE_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly placed Table2's own default grid — a plain 2x2 with no cell
+// text, giving the user something real to immediately see/select/resize
+// in Properties rather than an invisible zero-row/zero-column instance
+// (writeTable2 draws nothing at all until rowHeights/columnWidths are both
+// non-empty). Row/column sizes match the same default grid spacing most
+// diagrams start with, so a freshly placed table already looks roughly
+// on-grid. Called from placeElement's own dispatch below — Table2 is
+// click-to-place (a single anchor point, like PostPole/Lamp), not
+// drag-two-corners like Table (312)/Rectangle/Button, since its own real
+// geometry (an N-row-by-M-column grid) isn't expressible as two dragged
+// corners at all; it always starts as this fixed small default grid,
+// resized afterward via Properties' own row/column count fields — the
+// same "seed a real starting value via a small generator function" PowerTransformer's
+// own powerTransformerDefaults already does for its own array field.
+const TABLE2_ROWS = 2
+const TABLE2_COLS = 2
+const TABLE2_ROW_HEIGHT = 20
+const TABLE2_COL_WIDTH = 60
+
+function table2Defaults(): Pick<DiagramElement, 'rowHeights' | 'columnWidths' | 'cells' | 'stroke' | 'strokeWidth' | 'fill'> {
+  const cells: TableCell[] = []
+  for (let row = 0; row < TABLE2_ROWS; row++) {
+    for (let col = 0; col < TABLE2_COLS; col++) {
+      cells.push({ row, col })
+    }
+  }
+  return {
+    rowHeights: Array(TABLE2_ROWS).fill(TABLE2_ROW_HEIGHT),
+    columnWidths: Array(TABLE2_COLS).fill(TABLE2_COL_WIDTH),
+    cells,
+    stroke: '#ffffff',
+    strokeWidth: 1,
+    fill: 'none',
+  }
+}
+
+/** Resizes a Table2's own grid to exactly rows x cols (each clamped to at
+ * least 1 — a table with zero rows or columns draws nothing at all, see
+ * writeTable2's own doc comment), preserving every still-valid cell's own
+ * real content (text/fill/textColor) and row height/column width. A newly
+ * added row/column gets TABLE2_ROW_HEIGHT/TABLE2_COL_WIDTH, the same
+ * default table2Defaults itself starts a freshly placed table with; every
+ * (row, col) position in the new grid gets a real TableCell entry (blank
+ * if none existed before), so the grid stays fully populated the same way
+ * a freshly placed one always is. Used by Properties' own row/column
+ * count fields. */
+export function resizeTable2(diagram: Diagram, id: number, rows: number, cols: number): Diagram {
+  const safeRows = Math.max(1, rows)
+  const safeCols = Math.max(1, cols)
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.id !== id || e.class !== 'Table2') return e
+      const oldRowHeights = e.rowHeights ?? []
+      const oldColumnWidths = e.columnWidths ?? []
+      const rowHeights = Array.from({ length: safeRows }, (_, i) => oldRowHeights[i] ?? TABLE2_ROW_HEIGHT)
+      const columnWidths = Array.from({ length: safeCols }, (_, j) => oldColumnWidths[j] ?? TABLE2_COL_WIDTH)
+      const byPos = new Map((e.cells ?? []).map(c => [`${c.row}:${c.col}`, c]))
+      const cells: TableCell[] = []
+      for (let row = 0; row < safeRows; row++) {
+        for (let col = 0; col < safeCols; col++) {
+          cells.push(byPos.get(`${row}:${col}`) ?? { row, col })
+        }
+      }
+      return { ...e, rowHeights, columnWidths, cells }
+    }),
+  }
+}
+
+/** Updates one already-existing row's own height or column's own width in
+ * place — row/col must already be a valid index (see resizeTable2 to add
+ * or remove one); out of range is a no-op. */
+export function updateTable2RowHeight(diagram: Diagram, id: number, row: number, height: number): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.id !== id || e.class !== 'Table2' || !e.rowHeights || row < 0 || row >= e.rowHeights.length) return e
+      return { ...e, rowHeights: e.rowHeights.map((h, i) => (i === row ? height : h)) }
+    }),
+  }
+}
+
+export function updateTable2ColumnWidth(diagram: Diagram, id: number, col: number, width: number): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.id !== id || e.class !== 'Table2' || !e.columnWidths || col < 0 || col >= e.columnWidths.length) return e
+      return { ...e, columnWidths: e.columnWidths.map((w, i) => (i === col ? width : w)) }
+    }),
+  }
+}
+
+/** Updates one already-existing cell's own text — row/col must already be
+ * a valid grid position (see resizeTable2); a (row, col) not currently
+ * present is a no-op, which shouldn't happen in practice since resizeTable2
+ * always keeps every valid position populated. */
+export function updateTable2CellText(diagram: Diagram, id: number, row: number, col: number, text: string): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.id !== id || e.class !== 'Table2' || !e.cells) return e
+      return { ...e, cells: e.cells.map(c => (c.row === row && c.col === col ? { ...c, text } : c)) }
+    }),
+  }
+}
+
 // A freshly placed Road's own color/width — matching render.go's own
 // unset-Stroke/StrokeWidth fallback ("white"/8) explicitly, the same
 // reason ARROW_DEFAULTS spells theirs out. No fill (an open line, like
@@ -581,43 +844,199 @@ export function pasteElement(
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
 
-/** Captures a whole multi-selection for a later Paste, in the same order
- * the elements were selected. */
-export function copyElements(els: DiagramElement[]): ClipboardEntry[] {
-  return els.map(copyElement)
+// What Copy captures for a connector: its own drawable fields, plus which
+// (if either) of the *same copy operation's* own elements[] entries it was
+// really attached to via a real Port — fromElementIndex/toElementIndex
+// index into ClipboardGroup.elements, null when that end wasn't a Port at
+// all (a tap onto a busbar or another connector's own line) or belonged to
+// an element outside the copied set. pasteGroup reconnects only the
+// non-null ends, to the matching *pasted* element's own fresh port —
+// every other end (including any tap case, even onto a busbar that's also
+// part of the same copy) comes out dangling, the same ordinary unconnected
+// state any route ended in mid-air already has; chasing every tap case
+// wasn't worth the complexity here.
+export type ClipboardConnectorEntry = Pick<
+  Connector,
+  'kind' | 'name' | 'voltage' | 'layer' | 'dashed' | 'lineStyle' | 'points'
+> & {
+  fromElementIndex: number | null
+  toElementIndex: number | null
 }
 
-/** Places a whole copied multi-selection as a rigid group: point becomes
- * where the group's own centroid (the average of every entry's own
- * anchor) lands, and every entry is placed at its original offset from
- * that centroid — so the selection's relative layout is preserved exactly,
- * the same way a single pasteElement preserves one busbar's own shape.
- * Falls back to placeElements' own convention for a one-entry group: its
- * centroid is just its own anchor, so it lands exactly at point, matching
- * pasteElement.
- *
- * Each entry's own raw (unsnapped) offset from the centroid is snapped
- * before placing it — the centroid of two or more on-grid anchors isn't
- * necessarily itself on-grid (the same reason updateBusbarPoint/pasteElement
- * snap a busbar's own endpoints rather than trusting its anchor), so
- * without this an ordinary (non-busbar) element in a pasted group could
- * land off-grid even though point itself is on-grid. */
-export function pasteElements(
+// What Copy captures for a label: like ClipboardEntry, minus id (a paste
+// always gets a fresh one) and for — that field is already documented as
+// informational-only, never a live link, so a pasted copy simply starts
+// unlinked rather than trying to preserve a reference to an element that
+// paste may not even also be copying.
+export type ClipboardLabelEntry = Omit<Label, 'id' | 'for'>
+
+// What Copy captures for a digital device: like ClipboardLabelEntry, minus
+// id — a DigitalDevice has no for-style link to drop, so this is just the
+// id-less shape directly.
+export type ClipboardDigitalDeviceEntry = Omit<DigitalDevice, 'id'>
+
+// The clipboard's own shape once Copy can capture more than one kind at
+// once — elements, connectors, labels, and digital devices selected
+// together, all placed by one Paste as a single rigid group (see
+// pasteGroup).
+export interface ClipboardGroup {
+  elements: ClipboardEntry[]
+  connectors: ClipboardConnectorEntry[]
+  labels: ClipboardLabelEntry[]
+  digitalDevices: ClipboardDigitalDeviceEntry[]
+}
+
+/** Captures a mixed multi-selection (any combination of element/connector/
+ * label/digital-device ids) for a later Paste — the unified counterpart of
+ * copyElement, now covering every selectable kind Canvas's own
+ * multi-select can hold. */
+export function copySelection(
   diagram: Diagram,
-  entries: ClipboardEntry[],
+  ids: { elementIds: Set<number>; connectorIds: Set<number>; labelIds: Set<number>; digitalDeviceIds: Set<number> },
+): ClipboardGroup {
+  const elements = diagram.elements.filter(e => ids.elementIds.has(e.id))
+  const elementIndexById = new Map(elements.map((e, i) => [e.id, i]))
+
+  const ownerElementIndex = (nodeId: number): number | null => {
+    for (const e of elements) {
+      if ((e.ports ?? []).some(p => p.node === nodeId)) return elementIndexById.get(e.id) ?? null
+    }
+    return null
+  }
+
+  const connectors: ClipboardConnectorEntry[] = diagram.connectors
+    .filter(c => ids.connectorIds.has(c.id))
+    .map(c => ({
+      kind: c.kind,
+      name: c.name,
+      voltage: c.voltage,
+      layer: c.layer,
+      dashed: c.dashed,
+      lineStyle: c.lineStyle,
+      points: c.points,
+      fromElementIndex: ownerElementIndex(c.from),
+      toElementIndex: ownerElementIndex(c.to),
+    }))
+
+  const labels: ClipboardLabelEntry[] = diagram.labels
+    .filter(l => ids.labelIds.has(l.id))
+    .map(({ id: _id, for: _for, ...rest }) => rest)
+
+  const digitalDevices: ClipboardDigitalDeviceEntry[] = diagram.digitalDevices
+    .filter(dd => ids.digitalDeviceIds.has(dd.id))
+    .map(({ id: _id, ...rest }) => rest)
+
+  return { elements: elements.map(copyElement), connectors, labels, digitalDevices }
+}
+
+// Translates a connector's own points as one rigid body: only the first
+// point is snapped (to (dx, dy) plus this connector's own first point),
+// and the resulting adjustment is then applied identically to every other
+// point — never snapping each point independently, which could distort or
+// de-orthogonalize a multi-bend path in a way a single rigid shift can't.
+function translateConnectorPoints(points: Point[], dx: number, dy: number, snap: (p: Point) => Point): Point[] {
+  if (points.length === 0) return points
+  const first = points[0]
+  const snappedFirst = snap({ x: first.x + dx, y: first.y + dy })
+  const adjDx = snappedFirst.x - first.x
+  const adjDy = snappedFirst.y - first.y
+  return points.map(p => ({ x: p.x + adjDx, y: p.y + adjDy }))
+}
+
+/** Places a whole copied mixed selection as a rigid group — the unified
+ * counterpart of the old pasteElements, now also covering connectors and
+ * labels. point becomes where the group's own centroid (the average of
+ * every element's/label's own anchor, plus every connector's own drawn
+ * points) lands; every entry is placed at its original offset from that
+ * centroid, so the selection's relative layout — including any connector
+ * geometry — is preserved exactly, the same way a single pasteElement
+ * preserves one busbar's own shape.
+ *
+ * Elements are placed first (via pasteElement, unchanged), in order, so
+ * each copied connector's own fromElementIndex/toElementIndex can be
+ * resolved to the matching *pasted* element's own new id and get a real
+ * fresh Port there — see ClipboardConnectorEntry's own doc comment for
+ * when an end instead comes out dangling. */
+export function pasteGroup(
+  diagram: Diagram,
+  group: ClipboardGroup,
   point: Point,
   snap: (p: Point) => Point = p => p,
 ): Diagram {
-  if (entries.length === 0) return diagram
+  const anchors: Point[] = [
+    ...group.elements.map(e => ({ x: e.x, y: e.y })),
+    ...group.labels.map(l => ({ x: l.x, y: l.y })),
+    ...group.digitalDevices.map(dd => ({ x: dd.x, y: dd.y })),
+    ...group.connectors.flatMap(c => c.points),
+  ]
+  if (anchors.length === 0) return diagram
   const centroid = {
-    x: entries.reduce((sum, e) => sum + e.x, 0) / entries.length,
-    y: entries.reduce((sum, e) => sum + e.y, 0) / entries.length,
+    x: anchors.reduce((sum, p) => sum + p.x, 0) / anchors.length,
+    y: anchors.reduce((sum, p) => sum + p.y, 0) / anchors.length,
   }
-  return entries.reduce(
-    (acc, entry) =>
-      pasteElement(acc, entry, snap({ x: point.x + (entry.x - centroid.x), y: point.y + (entry.y - centroid.y) }), snap),
-    diagram,
-  )
+  const dx = point.x - centroid.x
+  const dy = point.y - centroid.y
+
+  let acc = diagram
+  const newElementIds: number[] = []
+  for (const entry of group.elements) {
+    acc = pasteElement(acc, entry, snap({ x: entry.x + dx, y: entry.y + dy }), snap)
+    newElementIds.push(acc.elements[acc.elements.length - 1].id)
+  }
+
+  const ids = new IdSequence(acc)
+
+  if (group.labels.length > 0) {
+    const newLabels: Label[] = group.labels.map(entry => {
+      const p = snap({ x: entry.x + dx, y: entry.y + dy })
+      return { ...entry, id: ids.take(), x: p.x, y: p.y }
+    })
+    acc = { ...acc, labels: [...acc.labels, ...newLabels] }
+  }
+
+  if (group.digitalDevices.length > 0) {
+    const newDigitalDevices: DigitalDevice[] = group.digitalDevices.map(entry => {
+      const p = snap({ x: entry.x + dx, y: entry.y + dy })
+      return { ...entry, id: ids.take(), x: p.x, y: p.y }
+    })
+    acc = { ...acc, digitalDevices: [...acc.digitalDevices, ...newDigitalDevices] }
+  }
+
+  for (const entry of group.connectors) {
+    const points = translateConnectorPoints(entry.points, dx, dy, snap)
+    const start = points[0]
+    const end = points[points.length - 1]
+    const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
+    const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
+    const connectorId = ids.take()
+    const connector: Connector = {
+      id: connectorId,
+      kind: entry.kind,
+      name: entry.name,
+      voltage: entry.voltage,
+      layer: entry.layer,
+      dashed: entry.dashed,
+      lineStyle: entry.lineStyle,
+      from: fromNode.id,
+      to: toNode.id,
+      points,
+    }
+
+    let elements = acc.elements
+    const attach = (elementIndex: number | null, node: DiagramNode) => {
+      if (elementIndex === null) return
+      const elId = newElementIds[elementIndex]
+      elements = elements.map(e =>
+        e.id === elId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: node.id }] } : e,
+      )
+    }
+    attach(entry.fromElementIndex, fromNode)
+    attach(entry.toElementIndex, toNode)
+
+    acc = { ...acc, elements, nodes: [...acc.nodes, fromNode, toNode], connectors: [...acc.connectors, connector] }
+  }
+
+  return { ...acc, lastId: ids.lastId }
 }
 
 /** Translates an element by (dx, dy) — its anchor for most classes, or
@@ -642,32 +1061,83 @@ export function moveElement(diagram: Diagram, id: number, dx: number, dy: number
   }
 }
 
-/** Moves a whole set of elements together by (dx, dy) — same translation
- * moveElement applies to each one — and re-routes every connector attached
- * to any of their ports to follow ("Piece C", endpoint-follows-only, the
- * simplest useful version rather than full accordion re-layout): a
- * connector whose *both* ends belong to elements in ids translates as a
- * rigid whole (nothing about its shape needs to change, since every point
- * keeps the same relative position); one with only one end attached to a
- * moving element instead has just that end dragged to its new position,
- * with the segment touching it kept orthogonal the same way
- * moveConnectorVertex keeps an interior vertex's own segments orthogonal —
- * an ordinary interior neighbor slides along whichever axis preserves that
- * one segment's original orientation, while a neighbor that's actually the
- * connector's other (unmoving) true endpoint gets a new bend inserted next
- * to it instead, since it can't move. Only a plain whole-element drag goes
- * through here — a BusBarSection's own single-endpoint drag handle
- * (updateBusbarPoint) is a separate, harder case (there's no single
- * "moved by dx,dy" delta for the rest of the shape) and isn't rerouted. */
-export function moveElements(diagram: Diagram, ids: number[], dx: number, dy: number): Diagram {
-  const moving = new Set(ids)
+/** Moves a whole mixed selection (elements, connectors, and labels
+ * together) by (dx, dy) — the unified counterpart of the old moveElements,
+ * now also covering connectors/labels selected in their own right rather
+ * than just carried along by a moving element's port.
+ *
+ * Elements move exactly as moveElements always did. Every connector
+ * attached to a moving element's port is re-routed to follow ("Piece C",
+ * endpoint-follows-only): a connector whose *both* ends belong to moving
+ * elements translates as a rigid whole; one with only one end attached
+ * instead has just that end dragged to its new position, with the segment
+ * touching it kept orthogonal the same way moveConnectorVertex keeps an
+ * interior vertex's own segments orthogonal.
+ *
+ * A connector explicitly in ids.connectorIds (selected in its own right,
+ * not just touching a moving element) gets the same treatment as if both/
+ * one of its own ends were moving — except an end that's a real Port on an
+ * element that ISN'T also moving is deliberately left fixed (adding it
+ * would visually tear the wire's end away from equipment that isn't
+ * actually moving); an end that's a tap onto a busbar/another connector's
+ * own line, rather than a genuine Port, is always treated as free to move
+ * with the connector, the same simplification copySelection already makes
+ * for a tap junction.
+ *
+ * A label in ids.labelIds, or a digital device in ids.digitalDeviceIds,
+ * just has its own x/y shifted by (dx, dy) — neither has a Port/Node of
+ * its own to reroute anything through.
+ *
+ * Only a plain whole-selection drag goes through here — a BusBarSection's
+ * own single-endpoint drag handle (updateBusbarPoint) is a separate,
+ * harder case (there's no single "moved by dx,dy" delta for the rest of
+ * the shape) and isn't rerouted. */
+export function moveSelection(
+  diagram: Diagram,
+  ids: {
+    elementIds: Set<number>
+    connectorIds: Set<number>
+    labelIds: Set<number>
+    digitalDeviceIds: Set<number>
+  },
+  dx: number,
+  dy: number,
+): Diagram {
   const movedNodeIds = new Set<number>()
   for (const el of diagram.elements) {
-    if (!moving.has(el.id)) continue
+    if (!ids.elementIds.has(el.id)) continue
     for (const p of el.ports ?? []) movedNodeIds.add(p.node)
   }
 
-  const moved = ids.reduce((acc, id) => moveElement(acc, id, dx, dy), diagram)
+  if (ids.connectorIds.size > 0) {
+    const elementNodeIds = new Set<number>()
+    for (const el of diagram.elements) {
+      for (const p of el.ports ?? []) elementNodeIds.add(p.node)
+    }
+    for (const c of diagram.connectors) {
+      if (!ids.connectorIds.has(c.id)) continue
+      const fromIsFixedPort = elementNodeIds.has(c.from) && !movedNodeIds.has(c.from)
+      const toIsFixedPort = elementNodeIds.has(c.to) && !movedNodeIds.has(c.to)
+      if (!fromIsFixedPort) movedNodeIds.add(c.from)
+      if (!toIsFixedPort) movedNodeIds.add(c.to)
+    }
+  }
+
+  let moved = [...ids.elementIds].reduce((acc, id) => moveElement(acc, id, dx, dy), diagram)
+  if (ids.labelIds.size > 0) {
+    moved = {
+      ...moved,
+      labels: moved.labels.map(l => (ids.labelIds.has(l.id) ? { ...l, x: l.x + dx, y: l.y + dy } : l)),
+    }
+  }
+  if (ids.digitalDeviceIds.size > 0) {
+    moved = {
+      ...moved,
+      digitalDevices: moved.digitalDevices.map(dd =>
+        ids.digitalDeviceIds.has(dd.id) ? { ...dd, x: dd.x + dx, y: dd.y + dy } : dd,
+      ),
+    }
+  }
   if (movedNodeIds.size === 0) return moved
 
   const shift = (p: Point): Point => ({ x: p.x + dx, y: p.y + dy })
@@ -963,12 +1433,12 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
  * doc comment) — with no defaultVoltage param here, an element joined to
  * one with no voltage of its own at all just stays unset, same as before.
  * A no-op when either end is a Rectangle, Circle, Arrow, Button, Road,
- * PostPole, Line, or PowerflowIndicator — a purely decorative annotation,
- * never a valid electrical endpoint (see slddoc's own ClassRectangle/
- * ClassCircle/ClassArrow/ClassButton/ClassRoad/ClassPostPole/ClassLine/
- * ClassPowerflowIndicator doc comments); the routing tool's own
- * findConnectionTarget (Canvas.tsx) excludes all eight from candidates
- * entirely for the same reason. */
+ * PostPole, Line, PowerflowIndicator, Table, or Table2 — a purely
+ * decorative annotation, never a valid electrical endpoint (see slddoc's
+ * own ClassRectangle/ClassCircle/ClassArrow/ClassButton/ClassRoad/
+ * ClassPostPole/ClassLine/ClassPowerflowIndicator/ClassTable/ClassTable2
+ * doc comments); the routing tool's own findConnectionTarget (Canvas.tsx)
+ * excludes all ten from candidates entirely for the same reason. */
 export function connectElements(diagram: Diagram, fromId: number, toId: number): Diagram {
   if (fromId === toId) return diagram
   const from = diagram.elements.find(e => e.id === fromId)
@@ -982,7 +1452,9 @@ export function connectElements(diagram: Diagram, fromId: number, toId: number):
     el.class === 'Road' ||
     el.class === 'PostPole' ||
     el.class === 'Line' ||
-    el.class === 'PowerflowIndicator'
+    el.class === 'PowerflowIndicator' ||
+    el.class === 'Table' ||
+    el.class === 'Table2'
   if (notConnectable(from) || notConnectable(to)) return diagram
 
   const ids = new IdSequence(diagram)

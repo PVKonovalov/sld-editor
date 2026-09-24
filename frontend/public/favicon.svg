@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- SLD Editor: a busbar with a closed breaker feeder, the editor's own core subject. -->
+  <rect width="32" height="32" rx="7" fill="#3b82f6"/>
+  <g stroke="#ffffff" stroke-linecap="round" fill="none">
+    <path d="M 6 8 H 26" stroke-width="3"/>
+    <path d="M 16 8 V 12 M 16 21 V 26" stroke-width="2.5"/>
+  </g>
+  <rect x="11.5" y="12" width="9" height="9" rx="1" fill="#ffffff"/>
+</svg>

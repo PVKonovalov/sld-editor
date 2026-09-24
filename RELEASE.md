@@ -3707,3 +3707,349 @@ confirmed both new folders listed alongside a real pre-existing one
 found already sitting in the diagrams directory — invisible before this
 change, since the old flat `List()` silently skipped every subdirectory
 entry outright).
+
+Date: 2026-09-22 — Backend half of "Reducing frontend/backend traffic"'s
+own incremental-rendering plan (see TODO.md): a new `slddoc.RenderFragments`
+renders only a requested set of ids' own markup instead of a whole `<svg>`
+document — still resolving voltage/topology across the *entire* diagram
+(an id's own color can depend on a VoltageClass that isn't itself
+requested), but only writing out markup for the ids actually asked for,
+returned as `map[int]string`. Ids may name an Element, Connector, Label,
+or DigitalDevice interchangeably (this schema's ids are one shared space
+across all four), and one no longer present in the diagram at all is
+silently skipped rather than erroring — the caller already knows it's
+gone. No type-comment headers and no `elementZOrder` tiering, both only
+meaningful for a full ordered document; `renderElement`'s own
+type-comment call was pulled out to its two call sites inside `Render`
+(now written by the caller, just before invoking it) and a new
+`renderConnector` helper factored out of `Render`'s own connectors loop,
+so both `Render` and `RenderFragments` share the exact same per-entity
+dispatch instead of duplicating it. New `Store.RenderFragments`
+(`sld-editor/backend/internal/storage`) and `POST /api/render/fragments`
+(`internal/api/diagrams.go`'s `renderPreviewFragments`) expose it with
+the same "preview only, never touches storage" contract `POST
+/api/render` already has: `{diagram, ids}` in, `{fragments: {id:
+markup}, warning?}` out. This is the backend half only — `Canvas.tsx`
+still always calls the full `/api/render` and replaces its whole
+injected SVG on every edit; wiring the frontend up to diff against its
+own last-rendered diagram and call this new endpoint instead is tracked
+separately in TODO.md. Verified with `go build`/`vet`/`test` in both
+`slddoc` (4 new tests: only-requested-ids rendered, an id no longer in
+the diagram silently skipped, a missing-shape error doesn't drop other
+fragments, no type-comments/z-order in a fragment) and `sld-editor/
+backend` (a new end-to-end HTTP test against `/api/render/fragments`,
+plus the existing full suite confirming the `Render`/`renderElement`
+refactor didn't change a single byte of existing output).
+
+Date: 2026-09-22 — Frontend half of "Reducing frontend/backend
+traffic"'s own incremental-rendering plan (see TODO.md), wiring up the
+backend `RenderFragments`/`/api/render/fragments` support added earlier
+today: `Canvas.tsx`'s debounced commit path now diffs the latest diagram
+against a `lastRenderedRef` snapshot (the diagram as of its own last
+successful render) on every firing, via a new pure
+`diagramOps.diffDiagramForRender` — reference-inequality per id across
+`elements`/`connectors`/`labels`/`digitalDevices`, safe and cheap because
+every `diagramOps` mutator already does immutable, per-id array updates
+(an untouched entry always keeps its old object reference, so no
+field-by-field diffing or mutator instrumentation was needed). Three
+outcomes: nothing rendering-relevant changed at all (skip the network
+round trip entirely — e.g. a no-op `updateDiagram`); only a fixed set of
+already-existing elements/connectors/labels/digital devices changed in
+place (`api.renderPreviewFragments` + a new `patchFragmentsInDom`, which
+looks up each `[data-editor-kind][id=X]` node — the same selector
+`dragElementsInDom`/click-hit-testing already use — and swaps it for a
+freshly parsed replacement via a new `parseSvgFragment`, keeping whatever
+DOM position/z-order the prior full render already gave it); or anything
+an id-level patch can't express — an add/remove (where a brand-new node
+would even belong in the DOM relative to `elementZOrder`'s own tiers,
+which only exist as document order in a full render, is deliberately not
+solved here) or `width`/`height`/`voltageClasses`/`editor`/`layers`
+changing by reference (a VoltageClass's own color edit, e.g., repaints
+every element that references it, not just one) — which still takes the
+original full `POST /api/render` + `dangerouslySetInnerHTML` path
+unchanged. A new `patchVersion` counter, bumped after each successful
+patch, gives the existing `elementBoxes` effect (which depends on `svg`,
+never touched by a patch) a signal to recompute click-tolerance boxes
+against the just-patched geometry — without it a dragged/resized
+element's own selection box would stay stale until some unrelated full
+render happened to catch it up. The initial diagram open and Save are
+untouched, still always using the full-document endpoints they always
+did. Verified with `npx tsc --noEmit` and a live round trip: dragging an
+element, toggling its State, and reassigning it to a VoltageClass already
+present on the diagram each fired exactly one `/api/render/fragments`
+call and patched correctly in place (color/position/selection box all
+confirmed visually); placing a brand-new element, and editing a shared
+VoltageClass's own color (confirmed repainting both elements that
+referenced it, not just the one being edited in Properties at the time),
+each still fired the original full `/api/render`; Save followed by a
+full page reload round-tripped every one of those edits correctly either
+way.
+
+Date: 2026-09-22 — Ported xsde2svg shapes 312 (Table) and 313
+(Table 2), both purely decorative annotations (no Ports/
+Voltage, never a connectElements/routing endpoint). **312** is
+drag-two-corners like Rectangle/Button, reusing existing Element fields
+entirely — Fill/Stroke/StrokeWidth/Points, LineStyle (its own real dash
+values, `"6,5"`/`"70 20 25 20"`), PropertyText/TextColor for an optional
+centered label — plus, new among Points-based shapes, Orient, which
+rotates just that label around the box's own center, not the box itself.
+Real source only actually draws the ≤2-corner case modeled here (a real
+multi-cell attempt via this shape is explicitly skipped by the exporter,
+which tells the operator to use 313 instead); found zero real corpus
+instances of `data-type="312"` in either corpus directory, so this one
+was verified against the real source formula directly, not corpus.
+**313** is click-to-place, starting as a small default 2×2 grid (its own
+real geometry — an N-row-by-M-column table — can't be expressed as two
+dragged corners): new `RowHeights`/`ColumnWidths`/`Cells []TableCell`
+Element fields, deliberately not modeling the real source's own
+cell-merging (a real instance using it still extracts, its own
+would-be-merged cells just render separately) or multi-paragraph cell
+text. Found 916 real `data-type="313"` cell instances across 16 corpus
+files, but a real cell carries no id and no table-membership marker of
+any kind — at this project's own request, the real xsde2svg source
+itself (`element_312.go`/`element_313.go`/`modus.go` in the sibling
+`xsde2svg` checkout) was changed to wrap a whole table's own output in a
+single `<g id data-type="312"|"313">`, the same fix already made for
+shapes 7/106/385/386, so Extract has something to recognize a whole
+table by at all; a diagram exported by an xsde2svg build from before
+that fix simply doesn't have its own table(s) recognized (the same "not
+yet understood, skipped" treatment 313 already implicitly had, not a
+regression). `slddoc`: `ClassTable`/`writeTable`/`parseTable` and
+`ClassTable2`/`writeTable2`/`parseTable2`, both wrapping in the new `<g>`
+(no real single-file precedent for 313 specifically, since real cells
+carry no grouping of their own at all — this editor's own necessary
+synthesis); `parseTable2` reconstructs row/column boundaries purely from
+the cells' own drawn rectangle geometry (`tableBoundaries`/
+`boundaryIndex`, a small tolerance-based edge-clustering algorithm), and
+recovers the table's own default cell background as the majority real
+fill among its cells (`mostCommon`), correctly reconstructing the
+rendered result exactly either way regardless of which cells "consume"
+the default vs. get an explicit `TableCell.Fill` override. Also fixed a
+latent bug this surfaced: `emptyPathWrapperLine` (the regex that strips a
+meaningless empty `<geometry/>`/`<windings/>` wrapper encoding/xml would
+otherwise always emit — see its own doc comment) didn't know about the
+three new `rows`/`columns`/`cells` wrapper tags, so every non-Table2
+Element was carrying three spurious empty ones; now included in that
+same fix. Backend (`sld-editor`): `base.xml` symbol entries (both with
+empty templates, matching every other bypass-rendered shape), added to
+the "Annotations" palette group. Frontend: `placeTable`
+(drag-two-corners, alongside `placeRectangle`/`placeButton`) and
+`table2Defaults`/`resizeTable2`/`updateTable2RowHeight`/
+`updateTable2ColumnWidth`/`updateTable2CellText`; `Table` added
+everywhere `POINTS_BASED_CLASSES` already covers Rectangle/Button
+(`elementBoxes`, `dragElementsInDom`, selection highlight, reshape
+handles), `Table2` gets its own new anchor-plus-grid-sum box computation
+and a `translate()`-the-whole-group drag preview (simpler than shifting
+every per-cell child individually, since the real commit re-renders from
+authoritative backend markup right after anyway); Properties gets a
+Table section (Fill/Stroke/StrokeWidth/LineStyle/Text/Text
+color/Orientation-as-text-rotation) and a new Table2 section (row/column
+count — resizing preserves every still-valid cell's own content —
+per-row height/per-column width, and a text grid for per-cell content;
+per-cell Fill/TextColor overrides aren't exposed in Properties yet, still
+correctly stored/rendered for anything Extract recovers). Verified with
+`go build`/`vet`/`test` (`slddoc`: 4 new `TestRender_Table*`/
+`TestRender_Table2*` tests, `TestParseTable`/`TestParseTable2_*`
+including a full render-then-parse round-trip test for 313's own geometry
+reconstruction, a `TestSaveLoadRoundTrip_Table2` for the new XML fields,
+and an updated `TestSave_OmitsEmptyPathWrapperTags` covering the
+`rows`/`columns`/`cells` fix; `sld-editor/backend`), `npx tsc --noEmit`,
+and a live round trip through the app: placed and dragged a Table (label
+text/rotation/dashed border all confirmed), placed a Table2, edited cell
+text, resized its column count (confirmed existing cell content
+preserved in place), dragged the whole table, saved, restarted the dev
+server (picking up the `slddoc` fix), and reloaded — every field
+(including the now-clean XML with no stray empty wrapper tags) round-tripped
+correctly.
+
+2026-09-22: Fixed a color bug in DigitalDevice (shape 134) extraction —
+the real xsde2svg source (`element134`) draws each reading's own colored
+status background as a bare, untyped, id-less `<rect>` immediately
+preceding its `data-type="134"` `<text>`, but `Extract` only ever read the
+text node, silently dropping the background entirely (every extracted
+reading rendered as plain dull text with no colored box, instead of the
+real yellow/green/orange-style status coloring). Deliberately did not
+touch xsde2svg itself (no `<g>` wrapper added around shape 134, unlike the
+earlier 7/106/385/386/312/313 fixes) since the live SCADA system already
+targets `data-type="134"` directly for animation, and wrapping it risked
+breaking that. Instead, `slddoc.Extract` now recognizes this exact
+pattern by sibling position: when a `data-type="134"` node parses
+successfully, its immediately-preceding top-level sibling, if it's a bare
+untyped/id-less `<rect>`, is extracted as its own standalone Rectangle
+(shape 3) element (`parseDigitalDeviceBackgroundRect`, `slddoc/labels.go`)
+reusing `parseRectangle`'s own Fill/Stroke/StrokeWidth/Points logic. Since
+the real source never gives this rect its own id, `Extract` now assigns it
+a real, collision-free one itself (`maxNumericID`, `slddoc/extract.go`,
+a one-time scan of every real numeric `id` already used anywhere in the
+source document) rather than leaving it at 0/unset — id 0 doubles as
+"unset" elsewhere in this model, and every synthesized rect sharing it
+would also collide with each other; `Diagram.LastID` is updated to match,
+so the frontend's own `IdSequence` continues cleanly from there. This is
+a positional heuristic, not a real link: the background renders correctly
+underneath the reading's own text (`Render` always finishes its full
+Elements pass, which includes this Rectangle, before starting its
+DigitalDevices pass — verified with a dedicated ordering check), but the
+box and the reading are two fully independent elements in the editor
+(dragging/deleting one doesn't affect the other). Verified with
+`go build`/`vet`/`test` in `slddoc` (`TestExtract_
+DigitalDeviceBackgroundRect`: a rect+text pair extracts as both a
+Rectangle and a DigitalDevice with a fresh non-colliding id and an
+updated `LastID`, a reading with no preceding rect extracts with no
+phantom Rectangle, a real unrelated Rectangle immediately before an
+unrelated reading is left as an ordinary Rectangle rather than being
+swept in, and two synthesized rects in the same document get distinct
+ids) and `sld-editor/backend`.
+
+2026-09-22: Added a "Start buswork" context menu item for any routable
+element, busbar, or connector (`frontend/src/components/Canvas.tsx`) —
+starts the click-to-route tool directly from wherever was right-clicked,
+without first visiting the Elements palette's own "Wires" section to arm
+a kind. Picks the nearest real terminal (element) or nearest point along
+the line, respecting an OverheadLine's begin/end-only rule (connector),
+to the right-click's own position (`nearestTargetOnElement`/
+`nearestTargetOnConnector`, factored out of `findConnectionTarget`'s own
+per-entity matching so both share the same logic), then starts routing
+with the kind forced to BusWork (`startBusworkFrom`, calling `armWireKind
+('BusWork')` explicitly rather than relying on the existing `armedWireKind
+?? 'BusWork'` completion-time fallback, since a stale non-BusWork arm
+left over from an abandoned palette pick would otherwise win over it).
+Not offered for a purely decorative element (Rectangle/Circle/Arrow/
+Button/Road/PostPole/Line/PowerflowIndicator/Table/Table2), matching every
+other place these are excluded as valid wire endpoints. Added
+`contextMenu.startBuswork` to both `en.ts`/`ru.ts`. Verified with `npx tsc
+--noEmit` and a live round trip in the app: placed two Breakers, right-
+clicked one, selected "Start buswork" (routing started immediately, no
+palette interaction), and completed the route — confirmed via the DOM
+that the resulting connector's `data-type="21"` (Buswork) and its own
+first point exactly matched the breaker's own top terminal
+(element anchor (540,530) + local (0,-10) = (540,520), the connector's
+literal first point).
+
+2026-09-22: Extended Shift+click multi-select to a single mixed selection
+across elements, connectors, labels, and digital devices together —
+previously Shift+click only worked for elements (`selectedElementIds`);
+clicking a second wire or text label just replaced the selection instead
+of adding to it. `DiagramContext`'s selection state is now one
+`selection: Map<number, SelectionKind>` (element/connector/label/
+digitaldevice ids share one id space, the same one `RenderFragments`'
+own `ids` param already relies on) instead of an element-only Set, with
+a new `toggleSelection(id, kind)` replacing `toggleElementSelection`.
+Dragging any item that's part of a >1-entry selection now moves the
+whole mixed group together (`diagramOps.moveSelection`, replacing
+`moveElements`): elements move and reroute their own attached
+connectors as before; an explicitly-selected connector not already
+carried along by a moving element's port is added to the same reroute
+pass (translating rigidly when both ends are free, or with the usual
+orthogonal partial-follow when only one is — an end anchored to a real
+Port on an element that ISN'T also moving is deliberately left fixed,
+so the wire doesn't visually tear away from equipment that isn't
+actually moving); labels/digital devices just get their own x/y
+shifted. Whole-body dragging is genuinely new for a connector — a plain
+click there used to only ever select it, never move it. Right-clicking
+any item that's part of a multi-selection now preserves the whole
+mixed selection (previously only elements did this; right-clicking a
+connector/label/digital device always collapsed to just that one item).
+Copy/Paste is now unified too (`diagramOps.copySelection`/`pasteGroup`,
+replacing the element-only `copyElements`/`pasteElements`) and extended
+to connectors and digital devices (labels already had no copy/paste at
+all before this): a copied connector reconnects to the corresponding
+*pasted* elements' own new ports only when both its endpoints' owning
+elements are also in the same copy/paste operation (full rigid-group
+fidelity); every other end (a tap onto a busbar/another connector, or an
+endpoint whose owning element wasn't also copied) pastes as an ordinary
+dangling end — the same normal, unremarkable state this app already
+treats any unconnected wire end as. A copied label drops its `for` link
+(already documented as informational-only, never live). `deleteSelected`
+now dispatches every entry in the mixed selection to the right remove
+function in one `updateDiagram` call. The Properties panel's bulk-
+selection view and the context menu's Copy/Delete/Paste items all switch
+on `selection.size`/contents instead of the old element-only checks; the
+now-redundant standalone "Delete wire" context-menu item was removed
+(the generalized "Delete" already covers it whenever a connector is
+selected). Verified with `npx tsc --noEmit` and a live round trip:
+shift-clicked a breaker, its own attached wire, and a text label into one
+3-item mixed selection (confirmed via the Properties panel's "3 items
+selected" bulk view), dragged the breaker (wire rerouted, label moved by
+the same delta — confirmed via the DOM that all three actually updated,
+not just a drag preview), copied and pasted the group elsewhere (new
+breaker + a correctly-dangling wire, since the wire's other original
+endpoint's owning element wasn't part of the copy + a new label, all
+confirmed via the DOM), and deleted the original 3-item selection
+(confirmed exactly those three ids were removed, leaving the untouched
+second breaker and the pasted copies alone).
+
+2026-09-24: Import an xsde2svg-style `.svg` by dropping (or picking) it
+instead of a `.xml`. New `POST /api/import/svg` runs the sibling `slddoc`
+module's own `Extract` (the same reconstruction `sld-svg`'s
+`svg-sld extract` CLI performs) and returns `{diagram, report}`; the
+server's `voltage_colors` presets double as Extract's voltage hints, so a
+color matching a preset comes back as a named voltage class (e.g.
+"110 kV") rather than the raw color. Frontend: `loadDiagramFromXML` became
+`loadDiagramFromFile(text, fileName)`, picking the XML or SVG import path
+by extension (`lib/fileTransfer.ts`'s `diagramFileKind`/
+`stripDiagramExtension`); the drop handler and the File panel's picker both
+accept `.svg` now. Whatever Extract couldn't capture (unsupported
+data-type codes with counts, element ids whose geometry failed to parse)
+is shown as a non-fatal "Imported with omissions" warning instead of being
+silently dropped. New i18n keys `file.invalidDiagramFile` (replacing
+`file.invalidXmlFile`), `file.importWithOmissions`, `file.importSkipped`,
+`file.importFailed`. Verified against every SVG in
+`sld-viewer/assets/sld/`.
+
+2026-09-24: Import log and default voltage for an imported `.svg`. Each
+`.svg` import now opens an Import log dialog
+(`frontend/src/components/ImportLogDialog.tsx`) listing what
+`slddoc.Extract` captured (element/connector/label/digital-device/node
+counts), each extracted voltage class with its color and how many
+elements/connectors use it, every skipped unsupported data-type code with
+its readable name and count, and the element ids whose geometry failed to
+parse — replacing the one-line "Imported with omissions" warning. The log
+stays available from the File panel's "Show import log" button while the
+imported diagram remains open (`DiagramContext.importLog`, cleared by
+open/new/an `.xml` import). An imported diagram's `editor.defaultVoltage`
+now defaults to its most-used voltage class (`diagramOps.voltageUsage`/
+`mostUsedVoltage`), changeable from the dialog's own Default voltage
+picker. Backend: `POST /api/import/svg`'s `report.skipped` changed from a
+code -> count map to a code-sorted `[{code, name, count}]` list (its only
+caller, `lib/api.ts`'s `importDiagramSVG`, updated with it); `name` comes
+from a new `slddoc.ObjectTypeName(code)` in the sibling `slddoc` module,
+which exposes the names its `shapeName`/`unrecognizedShapeName` tables
+already held (also reused by Extract's own `addMissingLabel`). i18n: new
+`importLog.*` keys and `file.showImportLog`; the now-unused
+`file.importWithOmissions`/`importSkipped`/`importFailed` were removed.
+
+2026-09-24: Confirm before a dropped/picked file replaces an existing
+diagram. Dropping (or picking) a `.xml`/`.svg` whose name, minus its
+extension, matches a diagram already on the server now shows a "Diagram
+already exists" dialog (`frontend/src/components/ConfirmReloadDialog.tsx`)
+instead of loading it straight away: Reload loads the file as before (the
+next Save overwrites the server copy), Cancel (or Esc/backdrop click)
+leaves the open diagram untouched. A name with no match loads immediately
+as before. Frontend only — the check reuses `GET /api/diagrams?dir=`:
+new `DiagramContext.importDiagramFile` (now what `App.tsx`'s drop handler
+and the File panel's picker call), `pendingImport`/
+`confirmPendingImport`/`cancelPendingImport`, and
+`lib/diagramPath.ts`'s `baseName`. New i18n keys `reload.title`/
+`reload.message`/`reload.reload`.
+
+2026-09-24: Added a favicon — a white busbar with a closed breaker feeder
+on the app's accent blue (`frontend/public/favicon.svg`), plus
+`favicon.ico` (16/32 px), `favicon-16.png`/`favicon-32.png` and a 180 px
+`apple-touch-icon.png` generated from it with `rsvg-convert` as fallbacks
+for browsers (notably Safari) with unreliable SVG favicon support. Linked
+from `frontend/index.html`; Vite copies `public/` into `dist/`, so the
+embedded production binary serves them too (verified `/favicon.ico` etc.
+return 200 from a binary built with the new `dist/` embedded).
+
+2026-09-24: Wrote a reference specification of the diagram XML format,
+`slddoc/FORMAT.md` (in the shared slddoc module, since it owns the
+format). It covers document structure, id rules (`lastId`, shared id space,
+0 = unset), every section and attribute (layers, voltage classes, nodes,
+elements with ports/geometry/windings/Table2 grid, connectors, labels,
+digital devices), the node-based topology model including how busbars
+connect (ports in editor-drawn diagrams vs. geometry-only in Extract
+output), class-specific attributes, the element shape and connector kind
+code tables (port counts checked against the existing corpus), the legacy
+values `Load` rewrites, and a complete example. The example was verified to
+load with `slddoc.Load` and save back byte-for-byte identical. Linked from
+the slddoc and sld-svg READMEs.

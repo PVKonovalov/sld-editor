@@ -916,4 +916,32 @@
          offers PostPole/Lamp/JunctionPoint. -->
     <template></template>
   </symbol>
+
+  <symbol shape="312" class="Table" name="Table">
+    <!-- Like Button above, a Table has no fixed template: its own two
+         Points (opposite corners) vary per instance and it isn't real
+         electrical equipment at all (no terminals, no voltage — see
+         slddoc's own ClassTable doc comment), so it's drawn straight from
+         those Points plus its own PropertyText/TextColor/Orient label by
+         internal/slddoc.Render (writeTable), not template substitution.
+         This entry exists only so the Elements palette can offer "Table"
+         the same drag-two-corners way it already offers "Rectangle"/
+         "3D button". -->
+    <template></template>
+  </symbol>
+
+  <symbol shape="313" class="Table2" name="Table 2">
+    <!-- Like PostPole/PowerflowIndicator above, a Table2 has no fixed
+         template: its own row/column grid (RowHeights/ColumnWidths/Cells)
+         varies per instance and it isn't real electrical equipment at all
+         (no terminals, no voltage — see slddoc's own ClassTable2 doc
+         comment), so it's drawn straight from those fields by
+         internal/slddoc.Render (writeTable2), not template substitution.
+         This entry exists only so the Elements palette can offer
+         "Table 2" the same click-to-place way it already offers
+         PostPole/Lamp/JunctionPoint — a freshly placed one starts as a
+         small default grid (see diagramOps.placeTable2), not a
+         drag-two-corners shape like Table/Rectangle. -->
+    <template></template>
+  </symbol>
 </symbols>

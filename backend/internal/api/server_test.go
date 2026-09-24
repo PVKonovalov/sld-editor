@@ -179,6 +179,55 @@ func TestRenderPreview_DoesNotPersist(t *testing.T) {
 	}
 }
 
+// TestRenderPreviewFragments covers /api/render/fragments end to end: only
+// the requested ids come back, an id no longer in the posted diagram is
+// silently skipped (not an error), and nothing is persisted — the same
+// "preview, never touches storage" contract /api/render itself has.
+func TestRenderPreviewFragments(t *testing.T) {
+	s := newTestServer(t)
+	d := slddoc.Diagram{
+		Width: 10, Height: 10,
+		Elements: []slddoc.Element{
+			{ID: 1, Class: slddoc.ClassBreaker, Shape: "41", X: 1, Y: 1},
+			{ID: 2, Class: slddoc.ClassBreaker, Shape: "41", X: 2, Y: 2},
+		},
+	}
+
+	rec := doJSON(t, s, http.MethodPost, "/api/render/fragments", gin.H{
+		"diagram": d,
+		"ids":     []int{1, 999},
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("render fragments: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Fragments map[string]string `json:"fragments"`
+		Warning   string            `json:"warning"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Warning != "" {
+		t.Errorf("unexpected warning: %s", resp.Warning)
+	}
+	if len(resp.Fragments) != 1 {
+		t.Fatalf("fragments = %+v, want exactly one entry (id 999 names nothing in the diagram)", resp.Fragments)
+	}
+	if !strings.Contains(resp.Fragments["1"], `id="1"`) {
+		t.Errorf("fragment for id 1 missing its own id: %q", resp.Fragments["1"])
+	}
+	if _, ok := resp.Fragments["2"]; ok {
+		t.Errorf("element 2 wasn't requested, should not be in the response: %+v", resp.Fragments)
+	}
+
+	rec = doJSON(t, s, http.MethodGet, "/api/diagrams", nil)
+	var entries []storage.Entry
+	_ = json.Unmarshal(rec.Body.Bytes(), &entries)
+	if len(entries) != 0 {
+		t.Errorf("render fragments should not persist a diagram: %+v", entries)
+	}
+}
+
 func TestExportImportXML(t *testing.T) {
 	s := newTestServer(t)
 	d := slddoc.Diagram{
@@ -230,6 +279,47 @@ func TestExportImportXML(t *testing.T) {
 	s.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("import malformed xml: status = %d, want 400, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestImportDiagramSVG(t *testing.T) {
+	s := newTestServer(t)
+
+	svgBody := `<?xml version="1.0"?>
+<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+<polyline points="10,40 300,40" style="fill:none;stroke:#962896;stroke-width:2" data-voltage="#962896" data-name="Bus" data-type="24" id="1" />
+<g id="2" data-type="310"><rect x="0" y="0" width="10" height="10"/></g>
+</svg>`
+	req := httptest.NewRequest(http.MethodPost, "/api/import/svg", strings.NewReader(svgBody))
+	req.Header.Set("Content-Type", "image/svg+xml")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("import svg: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Diagram slddoc.Diagram `json:"diagram"`
+		Report  importReport   `json:"report"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Diagram.Elements) != 1 || resp.Diagram.Elements[0].ID != 1 {
+		t.Errorf("imported elements = %+v, want the one busbar with id 1", resp.Diagram.Elements)
+	}
+	// The server's own "10 kV" preset (#962896) names the extracted class.
+	if len(resp.Diagram.VoltageClasses) != 1 || resp.Diagram.VoltageClasses[0].Name != "10 kV" {
+		t.Errorf("voltage classes = %+v, want one named from the 10 kV preset", resp.Diagram.VoltageClasses)
+	}
+	if len(resp.Report.Skipped) != 1 || resp.Report.Skipped[0] != (importSkippedEntry{Code: "310", Name: "Container", Count: 1}) {
+		t.Errorf("report.skipped = %+v, want one 310 Container", resp.Report.Skipped)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/import/svg", strings.NewReader("<html/>"))
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("import non-svg: status = %d, want 400, body = %s", rec.Code, rec.Body.String())
 	}
 }
 
