@@ -21,10 +21,22 @@ import (
 	"github.com/pkg/browser"
 )
 
+// version is this build's own version — the git tag it was built from
+// (`git describe --tags --always --dirty`), injected by the root Makefile
+// via -ldflags "-X main.version=..."; a plain `go run`/`go build` leaves
+// it at "dev".
+var version = "dev"
+
 func main() {
 	configFile := flag.String("config", "config/sld-editor.yaml", "path to the YAML configuration file")
 	openBrowser := flag.Bool("open-browser", false, "open the browser automatically")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("sld-editor", version)
+		return
+	}
 
 	var cfg config.Config
 	if err := configuration.Read(*configFile, &cfg); err != nil {
@@ -70,7 +82,7 @@ func main() {
 	defer stop()
 
 	srv := api.NewServer(store, lib, &cfg)
-	llog.Logger.Infof("sld-editor listening on %s", cfg.Server.Bind)
+	llog.Logger.Infof("sld-editor %s listening on %s", version, cfg.Server.Bind)
 
 	if *openBrowser {
 		if _, port, ok := strings.Cut(cfg.Server.Bind, ":"); ok {

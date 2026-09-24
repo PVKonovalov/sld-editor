@@ -12,6 +12,11 @@ export const dictionary = {
   'sidebar.elements': 'Elements',
   'sidebar.settings': 'Settings',
   'sidebar.properties': 'Properties',
+  'sidebar.about': 'About',
+  'about.title': 'About',
+  'about.appName': 'SLD Editor',
+  'about.description': 'Single-line diagram editor for power and energy control engineers.',
+  'about.version': 'Version {{version}}',
 
   'file.new': 'New',
   'file.namePlaceholder': 'Diagram name',

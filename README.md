@@ -89,3 +89,12 @@ Binaries are written to `build/`. Each one is a normal, standalone executable â€
 run it directly (`./sld-editor-linux-en -config config/sld-editor.yaml`, or
 double-click the `.exe` on Windows) and it serves both the API and the embedded UI
 on its own bind address.
+
+### Version
+
+The version is the git tag the build comes from (`git describe --tags --always
+--dirty`: `v1.0.0`, `v1.0.0-3-gabc1234` for commits after the tag, `-dirty` for
+uncommitted changes, `dev` without git). To release, tag first
+(`git tag v1.1.0`), then `make`. Override it with `make VERSION=v1.2.0`. It is
+shown in the UI's About dialog (sidebar, bottom) and printed by
+`./sld-editor-linux-en -version`.

@@ -16,6 +16,11 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'sidebar.elements': 'Элементы',
   'sidebar.settings': 'Настройки',
   'sidebar.properties': 'Свойства',
+  'sidebar.about': 'О программе',
+  'about.title': 'О программе',
+  'about.appName': 'SLD Editor',
+  'about.description': 'Редактор однолинейных схем для инженеров энергосистем.',
+  'about.version': 'Версия {{version}}',
 
   'file.new': 'Новая',
   'file.namePlaceholder': 'Имя схемы',

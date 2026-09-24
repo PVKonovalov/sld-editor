@@ -4099,3 +4099,15 @@ it had no hint for) takes the name of the preset with the same color,
 compared case-insensitively (`10 kV`). A class already renamed by hand is
 left alone. When anything was renamed the diagram is marked dirty, so the
 next Save writes the new names into the `.xsld`.
+
+2026-09-24: The git tag is now the program version, shown in a new About
+dialog. `git describe --tags --always --dirty` (e.g. `v1.0.0`,
+`v1.0.0-3-gabc1234`, `-dirty`; `dev` without git) is computed once by the
+root Makefile (`VERSION`, overridable with `make VERSION=…`) and baked into
+both halves: the frontend via `APP_VERSION` → `vite.config.ts`'s
+`__APP_VERSION__` define (the dev server computes it from git itself), and
+the Go binary via `-ldflags "-X main.version=…"` — the backend logs it at
+startup and has a new `-version` flag. `make docker-build` passes the host's
+version into the container. A new About button at the bottom of the sidebar
+opens `components/AboutDialog.tsx` with the program icon, name, version and
+a short description (en/ru).

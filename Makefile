@@ -55,6 +55,17 @@
         macos-arm64-en macos-arm64-ru \
         frontend-en frontend-ru docker-build clean
 
+# VERSION is the build's own version, from the git tag it was built from
+# (e.g. v1.0.0, v1.0.0-3-gabc1234 for commits after it, a -dirty suffix
+# for uncommitted changes), "dev" without git. Override with
+# `make VERSION=v1.2.0`. Baked into both the frontend (APP_VERSION, read
+# by frontend/vite.config.ts) and the Go binary (-X main.version).
+ifeq ($(origin VERSION),undefined)
+VERSION      := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+endif
+export VERSION
+GO_LDFLAGS   := -X main.version=$(VERSION)
+
 BUILD_DIR    := build
 FRONTEND_DIR := frontend
 BACKEND_DIR  := backend
@@ -71,27 +82,27 @@ macos: macos-arm64-en macos-arm64-ru
 
 linux-en: $(BUILD_DIR)
 	$(MAKE) frontend-en
-	cd $(BACKEND_DIR) && GOOS=linux GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-linux-en ./cmd/sld-editor
+	cd $(BACKEND_DIR) && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$(GO_LDFLAGS)" -o ../$(BUILD_DIR)/sld-editor-linux-en ./cmd/sld-editor
 
 linux-ru: $(BUILD_DIR)
 	$(MAKE) frontend-ru
-	cd $(BACKEND_DIR) && GOOS=linux GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-linux-ru ./cmd/sld-editor
+	cd $(BACKEND_DIR) && GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$(GO_LDFLAGS)" -o ../$(BUILD_DIR)/sld-editor-linux-ru ./cmd/sld-editor
 
 windows-en: $(BUILD_DIR)
 	$(MAKE) frontend-en
-	cd $(BACKEND_DIR) && GOOS=windows GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-windows-en.exe ./cmd/sld-editor
+	cd $(BACKEND_DIR) && GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$(GO_LDFLAGS)" -o ../$(BUILD_DIR)/sld-editor-windows-en.exe ./cmd/sld-editor
 
 windows-ru: $(BUILD_DIR)
 	$(MAKE) frontend-ru
-	cd $(BACKEND_DIR) && GOOS=windows GOARCH=amd64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-windows-ru.exe ./cmd/sld-editor
+	cd $(BACKEND_DIR) && GOOS=windows GOARCH=amd64 go build -trimpath -ldflags "$(GO_LDFLAGS)" -o ../$(BUILD_DIR)/sld-editor-windows-ru.exe ./cmd/sld-editor
 
 macos-arm64-en: $(BUILD_DIR)
 	$(MAKE) frontend-en
-	cd $(BACKEND_DIR) && GOOS=darwin GOARCH=arm64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-macos-arm64-en ./cmd/sld-editor
+	cd $(BACKEND_DIR) && GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$(GO_LDFLAGS)" -o ../$(BUILD_DIR)/sld-editor-macos-arm64-en ./cmd/sld-editor
 
 macos-arm64-ru: $(BUILD_DIR)
 	$(MAKE) frontend-ru
-	cd $(BACKEND_DIR) && GOOS=darwin GOARCH=arm64 go build -trimpath -o ../$(BUILD_DIR)/sld-editor-macos-arm64-ru ./cmd/sld-editor
+	cd $(BACKEND_DIR) && GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags "$(GO_LDFLAGS)" -o ../$(BUILD_DIR)/sld-editor-macos-arm64-ru ./cmd/sld-editor
 
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
@@ -101,13 +112,13 @@ $(BUILD_DIR):
 # recursive `$(MAKE)` call (see this file's own top comment), never as a
 # plain shared prerequisite.
 frontend-en:
-	cd $(FRONTEND_DIR) && npm install && npm run build:en
+	cd $(FRONTEND_DIR) && npm install && APP_VERSION=$(VERSION) npm run build:en
 	rm -rf $(WEBUI_DIST)
 	mkdir -p $(WEBUI_DIST)
 	cp -r $(FRONTEND_DIR)/dist-en/. $(WEBUI_DIST)/
 
 frontend-ru:
-	cd $(FRONTEND_DIR) && npm install && npm run build:ru
+	cd $(FRONTEND_DIR) && npm install && APP_VERSION=$(VERSION) npm run build:ru
 	rm -rf $(WEBUI_DIST)
 	mkdir -p $(WEBUI_DIST)
 	cp -r $(FRONTEND_DIR)/dist-ru/. $(WEBUI_DIST)/
@@ -124,7 +135,7 @@ frontend-ru:
 # directly via that mount, no extraction step needed afterward.
 docker-build:
 	docker build -t $(DOCKER_IMAGE) -f Dockerfile.build .
-	docker run --rm -v "$(abspath ..)":/workspace -w /workspace/sld-editor $(DOCKER_IMAGE) make linux windows
+	docker run --rm -v "$(abspath ..)":/workspace -w /workspace/sld-editor $(DOCKER_IMAGE) make linux windows VERSION=$(VERSION)
 
 clean:
 	rm -rf $(BUILD_DIR)

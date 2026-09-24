@@ -9,6 +9,7 @@ import { PropertiesPanel } from './components/panels/PropertiesPanel'
 import { Canvas } from './components/Canvas'
 import { ImportLogDialog } from './components/ImportLogDialog'
 import { ConfirmReloadDialog } from './components/ConfirmReloadDialog'
+import { AboutDialog } from './components/AboutDialog'
 import { DefaultVoltageDialog } from './components/DefaultVoltageDialog'
 import { diagramFileKind, readFileAsText } from './lib/fileTransfer'
 import { t } from './i18n'
@@ -22,6 +23,7 @@ function Shell() {
   // independently rather than sharing one "active panel" slot with them.
   const [activeLeftPanel, setActiveLeftPanel] = useState<LeftPanelId | null>('file')
   const [propertiesOpen, setPropertiesOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
   const {
     diagramName,
     selectedElementId,
@@ -127,7 +129,12 @@ function Shell() {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <Sidebar activeLeftPanel={activeLeftPanel} propertiesOpen={propertiesOpen} onPanelToggle={togglePanel} />
+      <Sidebar
+        activeLeftPanel={activeLeftPanel}
+        propertiesOpen={propertiesOpen}
+        onPanelToggle={togglePanel}
+        onAbout={() => setAboutOpen(true)}
+      />
       {activeLeftPanel === 'file' && <FilePanel onClose={() => setActiveLeftPanel(null)} />}
       {activeLeftPanel === 'elements' && <ElementsPanel onClose={() => setActiveLeftPanel(null)} />}
       {activeLeftPanel === 'settings' && <SettingsPanel onClose={() => setActiveLeftPanel(null)} />}
@@ -143,6 +150,7 @@ function Shell() {
       {pendingImport && <ConfirmReloadDialog />}
       {importLogOpen && <ImportLogDialog onClose={() => setImportLogOpen(false)} />}
       {defaultVoltagePromptOpen && !pendingImport && <DefaultVoltageDialog />}
+      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
       {dropError && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-red-900/90 text-red-100 text-xs rounded px-3 py-2 shadow">
           <span>{dropError}</span>
