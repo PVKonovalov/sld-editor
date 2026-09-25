@@ -723,6 +723,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isPostPole = el.class === 'PostPole'
   const isLine = el.class === 'Line'
   const isPolygon = el.class === 'Polygon'
+  const isArc = el.class === 'Arc'
   const isPowerflowIndicator = el.class === 'PowerflowIndicator'
   const isTable = el.class === 'Table'
   const isTable2 = el.class === 'Table2'
@@ -750,6 +751,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     isPostPole ||
     isLine ||
     isPolygon ||
+    isArc ||
     isPowerflowIndicator ||
     isTable ||
     isTable2
@@ -1383,6 +1385,65 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {isArc && (
+          <>
+            {/* Border color/width reuse Rectangle's own labels. Radius X/Y
+                are editable directly (an imported arc is often elliptical);
+                the two flags are shown read-only — they follow from the
+                bulge handle on the canvas, see diagramOps.updateArcBulge. */}
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+              <input
+                type="number"
+                min={0.25}
+                step={0.25}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 0.25}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+            <div className="flex gap-2">
+              <label className="block text-xs flex-1">
+                <span className="block text-gray-400 mb-1">{t('properties.arcRadiusX')}</span>
+                <input
+                  type="number"
+                  min={0}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.rx ?? 0}
+                  onChange={e => patch({ rx: Number(e.target.value) })}
+                />
+              </label>
+              <label className="block text-xs flex-1">
+                <span className="block text-gray-400 mb-1">{t('properties.arcRadiusY')}</span>
+                <input
+                  type="number"
+                  min={0}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.ry ?? 0}
+                  onChange={e => patch({ ry: Number(e.target.value) })}
+                />
+              </label>
+            </div>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={!!el.largeArc} disabled />
+              <span className="text-gray-400">{t('properties.arcLargeArc')}</span>
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={!!el.sweep} disabled />
+              <span className="text-gray-400">{t('properties.arcSweep')}</span>
+            </label>
+          </>
+        )}
+
         {isPowerflowIndicator && (
           <>
             <label className="block text-xs">
@@ -1801,7 +1862,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow || isButton || isRoad || isLine || isPolygon || isTable) &&
+        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow || isButton || isRoad || isLine || isPolygon || isArc || isTable) &&
         el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>

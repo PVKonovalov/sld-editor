@@ -85,6 +85,18 @@
     <template></template>
   </symbol>
 
+  <symbol shape="9" class="Arc" name="Arc">
+    <!-- Like Line above, an Arc has no fixed template: it's a single SVG
+         arc command stored as-is (start/end Points plus rx/ry/largeArc/
+         sweep — see slddoc's own ClassArc doc comment), not real
+         electrical equipment, drawn straight from those fields by
+         internal/slddoc.Render. This entry exists only so the Elements
+         palette can offer it: a fresh one is drawn by dragging from its
+         start to its end point (a circular arc bulging a quarter of the
+         chord out), then reshaped with its start/end/bulge handles. -->
+    <template></template>
+  </symbol>
+
   <symbol shape="16" class="Polygon" name="Polygon">
     <!-- Like Line above, a Polygon has no fixed template: it's an
          arbitrary closed vertex list, not real electrical equipment (see

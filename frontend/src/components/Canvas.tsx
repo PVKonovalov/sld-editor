@@ -4,6 +4,7 @@ import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import { useDiagramContext, type SelectionKind } from '../state/useDiagramContext'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
+import { arcBounds, arcMidpoint, arcPathD, circularArcThrough, defaultArcBulge, type ArcParams } from '../lib/arc'
 import { clientToDiagramPoint, nearestSegmentOnPolyline, snapPointOnSegment, snapValue } from '../lib/geometry'
 import { t } from '../i18n'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
@@ -17,6 +18,32 @@ const BUTTON_SHAPE = '113'
 const ROAD_SHAPE = '335'
 const LINE_SHAPE = '1'
 const POLYGON_SHAPE = '16'
+const ARC_SHAPE = '9'
+// An Arc's (shape 9) own bulge handle, alongside its two real Points'
+// own handles — a virtual point index for pointDrag, committed through
+// diagramOps.updateArcBulge rather than updateBusbarPoint.
+const ARC_BULGE_INDEX = 2
+
+// The ArcParams an Arc element draws with, optionally with one of its
+// handles (start 0, end 1, bulge ARC_BULGE_INDEX) moved to point — shared
+// by the live handle-drag preview and every other place Canvas redraws an
+// arc itself rather than waiting on the backend's own render.
+function elementArc(el: DiagramElement, moved?: { index: number; point: Point }): ArcParams | null {
+  if (!el.points || el.points.length < 2) return null
+  const base: ArcParams = {
+    start: el.points[0],
+    end: el.points[1],
+    rx: el.rx ?? 0,
+    ry: el.ry ?? 0,
+    largeArc: !!el.largeArc,
+    sweep: !!el.sweep,
+  }
+  if (!moved) return base
+  if (moved.index === 0) return { ...base, start: moved.point }
+  if (moved.index === 1) return { ...base, end: moved.point }
+  const params = circularArcThrough(base.start, base.end, moved.point)
+  return params ? { ...base, ...params } : base
+}
 const TABLE_SHAPE = '312'
 // Shapes placed by dragging out two opposite points rather than a single
 // click — see diagramOps.POINTS_BASED_CLASSES for the element-class
@@ -32,6 +59,7 @@ const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
   BUTTON_SHAPE,
   ROAD_SHAPE,
   LINE_SHAPE,
+  ARC_SHAPE,
   TABLE_SHAPE,
 ])
 const HIGHLIGHT = '#3b82f6'
@@ -594,6 +622,13 @@ export function Canvas() {
     const boxes = new Map<number, ElementBox>()
     for (const el of diagram.elements) {
       if (el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line') continue
+      if (el.class === 'Arc') {
+        // A thin bare <path>, fill always none — same click-tolerance
+        // treatment as Polygon, from the curve's own sampled extent.
+        const arc = elementArc(el)
+        if (arc) boxes.set(el.id, arcBounds(arc))
+        continue
+      }
       if (el.class === 'Polygon' && el.points && el.points.length > 0) {
         // A bare <polygon> whose own Fill is often "none" (like
         // Rectangle's), so it gets the same click-tolerance box: its own
@@ -813,6 +848,7 @@ export function Canvas() {
     'PostPole',
     'Line',
     'Polygon',
+    'Arc',
     'PowerflowIndicator',
     'Table',
     'Table2',
@@ -1158,6 +1194,12 @@ export function Canvas() {
       if (!el || !node) continue
       if ((el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line' || el.class === 'Polygon') && el.points) {
         node.setAttribute('points', el.points.map(p => `${p.x + dx},${p.y + dy}`).join(' '))
+      } else if (el.class === 'Arc' && el.points) {
+        const arc = elementArc(el)
+        if (arc) {
+          const shift = (p: Point) => ({ x: p.x + dx, y: p.y + dy })
+          node.setAttribute('d', arcPathD({ ...arc, start: shift(arc.start), end: shift(arc.end) }))
+        }
       } else if (el.class === 'Rectangle' && el.points) {
         node.setAttribute('x', String(Math.min(el.points[0].x, el.points[1].x) + dx))
         node.setAttribute('y', String(Math.min(el.points[0].y, el.points[1].y) + dy))
@@ -1329,9 +1371,11 @@ export function Canvas() {
                         ? diagramOps.placeRoad(d, start, snappedEnd)
                         : shape === LINE_SHAPE
                           ? diagramOps.placeLine(d, start, snappedEnd)
-                          : shape === TABLE_SHAPE
-                            ? diagramOps.placeTable(d, start, snappedEnd)
-                            : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
+                          : shape === ARC_SHAPE
+                            ? diagramOps.placeArc(d, start, snappedEnd)
+                            : shape === TABLE_SHAPE
+                              ? diagramOps.placeTable(d, start, snappedEnd)
+                              : diagramOps.placeBusbar(d, start, snappedEnd, defaultVoltage),
             )
           }
           armSymbol(null)
@@ -1471,7 +1515,11 @@ export function Canvas() {
       window.removeEventListener('mouseup', onUp)
       const point = snapPoint(toPoint(ev.clientX, ev.clientY))
       setPointDrag(null)
-      updateDiagram(d => diagramOps.updateBusbarPoint(d, elementId, pointIndex, point))
+      updateDiagram(d =>
+        pointIndex === ARC_BULGE_INDEX && d.elements.find(el => el.id === elementId)?.class === 'Arc'
+          ? diagramOps.updateArcBulge(d, elementId, point)
+          : diagramOps.updateBusbarPoint(d, elementId, pointIndex, point),
+      )
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -1896,6 +1944,19 @@ export function Canvas() {
                       />
                     )
                   }
+                  if (el.class === 'Arc') {
+                    const arc = elementArc(el)
+                    return arc ? (
+                      <path
+                        key={el.id}
+                        d={arcPathD(arc)}
+                        fill="none"
+                        stroke={HIGHLIGHT}
+                        strokeWidth={6}
+                        strokeOpacity={0.5}
+                      />
+                    ) : null
+                  }
                   if (el.class === 'Polygon' && el.points) {
                     return (
                       <polygon
@@ -2136,6 +2197,25 @@ export function Canvas() {
                   strokeWidth={2}
                   strokeDasharray="6 4"
                 />
+              ) : newBusbar && armedSymbol?.shape === ARC_SHAPE ? (
+                (() => {
+                  const start = snapPoint(newBusbar.start)
+                  const end = snapPoint(newBusbar.current)
+                  const params = circularArcThrough(start, end, defaultArcBulge(start, end))
+                  return (
+                    <path
+                      d={
+                        params
+                          ? arcPathD({ start, end, ...params })
+                          : `M${newBusbar.start.x},${newBusbar.start.y} L${newBusbar.current.x},${newBusbar.current.y}`
+                      }
+                      fill="none"
+                      stroke={HIGHLIGHT}
+                      strokeWidth={2}
+                      strokeDasharray="6 4"
+                    />
+                  )
+                })()
               ) : newBusbar && armedSymbol?.shape === CIRCLE_SHAPE ? (
                 <ellipse
                   cx={(newBusbar.start.x + newBusbar.current.x) / 2}
@@ -2169,6 +2249,7 @@ export function Canvas() {
                   selectedElement.class === 'Road' ||
                   selectedElement.class === 'Line' ||
                   selectedElement.class === 'Polygon' ||
+                  selectedElement.class === 'Arc' ||
                   selectedElement.class === 'Table') &&
                 selectedElement.points && (
                 <>
@@ -2212,6 +2293,12 @@ export function Canvas() {
                           />
                         )
                       }
+                      if (selectedElement.class === 'Arc') {
+                        const arc = elementArc(selectedElement, { index: pointDrag.pointIndex, point: pointDrag.point })
+                        return arc ? (
+                          <path d={arcPathD(arc)} fill="none" stroke={HIGHLIGHT} strokeWidth={2} strokeDasharray="6 4" />
+                        ) : null
+                      }
                       if (selectedElement.class === 'Polygon') {
                         return (
                           <polygon
@@ -2250,6 +2337,32 @@ export function Canvas() {
                       </g>
                     )
                   })}
+                  {/* An Arc's own bulge handle, at its curve's midpoint
+                      (a circle, unlike the square start/end handles):
+                      dragging it reshapes the arc into the circular one
+                      through start, the handle, and end. */}
+                  {selectedElement.class === 'Arc' &&
+                    (() => {
+                      const dragging =
+                        pointDrag?.elementId === selectedElement.id && pointDrag.pointIndex === ARC_BULGE_INDEX
+                      const arc = elementArc(
+                        selectedElement,
+                        pointDrag?.elementId === selectedElement.id
+                          ? { index: pointDrag.pointIndex, point: pointDrag.point }
+                          : undefined,
+                      )
+                      if (!arc) return null
+                      const pos = dragging ? pointDrag!.point : arcMidpoint(arc)
+                      return (
+                        <g
+                          style={{ pointerEvents: 'auto', cursor: 'move' }}
+                          onMouseDown={e => handlePointMouseDown(e, selectedElement.id, ARC_BULGE_INDEX)}
+                        >
+                          <circle cx={pos.x} cy={pos.y} r={10} fill="transparent" />
+                          <circle cx={pos.x} cy={pos.y} r={5} fill="none" stroke="red" strokeWidth={1} />
+                        </g>
+                      )
+                    })()}
                 </>
               )}
               {/* An in-progress pen-tool Polygon: the vertices placed so

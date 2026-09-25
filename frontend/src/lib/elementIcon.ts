@@ -84,6 +84,9 @@ const POLE_ICON =
 // convention) and drawn at an angle (unlike BUSBAR_ICON's own horizontal
 // one) since real corpus shows a Line running at an arbitrary angle far
 // more often than a busbar's own conventionally-horizontal one.
+// Arc (shape 9) likewise has no template — a plain open "∩" arc.
+const ARC_ICON = '<path d="M -20 12 A 20 20 0 0 1 20 12" fill="none" stroke="currentColor" stroke-width="2" />'
+
 // Polygon (shape 16) likewise has no template — a filled triangle, the
 // shape a freshly drawn one starts as (see diagramOps.placePolygon).
 const POLYGON_ICON =
@@ -130,6 +133,7 @@ const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '292': POLE_ICON,
   '1': LINE_ICON,
   '16': POLYGON_ICON,
+  '9': ARC_ICON,
   '320001': POWERFLOW_INDICATOR_ICON,
   '312': TABLE_ICON,
   '313': TABLE2_ICON,

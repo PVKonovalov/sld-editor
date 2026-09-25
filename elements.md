@@ -5,7 +5,7 @@
 5 + Текст (Text)
 6 — Бустер/ВДТ (силовой трансформатор одноообмоточный) (Booster/voltage regulator — single-winding power transformer)
 7 + Точка (Point)
-9 — Дуга (Arc)
+9 + Дуга (Arc)
 10 — Коннектор (Connector)
 11 — Подложка, Картинка-файл (Backdrop, image file)
 14 + Непересечение (Non-intersection / wire jump)

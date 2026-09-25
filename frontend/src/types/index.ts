@@ -88,6 +88,7 @@ export type ElementClass =
   | 'PostPole'
   | 'Line'
   | 'Polygon'
+  | 'Arc'
   | 'PackageSubstation'
   | 'EnclosedSubstation'
   | 'PowerflowIndicator'
@@ -230,6 +231,13 @@ export interface DiagramElement {
   // Button (shape 113) only — draws its own PropertyText in bold, matching
   // backend/internal/slddoc's own Element.Bold.
   bold?: boolean
+  // Arc (shape 9) only — its own SVG arc parameters, stored exactly as the
+  // arc command writes them (points holds its start and end), matching
+  // slddoc's own Element.RadiusX/RadiusY/LargeArc/Sweep.
+  rx?: number
+  ry?: number
+  largeArc?: boolean
+  sweep?: boolean
   ports?: Port[]
   points?: Point[]
   // PowerTransformer (shape 47) only — see TransformerWinding's own doc

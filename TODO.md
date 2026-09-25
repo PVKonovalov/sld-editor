@@ -443,7 +443,15 @@ the real source's own dotted/dash-dot styles are offered; drawn
 pen-tool style — one click per vertex, click the first vertex (or Enter)
 to close, Backspace removes the last vertex, Esc cancels — then edited one
 vertex at a time; all 169
-real instances across 64 files extract, none fail).
+real instances across 64 files extract, none fail), **9** Дуга/Arc (a
+decorative arc, new `Arc` class stored the way the SVG arc command itself
+is — start/end Points plus new `RadiusX`/`RadiusY`/`LargeArc`/`Sweep`
+fields — so a real one round-trips exactly; the real source never gives an
+arc an id, so `Extract` synthesizes one; drawn by dragging start to end
+into a circular arc, then reshaped with start/end/bulge handles, the bulge
+recomputing a circular arc and its flags — an imported elliptical one
+becomes circular only when its bulge is dragged; all 65 real instances
+across 14 files extract).
 
 **320001** Направление перетока/Powerflow direction — a purely decorative
 annotation glyph (no Ports/Voltage, never a connectElements/routing

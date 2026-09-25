@@ -4200,3 +4200,15 @@ and a circle on the first vertex that turns green when a click there would
 close the shape. Clicking the first vertex (or pressing Enter) closes it
 with at least 3 vertices; Backspace removes the last vertex, Esc cancels.
 While drawing, clicks only add vertices and never select existing objects.
+
+2026-09-25: Added the Arc (xsde2svg type 9, Дуга), a decorative arc listed
+under "Annotations". It is stored the way an SVG arc command is — start and
+end points plus radii and the large-arc/sweep flags — so a real
+xsde2svg arc imports and saves back exactly (the real source's fixed 1°
+rotation included). Drag from the start point to the end point to draw a
+circular arc bulging a quarter of the chord out; once selected, drag its
+start/end handles or its round bulge handle (which recomputes a circular
+arc through start, handle and end, including arcs past a semicircle).
+Properties edits border color/width, the radii and the two points; the
+flags are shown read-only. Real arcs carry no id, so SVG import assigns
+one: all 65 real instances across 14 diagrams import.

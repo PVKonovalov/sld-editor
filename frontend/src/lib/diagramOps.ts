@@ -15,6 +15,7 @@ import type {
   TerminalDirection,
   TableCell,
 } from '../types'
+import { circularArcThrough, defaultArcBulge } from './arc'
 
 // Element classes whose own geometry is a drawn Points array (two or more
 // vertices) rather than a single x/y anchor+orient — BusBarSection (a real
@@ -40,6 +41,7 @@ const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'Road',
   'Line',
   'Polygon',
+  'Arc',
   'Table',
 ])
 
@@ -826,6 +828,51 @@ export function placePolygon(diagram: Diagram, points: Point[]): Diagram {
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
 
+// A freshly drawn Arc's own defaults: white, width 1 (the real source's
+// own 0.25 is barely visible on a fresh drawing).
+const ARC_DEFAULTS = { stroke: '#ffffff', strokeWidth: 1 }
+
+/** Places a new Arc from start to end — a purely decorative arc, not real
+ * electrical equipment (see slddoc's own ClassArc doc comment): no
+ * Voltage, no Ports, never a valid connectElements/routing target. It
+ * starts as the circular arc through arc.defaultArcBulge (a quarter of the
+ * chord out, on the upper side); Canvas then offers start/end/bulge
+ * handles to reshape it (updateBusbarPoint/updateArcBulge). */
+export function placeArc(diagram: Diagram, start: Point, end: Point): Diagram {
+  const params = circularArcThrough(start, end, defaultArcBulge(start, end))
+  if (!params) return diagram
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Arc',
+    shape: '9',
+    name: `Arc-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...params,
+    ...ARC_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+/** Reshapes Arc id into the circular arc from its own start through bulge
+ * to its own end (radius and both flags recomputed — an elliptical arc,
+ * e.g. an imported one, becomes circular). Unchanged when bulge is
+ * collinear with start/end, since no circle passes through all three. */
+export function updateArcBulge(diagram: Diagram, id: number, bulge: Point): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.id !== id || e.class !== 'Arc' || !e.points || e.points.length < 2) return e
+      const params = circularArcThrough(e.points[0], e.points[1], bulge)
+      return params ? { ...e, ...params } : e
+    }),
+  }
+}
+
 // What Copy captures for Paste: the element's own data minus its id (a
 // paste always gets a fresh one) and Ports (a pasted copy starts
 // unconnected — its ports referenced its old Node ids, which a copy has no
@@ -1494,6 +1541,7 @@ export function connectElements(diagram: Diagram, fromId: number, toId: number):
     el.class === 'PostPole' ||
     el.class === 'Line' ||
     el.class === 'Polygon' ||
+    el.class === 'Arc' ||
     el.class === 'PowerflowIndicator' ||
     el.class === 'Table' ||
     el.class === 'Table2'
