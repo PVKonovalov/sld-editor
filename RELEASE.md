@@ -4163,3 +4163,40 @@ removed from git and ignored. `webui/dist/` now tracks only an empty
 work in a fresh clone (verified with dist/ holding only `.gitkeep`); the
 Makefile's `frontend-en`/`frontend-ru`/`clean` targets recreate it after
 wiping the folder.
+
+2026-09-25: Added the Power circuit breaker (xsde2svg type 399, Автомат
+силовой) as a new two-state `PowerCircuitBreaker` class (Open/Close only,
+starts Closed when placed), listed under "Switching devices". Its template
+follows the real source's own `element_399.go`: Disconnector's body, a
+state-driven blade and a small filled square beside it that moves with it.
+The default look uses the more common xMirror==1 geometry (808 of 1,245
+real corpus instances). SVG import (`slddoc.Extract`) recognizes it, keeping
+its state and setting Mirror for an xMirror==0 instance; the path parser
+now also tolerates a trailing command with no parameters (`... v -12 m`),
+which every real closed instance's blade path ends with and which would
+otherwise have made each one fail to import. Checked against 60 real
+diagrams: every 399 instance was extracted, none failed.
+
+2026-09-25: Added the Polygon (xsde2svg type 16), a
+decorative closed shape listed under "Annotations". It is drawn by dragging
+two corners, which creates an isosceles triangle inside that box (the shape
+154 of 169 real corpus instances have); each vertex can then be dragged on
+its own or edited in Properties, alongside Fill (with a Transparent reset),
+Border color, Border width and Line style (Solid / Dotted / Dash-dot, the
+three the real source supports). It renders as a bare `<polygon>` matching
+real xsde2svg output, and SVG import (`slddoc.Extract`) recognizes it with
+its fill, stroke, width and dash style: all 169 real instances across 64
+diagrams import, none fail.
+
+2026-09-25: Moved the diagram's Background color picker from the Settings
+panel to the Properties panel's diagram view (nothing selected), below
+Width/Height. It still edits the same saved `editor.background` value; the
+i18n key was renamed from `settings.background` to `properties.background`.
+
+2026-09-25: A Polygon is now drawn pen-tool style instead of by dragging a
+box into a triangle: with Polygon armed, each click on the canvas adds a
+vertex (grid-snapped), with a live outline, a dashed segment to the cursor,
+and a circle on the first vertex that turns green when a click there would
+close the shape. Clicking the first vertex (or pressing Enter) closes it
+with at least 3 vertices; Backspace removes the last vertex, Esc cancels.
+While drawing, clicks only add vertices and never select existing objects.

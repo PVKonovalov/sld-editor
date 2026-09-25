@@ -16,6 +16,7 @@ const ARROW_SHAPE = '2'
 const BUTTON_SHAPE = '113'
 const ROAD_SHAPE = '335'
 const LINE_SHAPE = '1'
+const POLYGON_SHAPE = '16'
 const TABLE_SHAPE = '312'
 // Shapes placed by dragging out two opposite points rather than a single
 // click — see diagramOps.POINTS_BASED_CLASSES for the element-class
@@ -60,6 +61,9 @@ const SELECTION_MARK_SIZE = 6
 // Breaker's terminals sit 10 units out from a ±7-unit box) so it doesn't
 // swallow the rest of the element and break plain select/drag there.
 const TERMINAL_HIT_RADIUS = 5
+// How close (diagram units) a click must land to a polygon draft's first
+// vertex to close the path there — the pen tool's "close path" target.
+const POLYGON_CLOSE_RADIUS = 5
 // Padding (diagram units) added around a symbol element's own real
 // computed bounding box — see elementBoxes' own doc comment — for its
 // selection-highlight rect, and, separately (and more tightly), for the
@@ -345,6 +349,17 @@ export function Canvas() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   const [routing, setRouting] = useState<Routing | null>(null)
   const [routingCursor, setRoutingCursor] = useState<Point | null>(null)
+  // An in-progress pen-tool Polygon (armedSymbol shape 16): the vertices
+  // clicked so far plus the live cursor position for the rubber-band
+  // segment. Discarded whenever Polygon stops being the armed symbol.
+  const [polygonDraft, setPolygonDraft] = useState<Point[] | null>(null)
+  const [polygonCursor, setPolygonCursor] = useState<Point | null>(null)
+  useEffect(() => {
+    if (armedSymbol?.shape !== POLYGON_SHAPE) {
+      setPolygonDraft(null)
+      setPolygonCursor(null)
+    }
+  }, [armedSymbol])
   const [connectTarget, setConnectTarget] = useState<ConnectTarget | null>(null)
   const [vertexDrag, setVertexDrag] = useState<VertexDrag | null>(null)
   const [selectedVertex, setSelectedVertex] = useState<SelectedVertex | null>(null)
@@ -579,6 +594,17 @@ export function Canvas() {
     const boxes = new Map<number, ElementBox>()
     for (const el of diagram.elements) {
       if (el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line') continue
+      if (el.class === 'Polygon' && el.points && el.points.length > 0) {
+        // A bare <polygon> whose own Fill is often "none" (like
+        // Rectangle's), so it gets the same click-tolerance box: its own
+        // vertices' bounding box.
+        const xs = el.points.map(p => p.x)
+        const ys = el.points.map(p => p.y)
+        const x = Math.min(...xs)
+        const y = Math.min(...ys)
+        boxes.set(el.id, { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y })
+        continue
+      }
       if (
         (el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'Table') &&
         el.points
@@ -687,6 +713,18 @@ export function Canvas() {
     function onKeyDown(e: KeyboardEvent) {
       const tag = (document.activeElement?.tagName ?? '').toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      if (polygonDraft && (e.key === 'Backspace' || e.key === 'Delete')) {
+        // Removes the draft's last vertex (the whole draft once none are
+        // left) rather than deleting the selection underneath it.
+        e.preventDefault()
+        setPolygonDraft(polygonDraft.length > 1 ? polygonDraft.slice(0, -1) : null)
+        return
+      }
+      if (polygonDraft && e.key === 'Enter') {
+        e.preventDefault()
+        finishPolygon(polygonDraft)
+        return
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedVertex) {
           e.preventDefault()
@@ -735,6 +773,7 @@ export function Canvas() {
     routing,
     selectedVertex,
     updateDiagram,
+    polygonDraft,
   ])
 
   if (!diagram) {
@@ -773,6 +812,7 @@ export function Canvas() {
     'Road',
     'PostPole',
     'Line',
+    'Polygon',
     'PowerflowIndicator',
     'Table',
     'Table2',
@@ -901,6 +941,10 @@ export function Canvas() {
   // select/drag, so highlighting a "connect here" target with no way to
   // act on it would be misleading.
   function handleWrapperMouseMove(e: React.MouseEvent) {
+    if (polygonDraft) {
+      setPolygonCursor(snapPoint(toPoint(e.clientX, e.clientY)))
+      return
+    }
     if (armedSymbol || ghost || pointDrag || newBusbar || labelDrag || digitalDeviceDrag) return
     const point = toPoint(e.clientX, e.clientY)
     if (routing) {
@@ -911,6 +955,38 @@ export function Canvas() {
     } else {
       setConnectTarget(null)
     }
+  }
+
+  // Pen-tool Polygon drawing: each click adds a (grid-snapped) vertex; a
+  // click back on the first vertex, once there are at least 3, closes the
+  // path and places the Polygon. A click landing on the last vertex again
+  // (e.g. the second click of a double-click) is ignored rather than
+  // adding a zero-length side.
+  function handlePolygonClick(point: Point) {
+    const p = snapPoint(point)
+    const draft = polygonDraft ?? []
+    if (draft.length >= 3 && isPolygonClosePoint(draft, p)) {
+      finishPolygon(draft)
+      return
+    }
+    const last = draft[draft.length - 1]
+    if (last && last.x === p.x && last.y === p.y) return
+    setPolygonDraft([...draft, p])
+    setPolygonCursor(p)
+  }
+
+  function isPolygonClosePoint(draft: Point[], p: Point): boolean {
+    return draft.length >= 3 && Math.hypot(p.x - draft[0].x, p.y - draft[0].y) <= POLYGON_CLOSE_RADIUS
+  }
+
+  // Places the draft as a real Polygon (when it has at least 3 vertices)
+  // and disarms, single-shot like every other armed symbol.
+  function finishPolygon(draft: Point[]) {
+    if (draft.length < 3) return
+    updateDiagram(d => diagramOps.placePolygon(d, draft))
+    setPolygonDraft(null)
+    setPolygonCursor(null)
+    armSymbol(null)
   }
 
   // A click while routing either completes the route (when connectTarget
@@ -1001,6 +1077,13 @@ export function Canvas() {
   // diagram be drawn wire-first instead of always needing an element to
   // exist before a wire can touch it.
   function handleWrapperDoubleClick(e: React.MouseEvent) {
+    // Each click of a double-click already reached handlePolygonClick (the
+    // second as a duplicate vertex, ignored), so there's nothing more to do
+    // here — and it must not fall through to add a connector bend point.
+    if (armedSymbol?.shape === POLYGON_SHAPE) {
+      e.stopPropagation()
+      return
+    }
     if (routing) {
       e.stopPropagation()
       const from = routing.from
@@ -1073,7 +1156,7 @@ export function Canvas() {
       const el = diagram!.elements.find(e => e.id === id)
       const node = root.querySelector(`[data-editor-kind="element"][id="${id}"]`)
       if (!el || !node) continue
-      if ((el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line') && el.points) {
+      if ((el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line' || el.class === 'Polygon') && el.points) {
         node.setAttribute('points', el.points.map(p => `${p.x + dx},${p.y + dy}`).join(' '))
       } else if (el.class === 'Rectangle' && el.points) {
         node.setAttribute('x', String(Math.min(el.points[0].x, el.points[1].x) + dx))
@@ -1215,6 +1298,10 @@ export function Canvas() {
 
     if (armedSymbol) {
       e.stopPropagation()
+      if (armedSymbol.shape === POLYGON_SHAPE) {
+        handlePolygonClick(point)
+        return
+      }
       if (DRAG_TO_DRAW_SHAPES.has(armedSymbol.shape)) {
         const shape = armedSymbol.shape
         setNewBusbar({ start: point, current: point })
@@ -1809,6 +1896,18 @@ export function Canvas() {
                       />
                     )
                   }
+                  if (el.class === 'Polygon' && el.points) {
+                    return (
+                      <polygon
+                        key={el.id}
+                        points={el.points.map(p => `${p.x},${p.y}`).join(' ')}
+                        fill="none"
+                        stroke={HIGHLIGHT}
+                        strokeWidth={6}
+                        strokeOpacity={0.5}
+                      />
+                    )
+                  }
                   if ((el.class === 'Rectangle' || el.class === 'Button' || el.class === 'Table') && el.points) {
                     const [p0, p1] = el.points
                     return (
@@ -2069,6 +2168,7 @@ export function Canvas() {
                   selectedElement.class === 'Button' ||
                   selectedElement.class === 'Road' ||
                   selectedElement.class === 'Line' ||
+                  selectedElement.class === 'Polygon' ||
                   selectedElement.class === 'Table') &&
                 selectedElement.points && (
                 <>
@@ -2112,6 +2212,17 @@ export function Canvas() {
                           />
                         )
                       }
+                      if (selectedElement.class === 'Polygon') {
+                        return (
+                          <polygon
+                            points={pts.map(p => `${p.x},${p.y}`).join(' ')}
+                            fill="none"
+                            stroke={HIGHLIGHT}
+                            strokeWidth={2}
+                            strokeDasharray="6 4"
+                          />
+                        )
+                      }
                       return (
                         <polyline
                           points={pts.map(p => `${p.x},${p.y}`).join(' ')}
@@ -2139,6 +2250,48 @@ export function Canvas() {
                       </g>
                     )
                   })}
+                </>
+              )}
+              {/* An in-progress pen-tool Polygon: the vertices placed so
+                  far drawn solid, the rubber-band segment to the cursor
+                  dashed, and a circle on the first vertex that grows and
+                  turns green while a click there would close the path. */}
+              {polygonDraft && (
+                <>
+                  <polyline
+                    points={polygonDraft.map(p => `${p.x},${p.y}`).join(' ')}
+                    fill="none"
+                    stroke={HIGHLIGHT}
+                    strokeWidth={2}
+                  />
+                  {polygonCursor && (
+                    <line
+                      x1={polygonDraft[polygonDraft.length - 1].x}
+                      y1={polygonDraft[polygonDraft.length - 1].y}
+                      x2={polygonCursor.x}
+                      y2={polygonCursor.y}
+                      stroke={HIGHLIGHT}
+                      strokeWidth={2}
+                      strokeOpacity={0.6}
+                      strokeDasharray="6 4"
+                    />
+                  )}
+                  {polygonDraft.map((p, i) => (
+                    <rect key={i} x={p.x - 1.5} y={p.y - 1.5} width={3} height={3} fill={HIGHLIGHT} />
+                  ))}
+                  {(() => {
+                    const closing = !!polygonCursor && isPolygonClosePoint(polygonDraft, polygonCursor)
+                    return (
+                      <circle
+                        cx={polygonDraft[0].x}
+                        cy={polygonDraft[0].y}
+                        r={closing ? 5 : 3}
+                        fill="none"
+                        stroke={closing ? CONNECT_TARGET_COLOR : HIGHLIGHT}
+                        strokeWidth={closing ? 1.5 : 1}
+                      />
+                    )
+                  })()}
                 </>
               )}
               {/* An in-progress click-to-route: routing.path (already

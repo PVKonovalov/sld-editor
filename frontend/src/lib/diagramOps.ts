@@ -39,6 +39,7 @@ const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'Button',
   'Road',
   'Line',
+  'Polygon',
   'Table',
 ])
 
@@ -292,7 +293,7 @@ function defaultLayer(diagram: Diagram): number {
  * seeds the new element's voltage class from whichever one the user last
  * picked in Properties, so placing several elements in a row doesn't
  * require re-assigning the same voltage each time. */
-// A Breaker/Disconnector/Sectionalizer/LoadBreakSwitch (either the fixed or
+// A Breaker/Disconnector/Sectionalizer/PowerCircuitBreaker/LoadBreakSwitch (either the fixed or
 // withdrawable shape — both share the same Class) starts out placed in
 // service, not open, so a freshly drawn one-line reads correctly without a
 // separate trip to Properties for every single device: 1 is "Close" in the
@@ -300,7 +301,7 @@ function defaultLayer(diagram: Diagram): number {
 // get their own default below instead, since leaving it unset now has a
 // different visual consequence (see GROUND_TYPE_DEFAULT_STATE's own
 // comment).
-const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector', 'Sectionalizer', 'LoadBreakSwitch'])
+const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector', 'Sectionalizer', 'PowerCircuitBreaker', 'LoadBreakSwitch'])
 const STATE_CLOSE = 1
 
 // GroundSwitch/ShortCircuiter (base.xml shapes 54/398) both draw
@@ -791,6 +792,36 @@ export function placeLine(diagram: Diagram, start: Point, end: Point): Diagram {
     y: (start.y + end.y) / 2,
     points: [start, end],
     ...LINE_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly drawn Polygon's own defaults: a white outline filled with the
+// most common real corpus fill color (#663300); lineStyle left unset
+// (solid, the real default).
+const POLYGON_DEFAULTS = { fill: '#663300', stroke: '#ffffff', strokeWidth: 1 }
+
+/** Places a new Polygon through points (at least 3; the path closes back
+ * to points[0] implicitly) — a purely decorative closed shape, not real
+ * electrical equipment (see slddoc's own ClassPolygon doc comment): no
+ * Voltage, no Ports, never a valid connectElements/routing target. Canvas
+ * collects points pen-tool style, one click per vertex; each vertex can
+ * then be dragged one at a time, the same way a Line's can. */
+export function placePolygon(diagram: Diagram, points: Point[]): Diagram {
+  if (points.length < 3) return diagram
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Polygon',
+    shape: '16',
+    name: `Polygon-${id}`,
+    layer: defaultLayer(diagram),
+    // Same first/last-vertex midpoint updateBusbarPoint keeps it at.
+    x: (points[0].x + points[points.length - 1].x) / 2,
+    y: (points[0].y + points[points.length - 1].y) / 2,
+    points,
+    ...POLYGON_DEFAULTS,
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -1462,6 +1493,7 @@ export function connectElements(diagram: Diagram, fromId: number, toId: number):
     el.class === 'Road' ||
     el.class === 'PostPole' ||
     el.class === 'Line' ||
+    el.class === 'Polygon' ||
     el.class === 'PowerflowIndicator' ||
     el.class === 'Table' ||
     el.class === 'Table2'

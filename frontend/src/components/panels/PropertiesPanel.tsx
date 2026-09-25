@@ -62,6 +62,16 @@ const LINE_STYLES: { value: ConnectorLineStyle | ''; labelKey: TranslationKey }[
   { value: 'dashDot', labelKey: 'properties.lineStyleDashDot' },
 ]
 
+// A Polygon's (shape 16) own dash choices — only the 2 real variants
+// element_16.go's own source produces ('dotted'/'dashDot'; it has no plain
+// dashed one — see slddoc's own ClassPolygon doc comment), '' meaning
+// Solid, same as LINE_STYLES.
+const POLYGON_STYLES: { value: ConnectorLineStyle | ''; labelKey: TranslationKey }[] = [
+  { value: '', labelKey: 'properties.lineStyleSolid' },
+  { value: 'dotted', labelKey: 'properties.lineStyleDotted' },
+  { value: 'dashDot', labelKey: 'properties.lineStyleDashDot' },
+]
+
 // A PowerTransformer's per-winding Scheme/Grounding/Terminal choices —
 // mirrors slddoc's own WindingScheme/NeutralGrounding/TerminalDirection
 // enums exactly.
@@ -99,18 +109,20 @@ const SWITCHING_DEVICE_CLASSES = new Set([
   'Breaker',
   'Disconnector',
   'Sectionalizer',
+  'PowerCircuitBreaker',
   'LoadBreakSwitch',
   'GroundSwitch',
   'ShortCircuiter',
   'Starter',
 ])
 
-// Sectionalizer (164) and Short-circuiter (398) only have two real
-// positions — the real xsde2svg source never modeled an Intermediate one
-// for either device (see base.xml's own comments on shapes 164/398) — so
+// Sectionalizer (164), Power circuit breaker (399) and Short-circuiter
+// (398) only have two real positions — the real xsde2svg source never
+// modeled an Intermediate one for any of them (see base.xml's own
+// comments on shapes 164/398/399) — so
 // their own State dropdown offers only Open/Close, unlike every other
 // class in SWITCHING_DEVICE_CLASSES above.
-const TWO_STATE_CLASSES = new Set(['Sectionalizer', 'ShortCircuiter'])
+const TWO_STATE_CLASSES = new Set(['Sectionalizer', 'PowerCircuitBreaker', 'ShortCircuiter'])
 
 // Shapes whose base.xml template also reacts to {positionAttr}/
 // {positionOffset} (a withdrawable device's own Service/Normal/Test
@@ -312,6 +324,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     updateDiagram,
     deleteSelected,
     setDefaultVoltage,
+    updateEditorSettings,
   } = useDiagramContext()
   const element = diagram?.elements.find(e => e.id === selectedElementId) ?? null
   const connector = diagram?.connectors.find(c => c.id === selectedConnectorId) ?? null
@@ -367,6 +380,15 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               />
             </label>
           </div>
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.background')}</span>
+            <input
+              type="color"
+              value={diagram.editor?.background ?? config?.editor?.background ?? '#12161d'}
+              onChange={e => updateEditorSettings({ background: e.target.value })}
+              className="w-full h-8 bg-surface-800 border border-surface-600 rounded"
+            />
+          </label>
           <DiagramFileSection />
           <LayersSection />
           <VoltageClassesSection />
@@ -700,6 +722,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isRoad = el.class === 'Road'
   const isPostPole = el.class === 'PostPole'
   const isLine = el.class === 'Line'
+  const isPolygon = el.class === 'Polygon'
   const isPowerflowIndicator = el.class === 'PowerflowIndicator'
   const isTable = el.class === 'Table'
   const isTable2 = el.class === 'Table2'
@@ -726,6 +749,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     isRoad ||
     isPostPole ||
     isLine ||
+    isPolygon ||
     isPowerflowIndicator ||
     isTable ||
     isTable2
@@ -1300,6 +1324,65 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {isPolygon && (
+          <>
+            {/* Same Fill (with its own Transparent reset)/Stroke/Stroke
+                width fields Rectangle has, plus its own LineStyle select
+                (POLYGON_STYLES). */}
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.rectangleFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ffffff')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.lineStyle')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.lineStyle ?? ''}
+                onChange={e => patch({ lineStyle: (e.target.value || undefined) as ConnectorLineStyle | undefined })}
+              >
+                {POLYGON_STYLES.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {t(opt.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+
         {isPowerflowIndicator && (
           <>
             <label className="block text-xs">
@@ -1718,7 +1801,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow || isButton || isRoad || isLine || isTable) &&
+        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow || isButton || isRoad || isLine || isPolygon || isTable) &&
         el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>

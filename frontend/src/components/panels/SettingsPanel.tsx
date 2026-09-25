@@ -11,7 +11,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const snap = diagram?.editor?.snap ?? defaults?.snap ?? true
   const showGrid = diagram?.editor?.showGrid ?? defaults?.showGrid ?? true
   const showNodes = diagram?.editor?.showNodes ?? true
-  const background = diagram?.editor?.background ?? defaults?.background ?? '#12161d'
   const disabled = !diagram
   const voltageOptions = diagram ? diagramOps.voltageClassOptions(diagram, config) : []
 
@@ -67,17 +66,6 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             onChange={e => updateEditorSettings({ showNodes: e.target.checked })}
           />
           <span>{t('settings.showNodes')}</span>
-        </label>
-
-        <label className="block text-xs">
-          <span className="block text-gray-400 mb-1">{t('settings.background')}</span>
-          <input
-            type="color"
-            disabled={disabled}
-            value={background}
-            onChange={e => updateEditorSettings({ background: e.target.value })}
-            className="w-full h-8 bg-surface-800 border border-surface-600 rounded disabled:opacity-50"
-          />
         </label>
 
         {diagram && (

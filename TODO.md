@@ -429,7 +429,21 @@ on a generic bool flag" approach `writeNamedLine` already uses for a
 directories found on disk (`sld`/`sld1`, ~25,900 real Line instances
 combined): zero shape-1 extraction failures, and the dash-pattern
 breakdown (25078 solid / 775 dashed / 2 dashDot) matches the real
-`stroke-dasharray` counts found by direct search almost exactly.
+`stroke-dasharray` counts found by direct search almost exactly. **399** Автомат силовой/Power circuit breaker (a real two-terminal
+switching device with its own new two-state class, `PowerCircuitBreaker`:
+Disconnector's own body plus a state-driven blade and a small filled
+square beside it that moves with it, checked against 1,245 real corpus
+instances; the template defaults to the real source's own, more common
+xMirror==1 geometry, and `Extract`'s `parsePowerCircuitBreaker` sets
+Mirror=true for an xMirror==0 instance; `parseSubpaths` now tolerates the
+bare trailing `m` every real closed instance's blade path ends with). **16** Многоугольник/Polygon (a decorative closed
+shape, new `Polygon` class reusing Points/Fill/Stroke/StrokeWidth/
+LineStyle — a bare `<polygon>` exactly as the real source draws it; only
+the real source's own dotted/dash-dot styles are offered; drawn
+pen-tool style — one click per vertex, click the first vertex (or Enter)
+to close, Backspace removes the last vertex, Esc cancels — then edited one
+vertex at a time; all 169
+real instances across 64 files extract, none fail).
 
 **320001** Направление перетока/Powerflow direction — a purely decorative
 annotation glyph (no Ports/Voltage, never a connectElements/routing

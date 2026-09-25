@@ -85,6 +85,19 @@
     <template></template>
   </symbol>
 
+  <symbol shape="16" class="Polygon" name="Polygon">
+    <!-- Like Line above, a Polygon has no fixed template: it's an
+         arbitrary closed vertex list, not real electrical equipment (see
+         slddoc's own ClassPolygon doc comment), drawn straight from its
+         own Points by internal/slddoc.Render. This entry exists only so
+         the Elements palette can offer it: a fresh one is drawn pen-tool
+         style (Canvas — one click per vertex, click the first vertex or
+         press Enter to close, Backspace removes the last vertex, Esc
+         cancels); an extracted one keeps all of its own vertices. Each
+         vertex is then editable one at a time. -->
+    <template></template>
+  </symbol>
+
   <symbol shape="3" class="Rectangle" name="Rectangle">
     <!-- Like Busbar section above, a Rectangle has no fixed template: its
          size varies per instance, and it isn't real electrical equipment
@@ -311,6 +324,40 @@
     </terminals>
     <template><![CDATA[
 <path d="{state:M 0 6 v -13|M -6 0 h 13|M -4.6 -4.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -4 -9 h 8 m 0 18 h -8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -9 v -1 M 0 9 v 1" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- 399 Автомат силовой (Power circuit breaker) — a two-terminal
+       low-voltage automatic breaker, ported from the real xsde2svg source
+       (internal/modus/element_399.go, element399) and checked against
+       1,245 real corpus instances: Disconnector's own body (two fixed
+       contact bars at ±9, stems out to the terminals) plus a state-driven
+       blade — vertical when Closed, horizontal when Open — and a small
+       filled 2x2 square beside the blade that moves with it. The real
+       source draws that square on one of two sides depending on its own
+       xMirror flag; this template uses the xMirror==1 geometry as its
+       default (808 of those 1,245 instances), and Extract marks an
+       xMirror==0 instance Mirror=true (slddoc's parsePowerCircuitBreaker).
+       The real xMirror==0 geometry isn't an exact horizontal flip of the
+       xMirror==1 one (its closed square also sits 2 units higher), so a
+       Mirror'd instance only approximates it. Only two real states exist,
+       Closed(1)/Open(0) — the real source draws anything other than "0"
+       as closed — so this template's own third {state:...} option is a
+       copy of Closed, and Properties offers only Open/Close
+       (TWO_STATE_CLASSES). The square is filled with the voltage color,
+       with no data-fill state legend, same as the real source. Like
+       Sectionalizer (164), the busbar-spacing-dependent leg length isn't
+       modeled — the terminals sit at ±10. -->
+  <symbol shape="399" class="PowerCircuitBreaker" name="Power circuit breaker">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="{state:M 0 6 v -12|M -6 0 h 12|M 0 6 v -12}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -2 h 2 v 2 h -2 z|M 2 0 h 2 v 2 h -2 z|M 0 -2 h 2 v 2 h -2 z}" style="fill:{color};stroke:{color};stroke-width:1" />
 <path d="M -4 -9 h 8 m 0 18 h -8" style="fill:none;stroke:{color};stroke-width:1" />
 <path d="M 0 -9 v -1 M 0 9 v 1" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
