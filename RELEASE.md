@@ -4164,8 +4164,8 @@ work in a fresh clone (verified with dist/ holding only `.gitkeep`); the
 Makefile's `frontend-en`/`frontend-ru`/`clean` targets recreate it after
 wiping the folder.
 
-2026-09-25: Added the Power circuit breaker (xsde2svg type 399, Автомат
-силовой) as a new two-state `PowerCircuitBreaker` class (Open/Close only,
+2026-09-25: Added the Power circuit breaker (xsde2svg type 399) as a new 
+two-state `PowerCircuitBreaker` class (Open/Close only,
 starts Closed when placed), listed under "Switching devices". Its template
 follows the real source's own `element_399.go`: Disconnector's body, a
 state-driven blade and a small filled square beside it that moves with it.
@@ -4201,7 +4201,7 @@ close the shape. Clicking the first vertex (or pressing Enter) closes it
 with at least 3 vertices; Backspace removes the last vertex, Esc cancels.
 While drawing, clicks only add vertices and never select existing objects.
 
-2026-09-25: Added the Arc (xsde2svg type 9, Дуга), a decorative arc listed
+2026-09-25: Added the Arc (xsde2svg type 9), a decorative arc listed
 under "Annotations". It is stored the way an SVG arc command is — start and
 end points plus radii and the large-arc/sweep flags — so a real
 xsde2svg arc imports and saves back exactly (the real source's fixed 1°
@@ -4212,3 +4212,13 @@ arc through start, handle and end, including arcs past a semicircle).
 Properties edits border color/width, the radii and the two points; the
 flags are shown read-only. Real arcs carry no id, so SVG import assigns
 one: all 65 real instances across 14 diagrams import.
+
+2026-09-25: Added the Fork (xsde2svg type 26), a three-terminal
+wiring element listed under "Wiring": a "V" with a terminal at its vertex
+and at each arm tip, so one wire can come in and two go out. Its arm length
+is set per element (Properties' "Arm length", default 10), since real
+diagrams scale it; the drawing and its terminals scale together.
+Orientation rotates it; Mirror is hidden since it has no effect. SVG import
+recognizes it (with its size, orientation and connected wires) and assigns
+an id, since real forks carry none: all 38 forks on sld-svg's
+Test_26_Divarication_3 sheet and both real corpus instances import.

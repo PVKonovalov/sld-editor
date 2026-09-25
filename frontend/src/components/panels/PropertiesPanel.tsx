@@ -725,6 +725,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isPolygon = el.class === 'Polygon'
   const isArc = el.class === 'Arc'
   const isPowerflowIndicator = el.class === 'PowerflowIndicator'
+  const isFork = el.class === 'Fork'
   const isTable = el.class === 'Table'
   const isTable2 = el.class === 'Table2'
   const isPackageSubstation = el.class === 'PackageSubstation'
@@ -1444,6 +1445,25 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {isFork && (
+          // A Fork's own arm length (slddoc's ClassFork: the real source
+          // scales it per element), unset meaning the default. Its Mirror
+          // checkbox is hidden below — the "V" is symmetric, so it's inert.
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.forkSize')}</span>
+            <input
+              type="number"
+              min={1}
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.radius ?? diagramOps.FORK_ARM_LENGTH}
+              onChange={e => {
+                const v = Number(e.target.value)
+                patch({ radius: v > 0 && v !== diagramOps.FORK_ARM_LENGTH ? v : undefined })
+              }}
+            />
+          </label>
+        )}
+
         {isPowerflowIndicator && (
           <>
             <label className="block text-xs">
@@ -1937,7 +1957,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   rotate it) — writePowerflowIndicator never applies it, so
                   the checkbox is skipped here the same reason Orientation
                   itself is skipped for Lamp/PostPole just above. */}
-              {!isPowerflowIndicator && (
+              {!isPowerflowIndicator && !isFork && (
                 <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"

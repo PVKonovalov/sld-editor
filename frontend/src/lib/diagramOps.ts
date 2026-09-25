@@ -1507,8 +1507,15 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
   }
   const symbol = symbols.find(s => s.shape === el.shape)
   if (!symbol?.terminals || symbol.terminals.length === 0) return null
-  return symbol.terminals.map(t => placeLocalPoint(el, t))
+  // A Fork's own template is drawn at its own Radius (arm length, unset =
+  // FORK_ARM_LENGTH — see slddoc's own ClassFork), while base.xml declares
+  // its terminals at the default size, so they scale along with it.
+  const scale = el.class === 'Fork' && el.radius ? el.radius / FORK_ARM_LENGTH : 1
+  return symbol.terminals.map(t => placeLocalPoint(el, { x: t.x * scale, y: t.y * scale }))
 }
+
+// A Fork's (shape 26) own default arm length — slddoc's own forkArmLength.
+export const FORK_ARM_LENGTH = 10
 
 /** Electrically joins two elements: a Node (plus a Port referencing it) is
  * created at each element's own anchor, and a Connector drawn straight

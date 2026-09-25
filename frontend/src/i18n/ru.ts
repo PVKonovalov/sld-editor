@@ -108,6 +108,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
 
   'elementCatalog.name.24': 'Секция шин',
   'elementCatalog.name.7': 'Точка соединения',
+  'elementCatalog.name.26': 'Развилка',
   'elementCatalog.name.14': 'Перемычка',
   'elementCatalog.name.56': 'Кабельный разъем',
   'elementCatalog.name.32': 'Муфта',
@@ -196,6 +197,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.deleteElements': 'Удалить выделенное',
   'properties.deleteConnector': 'Удалить связь',
   'properties.lineStyle': 'Стиль линии',
+  'properties.forkSize': 'Длина плеча',
   'properties.arcRadiusX': 'Радиус X',
   'properties.arcRadiusY': 'Радиус Y',
   'properties.arcLargeArc': 'Большая дуга',

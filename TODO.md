@@ -451,7 +451,16 @@ arc an id, so `Extract` synthesizes one; drawn by dragging start to end
 into a circular arc, then reshaped with start/end/bulge handles, the bulge
 recomputing a circular arc and its flags — an imported elliptical one
 becomes circular only when its bulge is dragged; all 65 real instances
-across 14 files extract).
+across 14 files extract), **26** Развилка/Fork (a real three-terminal
+wiring element, new `Fork` class — a "V" with terminals at its vertex and
+both arm tips, confirmed by sld-svg's own
+`examples/test/Test_26_Divarication_3.svg`; the first shape with a
+per-element size, `Radius` as its arm length (default 10, `{radius}` in
+its template via slddoc's `templateRadius`), since the real source scales
+it per element; the frontend's `symbolTerminals` scales its terminals to
+match; Mirror hidden as inert; the real source never gives it an id, so
+`Extract` synthesizes one; all 38 test-sheet forks and both real corpus
+ones extract, with their wires attached).
 
 **320001** Направление перетока/Powerflow direction — a purely decorative
 annotation glyph (no Ports/Voltage, never a connectElements/routing

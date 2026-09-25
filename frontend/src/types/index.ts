@@ -75,6 +75,7 @@ export type ElementClass =
   | 'Generator'
   | 'BusBarSection'
   | 'JunctionPoint'
+  | 'Fork'
   | 'NonIntersection'
   | 'CableConnector'
   | 'CableJoint'

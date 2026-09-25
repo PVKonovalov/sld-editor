@@ -205,6 +205,26 @@
 ]]></template>
   </symbol>
 
+  <!-- 26 Развилка (Fork) — ported from xsde2svg's own element_26.go
+       (element26): a "V" whose vertex (the anchor) and two arm tips are
+       each a real terminal, one wire in at the vertex and one out at each
+       tip (confirmed by sld-svg's own examples/test/Test_26_Divarication_3.svg,
+       which marks exactly those three points with junction points). {radius}
+       is its own arm length — the real source scales it per element (10 *
+       sqrt(2)^scale); an element with no Radius draws the default 10
+       (slddoc's own templateRadius), and the frontend scales these
+       default-size terminals along with it. Mirror is visually inert. -->
+  <symbol shape="26" class="Fork" name="Fork">
+    <terminals>
+      <terminal x="0" y="0"/>
+      <terminal x="10" y="-10"/>
+      <terminal x="-10" y="-10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 l {radius} -{radius} m -{radius} {radius} l -{radius} -{radius}" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <!-- Ported from xsde2svg's own element_14.go (element14) — drawn where
        two crossing wires visually "hop" over each other without
        connecting. Unlike Junction point (7) above, which marks a real

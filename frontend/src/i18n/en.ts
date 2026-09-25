@@ -112,6 +112,7 @@ export const dictionary = {
 
   'elementCatalog.name.24': 'Busbar section',
   'elementCatalog.name.7': 'Junction point',
+  'elementCatalog.name.26': 'Fork',
   'elementCatalog.name.14': 'Wire jump',
   'elementCatalog.name.56': 'Cable connector',
   'elementCatalog.name.32': 'Cable joint',
@@ -200,6 +201,7 @@ export const dictionary = {
   'properties.deleteElements': 'Delete selection',
   'properties.deleteConnector': 'Delete connector',
   'properties.lineStyle': 'Line style',
+  'properties.forkSize': 'Arm length',
   'properties.arcRadiusX': 'Radius X',
   'properties.arcRadiusY': 'Radius Y',
   'properties.arcLargeArc': 'Large arc',
