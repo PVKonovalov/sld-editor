@@ -4222,3 +4222,18 @@ Orientation rotates it; Mirror is hidden since it has no effect. SVG import
 recognizes it (with its size, orientation and connected wires) and assigns
 an id, since real forks carry none: all 38 forks on sld-svg's
 Test_26_Divarication_3 sheet and both real corpus instances import.
+
+2026-09-29: Rewrote CLAUDE.md. Fixed stale facts: the diagram model now lives
+in the sibling `slddoc` module (not `backend/internal/slddoc`), the single-test
+example now points at a real package, and many shapes (not just Breaker and
+Disconnector) declare terminals. Added the missing `-open-browser`/`-version`
+flags, `make package`/`release`, pointers to `TODO.md`/`elements.md`/`FORMAT.md`,
+and a note that the frontend has no tests or linter. Trimmed it from ~64 KB to
+~9 KB, keeping commands, architecture and rules that span several files, and
+dropping per-function detail already covered by the code and RELEASE.md.
+
+2026-09-29: Rewrote TODO.md as a checklist of open tasks only: editor features
+(45° routing, busbar-endpoint re-routing, undo/redo), every shape still marked
+not done in `elements.md`, and known gaps in already-ported shapes. Dropped the
+descriptions of finished work, already recorded here, and the stale entries
+that listed 16/51/52/55 as not ported.
