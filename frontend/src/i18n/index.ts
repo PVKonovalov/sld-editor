@@ -1,6 +1,10 @@
 import { dictionary } from './active'
 import type { Dictionary } from './active'
 
+// The build's locale code ('en', 'ru', ...), e.g. for asking the backend for
+// the user guide in this language.
+export { locale } from './active'
+
 // Pinned to en.ts's own key set (./active always re-exports Dictionary
 // from ./en, the canonical dictionary, regardless of which locale's
 // runtime values are active — see generate-active-locale.mjs): a locale

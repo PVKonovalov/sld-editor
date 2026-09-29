@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -488,6 +490,54 @@ func TestSaveCustomElement(t *testing.T) {
 	for _, bad := range []string{"", "a/b", "..", " x"} {
 		if rec := doJSON(t, s, http.MethodPut, "/api/custom-elements?name="+url.QueryEscape(bad), d); rec.Code != http.StatusBadRequest {
 			t.Errorf("name %q: status = %d, want 400", bad, rec.Code)
+		}
+	}
+}
+
+func TestGetUserGuide(t *testing.T) {
+	s := newTestServer(t)
+
+	if rec := doJSON(t, s, http.MethodGet, "/api/user-guide", nil); rec.Code != http.StatusNotFound {
+		t.Errorf("not configured: status = %d, want 404", rec.Code)
+	}
+
+	s.cfg.UserGuide = filepath.Join(t.TempDir(), "missing.md")
+	if rec := doJSON(t, s, http.MethodGet, "/api/user-guide", nil); rec.Code != http.StatusNotFound {
+		t.Errorf("missing file: status = %d, want 404", rec.Code)
+	}
+
+	s.cfg.UserGuide = filepath.Join(t.TempDir(), "guide.md")
+	md := "# Guide\n\n| Keys | Action |\n| --- | --- |\n| **Esc** | Cancel |\n\n<script>alert(1)</script>\n"
+	if err := os.WriteFile(s.cfg.UserGuide, []byte(md), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rec := doJSON(t, s, http.MethodGet, "/api/user-guide", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"<h1>Guide</h1>", "<table>", "<strong>Esc</strong>"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("rendered guide lacks %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "<script>") {
+		t.Errorf("raw HTML passed through: %s", body)
+	}
+
+	ru := strings.TrimSuffix(s.cfg.UserGuide, ".md") + ".ru.md"
+	if err := os.WriteFile(ru, []byte("# Руководство\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ lang, want string }{
+		{"ru", "<h1>Руководство</h1>"},
+		{"de", "<h1>Guide</h1>"},   // no translation: falls back
+		{"../x", "<h1>Guide</h1>"}, // not a locale code: ignored
+		{"", "<h1>Guide</h1>"},
+	} {
+		rec := doJSON(t, s, http.MethodGet, "/api/user-guide?lang="+url.QueryEscape(c.lang), nil)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), c.want) {
+			t.Errorf("lang %q: status %d, body %s, want %s", c.lang, rec.Code, rec.Body.String(), c.want)
 		}
 	}
 }

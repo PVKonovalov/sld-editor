@@ -1,4 +1,4 @@
-import { Folder, Boxes, Settings as SettingsIcon, SlidersHorizontal, Info, type LucideIcon } from 'lucide-react'
+import { Folder, Boxes, Settings as SettingsIcon, SlidersHorizontal, Info, CircleHelp, type LucideIcon } from 'lucide-react'
 import { t } from '../i18n'
 
 export type PanelId = 'file' | 'elements' | 'settings' | 'properties'
@@ -18,11 +18,13 @@ interface Props {
   activeLeftPanel: Exclude<PanelId, 'properties'> | null
   propertiesOpen: boolean
   onPanelToggle: (id: PanelId) => void
+  // Opens the Help dialog (the user guide).
+  onHelp: () => void
   // Opens the About dialog (program icon, name, version).
   onAbout: () => void
 }
 
-export function Sidebar({ activeLeftPanel, propertiesOpen, onPanelToggle, onAbout }: Props) {
+export function Sidebar({ activeLeftPanel, propertiesOpen, onPanelToggle, onHelp, onAbout }: Props) {
   return (
     <aside className="flex flex-col items-center w-12 shrink-0 h-full bg-surface-800 border-r border-surface-600 py-2 gap-1 z-20">
       {ITEMS.map(({ id, icon: Icon, label }) => {
@@ -45,10 +47,19 @@ export function Sidebar({ activeLeftPanel, propertiesOpen, onPanelToggle, onAbou
       })}
       <button
         type="button"
+        title={t('sidebar.help')}
+        aria-label={t('sidebar.help')}
+        onClick={onHelp}
+        className="mt-auto flex items-center justify-center w-9 h-9 rounded transition-colors text-gray-300 hover:bg-surface-600 hover:text-white"
+      >
+        <CircleHelp size={18} />
+      </button>
+      <button
+        type="button"
         title={t('sidebar.about')}
         aria-label={t('sidebar.about')}
         onClick={onAbout}
-        className="mt-auto flex items-center justify-center w-9 h-9 rounded transition-colors text-gray-300 hover:bg-surface-600 hover:text-white"
+        className="flex items-center justify-center w-9 h-9 rounded transition-colors text-gray-300 hover:bg-surface-600 hover:text-white"
       >
         <Info size={18} />
       </button>

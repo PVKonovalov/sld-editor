@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diagram width="150" height="140" lastId="49">
+  <editor gridSpacing="10" snap="true" background="#12161d" defaultVoltage="26"/>
+  <layers>
+    <layer id="0" name="Base"/>
+  </layers>
+  <voltageClasses>
+    <class id="26" name="0.4 kV" color="#4a90d9"/>
+  </voltageClasses>
+  <nodes>
+    <node id="4" x="30" y="60"/>
+    <node id="5" x="30" y="40"/>
+    <node id="7" x="30" y="100"/>
+    <node id="8" x="30" y="80"/>
+    <node id="10" x="30" y="20"/>
+    <node id="11" x="30" y="10"/>
+    <node id="21" x="30" y="120"/>
+    <node id="22" x="30" y="50"/>
+    <node id="24" x="30" y="90"/>
+    <node id="27" x="30" y="130"/>
+    <node id="29" x="110" y="60"/>
+    <node id="30" x="110" y="40"/>
+    <node id="31" x="110" y="100"/>
+    <node id="32" x="110" y="80"/>
+    <node id="33" x="110" y="20"/>
+    <node id="34" x="110" y="10"/>
+    <node id="35" x="110" y="120"/>
+    <node id="36" x="110" y="50"/>
+    <node id="37" x="110" y="90"/>
+    <node id="38" x="110" y="130"/>
+  </nodes>
+  <elements>
+    <element id="1" class="Breaker" shape="41" name="Breaker-1" layer="0" x="30" y="70" state="1">
+      <port name="1" node="4"/>
+      <port name="2" node="8"/>
+    </element>
+    <element id="2" class="Disconnector" shape="162" name="Disconnector-2" layer="0" x="30" y="30" state="1">
+      <port name="1" node="10"/>
+      <port name="2" node="5"/>
+    </element>
+    <element id="3" class="Disconnector" shape="162" name="Disconnector-3" layer="0" x="30" y="110" state="1">
+      <port name="1" node="7"/>
+      <port name="2" node="21"/>
+    </element>
+    <element id="19" class="GroundSwitch" shape="54" name="Ground switch-19" layer="0" x="40" y="50" orient="90" state="0">
+      <port name="1" node="22"/>
+    </element>
+    <element id="20" class="GroundSwitch" shape="54" name="Ground switch-20" layer="0" x="40" y="90" orient="90" state="0">
+      <port name="1" node="24"/>
+    </element>
+    <element id="39" class="Breaker" shape="41" name="Breaker-39" voltage="26" layer="0" x="110" y="70" state="1">
+      <port name="1" node="29"/>
+      <port name="2" node="32"/>
+    </element>
+    <element id="40" class="Disconnector" shape="162" name="Disconnector-40" voltage="26" layer="0" x="110" y="30" state="1">
+      <port name="1" node="33"/>
+      <port name="2" node="30"/>
+    </element>
+    <element id="41" class="Disconnector" shape="162" name="Disconnector-41" voltage="26" layer="0" x="110" y="110" state="1">
+      <port name="1" node="31"/>
+      <port name="2" node="35"/>
+    </element>
+    <element id="42" class="GroundSwitch" shape="54" name="Ground switch-42" voltage="26" layer="0" x="120" y="50" orient="90" state="0">
+      <port name="1" node="36"/>
+    </element>
+    <element id="43" class="GroundSwitch" shape="54" name="Ground switch-43" voltage="26" layer="0" x="120" y="90" orient="90" state="0">
+      <port name="1" node="37"/>
+    </element>
+  </elements>
+  <connectors>
+    <connector id="12" kind="BusWork" layer="0" from="10" to="11">
+      <point x="30" y="20"/>
+      <point x="30" y="10"/>
+    </connector>
+    <connector id="6" kind="BusWork" layer="0" from="4" to="22">
+      <point x="30" y="60"/>
+      <point x="30" y="50"/>
+    </connector>
+    <connector id="23" kind="BusWork" layer="0" from="22" to="5">
+      <point x="30" y="50"/>
+      <point x="30" y="40"/>
+    </connector>
+    <connector id="16" kind="BusWork" layer="0" from="7" to="24">
+      <point x="30" y="100"/>
+      <point x="30" y="90"/>
+    </connector>
+    <connector id="25" kind="BusWork" layer="0" from="24" to="8">
+      <point x="30" y="90"/>
+      <point x="30" y="80"/>
+    </connector>
+    <connector id="28" kind="BusWork" layer="0" from="21" to="27">
+      <point x="30" y="120"/>
+      <point x="30" y="130"/>
+    </connector>
+    <connector id="44" kind="BusWork" voltage="26" layer="0" from="33" to="34">
+      <point x="110" y="20"/>
+      <point x="110" y="10"/>
+    </connector>
+    <connector id="45" kind="BusWork" voltage="26" layer="0" from="29" to="36">
+      <point x="110" y="60"/>
+      <point x="110" y="50"/>
+    </connector>
+    <connector id="46" kind="BusWork" voltage="26" layer="0" from="36" to="30">
+      <point x="110" y="50"/>
+      <point x="110" y="40"/>
+    </connector>
+    <connector id="47" kind="BusWork" voltage="26" layer="0" from="31" to="37">
+      <point x="110" y="100"/>
+      <point x="110" y="90"/>
+    </connector>
+    <connector id="48" kind="BusWork" voltage="26" layer="0" from="37" to="32">
+      <point x="110" y="90"/>
+      <point x="110" y="80"/>
+    </connector>
+    <connector id="49" kind="BusWork" voltage="26" layer="0" from="35" to="38">
+      <point x="110" y="120"/>
+      <point x="110" y="130"/>
+    </connector>
+  </connectors>
+</diagram>

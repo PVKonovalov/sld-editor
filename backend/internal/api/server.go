@@ -115,6 +115,7 @@ func (s *Server) routes() {
 	grp.GET("/custom-elements", s.listCustomElements)
 	grp.PUT("/custom-elements", s.saveCustomElement)
 	grp.GET("/config", s.getConfig)
+	grp.GET("/user-guide", s.getUserGuide)
 
 	s.mountWebUI()
 }

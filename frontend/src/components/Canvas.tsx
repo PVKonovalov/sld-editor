@@ -100,6 +100,55 @@ const POLYGON_CLOSE_RADIUS = 5
 // equivalent constants (its own highlight pad and BBOX_HIT_PAD), the
 // reference this project's UI/UX follows.
 const BOX_HIGHLIGHT_PAD = 6
+// Screen pixels a press must travel before it counts as drawing a
+// selection frame rather than a plain click on empty canvas.
+const MARQUEE_MIN_DRAG = 4
+// Grid steps a keyboard paste lands right and down from the original.
+const PASTE_OFFSET_STEPS = 2
+
+type Box = { x: number; y: number; width: number; height: number }
+
+function pointsBox(points: Point[]): Box {
+  const xs = points.map(p => p.x)
+  const ys = points.map(p => p.y)
+  const x = Math.min(...xs)
+  const y = Math.min(...ys)
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y }
+}
+
+function pointInBox(p: Point, b: Box): boolean {
+  return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height
+}
+
+function boxInside(inner: Box, outer: Box): boolean {
+  return (
+    inner.x >= outer.x &&
+    inner.y >= outer.y &&
+    inner.x + inner.width <= outer.x + outer.width &&
+    inner.y + inner.height <= outer.y + outer.height
+  )
+}
+
+function boxesIntersect(a: Box, b: Box): boolean {
+  return a.x <= b.x + b.width && b.x <= a.x + a.width && a.y <= b.y + b.height && b.y <= a.y + a.height
+}
+
+// Whether segment a-b properly crosses any edge of box (an endpoint inside
+// it is checked separately).
+function segmentCrossesBox(a: Point, b: Point, box: Box): boolean {
+  const corners = [
+    { x: box.x, y: box.y },
+    { x: box.x + box.width, y: box.y },
+    { x: box.x + box.width, y: box.y + box.height },
+    { x: box.x, y: box.y + box.height },
+  ]
+  const cross = (o: Point, p: Point, q: Point) => (p.x - o.x) * (q.y - o.y) - (p.y - o.y) * (q.x - o.x)
+  const straddles = (d1: number, d2: number) => (d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)
+  return corners.some((c, i) => {
+    const d = corners[(i + 1) % 4]
+    return straddles(cross(c, d, a), cross(c, d, b)) && straddles(cross(a, b, c), cross(a, b, d))
+  })
+}
 const BOX_HIT_PAD = 2
 
 type Ghost = { ids: number[]; dx: number; dy: number }
@@ -317,8 +366,9 @@ function ZoomControls({ width, height }: { width: number; height: number }) {
 
 // Renders the current in-memory diagram by asking the backend to render it,
 // debounced, rather than reimplementing internal/slddoc's symbol-template
-// rendering in the browser. Selection, drag, click-to-place and
-// click-to-connect are all handled here by hit-testing a click against the
+// rendering in the browser. Selection (click, Shift/Ctrl/Cmd-click, the
+// selection frame), drag, Alt-drag duplicate, copy/paste, click-to-place
+// and wire routing are all handled here by hit-testing a click against the
 // data-editor-kind ("element"/"connector"/"label"/"digitaldevice") marker
 // Render/RenderFragments write on every selectable node, and reading its
 // plain DOM id (the entity's own bare integer id, parsed back out of the
@@ -342,6 +392,7 @@ export function Canvas() {
     selectedElementId,
     selection,
     toggleSelection,
+    selectMany,
     selectedConnectorId,
     selectedLabelId,
     selectedDigitalDeviceId,
@@ -373,8 +424,19 @@ export function Canvas() {
   const [digitalDeviceDrag, setDigitalDeviceDrag] = useState<DigitalDeviceDrag | null>(null)
   // What Copy captured: the selection as a standalone diagram
   // (diagramOps.extractSelection), pasted the same way a custom element is
-  // placed so its ports and junctions come along intact.
-  const [clipboard, setClipboard] = useState<Diagram | null>(null)
+  // placed so its ports and junctions come along intact. centroid is where
+  // the copied group sat (diagramOps.selectionCentroid) and pastes how many
+  // times Ctrl/Cmd+V has pasted it, for the growing paste offset.
+  const [clipboard, setClipboard] = useState<{ template: Diagram; centroid: Point; pastes: number } | null>(null)
+  // Space held: left-drag pans the view instead of drawing a selection
+  // frame (see the TransformWrapper's panning prop).
+  const [spaceHeld, setSpaceHeld] = useState(false)
+  // An in-progress selection frame (left-drag from empty canvas): start/
+  // current in diagram units; crossing when dragged right-to-left (picks
+  // whatever it touches) rather than left-to-right (only what's fully
+  // inside) — see marqueeHits.
+  const [marquee, setMarquee] = useState<{ start: Point; current: Point } | null>(null)
+  const renderedRef = useRef<HTMLDivElement>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
   // The selection being saved via the context menu's "Save as custom
   // element…" (diagramOps.extractSelection's result) while its name dialog
@@ -518,6 +580,187 @@ export function Canvas() {
         preview(dx, dy)
         updateDiagram(d => diagramOps.moveSelection(d, moving, dx, dy))
       }
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // A selectable item's own bounding box in diagram units: an element's
+  // measured box (elementBoxes), a connector's points, a label's/digital
+  // device's rendered <text>. null when it has nothing to measure yet.
+  function itemBox(id: number, kind: SelectionKind): Box | null {
+    if (kind === 'element') {
+      const box = elementBoxes.get(id)
+      if (box) return box
+      const el = diagram!.elements.find(e => e.id === id)
+      return el ? pointsBox(el.points && el.points.length > 0 ? el.points : [{ x: el.x, y: el.y }]) : null
+    }
+    if (kind === 'connector') {
+      const c = diagram!.connectors.find(x => x.id === id)
+      return c && c.points.length > 0 ? pointsBox(c.points) : null
+    }
+    const node = renderedRef.current?.querySelector(`[data-editor-kind="${kind}"][id="${id}"]`) as SVGGraphicsElement | null
+    if (!node) return null
+    try {
+      const b = node.getBBox()
+      return { x: b.x, y: b.y, width: b.width, height: b.height }
+    } catch {
+      return null
+    }
+  }
+
+  // The one dashed box drawn around a multi-selection: the union of its
+  // items' own boxes.
+  function selectionBox(): Box | null {
+    const boxes = [...selection].map(([id, kind]) => itemBox(id, kind)).filter((b): b is Box => b !== null)
+    if (boxes.length === 0) return null
+    const x = Math.min(...boxes.map(b => b.x))
+    const y = Math.min(...boxes.map(b => b.y))
+    const right = Math.max(...boxes.map(b => b.x + b.width))
+    const bottom = Math.max(...boxes.map(b => b.y + b.height))
+    return {
+      x: x - BOX_HIGHLIGHT_PAD,
+      y: y - BOX_HIGHLIGHT_PAD,
+      width: right - x + BOX_HIGHLIGHT_PAD * 2,
+      height: bottom - y + BOX_HIGHLIGHT_PAD * 2,
+    }
+  }
+
+  // What a selection frame from start to current picks: left-to-right,
+  // only what lies fully inside; right-to-left ("crossing"), anything it
+  // touches (a wire by any segment crossing it, not just its bounding box).
+  function marqueeHits(start: Point, current: Point): Map<number, SelectionKind> {
+    const rect = pointsBox([start, current])
+    const crossing = current.x < start.x
+    const hits = new Map<number, SelectionKind>()
+    const test = (box: Box | null) => (box ? (crossing ? boxesIntersect(box, rect) : boxInside(box, rect)) : false)
+    for (const el of diagram!.elements) if (test(itemBox(el.id, 'element'))) hits.set(el.id, 'element')
+    for (const c of diagram!.connectors) {
+      if (c.points.length === 0) continue
+      const hit = crossing
+        ? c.points.some(p => pointInBox(p, rect)) ||
+          c.points.some((p, i) => i < c.points.length - 1 && segmentCrossesBox(p, c.points[i + 1], rect))
+        : c.points.every(p => pointInBox(p, rect))
+      if (hit) hits.set(c.id, 'connector')
+    }
+    for (const l of diagram!.labels) if (test(itemBox(l.id, 'label'))) hits.set(l.id, 'label')
+    for (const dd of diagram!.digitalDevices) if (test(itemBox(dd.id, 'digitaldevice'))) hits.set(dd.id, 'digitaldevice')
+    return hits
+  }
+
+  // A left-drag from empty canvas: draws the selection frame and, on
+  // release, selects what it picked (added to the current selection with
+  // Shift/Ctrl/Cmd). A release within a few pixels of the press is a plain
+  // click on empty canvas instead: it clears the selection, as before.
+  function startMarquee(point: Point, clientX: number, clientY: number, additive: boolean) {
+    const base = additive ? new Map(selection) : new Map<number, SelectionKind>()
+    const onMove = (ev: MouseEvent) => {
+      if (Math.hypot(ev.clientX - clientX, ev.clientY - clientY) < MARQUEE_MIN_DRAG) return
+      setMarquee({ start: point, current: toPoint(ev.clientX, ev.clientY) })
+    }
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setMarquee(null)
+      if (Math.hypot(ev.clientX - clientX, ev.clientY - clientY) < MARQUEE_MIN_DRAG) {
+        if (!additive) selectElement(null)
+        return
+      }
+      for (const [id, kind] of marqueeHits(point, toPoint(ev.clientX, ev.clientY))) base.set(id, kind)
+      selectMany(base)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // Every item in after that before didn't have: what a paste/duplicate
+  // just added, to select it.
+  function addedItems(before: Diagram, after: Diagram): Map<number, SelectionKind> {
+    const added = new Map<number, SelectionKind>()
+    const had = (list: { id: number }[]) => new Set(list.map(x => x.id))
+    const els = had(before.elements)
+    const cons = had(before.connectors)
+    const labs = had(before.labels)
+    const dds = had(before.digitalDevices)
+    for (const e of after.elements) if (!els.has(e.id)) added.set(e.id, 'element')
+    for (const c of after.connectors) if (!cons.has(c.id)) added.set(c.id, 'connector')
+    for (const l of after.labels) if (!labs.has(l.id)) added.set(l.id, 'label')
+    for (const dd of after.digitalDevices) if (!dds.has(dd.id)) added.set(dd.id, 'digitaldevice')
+    return added
+  }
+
+  // Places template's copy so its centroid lands on point, then selects
+  // the copy.
+  function placeCopy(template: Diagram, point: Point, snap: (p: Point) => Point) {
+    const before = diagram!
+    const after = diagramOps.placeCustomElement(before, template, point, elements, snap, defaultVoltage)
+    if (after === before) return
+    updateDiagram(() => after)
+    selectMany(addedItems(before, after))
+  }
+
+  function copySelectionToClipboard() {
+    if (selection.size === 0) return
+    const template = diagramOps.extractSelection(diagram!, selection, gridSpacing)
+    const centroid = diagramOps.selectionCentroid(diagram!, selection)
+    if (template && centroid) setClipboard({ template, centroid, pastes: 0 })
+  }
+
+  // Ctrl/Cmd+V: pastes offset PASTE_OFFSET_STEPS grid steps right and down
+  // from the copied original, a step further on each repeat.
+  function pasteClipboardOffset() {
+    if (!clipboard) return
+    const offset = gridSpacing * PASTE_OFFSET_STEPS * (clipboard.pastes + 1)
+    placeCopy(clipboard.template, { x: clipboard.centroid.x + offset, y: clipboard.centroid.y + offset }, snapPoint)
+    setClipboard({ ...clipboard, pastes: clipboard.pastes + 1 })
+  }
+
+  // Alt/Option-drag: a see-through copy of the group (clones of its
+  // rendered nodes, with their ids/data-editor-kind stripped so they can't
+  // be hit-tested) follows the cursor while the originals stay put; on
+  // release the real copy is placed there. No movement leaves no copy.
+  function startDuplicateDrag(point: Point, clickedId: number, clickedKind: SelectionKind) {
+    const moving = movingGroup(clickedId, clickedKind)
+    const group = new Map<number, SelectionKind>([
+      ...[...moving.elementIds].map(id => [id, 'element'] as const),
+      ...[...moving.connectorIds].map(id => [id, 'connector'] as const),
+      ...[...moving.labelIds].map(id => [id, 'label'] as const),
+      ...[...moving.digitalDeviceIds].map(id => [id, 'digitaldevice'] as const),
+    ])
+    const template = diagramOps.extractSelection(diagram!, group, gridSpacing)
+    const centroid = diagramOps.selectionCentroid(diagram!, group)
+    const root = renderedRef.current?.querySelector('svg')
+    if (!template || !centroid || !root) return
+
+    const preview = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+    preview.setAttribute('opacity', '0.6')
+    for (const [id, kind] of group) {
+      const node = root.querySelector(`[data-editor-kind="${kind}"][id="${id}"]`)
+      if (!node) continue
+      const clone = node.cloneNode(true) as Element
+      for (const n of [clone, ...clone.querySelectorAll('*')]) {
+        n.removeAttribute('id')
+        n.removeAttribute('data-editor-kind')
+      }
+      preview.appendChild(clone)
+    }
+    root.appendChild(preview)
+
+    const delta = (ev: MouseEvent) => {
+      const p = toPoint(ev.clientX, ev.clientY)
+      return { dx: snapValue(p.x - point.x, gridSpacing, snapEnabled), dy: snapValue(p.y - point.y, gridSpacing, snapEnabled) }
+    }
+    const onMove = (ev: MouseEvent) => {
+      const { dx, dy } = delta(ev)
+      preview.setAttribute('transform', `translate(${dx},${dy})`)
+    }
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      preview.remove()
+      const { dx, dy } = delta(ev)
+      if (dx === 0 && dy === 0) return
+      placeCopy(template, { x: centroid.x + dx, y: centroid.y + dy }, p => p)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -819,6 +1062,46 @@ export function Canvas() {
     polygonDraft,
   ])
 
+  // Ctrl/Cmd+C copies the selection, Ctrl/Cmd+V pastes it offset from the
+  // original; Space held turns left-drag into panning. Ignored while typing
+  // in a field. Re-subscribed on every render (no dependency list) so the
+  // handlers always see the current selection and clipboard.
+  useEffect(() => {
+    const typing = () => {
+      const tag = (document.activeElement?.tagName ?? '').toLowerCase()
+      return tag === 'input' || tag === 'textarea' || tag === 'select'
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (typing() || !diagram) return
+      if (e.code === 'Space') {
+        e.preventDefault()
+        if (!e.repeat) setSpaceHeld(true)
+        return
+      }
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return
+      const key = e.key.toLowerCase()
+      if (key === 'c' && selection.size > 0) {
+        e.preventDefault()
+        copySelectionToClipboard()
+      } else if (key === 'v' && clipboard) {
+        e.preventDefault()
+        pasteClipboardOffset()
+      }
+    }
+    function onKeyUp(e: KeyboardEvent) {
+      if (e.code === 'Space') setSpaceHeld(false)
+    }
+    const onBlur = () => setSpaceHeld(false)
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('blur', onBlur)
+    }
+  })
+
   if (!diagram) {
     return (
       <div className="flex-1 flex items-center justify-center text-sm text-gray-500 px-8 text-center">
@@ -844,7 +1127,7 @@ export function Canvas() {
   // A Rectangle/Circle/Arrow/Button/Road/PostPole/Line/PowerflowIndicator/
   // Table/Table2 is a purely decorative annotation, never a valid wire
   // endpoint — unlike every other class, none even falls back to its own
-  // anchor (see diagramOps.connectElements' own matching guard). Shared
+  // anchor. Shared
   // between findConnectionTarget's own search and the context menu's
   // "Start buswork" item, which must offer it only for a routable element.
   const NON_ROUTABLE_ELEMENT_CLASSES = new Set([
@@ -1337,6 +1620,8 @@ export function Canvas() {
 
   function handleMouseDown(e: React.MouseEvent) {
     if (e.button !== 0) return
+    // Space + left-drag pans (the TransformWrapper handles it).
+    if (spaceHeld) return
     const point = toPoint(e.clientX, e.clientY)
     // Reached only by a click that didn't land on a vertex/midpoint handle
     // (those stop propagation before this ever runs), so any such click
@@ -1461,10 +1746,21 @@ export function Canvas() {
     // its real drawn geometry, no fallback needed.
     let hitKind = hit?.dataset.editorKind
     let hitId = hit ? Number(hit.id) : NaN
+    // Shift or Ctrl/Cmd adds to/removes from the selection.
+    const toggles = e.shiftKey || e.ctrlKey || e.metaKey
     if (!hit) {
       const boxHit = findElementBoxHit(point)
       if (boxHit === null) {
-        selectElement(null)
+        // Inside a multi-selection's group box (between its items):
+        // drags the whole group. Anywhere else: starts a selection frame.
+        const box = selection.size > 1 ? selectionBox() : null
+        if (box && !toggles && pointInBox(point, box)) {
+          e.stopPropagation()
+          const [id, kind] = [...selection][0]
+          startGroupDrag(point, id, kind)
+          return
+        }
+        startMarquee(point, e.clientX, e.clientY, toggles)
         return
       }
       hitKind = 'element'
@@ -1472,8 +1768,15 @@ export function Canvas() {
     }
     e.stopPropagation()
 
+    // Alt/Option-drag duplicates: the whole selection when the item is part
+    // of it, otherwise just this item.
+    if (e.altKey && (hitKind === 'element' || hitKind === 'connector' || hitKind === 'label' || hitKind === 'digitaldevice')) {
+      startDuplicateDrag(point, hitId, hitKind)
+      return
+    }
+
     if (hitKind === 'connector') {
-      if (e.shiftKey) {
+      if (toggles) {
         toggleSelection(hitId, 'connector')
         return
       }
@@ -1482,7 +1785,7 @@ export function Canvas() {
     }
 
     if (hitKind === 'label') {
-      if (e.shiftKey) {
+      if (toggles) {
         toggleSelection(hitId, 'label')
         return
       }
@@ -1491,7 +1794,7 @@ export function Canvas() {
     }
 
     if (hitKind === 'digitaldevice') {
-      if (e.shiftKey) {
+      if (toggles) {
         toggleSelection(hitId, 'digitaldevice')
         return
       }
@@ -1501,18 +1804,10 @@ export function Canvas() {
 
     const elementId = hitId
 
-    // Shift-click toggles this element in/out of the multi-selection
-    // instead of replacing it or starting a drag — matches the common
-    // desktop convention, and keeps Ctrl/Cmd-click free for
-    // click-to-connect below.
-    if (e.shiftKey) {
+    // Shift- or Ctrl/Cmd-click toggles this element in/out of the
+    // multi-selection instead of replacing it or starting a drag.
+    if (toggles) {
       toggleSelection(elementId, 'element')
-      return
-    }
-
-    if ((e.ctrlKey || e.metaKey) && selectedElementId !== null && selectedElementId !== elementId) {
-      updateDiagram(d => diagramOps.connectElements(d, selectedElementId, elementId))
-      selectElement(elementId)
       return
     }
 
@@ -1713,7 +2008,7 @@ export function Canvas() {
               {
                 label: t('contextMenu.copy'),
                 onSelect: () => {
-                  setClipboard(diagramOps.extractSelection(diagram, selection, gridSpacing))
+                  copySelectionToClipboard()
                 },
               },
               { label: t('contextMenu.delete'), onSelect: deleteSelected },
@@ -1782,10 +2077,7 @@ export function Canvas() {
           label: t('contextMenu.paste'),
           disabled: clipboard === null,
           onSelect: () => {
-            if (!clipboard) return
-            updateDiagram(d =>
-              diagramOps.placeCustomElement(d, clipboard, contextMenu.diagramPoint, elements, snapPoint, defaultVoltage),
-            )
+            if (clipboard) placeCopy(clipboard.template, contextMenu.diagramPoint, snapPoint)
           },
         },
       ]
@@ -1814,6 +2106,13 @@ export function Canvas() {
   const routingPreviewPath =
     routing && routingPreviewEnd ? appendOrthogonalPoint(routing.path, routingPreviewEnd) : null
 
+  // The selection frame, what it would pick if released now (highlighted
+  // live), and the one dashed box around a settled multi-selection.
+  const marqueeRect = marquee ? pointsBox([marquee.start, marquee.current]) : null
+  const marqueeCrossing = marquee ? marquee.current.x < marquee.start.x : false
+  const marqueePreview = marquee ? marqueeHits(marquee.start, marquee.current) : null
+  const groupBox = !marquee && !ghost && selection.size > 1 ? selectionBox() : null
+
   return (
     <div className="flex-1 relative overflow-hidden bg-surface-900">
       {warning && (
@@ -1825,7 +2124,10 @@ export function Canvas() {
         minScale={0.1}
         maxScale={8}
         limitToBounds={false}
+        panning={{ allowLeftClickPan: spaceHeld, allowMiddleClickPan: true, allowRightClickPan: false }}
         disabled={
+          !spaceHeld &&
+          (!!marquee ||
           !!armedSymbol ||
           !!armedWireKind ||
           !!armedLabel ||
@@ -1836,7 +2138,7 @@ export function Canvas() {
           !!routing ||
           !!vertexDrag ||
           !!labelDrag ||
-          !!digitalDeviceDrag
+          !!digitalDeviceDrag)
         }
         doubleClick={{ disabled: true }}
       >
@@ -1852,13 +2154,14 @@ export function Canvas() {
               position: 'relative',
               width: diagram.width,
               height: diagram.height,
-              cursor:
-                armedSymbol || armedWireKind || armedLabel || armedDigitalDevice || armedCustomElement || routing
+              cursor: spaceHeld
+                ? 'grab'
+                : armedSymbol || armedWireKind || armedLabel || armedDigitalDevice || armedCustomElement || routing
                   ? 'crosshair'
                   : 'default',
             }}
           >
-            <div style={{ position: 'absolute', inset: 0 }} dangerouslySetInnerHTML={{ __html: svg }} />
+            <div ref={renderedRef} style={{ position: 'absolute', inset: 0 }} dangerouslySetInnerHTML={{ __html: svg }} />
             {/* Drawn as an overlay above the content, not behind it: the
                 backend-rendered SVG paints its own opaque background rect
                 (Diagram.Editor.Background), which would otherwise hide a
@@ -1910,12 +2213,66 @@ export function Canvas() {
               height={diagram.height}
               style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
             >
+              {marqueePreview &&
+                [...marqueePreview].map(([id, kind]) => {
+                  if (kind === 'connector') {
+                    const c = diagram.connectors.find(x => x.id === id)
+                    return c ? (
+                      <polyline
+                        key={`mq-${id}`}
+                        points={c.points.map(p => `${p.x},${p.y}`).join(' ')}
+                        fill="none"
+                        stroke={HIGHLIGHT}
+                        strokeWidth={2}
+                        strokeOpacity={0.7}
+                      />
+                    ) : null
+                  }
+                  const box = itemBox(id, kind)
+                  return box ? (
+                    <rect
+                      key={`mq-${id}`}
+                      x={box.x - 2}
+                      y={box.y - 2}
+                      width={box.width + 4}
+                      height={box.height + 4}
+                      fill={HIGHLIGHT}
+                      fillOpacity={0.15}
+                      stroke={HIGHLIGHT}
+                      strokeWidth={0.5}
+                    />
+                  ) : null
+                })}
+              {marqueeRect && (
+                <rect
+                  x={marqueeRect.x}
+                  y={marqueeRect.y}
+                  width={marqueeRect.width}
+                  height={marqueeRect.height}
+                  fill={HIGHLIGHT}
+                  fillOpacity={0.08}
+                  stroke={HIGHLIGHT}
+                  strokeWidth={0.75}
+                  strokeDasharray={marqueeCrossing ? '4 3' : undefined}
+                />
+              )}
+              {groupBox && (
+                <rect
+                  x={groupBox.x}
+                  y={groupBox.y}
+                  width={groupBox.width}
+                  height={groupBox.height}
+                  fill="none"
+                  stroke={HIGHLIGHT}
+                  strokeWidth={0.75}
+                  strokeDasharray="6 3"
+                />
+              )}
               {/* A small red X at each of a selected shape's own real
                   terminal positions (base.xml's <terminals>, rotated/
                   translated for this element's own orient/x/y) — purely a
-                  visual aid showing where a real electrical connection
-                  could be made; Ctrl/Cmd-click-to-connect itself still
-                  joins two elements' bare anchors regardless. Only drawn
+                  visual aid showing where its fixed ports sit, which is
+                  where a wire attaches. Only drawn
                   for the current selection, to keep a busy diagram
                   readable. Hidden for whichever element(s) are mid-drag:
                   dragElementsInDom moves the real symbol directly in the

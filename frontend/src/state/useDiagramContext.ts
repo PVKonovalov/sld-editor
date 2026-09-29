@@ -111,11 +111,15 @@ export interface DiagramContextValue {
   // anything clears it). Shift-click toggles an {id, kind} pair in/out via
   // toggleSelection instead of replacing the whole selection. Everything
   // that only makes sense for a single element (Properties' full field
-  // editor, a BusBarSection's draggable point handles, Ctrl/Cmd-click-to-
-  // connect's anchor) keys off selectedElementId and ignores this map once
-  // it holds more than one entry.
+  // editor, a BusBarSection's draggable point handles) keys off
+  // selectedElementId and ignores this map once it holds more than one
+  // entry. A selection frame or a paste sets it whole via selectMany.
   selection: Map<number, SelectionKind>
   toggleSelection: (id: number, kind: SelectionKind) => void
+  // Replaces the whole selection at once (a selection frame, a paste, a
+  // duplicate); an empty map clears it. Clears any armed tool, like the
+  // single-item select* functions.
+  selectMany: (entries: Map<number, SelectionKind>) => void
 
   // The last voltage class the user picked in Properties (or Settings, or
   // the New Diagram dialog), remembered for the lifetime of the session

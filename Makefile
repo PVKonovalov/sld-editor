@@ -149,7 +149,7 @@ docker-build:
 # far; older archives and stray *.gz files are left out) into
 # build/sld-editor-<VERSION>.tar.gz, under one top-level
 # sld-editor-<VERSION>/ folder, together with what they need at runtime:
-# config/sld-editor.yaml and assets/elements/ fresh from backend/ (the
+# config/sld-editor.yaml, assets/elements/ and the assets/USER_GUIDE*.md guides fresh from backend/ (the
 # config's diagrams dir rewritten from "../diagrams" — relative to
 # backend/ during development — to "diagrams", next to the binaries) and
 # an empty diagrams/ folder, plus custom-elements/ (the repo's own .xsld
@@ -164,6 +164,7 @@ package:
 		case "$$f" in *.gz) ;; *) cp "$$f" $(PACKAGE_DIR)/$(PACKAGE_NAME)/ ;; esac; \
 	done
 	cp -R $(BACKEND_DIR)/assets/elements $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets/
+	cp $(BACKEND_DIR)/assets/USER_GUIDE*.md $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets/
 	mkdir -p $(PACKAGE_DIR)/$(PACKAGE_NAME)/custom-elements
 	cp custom-elements/*.xsld $(PACKAGE_DIR)/$(PACKAGE_NAME)/custom-elements/ 2>/dev/null || true
 	sed -e 's|dir: "\.\./diagrams"|dir: "diagrams"|' -e 's|dir: "\.\./custom-elements"|dir: "custom-elements"|' $(BACKEND_DIR)/config/sld-editor.yaml > $(PACKAGE_DIR)/$(PACKAGE_NAME)/config/sld-editor.yaml

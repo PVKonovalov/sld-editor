@@ -5,6 +5,9 @@ A SCADA-style Single Line Diagram editor for Power/Energy control engineers: a G
 backend (diagram model, XML storage, SVG rendering) and a React/TypeScript frontend
 (interactive canvas editing).
 
+For how to use the editor, see [the user guide](backend/assets/USER_GUIDE.md), also shown in the app by the
+sidebar's Help button.
+
 # Development
 
 Run the backend from `backend/` (binds `0.0.0.0:8090` by default):

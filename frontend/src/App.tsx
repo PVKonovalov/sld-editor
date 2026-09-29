@@ -10,6 +10,7 @@ import { Canvas } from './components/Canvas'
 import { ImportLogDialog } from './components/ImportLogDialog'
 import { ConfirmReloadDialog } from './components/ConfirmReloadDialog'
 import { AboutDialog } from './components/AboutDialog'
+import { HelpDialog } from './components/HelpDialog'
 import { BatchImportDialog } from './components/BatchImportDialog'
 import { DefaultVoltageDialog } from './components/DefaultVoltageDialog'
 import { diagramFileKind, readFileAsText, readFilesAsText } from './lib/fileTransfer'
@@ -25,6 +26,7 @@ function Shell() {
   const [activeLeftPanel, setActiveLeftPanel] = useState<LeftPanelId | null>('file')
   const [propertiesOpen, setPropertiesOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const {
     diagramName,
     selectedElementId,
@@ -146,6 +148,7 @@ function Shell() {
         activeLeftPanel={activeLeftPanel}
         propertiesOpen={propertiesOpen}
         onPanelToggle={togglePanel}
+        onHelp={() => setHelpOpen(true)}
         onAbout={() => setAboutOpen(true)}
       />
       {activeLeftPanel === 'file' && <FilePanel onClose={() => setActiveLeftPanel(null)} />}
@@ -163,6 +166,7 @@ function Shell() {
       {pendingImport && <ConfirmReloadDialog />}
       {importLogOpen && <ImportLogDialog onClose={() => setImportLogOpen(false)} />}
       {defaultVoltagePromptOpen && !pendingImport && <DefaultVoltageDialog />}
+      {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
       {batchImport && <BatchImportDialog />}
       {dropError && (

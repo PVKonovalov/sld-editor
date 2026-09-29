@@ -29,6 +29,11 @@ type Config struct {
 		Dir string `yaml:"dir" env:"true"`
 	} `yaml:"custom_elements"`
 
+	// UserGuide is the Markdown file the sidebar's Help button shows,
+	// converted to HTML on every request (GET /api/user-guide). Empty
+	// disables it.
+	UserGuide string `yaml:"user_guide" env:"true"`
+
 	Elements struct {
 		// Libraries lists element-library XML files (see internal/elements),
 		// merged in order — a later file's definition of a shape overrides

@@ -4299,3 +4299,77 @@ devices is split, no node moves, 110 ms for the largest (7,832 devices). The
 Junction point (7) got a terminal at its dot (matching slddoc's single port),
 and `custom-elements/CB.xsld` was rewritten in the repaired form (both ground
 switches are real junctions, Disconnector-3 has both ports).
+
+2026-09-29: A wire with no voltage class (or an unknown one) is now drawn gray,
+the same neutral fallback a device already used, instead of black, which was
+nearly invisible against the dark diagram background. The change is in the
+sibling `slddoc` module's `renderConnector` (it resolves the color once and
+passes it to every wire kind: Buswork, Overhead line, Cable line, Object
+link), with a new `TestRender_ConnectorWithoutVoltageIsGray`; it applies to the
+live canvas, the saved `.svg` and SVG downloads alike.
+
+2026-09-29: Reworked selection, copying and panning on the canvas. A left-drag
+from empty canvas now draws a selection frame: left-to-right (solid frame)
+selects only what lies fully inside, right-to-left (dashed frame) everything it
+touches, with the candidates highlighted while dragging; Shift or Ctrl/Cmd adds
+the result to the current selection. A multi-selection gets one dashed group box
+(no handles, since symbols have a fixed size) that can be dragged from its empty
+space. Ctrl/Cmd-click now adds/removes items like Shift-click; the old instant
+Ctrl/Cmd-click connect (`diagramOps.connectElements`) is removed, as the wire
+routing tool replaces it. Ctrl/Cmd+C copies the selection and Ctrl/Cmd+V pastes
+it two grid steps right and down from the original (a step further on each
+paste); Alt/Option-drag duplicates the dragged item or selection, with a
+see-through preview following the cursor. Pasted and duplicated copies become
+the selection and keep their wires and connections (`placeCustomElement`,
+`selectionCentroid`, new context action `selectMany`). Because left-drag no
+longer pans, panning is now Space + drag or the middle mouse button. The
+Properties hint about Ctrl/Cmd-click connecting was replaced with how to start a
+wire. Added `USER_GUIDE.md`, a first end-user guide covering files, navigation,
+placing, selecting, copying, wiring, connections, custom elements, Properties,
+Settings and keyboard shortcuts, linked from README.md.
+
+2026-09-29: Busbar connections. A busbar keeps one terminal (port, on its own
+node) per connection point, as before; the downstream topology processor merges
+them into one node. What was missing: a wire end or device terminal lying
+exactly on a busbar's line only became one of its terminals when a wire was
+routed onto the busbar, so a busbar drawn over existing wire ends (e.g.
+`diagrams/test4.xsld`) stayed unconnected. Now `diagramOps.joinBusbar` adds a
+terminal for every node lying on the busbar's line whenever the busbar is drawn
+(`placeBusbar`), moved (`moveSelection`), reshaped (`updateBusbarPoint`) or
+repaired on open (`fitElementPorts`/`normalizeTopology`), and
+`joinNodesToBusbars` does the same for a wire end or terminal moved onto a
+busbar (`moveConnectorEndpoint`, `moveSelection`). A wire that only crosses a
+busbar has no node there and stays unconnected. Re-checked all 432 saved
+diagrams: no connection group split, no node moved; 1,133 busbar terminals
+added across 90 diagrams (mostly SVG imports, whose busbars had no port on
+their shared bus node). USER_GUIDE.md and CLAUDE.md updated.
+
+2026-09-29: Help button. The sidebar has a new Help button (above About) that
+opens the user guide in a large scrollable dialog (`components/HelpDialog.tsx`;
+Esc, clicking outside or the close button dismisses it). The guide file is set
+by the new `user_guide` config entry (`assets/USER_GUIDE.md`, the guide's new
+home, moved from the repo root; env override `USER_GUIDE`) and served by the new
+`GET /api/user-guide`, which reads the Markdown on every request (so edits show
+without a restart) and converts it to HTML with goldmark (github.com/yuin/goldmark
+v1.8.6, GitHub-style tables on, raw HTML not passed through); 404 when no guide
+is configured or the file is missing. The rendered guide is styled for the dark
+theme by `.guide-content` (headings, lists, tables, inline code). `make package`
+ships the guide. English/Russian strings added; the guide itself is English
+only.
+
+2026-09-29: Russian user guide. Added `backend/assets/USER_GUIDE.ru.md`, a full
+Russian translation of the user guide using the Russian UI's own names for
+buttons and panels. The Help dialog now asks for the guide in the build's own
+locale (`GET /api/user-guide?lang=ru`): the locale generator also exports the
+locale code from `active.ts` (re-exported by `i18n/index.ts` as `locale`), and
+the backend serves `USER_GUIDE.<lang>.md` next to the configured guide when it
+exists, falling back to the configured one; a `lang` that isn't a two-letter
+code is ignored. `make package` ships every `USER_GUIDE*.md`. The English guide
+now also mentions the Help button.
+
+2026-09-29: `scripts/deploy.sh` now also deploys the user guides: it checks
+that `backend/assets/USER_GUIDE.md` exists before touching the server, then
+copies every `backend/assets/USER_GUIDE*.md` (English and Russian) to the
+server's `assets/` folder next to the element library. The server's own
+`config/sld-editor.yaml` needs `user_guide: "assets/USER_GUIDE.md"` for the
+Help button to find them.

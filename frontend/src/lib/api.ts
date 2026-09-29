@@ -213,6 +213,18 @@ export class ConflictError extends Error {
   }
 }
 
+/** The user guide as an HTML fragment (the backend converts the configured
+ * Markdown file on every request), in lang when a translation exists
+ * (USER_GUIDE.<lang>.md), otherwise the default guide. */
+export async function getUserGuide(lang: string): Promise<string> {
+  const res = await fetch(`${BASE}/user-guide?lang=${encodeURIComponent(lang)}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error((body && body.error) || `${res.status} ${res.statusText}`)
+  }
+  return res.text()
+}
+
 export async function getConfig(): Promise<EditorConfig> {
   const res = await fetch(`${BASE}/config`)
   return asJSON(res)

@@ -15,6 +15,10 @@ custom_elements:
   # ordinary diagram, made and saved in the editor itself) is one entry.
   dir: "../custom-elements"
 
+# Markdown file shown by the sidebar's Help button (converted to HTML on
+# every request, so edits show without a restart). Empty disables it.
+user_guide: "assets/USER_GUIDE.md"
+
 elements:
   # Element-library XML files, merged in order (a later file's definition of
   # a shape overrides an earlier one's). Add your own library file and list

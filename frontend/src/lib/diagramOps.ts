@@ -21,7 +21,7 @@ import { circularArcThrough, defaultArcBulge } from './arc'
 // vertices) rather than a single x/y anchor+orient — BusBarSection (a real
 // electrical busbar), Rectangle, Circle, Arrow, Button, Road, Line, and
 // Table (the latter seven purely decorative annotations, no electrical
-// meaning at all — see connectElements' own guard below). Shared by every
+// meaning at all — never a routing target). Shared by every
 // place/move/paste/point-drag helper that needs to treat "drag two
 // corners/vertices to draw or reshape" the same way regardless of which of
 // the eight classes it actually is — including, for Rectangle/Circle/
@@ -493,7 +493,8 @@ export function placeBusbar(diagram: Diagram, start: Point, end: Point, defaultV
     y: (start.y + end.y) / 2,
     points: [start, end],
   }
-  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+  // A busbar drawn over existing wire ends or terminals connects to them.
+  return joinBusbar({ ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }, id)
 }
 
 // A freshly placed Rectangle's own colors/border thickness — matching
@@ -507,7 +508,7 @@ const RECTANGLE_DEFAULTS = { fill: 'none', stroke: '#ffffff', strokeWidth: 1 }
 /** Places a new Rectangle spanning start..end — a purely decorative
  * annotation box, not real electrical equipment (see slddoc's own
  * ClassRectangle doc comment): no Voltage, no Ports, never a valid
- * connectElements/routing target. Drawn from its own Points the same
+ * routing target. Drawn from its own Points the same
  * drag-not-click way placeBusbar places a BusBarSection, and for the same
  * reason (its size varies per instance, there's no single "the" anchor to
  * click). */
@@ -587,7 +588,7 @@ const BUTTON_DEFAULTS = { fill: 'none', stroke: '#ffffff', strokeWidth: 1, textC
 /** Places a new Button spanning start..end — a purely decorative
  * annotation widget, not real electrical equipment (see slddoc's own
  * ClassButton doc comment): no Voltage, no Ports, never a valid
- * connectElements/routing target. Drawn from its own Points the same
+ * routing target. Drawn from its own Points the same
  * drag-not-click way placeRectangle places a Rectangle, and for the same
  * reason (its size varies per instance, there's no single "the" anchor to
  * click). */
@@ -620,7 +621,7 @@ const TABLE_DEFAULTS = { fill: 'none', stroke: '#ffffff', strokeWidth: 1, textCo
 /** Places a new Table spanning start..end — a purely decorative
  * annotation box, not real electrical equipment (see slddoc's own
  * ClassTable doc comment): no Voltage, no Ports, never a valid
- * connectElements/routing target. Drawn from its own Points the same
+ * routing target. Drawn from its own Points the same
  * drag-not-click way placeRectangle/placeButton place theirs. */
 export function placeTable(diagram: Diagram, start: Point, end: Point): Diagram {
   const ids = new IdSequence(diagram)
@@ -754,7 +755,7 @@ const ROAD_DEFAULTS = { stroke: '#ffffff', strokeWidth: 8 }
 /** Places a new Road spanning start..end — a purely decorative geographic
  * background line, not real electrical equipment (see slddoc's own
  * ClassRoad doc comment): no Voltage, no Ports, never a valid
- * connectElements/routing target. Drawn from its own Points the same
+ * routing target. Drawn from its own Points the same
  * drag-not-click way placeBusbar places a BusBarSection (this editor can
  * only draw a fresh Road as a straight two-point line this way — see
  * base.xml's own shape-335 entry — a Road extracted from a real multi-bend
@@ -786,7 +787,7 @@ const LINE_DEFAULTS = { stroke: '#000000', strokeWidth: 1 }
 
 /** Places a new Line spanning start..end — a purely decorative generic
  * line, not real electrical equipment (see slddoc's own ClassLine doc
- * comment): no Voltage, no Ports, never a valid connectElements/routing
+ * comment): no Voltage, no Ports, never a valid routing
  * target. Drawn from its own Points the same drag-not-click way
  * placeRoad places a Road (this editor can only draw a fresh Line as a
  * straight two-point line this way — see base.xml's own shape-1 entry —
@@ -817,7 +818,7 @@ const POLYGON_DEFAULTS = { fill: '#663300', stroke: '#ffffff', strokeWidth: 1 }
 /** Places a new Polygon through points (at least 3; the path closes back
  * to points[0] implicitly) — a purely decorative closed shape, not real
  * electrical equipment (see slddoc's own ClassPolygon doc comment): no
- * Voltage, no Ports, never a valid connectElements/routing target. Canvas
+ * Voltage, no Ports, never a valid routing target. Canvas
  * collects points pen-tool style, one click per vertex; each vertex can
  * then be dragged one at a time, the same way a Line's can. */
 export function placePolygon(diagram: Diagram, points: Point[]): Diagram {
@@ -845,7 +846,7 @@ const ARC_DEFAULTS = { stroke: '#ffffff', strokeWidth: 1 }
 
 /** Places a new Arc from start to end — a purely decorative arc, not real
  * electrical equipment (see slddoc's own ClassArc doc comment): no
- * Voltage, no Ports, never a valid connectElements/routing target. It
+ * Voltage, no Ports, never a valid routing target. It
  * starts as the circular arc through arc.defaultArcBulge (a quarter of the
  * chord out, on the upper side); Canvas then offers start/end/bulge
  * handles to reshape it (updateBusbarPoint/updateArcBulge). */
@@ -884,6 +885,45 @@ export function updateArcBulge(diagram: Diagram, id: number, bulge: Point): Diag
   }
 }
 
+// Every anchor a group of items is placed by: each element's/label's/
+// digital device's own x/y, plus every connector point.
+function groupAnchors(d: Pick<Diagram, 'elements' | 'labels' | 'digitalDevices' | 'connectors'>): Point[] {
+  return [
+    ...d.elements.map(e => ({ x: e.x, y: e.y })),
+    ...d.labels.map(l => ({ x: l.x, y: l.y })),
+    ...d.digitalDevices.map(dd => ({ x: dd.x, y: dd.y })),
+    ...d.connectors.flatMap(c => c.points),
+  ]
+}
+
+/** The point placeCustomElement lands on its target point: the average of
+ * every anchor in d (groupAnchors), or null when d is empty. */
+export function groupCentroid(d: Pick<Diagram, 'elements' | 'labels' | 'digitalDevices' | 'connectors'>): Point | null {
+  const anchors = groupAnchors(d)
+  if (anchors.length === 0) return null
+  return {
+    x: anchors.reduce((sum, p) => sum + p.x, 0) / anchors.length,
+    y: anchors.reduce((sum, p) => sum + p.y, 0) / anchors.length,
+  }
+}
+
+/** groupCentroid of a selection, in the diagram's own coordinates — so a
+ * copy placed there with placeCustomElement lands exactly on top of the
+ * original, and one placed at this point + (dx, dy) is the original moved
+ * by (dx, dy). */
+export function selectionCentroid(
+  diagram: Diagram,
+  selection: Map<number, 'element' | 'connector' | 'label' | 'digitaldevice'>,
+): Point | null {
+  const has = (id: number, kind: string) => selection.get(id) === kind
+  return groupCentroid({
+    elements: diagram.elements.filter(e => has(e.id, 'element')),
+    connectors: diagram.connectors.filter(c => has(c.id, 'connector')),
+    labels: diagram.labels.filter(l => has(l.id, 'label')),
+    digitalDevices: diagram.digitalDevices.filter(dd => has(dd.id, 'digitaldevice')),
+  })
+}
+
 /** Places a copy of a whole custom element (see CustomElement) — every
  * node, element, connector, label, and digital device of template — so
  * its centroid (the same anchor average pasteGroup uses) lands at point.
@@ -912,17 +952,9 @@ export function placeCustomElement(
   snap: (p: Point) => Point = p => p,
   defaultVoltage?: number,
 ): Diagram {
-  const anchors: Point[] = [
-    ...template.elements.map(e => ({ x: e.x, y: e.y })),
-    ...template.labels.map(l => ({ x: l.x, y: l.y })),
-    ...template.digitalDevices.map(dd => ({ x: dd.x, y: dd.y })),
-    ...template.connectors.flatMap(c => c.points),
-  ]
-  if (anchors.length === 0) return diagram
-  const centroid = {
-    x: anchors.reduce((sum, p) => sum + p.x, 0) / anchors.length,
-    y: anchors.reduce((sum, p) => sum + p.y, 0) / anchors.length,
-  }
+  const anchors = groupAnchors(template)
+  const centroid = groupCentroid(template)
+  if (!centroid) return diagram
   const ref = anchors[0]
   const snappedRef = snap({ x: ref.x + point.x - centroid.x, y: ref.y + point.y - centroid.y })
   const dx = snappedRef.x - ref.x
@@ -1246,8 +1278,11 @@ export function moveSelection(
   // node or a wire joins it there — see removeDegenerateConnectors and
   // joinPortNodes.
   let result = removeDegenerateConnectors({ ...moved, connectors, nodes })
-  for (const id of ids.elementIds) result = joinPortNodes(result, id)
-  return result
+  for (const id of ids.elementIds) {
+    const el = result.elements.find(e => e.id === id)
+    result = el?.class === 'BusBarSection' ? joinBusbar(result, id) : joinPortNodes(result, id)
+  }
+  return joinNodesToBusbars(result, movedNodeIds)
 }
 
 /** Moves one end of a connector's own path to newPoint, keeping the segment
@@ -1302,6 +1337,10 @@ function rerouteConnectorEnd(points: Point[], end: 'from' | 'to', newPoint: Poin
  * name "Busbar" for historical reasons (every caller predates Rectangle),
  * not because it's busbar-specific. */
 export function updateBusbarPoint(diagram: Diagram, id: number, pointIndex: number, point: Point): Diagram {
+  return joinBusbar(reshapePoints(diagram, id, pointIndex, point), id)
+}
+
+function reshapePoints(diagram: Diagram, id: number, pointIndex: number, point: Point): Diagram {
   return {
     ...diagram,
     elements: diagram.elements.map(e => {
@@ -1504,10 +1543,9 @@ function transformerLocalTerminals(el: DiagramElement): Point[] {
  * meet it — or null when its shape carries no <terminals> (most shapes,
  * for now; see base.xml's own doc comment) and it isn't a PowerTransformer
  * (whose own terminals are computed dynamically instead — see
- * transformerLocalTerminals). Purely a visual aid: Canvas draws a marker
- * at each one for the current selection. Ctrl/Cmd-click-to-connect
- * (connectElements, below) does not use this — it still joins two
- * elements' bare anchors regardless of any terminals a shape defines. */
+ * transformerLocalTerminals). These are where an element's fixed Ports sit
+ * (see fitElementPorts), and Canvas draws a marker at each one for the
+ * current selection. */
 export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): Point[] | null {
   if (el.class === 'PowerTransformer') {
     return transformerLocalTerminals(el).map(t => placeLocalPoint(el, t))
@@ -1524,78 +1562,12 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
 // A Fork's (shape 26) own default arm length — slddoc's own forkArmLength.
 export const FORK_ARM_LENGTH = 10
 
-/** Electrically joins two elements: a Node (plus a Port referencing it) is
- * created at each element's own anchor, and a Connector drawn straight
- * between them ties the two Nodes together. This is a simplified stand-in
- * for real port geometry (the symbol library doesn't record per-shape port
- * offsets — see backend/internal/slddoc's Port doc comment) — connecting
- * two elements always runs a straight line anchor-to-anchor rather than to
- * each shape's true terminal position. The new connector's voltage comes
- * from whichever of from/to already has one (see drawConnectorPath's own
- * doc comment) — with no defaultVoltage param here, an element joined to
- * one with no voltage of its own at all just stays unset, same as before.
- * A no-op when either end is a Rectangle, Circle, Arrow, Button, Road,
- * PostPole, Line, PowerflowIndicator, Table, or Table2 — a purely
- * decorative annotation, never a valid electrical endpoint (see slddoc's
- * own ClassRectangle/ClassCircle/ClassArrow/ClassButton/ClassRoad/
- * ClassPostPole/ClassLine/ClassPowerflowIndicator/ClassTable/ClassTable2
- * doc comments); the routing tool's own findConnectionTarget (Canvas.tsx)
- * excludes all ten from candidates entirely for the same reason. */
-export function connectElements(diagram: Diagram, fromId: number, toId: number): Diagram {
-  if (fromId === toId) return diagram
-  const from = diagram.elements.find(e => e.id === fromId)
-  const to = diagram.elements.find(e => e.id === toId)
-  if (!from || !to) return diagram
-  const notConnectable = (el: DiagramElement) =>
-    el.class === 'Rectangle' ||
-    el.class === 'Circle' ||
-    el.class === 'Arrow' ||
-    el.class === 'Button' ||
-    el.class === 'Road' ||
-    el.class === 'PostPole' ||
-    el.class === 'Line' ||
-    el.class === 'Polygon' ||
-    el.class === 'Arc' ||
-    el.class === 'PowerflowIndicator' ||
-    el.class === 'Table' ||
-    el.class === 'Table2'
-  if (notConnectable(from) || notConnectable(to)) return diagram
-
-  const ids = new IdSequence(diagram)
-  const acc = { elements: diagram.elements, nodes: diagram.nodes }
-  // Each end uses its element's terminal nearest the other element (its
-  // bare anchor for one without fixed ports, as before).
-  const nodeAt = (id: number) => acc.nodes.find(n => n.id === id)!
-  const fromNodeId = attachElementEnd(acc, fromId, hasFixedPorts(from) ? to : from, ids)
-  const fromPoint = { x: nodeAt(fromNodeId).x, y: nodeAt(fromNodeId).y }
-  const toNodeId = attachElementEnd(acc, toId, hasFixedPorts(to) ? fromPoint : to, ids)
-  const toPoint = { x: nodeAt(toNodeId).x, y: nodeAt(toNodeId).y }
-  const connector: Connector = {
-    id: ids.take(),
-    kind: 'BusWork',
-    layer: from.layer,
-    voltage: from.voltage ?? to.voltage,
-    from: fromNodeId,
-    to: toNodeId,
-    points: [fromPoint, toPoint],
-  }
-
-  return {
-    ...diagram,
-    lastId: ids.lastId,
-    nodes: acc.nodes,
-    elements: acc.elements,
-    connectors: [...diagram.connectors, connector],
-  }
-}
 
 /** Electrically joins two elements with an explicit, possibly multi-segment
  * path (points.length >= 2 — points[0] the from-side endpoint, the last
- * entry the to-side one) — the routing tool's counterpart to
- * connectElements' always-straight, always-two-point anchor-to-anchor
- * line. A Node (plus a Port referencing it) is still created at each
- * element's own endpoint of the path, exactly as connectElements does;
- * only the Connector's own drawn geometry differs. The new connector's
+ * entry the to-side one), the routing tool's element-to-element creator.
+ * Each end attaches to that element's terminal Port Node nearest it
+ * (attachElementEnd). The new connector's
  * voltage class comes from whichever of from/to already has one — it's
  * electrically joining them, so it should read as the same voltage they
  * already do, not some unrelated value — falling back to defaultVoltage
@@ -2468,13 +2440,15 @@ export function moveConnectorEndpoint(diagram: Diagram, connectorId: number, end
   }
 
   const nodeId = end === 'from' ? connector.from : connector.to
-  return {
+  const moved: Diagram = {
     ...diagram,
     connectors: diagram.connectors.map(c =>
       c.id === connectorId ? { ...c, points: simplifyOrthogonalPath(newPoints) } : c,
     ),
     nodes: diagram.nodes.map(n => (n.id === nodeId ? { ...n, x: point.x, y: point.y } : n)),
   }
+  // A wire end dropped on a busbar connects to it.
+  return joinNodesToBusbars(moved, new Set([nodeId]))
 }
 
 /** Inserts a new vertex at point between an existing connector's
@@ -2791,6 +2765,7 @@ export function fitElementPorts(
 ): Diagram {
   const el = element ?? diagram.elements.find(e => e.id === elementId)
   if (!el) return diagram
+  if (el.class === 'BusBarSection') return joinBusbar(diagram, elementId)
   const terminals = fixedTerminals(el, symbols)
   if (!terminals) return diagram
 
@@ -2956,4 +2931,45 @@ function attachElementEnd(
     e.id === elementId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: node.id }] } : e,
   )
   return node.id
+}
+
+/** A busbar has one Port per connection point (each on its own Node — the
+ * downstream topology processor merges a busbar's terminals into one
+ * node). This makes every Node lying exactly on the busbar's line that
+ * isn't one of its Ports yet a new Port of it: a wire end or a device
+ * terminal the busbar was drawn, moved or reshaped over. A wire that only
+ * crosses the busbar has no Node there, so it stays unconnected. Returns
+ * diagram itself when there's nothing to join. */
+export function joinBusbar(diagram: Diagram, busId: number): Diagram {
+  const bus = diagram.elements.find(e => e.id === busId)
+  if (!bus || bus.class !== 'BusBarSection' || !bus.points || bus.points.length < 2) return diagram
+  const pts = bus.points
+  const own = new Set((bus.ports ?? []).map(p => p.node))
+  const onLine = diagram.nodes.filter(
+    n => !own.has(n.id) && pts.some((a, i) => i < pts.length - 1 && isOnSegment(n, a, pts[i + 1])),
+  )
+  if (onLine.length === 0) return diagram
+  const ports = [...(bus.ports ?? [])]
+  for (const n of onLine) ports.push({ name: String(ports.length + 1), node: n.id })
+  return { ...diagram, elements: diagram.elements.map(e => (e.id === busId ? { ...e, ports } : e)) }
+}
+
+/** Connects each of nodeIds that lies exactly on a busbar's line to that
+ * busbar (a new Port of it, see joinBusbar) — for a wire end or terminal
+ * just moved onto one. */
+function joinNodesToBusbars(diagram: Diagram, nodeIds: Set<number>): Diagram {
+  if (nodeIds.size === 0) return diagram
+  const nodes = diagram.nodes.filter(n => nodeIds.has(n.id))
+  let d = diagram
+  for (const bus of diagram.elements) {
+    if (bus.class !== 'BusBarSection' || !bus.points || bus.points.length < 2) continue
+    const pts = bus.points
+    const own = new Set((bus.ports ?? []).map(p => p.node))
+    const add = nodes.filter(n => !own.has(n.id) && pts.some((a, i) => i < pts.length - 1 && isOnSegment(n, a, pts[i + 1])))
+    if (add.length === 0) continue
+    const ports = [...(bus.ports ?? [])]
+    for (const n of add) ports.push({ name: String(ports.length + 1), node: n.id })
+    d = { ...d, elements: d.elements.map(e => (e.id === bus.id ? { ...e, ports } : e)) }
+  }
+  return d
 }

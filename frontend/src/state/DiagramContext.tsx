@@ -227,6 +227,17 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setSelectedDigitalDeviceIdState(null)
   }, [])
 
+  const selectMany = useCallback((entries: Map<number, SelectionKind>) => {
+    const only = entries.size === 1 ? [...entries][0] : null
+    setSelection(new Map(entries))
+    setSelectedElementIdState(only && only[1] === 'element' ? only[0] : null)
+    setSelectedConnectorIdState(only && only[1] === 'connector' ? only[0] : null)
+    setSelectedLabelIdState(only && only[1] === 'label' ? only[0] : null)
+    setSelectedDigitalDeviceIdState(only && only[1] === 'digitaldevice' ? only[0] : null)
+    setArmedSymbolState(null)
+    setArmedCustomElementState(null)
+  }, [])
+
   // Shift-click: toggles one {id, kind} entry in/out of the mixed
   // multi-selection instead of replacing it. The matching single-id field
   // (selectedElementId/selectedConnectorId/selectedLabelId/
@@ -543,6 +554,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectedElementId,
       selection,
       toggleSelection,
+      selectMany,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,
@@ -600,6 +612,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectedElementId,
       selection,
       toggleSelection,
+      selectMany,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,

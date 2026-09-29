@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds (make linux-ru) and deploys the Russian-locale Linux build to the
 # ctrlroom server: stops the sld-editor systemd service, copies the freshly
-# built binary and the bundled element library, restores the executable
+# built binary, the bundled element library and the user guides
+# (backend/assets/USER_GUIDE*.md, shown by the Help button), restores the executable
 # bit scp doesn't preserve, then restarts the service. A failed build
 # leaves the remote service untouched — set -e stops the script before any
 # ssh/scp step runs.
@@ -28,6 +29,7 @@ SERVICE="sld-editor"
 BINARY="sld-editor-linux-ru"
 
 BASE_XML="$REPO_ROOT/backend/assets/elements/base.xml"
+USER_GUIDE="$REPO_ROOT/backend/assets/USER_GUIDE.md"
 BINARY_PATH="$REPO_ROOT/build/$BINARY"
 
 echo "==> make linux-ru"
@@ -41,6 +43,10 @@ if [ ! -f "$BASE_XML" ]; then
   echo "error: $BASE_XML not found" >&2
   exit 1
 fi
+if [ ! -f "$USER_GUIDE" ]; then
+  echo "error: $USER_GUIDE not found" >&2
+  exit 1
+fi
 
 ssh_cmd() { ssh -i "$SSH_KEY" "$HOST" "$@"; }
 scp_cmd() { scp -i "$SSH_KEY" "$@"; }
@@ -50,6 +56,11 @@ ssh_cmd "systemctl stop $SERVICE"
 
 echo "==> Copying base.xml"
 scp_cmd "$BASE_XML" "$HOST:$REMOTE_DIR/assets/elements/base.xml"
+
+# Every translation too (USER_GUIDE.ru.md, ...): the backend serves the one
+# matching the build's locale, falling back to USER_GUIDE.md.
+echo "==> Copying user guide"
+scp_cmd "$REPO_ROOT"/backend/assets/USER_GUIDE*.md "$HOST:$REMOTE_DIR/assets/"
 
 echo "==> Copying $BINARY"
 scp_cmd "$BINARY_PATH" "$HOST:$REMOTE_DIR/$BINARY"

@@ -18,7 +18,9 @@ A monorepo SCADA-style Single Line Diagram (SLD) editor for Power/Energy control
 storage, SVG rendering, xsde2svg SVG import) and a React + Vite + TypeScript + Tailwind + lucide-react frontend
 (interactive canvas editing). Its diagram files follow the xsde2svg/slddoc conventions.
 
-Other docs in this repo: `README.md` (build/run/packaging), `RELEASE.md` (dated changelog, where each feature's full
+Other docs in this repo: `README.md` (build/run/packaging), `backend/assets/USER_GUIDE.md` + `USER_GUIDE.ru.md`
+(end-user guide in English and Russian, shown in the app by the sidebar's Help button in the build's own locale; keep
+both in step with UI behaviour changes), `RELEASE.md` (dated changelog, where each feature's full
 history lives), `TODO.md` (planned work, incl. the "Reducing frontend/backend traffic" design), `elements.md` (the
 xsde2svg shape list being ported one shape at a time).
 
@@ -70,7 +72,10 @@ storage and the Gin API.
   every segment is validated (`ErrInvalidName`). `List(dir)` returns one folder level only.
 - `internal/api`: routes under `/api` — `diagrams` (list/create), `diagrams/open`, `diagrams/save`, `diagrams/svg`,
   `render`, `render/fragments`, `import/xml`, `import/svg` (runs `slddoc.Extract`, returns `{diagram, report}`),
-  `elements`, `custom-elements`, `config`. **A diagram name/dir is always a query parameter, never a path segment**, because Gin params
+  `elements`, `custom-elements`, `config`, `user-guide` (`internal/api/user_guide.go`: the `user_guide` config file
+  converted from Markdown to an HTML fragment with goldmark on every request, tables on, raw HTML off; `?lang=xx`
+  picks `USER_GUIDE.xx.md` next to it when present, the frontend sending `i18n`'s `locale`; shown by
+  `components/HelpDialog.tsx`, styled by `.guide-content` in `styles/index.css`). **A diagram name/dir is always a query parameter, never a path segment**, because Gin params
   can't carry `/`. Errors map as `ErrInvalidName`→400, `ErrNotFound`→404, `ErrExists`→409.
 - Custom elements: `custom_elements.dir` (`../custom-elements`, tracked in git; `CB.xsld` is the example) holds
   ordinary `.xsld` diagrams used as predefined fragments. `main.go` opens it as a second `storage.Store`, and
@@ -116,8 +121,10 @@ storage and the Gin API.
 - **Ports are fixed per shape** (the "Fixed ports and node topology" section at the end of `diagramOps.ts`). A
   device whose shape declares N terminals (`symbolTerminals`: base.xml `<terminals>`, or a transformer's windings)
   always has exactly N ports, `"1"`…`"N"` in terminal order, each on its own node at the terminal. Wiring never adds
-  a port (`attachElementEnd` picks the terminal's port node, so wires on one terminal share it); only a
-  `BusBarSection` still gets a new port per tap. `placeElement` creates them (`fitElementPorts`), Properties edits
+  a port (`attachElementEnd` picks the terminal's port node, so wires on one terminal share it). A `BusBarSection`
+  is the exception by design: one port per connection point, each on its own node (the downstream topology
+  processor merges them). Any node lying exactly on a busbar's line becomes one of its ports (`joinBusbar`, run when
+  the busbar is drawn/moved/reshaped, on repair; `joinNodesToBusbars` for a wire end or terminal moved onto one). `placeElement` creates them (`fitElementPorts`), Properties edits
   re-fit them with `moveNodes` (orientation/mirror/position/size carry port nodes and wire ends along), and
   `moveSelection` joins a zero-length wire's ends (`removeDegenerateConnectors`) and a dropped terminal to whatever
   lies exactly under it (`joinPortNodes`: merges a node, splits a wire, or taps a busbar). `normalizeTopology`
@@ -128,10 +135,19 @@ storage and the Gin API.
   - **Rendering:** debounced. Each change is diffed against the last render: `'patch'` fetches `/api/render/fragments`
     and swaps just those DOM nodes, `'full'` refetches `/api/render`, `'none'` skips.
   - **Dragging:** mutates the rendered DOM directly and commits to diagram state on mouseup.
+  - **Selection:** click; Shift or Ctrl/Cmd-click toggles (`toggleSelection`); a left-drag from empty canvas draws a
+    selection frame (`startMarquee`/`marqueeHits`: left→right picks only what's fully inside, right→left anything it
+    touches; the result is set with the context's `selectMany`). A multi-selection gets one dashed group box
+    (`selectionBox`, no handles) that can be dragged from its empty space. Left-drag therefore never pans: panning
+    is Space+drag or the middle button (the `TransformWrapper`'s `panning` prop, `spaceHeld`).
+  - **Copy/duplicate:** Ctrl/Cmd+C/V (paste offset `PASTE_OFFSET_STEPS` grid steps from the original,
+    `selectionCentroid`), right-click Copy/Paste, and Alt-drag (`startDuplicateDrag`: cloned DOM preview, copy placed
+    on release). All place through `placeCustomElement` and select the copy (`placeCopy`/`addedItems`).
   - **Overlays:** selection marks, terminals, nodes, and the grid are separate `<svg>` layers drawn from diagram
     state. The grid must sit above the server markup, which paints an opaque background.
-  - **Routing:** only starts while a wire kind is armed from the palette. It starts from a terminal, from
-    Ctrl/Cmd-click on a busbar or connector, or from a double-click on empty canvas. A tap on a connector splits it
+  - **Routing:** only starts while a wire kind is armed from the palette (or via right-click "Start buswork"). It
+    starts from a terminal, from Ctrl/Cmd-click on a busbar or connector, or from a double-click on empty canvas.
+    There is no instant Ctrl/Cmd-click connect any more (`connectElements` was removed). A tap on a connector splits it
     into two halves sharing a junction Node.
 - `components/panels/*`: File (New/Open/Import, folder browser), Elements (renders `config.palette`; item
   classification in `lib/paletteItem.ts` mirrors `ValidatePalette`; a final "Custom elements" group comes from
