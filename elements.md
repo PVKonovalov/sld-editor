@@ -52,7 +52,7 @@
 154 + Предохранитель на тележке (Fuse on truck/withdrawable)
 156 — Резистор (Resistor)
 157 — Тиристор (Thyristor)
-162 ? Disconnector
+162 + Disconnector
 163 - Короткозамыкатель без земли (Short-circuiter without ground)
 164 + Отделитель (Sectionalizer)
 166 — Разъединитель-предохранитель (Disconnector-fuse)
@@ -82,3 +82,4 @@
 3206 — Присоединение РЗД, Разъединитель, Контакт размык./замык.дугогасит. (RZD connection, disconnector, arc-extinguishing contacts)
 320001 + Направление перетока (Powerflow direction)
 320002 - Лампа на опоре ( Lamp on pole)
+320003 + Индикатор прохождения тока КЗ (Fault passage indicator)
