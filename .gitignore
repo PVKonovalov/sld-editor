@@ -37,6 +37,9 @@ go.work.sum
 /diagrams/*
 !/diagrams/.gitkeep
 
+# Custom elements: only the .xsld sources are tracked, never a companion .svg
+/custom-elements/*.svg
+
 # Frontend
 frontend/node_modules/
 frontend/dist/

@@ -20,6 +20,15 @@ type Config struct {
 		Dir string `yaml:"dir" env:"true"`
 	} `yaml:"diagrams"`
 
+	CustomElements struct {
+		// Dir is the directory custom elements are read from: each .xsld
+		// file directly inside it is one predefined diagram fragment (e.g.
+		// a breaker with its disconnectors and ground switches), offered as
+		// a "Custom elements" palette group and placed as a copy of its
+		// whole contents. Subdirectories aren't scanned.
+		Dir string `yaml:"dir" env:"true"`
+	} `yaml:"custom_elements"`
+
 	Elements struct {
 		// Libraries lists element-library XML files (see internal/elements),
 		// merged in order — a later file's definition of a shape overrides

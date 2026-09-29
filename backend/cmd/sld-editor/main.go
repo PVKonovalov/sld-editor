@@ -74,6 +74,11 @@ func main() {
 		llog.Logger.Fatalf("opening diagrams directory (%s): %v", cfg.Diagrams.Dir, err)
 	}
 
+	custom, err := storage.New(cfg.CustomElements.Dir, lib.SymbolLibrary(), cfg.Indicators.DefaultFPIText, fpiColors, stateColors...)
+	if err != nil {
+		llog.Logger.Fatalf("opening custom elements directory (%s): %v", cfg.CustomElements.Dir, err)
+	}
+
 	// SIGTERM is what systemd/Docker/`kill` send by default; SIGINT is
 	// Ctrl-C in an interactive terminal. Either cancels ctx, which Run
 	// treats as "shut down gracefully" rather than aborting in-flight
@@ -81,7 +86,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	srv := api.NewServer(store, lib, &cfg)
+	srv := api.NewServer(store, custom, lib, &cfg)
 	llog.Logger.Infof("sld-editor %s listening on %s", version, cfg.Server.Bind)
 
 	if *openBrowser {

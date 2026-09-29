@@ -7,8 +7,14 @@ import { t, type TranslationKey } from '../../i18n'
 import { elementIconMarkup } from '../../lib/elementIcon'
 import { WIRE_KIND_ICONS } from '../../lib/wireKindIcon'
 import { classifyPaletteItem } from '../../lib/paletteItem'
+import { customElementIconMarkup } from '../../lib/customElementIcon'
 import { categoryDisplayName, elementDisplayName } from '../../lib/elementCatalogI18n'
-import type { ElementSymbol } from '../../types'
+import type { CustomElement, ElementSymbol } from '../../types'
+
+// The "Custom elements" group's own expand/collapse key — not a
+// config.palette group (those come from the server config), so it can't
+// collide with one's own name.
+const CUSTOM_GROUP_KEY = '\u0000custom'
 
 // Labels for the "Wires" group's own buttons/hint text ('BusbarWire' was
 // removed as a palette entry — see wireKindIcon.ts's own doc comment).
@@ -54,6 +60,10 @@ function PaletteButton({
   )
 }
 
+function customElementIcon(custom: CustomElement) {
+  return <span className="shrink-0" dangerouslySetInnerHTML={{ __html: customElementIconMarkup(custom, 28) }} />
+}
+
 function wireKindIcon(kind: keyof typeof WIRE_KIND_ICONS) {
   return <svg viewBox="-32 -32 64 64" width={28} height={28} className="shrink-0" dangerouslySetInnerHTML={{ __html: WIRE_KIND_ICONS[kind] }} />
 }
@@ -75,6 +85,9 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
     armLabel,
     armedDigitalDevice,
     armDigitalDevice,
+    customElements,
+    armedCustomElement,
+    armCustomElement,
   } = useDiagramContext()
 
   const elementsByShape = useMemo(() => {
@@ -115,7 +128,9 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
                 ? t('elements.labelArmedHint')
                 : armedDigitalDevice
                   ? t('elements.digitalDeviceArmedHint')
-                  : t('elements.pickHint')}
+                  : armedCustomElement
+                    ? t('elements.customArmedHint', { name: armedCustomElement.name })
+                    : t('elements.pickHint')}
         </p>
       )}
       <div className="space-y-3">
@@ -201,6 +216,33 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
             )}
           </div>
         ))}
+        {customElements.length > 0 && (
+          <div>
+            <GroupHeader
+              label={t('elements.customGroup')}
+              collapsed={!expandedGroups.has(CUSTOM_GROUP_KEY)}
+              onToggle={() => toggleGroup(CUSTOM_GROUP_KEY)}
+            />
+            {expandedGroups.has(CUSTOM_GROUP_KEY) && (
+              <div className="grid grid-cols-3 gap-1">
+                {customElements.map(custom => {
+                  const active = armedCustomElement?.name === custom.name
+                  return (
+                    <PaletteButton
+                      key={custom.name}
+                      title={custom.name}
+                      label={custom.name}
+                      icon={customElementIcon(custom)}
+                      active={active}
+                      disabled={!diagram}
+                      onClick={() => armCustomElement(active ? null : custom)}
+                    />
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </PanelShell>
   )

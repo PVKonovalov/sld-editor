@@ -70,8 +70,13 @@ storage and the Gin API.
   every segment is validated (`ErrInvalidName`). `List(dir)` returns one folder level only.
 - `internal/api`: routes under `/api` — `diagrams` (list/create), `diagrams/open`, `diagrams/save`, `diagrams/svg`,
   `render`, `render/fragments`, `import/xml`, `import/svg` (runs `slddoc.Extract`, returns `{diagram, report}`),
-  `elements`, `config`. **A diagram name/dir is always a query parameter, never a path segment**, because Gin params
+  `elements`, `custom-elements`, `config`. **A diagram name/dir is always a query parameter, never a path segment**, because Gin params
   can't carry `/`. Errors map as `ErrInvalidName`→400, `ErrNotFound`→404, `ErrExists`→409.
+- Custom elements: `custom_elements.dir` (`../custom-elements`, tracked in git; `CB.xsld` is the example) holds
+  ordinary `.xsld` diagrams used as predefined fragments. `main.go` opens it as a second `storage.Store`, and
+  `GET /api/custom-elements` (`internal/api/custom_elements.go`) returns every file directly inside it as
+  `[{name, diagram, svg}]`, where `svg` is a Static render used as the palette icon. `PUT /api/custom-elements?name=`
+  saves one (bare file name only; 409 on an existing name unless `&overwrite=1`). `make package` ships the folder.
 - `pkg/configuration`, `pkg/llog`: shared MIT-licensed utilities carried over from other projects.
 
 ### The `slddoc` model (sibling module)
@@ -103,7 +108,21 @@ storage and the Gin API.
 - `lib/api.ts`: the only backend caller. It normalizes Go `null` slices to arrays.
 - `lib/diagramOps.ts`: pure, immutable `Diagram → Diagram` editing functions (place/move/connect/route/splice/
   reshape/delete/copy-paste/voltage classes/layers). Every edit goes through these via `updateDiagram`. Untouched
-  entries keep their object reference, which `diffDiagramForRender` relies on.
+  entries keep their object reference, which `diffDiagramForRender` relies on. `placeCustomElement` copies a whole
+  custom element with fresh ids while keeping its node topology (unlike `pasteGroup`, which drops wire-to-wire
+  junctions), and maps voltages by class name, falling back to the default voltage. `extractSelection` is its
+  inverse, used by the canvas context menu's "Save as custom element…" (`SaveCustomElementDialog`). Copy/Paste
+  use the same pair: the clipboard is an `extractSelection` diagram, pasted with `placeCustomElement`.
+- **Ports are fixed per shape** (the "Fixed ports and node topology" section at the end of `diagramOps.ts`). A
+  device whose shape declares N terminals (`symbolTerminals`: base.xml `<terminals>`, or a transformer's windings)
+  always has exactly N ports, `"1"`…`"N"` in terminal order, each on its own node at the terminal. Wiring never adds
+  a port (`attachElementEnd` picks the terminal's port node, so wires on one terminal share it); only a
+  `BusBarSection` still gets a new port per tap. `placeElement` creates them (`fitElementPorts`), Properties edits
+  re-fit them with `moveNodes` (orientation/mirror/position/size carry port nodes and wire ends along), and
+  `moveSelection` joins a zero-length wire's ends (`removeDegenerateConnectors`) and a dropped terminal to whatever
+  lies exactly under it (`joinPortNodes`: merges a node, splits a wire, or taps a busbar). `normalizeTopology`
+  repairs older diagrams on open/import and when a copied group lands, never moving an existing node (an imported
+  diagram may use one node for a whole busbar).
 - `components/Canvas.tsx`: pan/zoom (`react-zoom-pan-pinch`, double-click zoom disabled) and all interaction.
   - **Hit-testing:** reads `data-editor-kind` + `Number(id)` from the server-rendered SVG.
   - **Rendering:** debounced. Each change is diffed against the last render: `'patch'` fetches `/api/render/fragments`
@@ -115,7 +134,8 @@ storage and the Gin API.
     Ctrl/Cmd-click on a busbar or connector, or from a double-click on empty canvas. A tap on a connector splits it
     into two halves sharing a junction Node.
 - `components/panels/*`: File (New/Open/Import, folder browser), Elements (renders `config.palette`; item
-  classification in `lib/paletteItem.ts` mirrors `ValidatePalette`), Settings, and Properties (right-docked, can stay
+  classification in `lib/paletteItem.ts` mirrors `ValidatePalette`; a final "Custom elements" group comes from
+  `DiagramContext.customElements`, armed via `armCustomElement`), Settings, and Properties (right-docked, can stay
   open with the palette; its nothing-selected view holds the diagram's Save/Export, Layers and Voltage classes).
 - `types/index.ts`: hand-kept mirror of the Go JSON shapes. Update it whenever a backend shape changes.
 - `i18n/`: build-time locale, no runtime switcher. `en.ts` is canonical (`as const`), `ru.ts` is typed

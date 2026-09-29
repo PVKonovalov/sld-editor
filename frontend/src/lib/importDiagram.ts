@@ -6,7 +6,7 @@ import * as api from './api'
 import * as diagramOps from './diagramOps'
 import { diagramFileKind } from './fileTransfer'
 import { t } from '../i18n'
-import type { Diagram, EditorConfig, ImportReport } from '../types'
+import type { Diagram, EditorConfig, ElementSymbol, ImportReport } from '../types'
 
 export interface PreparedImport {
   diagram: Diagram
@@ -17,9 +17,15 @@ export interface PreparedImport {
 /** Parses an .xsld as-is, or reconstructs a diagram from an xsde2svg-style
  * .svg (slddoc.Extract, with editor.defaultVoltage defaulted to its most-used
  * extracted voltage class, since Extract never sets one), then applies the
- * same fixes opening a diagram does: ensureLastId and applyPresetVoltageNames.
+ * same fixes opening a diagram does: ensureLastId, applyPresetVoltageNames and
+ * normalizeTopology.
  * Rejects for an unsupported extension. */
-export async function prepareImport(text: string, fileName: string, config: EditorConfig | null): Promise<PreparedImport> {
+export async function prepareImport(
+  text: string,
+  fileName: string,
+  config: EditorConfig | null,
+  symbols: ElementSymbol[],
+): Promise<PreparedImport> {
   const kind = diagramFileKind(fileName)
   if (!kind) throw new Error(t('file.invalidDiagramFile', { name: fileName }))
   let raw: Diagram
@@ -35,5 +41,6 @@ export async function prepareImport(text: string, fileName: string, config: Edit
   } else {
     raw = await api.importDiagramXML(text)
   }
-  return { diagram: diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config), report }
+  const fixed = diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config)
+  return { diagram: diagramOps.normalizeTopology(fixed, symbols), report }
 }

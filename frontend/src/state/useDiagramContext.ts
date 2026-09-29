@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react'
 import type {
   Diagram,
   DiagramEntry,
+  CustomElement,
   ElementSymbol,
   EditorConfig,
   EditorSettings,
@@ -94,6 +95,12 @@ export interface DiagramContextValue {
   armedWireKind: ConnectorKind | null
   armedLabel: boolean
   armedDigitalDevice: boolean
+  // The server's custom elements (GET /api/custom-elements), loaded once at
+  // startup, and the one armed from the palette's "Custom elements" group
+  // for click-to-place (mutually exclusive with every other arm/selection,
+  // single-shot like armedSymbol).
+  customElements: CustomElement[]
+  armedCustomElement: CustomElement | null
 
   // The full mixed multi-selection — any combination of elements,
   // connectors, labels, and digital devices, keyed by id (unique across
@@ -127,6 +134,12 @@ export interface DiagramContextValue {
   armWireKind: (kind: ConnectorKind | null) => void
   armLabel: (armed: boolean) => void
   armDigitalDevice: (armed: boolean) => void
+  armCustomElement: (custom: CustomElement | null) => void
+  // "Save selection as custom element": saves template (see
+  // diagramOps.extractSelection) under name and adds/replaces it in
+  // customElements. Rejects with api.ConflictError when name exists and
+  // overwrite is false.
+  saveCustomElement: (name: string, template: Diagram, overwrite: boolean) => Promise<void>
   deleteSelected: () => void
 
   clearError: () => void

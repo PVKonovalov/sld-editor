@@ -152,7 +152,8 @@ docker-build:
 # config/sld-editor.yaml and assets/elements/ fresh from backend/ (the
 # config's diagrams dir rewritten from "../diagrams" — relative to
 # backend/ during development — to "diagrams", next to the binaries) and
-# an empty diagrams/ folder. Run a binary from inside that folder so its
+# an empty diagrams/ folder, plus custom-elements/ (the repo's own .xsld
+# examples, its config dir rewritten the same way). Run a binary from inside that folder so its
 # default -config config/sld-editor.yaml resolves.
 package:
 	@ls $(BUILD_DIR)/sld-editor-* 2>/dev/null | grep -v -e '\.gz$$' >/dev/null || \
@@ -163,7 +164,9 @@ package:
 		case "$$f" in *.gz) ;; *) cp "$$f" $(PACKAGE_DIR)/$(PACKAGE_NAME)/ ;; esac; \
 	done
 	cp -R $(BACKEND_DIR)/assets/elements $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets/
-	sed 's|dir: "\.\./diagrams"|dir: "diagrams"|' $(BACKEND_DIR)/config/sld-editor.yaml > $(PACKAGE_DIR)/$(PACKAGE_NAME)/config/sld-editor.yaml
+	mkdir -p $(PACKAGE_DIR)/$(PACKAGE_NAME)/custom-elements
+	cp custom-elements/*.xsld $(PACKAGE_DIR)/$(PACKAGE_NAME)/custom-elements/ 2>/dev/null || true
+	sed -e 's|dir: "\.\./diagrams"|dir: "diagrams"|' -e 's|dir: "\.\./custom-elements"|dir: "custom-elements"|' $(BACKEND_DIR)/config/sld-editor.yaml > $(PACKAGE_DIR)/$(PACKAGE_NAME)/config/sld-editor.yaml
 	COPYFILE_DISABLE=1 tar -czf $(BUILD_DIR)/$(PACKAGE_NAME).tar.gz -C $(PACKAGE_DIR) $(PACKAGE_NAME)
 	rm -rf $(PACKAGE_DIR)
 	@echo "created $(BUILD_DIR)/$(PACKAGE_NAME).tar.gz"

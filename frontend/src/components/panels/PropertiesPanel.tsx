@@ -757,11 +757,19 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     isTable ||
     isTable2
 
+  // Re-fits the element's fixed ports afterward, so a change that moves
+  // its terminals (orientation, mirror, position, a Fork's size, a
+  // transformer's winding count) carries its port nodes and the wire ends
+  // on them along — see diagramOps.fitElementPorts.
   function patch(fields: Partial<DiagramElement>) {
-    updateDiagram(d => ({
-      ...d,
-      elements: d.elements.map(e => (e.id === el.id ? { ...e, ...fields } : e)),
-    }))
+    updateDiagram(d =>
+      diagramOps.fitElementPorts(
+        { ...d, elements: d.elements.map(e => (e.id === el.id ? { ...e, ...fields } : e)) },
+        el.id,
+        elements,
+        true,
+      ),
+    )
   }
 
   return (

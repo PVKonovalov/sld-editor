@@ -4237,3 +4237,65 @@ dropping per-function detail already covered by the code and RELEASE.md.
 not done in `elements.md`, and known gaps in already-ported shapes. Dropped the
 descriptions of finished work, already recorded here, and the stale entries
 that listed 16/51/52/55 as not ported.
+
+2026-09-29: Custom elements — predefined diagram fragments (e.g. a breaker
+with its disconnectors and ground switches) placed from the palette like any
+other element. Each one is an ordinary `.xsld` diagram in the new
+`custom_elements.dir` folder (`../custom-elements` by default; `CB.xsld` is
+the bundled example, and `make package` ships the folder). The backend opens
+it as a second diagram store and serves every file in it from
+`GET /api/custom-elements` as `{name, diagram, svg}`. The Elements panel
+lists them in a final "Custom elements" group with a cropped rendering as the
+icon; arming one and clicking the canvas places a full copy
+(`diagramOps.placeCustomElement`) centered on the snapped point, keeping the
+template on-grid. Every node, element, connector, label and digital device
+gets a fresh id and the node topology is kept exactly, so wires meeting at a
+shared junction stay connected. Elements are renamed `<type>-<id>`, voltages
+are matched to the diagram's classes by name (else the default voltage), and
+unknown layers fall back to the base layer. Placing is single-shot and Esc
+cancels, like every other palette tool. Added `placeElement`'s shared
+`NO_VOLTAGE_CLASSES` set, and English/Russian strings for the new group.
+
+2026-09-29: Save selection as custom element. Right-clicking a selection now
+offers "Save as custom element…", which asks for a name
+(`SaveCustomElementDialog`) and saves the selection to the custom-elements
+folder via the new `PUT /api/custom-elements?name=` (a bare file name; an
+existing name returns 409 and the dialog then offers Overwrite, which resends
+with `&overwrite=1`). The new element appears in the palette right away.
+`diagramOps.extractSelection` builds the saved diagram: only the selected
+elements, connectors, labels and digital devices, plus exactly the nodes,
+voltage classes and layers they reference (base layer always included). An
+unselected wire touching a selected element is left out, but the element
+keeps its port and node. Label.for is kept only when its element is selected
+too. The contents are shifted by whole grid steps to start one step from the
+top-left, the page is cropped to fit, and the editor settings are copied.
+
+2026-09-29: Fixed ports per shape, and a crash that blocked all wiring. A
+one-point wire in a diagram made every pointer move and click while drawing a
+wire throw (`snapPointOnSegment` read a missing second point), so no wire
+could be finished anywhere in that diagram; such a wire came from dragging a
+device so its terminal landed exactly on a wire's far end, which squeezed
+that wire to zero length. Now: target search skips wires with fewer than two
+points; `moveSelection` joins a zero-length wire's two ends into one node
+instead (`removeDegenerateConnectors`), and a dropped device's terminal joins
+whatever lies exactly under it (`joinPortNodes`: merges a node there, splits a
+wire passing through it, or taps a busbar). Ports are now a fixed property of
+the shape: a device with N terminals always has exactly N ports named "1".."N"
+in terminal order, each on its own node, created on placement
+(`fitElementPorts`). Wiring no longer appends a port per wire
+(`attachElementEnd` uses the terminal's port node, so several wires on one
+terminal share it; only a busbar still gets a port per tap), deleting a wire
+keeps them, and editing orientation/mirror/position/size in Properties moves
+the port nodes and attached wire ends along. Copy/Paste now reuse the custom
+element pair (`extractSelection` + `placeCustomElement`), so pasted devices
+keep all their ports and junctions (the old `copySelection`/`pasteGroup`,
+which dropped ports, are removed). `normalizeTopology` repairs older diagrams
+on open/import and whenever a copied group lands: it adds missing ports,
+merges duplicates on one terminal, and removes zero-length wires, without
+moving existing nodes (an SVG import may use one node for a whole busbar);
+the diagram is then marked changed. Checked on all 430 saved diagrams: every
+device ends with exactly its terminal count, no wire-connected group of
+devices is split, no node moves, 110 ms for the largest (7,832 devices). The
+Junction point (7) got a terminal at its dot (matching slddoc's single port),
+and `custom-elements/CB.xsld` was rewritten in the repaired form (both ground
+switches are real junctions, Disconnector-3 has both ports).

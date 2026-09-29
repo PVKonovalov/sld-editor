@@ -9,6 +9,21 @@ Open tasks only. Finished work is recorded in RELEASE.md.
       whole-element drag re-routes, via `diagramOps.moveElements`).
 - [ ] Undo/redo.
 
+## Custom elements
+
+Placing one from the palette works (see RELEASE.md, 2026-09-29). Still to do:
+
+- [ ] Auto-connect a custom element's open wire ends when it's dropped with one on a terminal, busbar or connector.
+- [ ] Show a live preview of the custom element under the cursor while it's armed.
+- [ ] Optionally, live-linked instances that update when their definition changes.
+
+## Ports and topology
+
+- [ ] Joining on drop (`joinPortNodes`) only catches exact coincidence; a terminal dropped a few units off a wire
+      still needs a wire drawn to it.
+- [ ] A BusBarSection's ports still grow per tap (it has no fixed terminals); tapping the same point twice adds a
+      second port.
+
 ## Shapes not yet ported
 
 xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one needs a template in

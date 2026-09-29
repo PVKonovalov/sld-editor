@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diagram width="200" height="200" lastId="25">
+  <editor gridSpacing="10" snap="true" background="#12161d"/>
+  <layers>
+    <layer id="0" name="Base"/>
+  </layers>
+  <nodes>
+    <node id="4" x="90" y="70"/>
+    <node id="5" x="90" y="50"/>
+    <node id="7" x="90" y="110"/>
+    <node id="8" x="90" y="90"/>
+    <node id="10" x="90" y="30"/>
+    <node id="11" x="90" y="20"/>
+    <node id="21" x="90" y="130"/>
+    <node id="22" x="90" y="60"/>
+    <node id="24" x="90" y="100"/>
+  </nodes>
+  <elements>
+    <element id="1" class="Breaker" shape="41" name="Breaker-1" layer="0" x="90" y="80" state="1">
+      <port name="1" node="4"/>
+      <port name="2" node="8"/>
+    </element>
+    <element id="2" class="Disconnector" shape="162" name="Disconnector-2" layer="0" x="90" y="40" state="1">
+      <port name="1" node="10"/>
+      <port name="2" node="5"/>
+    </element>
+    <element id="3" class="Disconnector" shape="162" name="Disconnector-3" layer="0" x="90" y="120" state="1">
+      <port name="1" node="7"/>
+      <port name="2" node="21"/>
+    </element>
+    <element id="19" class="GroundSwitch" shape="54" name="Ground switch-19" layer="0" x="100" y="60" orient="90" state="0">
+      <port name="1" node="22"/>
+    </element>
+    <element id="20" class="GroundSwitch" shape="54" name="Ground switch-20" layer="0" x="100" y="100" orient="90" state="0">
+      <port name="1" node="24"/>
+    </element>
+  </elements>
+  <connectors>
+    <connector id="12" kind="BusWork" layer="0" from="10" to="11">
+      <point x="90" y="30"/>
+      <point x="90" y="20"/>
+    </connector>
+    <connector id="6" kind="BusWork" layer="0" from="4" to="22">
+      <point x="90" y="70"/>
+      <point x="90" y="60"/>
+    </connector>
+    <connector id="23" kind="BusWork" layer="0" from="22" to="5">
+      <point x="90" y="60"/>
+      <point x="90" y="50"/>
+    </connector>
+    <connector id="16" kind="BusWork" layer="0" from="7" to="24">
+      <point x="90" y="110"/>
+      <point x="90" y="100"/>
+    </connector>
+    <connector id="25" kind="BusWork" layer="0" from="24" to="8">
+      <point x="90" y="100"/>
+      <point x="90" y="90"/>
+    </connector>
+  </connectors>
+</diagram>

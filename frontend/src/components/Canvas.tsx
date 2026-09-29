@@ -8,6 +8,7 @@ import { arcBounds, arcMidpoint, arcPathD, circularArcThrough, defaultArcBulge, 
 import { clientToDiagramPoint, nearestSegmentOnPolyline, snapPointOnSegment, snapValue } from '../lib/geometry'
 import { t } from '../i18n'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { SaveCustomElementDialog } from './SaveCustomElementDialog'
 import type { Diagram, DiagramElement, Connector, Label, DigitalDevice, Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
@@ -348,6 +349,7 @@ export function Canvas() {
     armedWireKind,
     armedLabel,
     armedDigitalDevice,
+    armedCustomElement,
     defaultVoltage,
     selectElement,
     selectConnector,
@@ -357,6 +359,7 @@ export function Canvas() {
     armWireKind,
     armLabel,
     armDigitalDevice,
+    armCustomElement,
     deleteSelected,
     updateDiagram,
   } = useDiagramContext()
@@ -368,13 +371,15 @@ export function Canvas() {
   const [pointDrag, setPointDrag] = useState<PointDrag | null>(null)
   const [labelDrag, setLabelDrag] = useState<LabelDrag | null>(null)
   const [digitalDeviceDrag, setDigitalDeviceDrag] = useState<DigitalDeviceDrag | null>(null)
-  const [clipboard, setClipboard] = useState<diagramOps.ClipboardGroup>({
-    elements: [],
-    connectors: [],
-    labels: [],
-    digitalDevices: [],
-  })
+  // What Copy captured: the selection as a standalone diagram
+  // (diagramOps.extractSelection), pasted the same way a custom element is
+  // placed so its ports and junctions come along intact.
+  const [clipboard, setClipboard] = useState<Diagram | null>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null)
+  // The selection being saved via the context menu's "Save as custom
+  // element…" (diagramOps.extractSelection's result) while its name dialog
+  // is open.
+  const [customElementTemplate, setCustomElementTemplate] = useState<Diagram | null>(null)
   const [routing, setRouting] = useState<Routing | null>(null)
   const [routingCursor, setRoutingCursor] = useState<Point | null>(null)
   // An in-progress pen-tool Polygon (armedSymbol shape 16): the vertices
@@ -784,6 +789,7 @@ export function Canvas() {
         else if (armedWireKind) armWireKind(null)
         else if (armedLabel) armLabel(false)
         else if (armedDigitalDevice) armDigitalDevice(false)
+        else if (armedCustomElement) armCustomElement(null)
         else selectElement(null)
       }
     }
@@ -798,11 +804,13 @@ export function Canvas() {
     armedWireKind,
     armedLabel,
     armedDigitalDevice,
+    armedCustomElement,
     deleteSelected,
     armSymbol,
     armWireKind,
     armLabel,
     armDigitalDevice,
+    armCustomElement,
     selectElement,
     contextMenu,
     routing,
@@ -938,6 +946,9 @@ export function Canvas() {
     if (includeBusbars) {
       for (const c of diagram!.connectors) {
         if (exclude?.kind === 'connector' && c.id === exclude.connectorId) continue
+        // A wire with fewer than two points has no segment to tap (one can
+        // still exist in a diagram saved before removeDegenerateConnectors).
+        if (c.points.length < 2) continue
         const candidate = nearestTargetOnConnector(c, point)
         const dist = Math.hypot(candidate.point.x - point.x, candidate.point.y - point.y)
         if (dist < bestDist) {
@@ -1150,7 +1161,7 @@ export function Canvas() {
     if (hit) {
       const connectorId = Number(hit.id)
       const connector = diagram!.connectors.find(c => c.id === connectorId)
-      if (!connector) return
+      if (!connector || connector.points.length < 2) return
       e.stopPropagation()
       const { index, point } = nearestSegmentOnPolyline(connector.points, toPoint(e.clientX, e.clientY))
       updateDiagram(d => diagramOps.insertConnectorVertex(d, connectorId, index, snapPoint(point)))
@@ -1403,6 +1414,15 @@ export function Canvas() {
       return
     }
 
+    if (armedCustomElement) {
+      e.stopPropagation()
+      updateDiagram(d =>
+        diagramOps.placeCustomElement(d, armedCustomElement.diagram, snapPoint(point), elements, snapPoint, defaultVoltage),
+      )
+      armCustomElement(null)
+      return
+    }
+
     // A plain click landing on an element's own terminal (or, for a shape
     // with none defined, its bare anchor) starts a route from there
     // instead of the usual select/drag — but only while a wire kind is
@@ -1636,6 +1656,7 @@ export function Canvas() {
       armedWireKind ||
       armedLabel ||
       armedDigitalDevice ||
+      armedCustomElement ||
       newBusbar ||
       pointDrag ||
       ghost ||
@@ -1692,17 +1713,17 @@ export function Canvas() {
               {
                 label: t('contextMenu.copy'),
                 onSelect: () => {
-                  setClipboard(
-                    diagramOps.copySelection(diagram, {
-                      elementIds: elementSelection,
-                      connectorIds: connectorSelection,
-                      labelIds: labelSelection,
-                      digitalDeviceIds: digitalDeviceSelection,
-                    }),
-                  )
+                  setClipboard(diagramOps.extractSelection(diagram, selection, gridSpacing))
                 },
               },
               { label: t('contextMenu.delete'), onSelect: deleteSelected },
+              {
+                label: t('contextMenu.saveCustomElement'),
+                onSelect: () =>
+                  setCustomElementTemplate(
+                    diagramOps.extractSelection(diagram, selection, gridSpacing),
+                  ),
+              },
             ]
           : []),
         // Starts the click-to-route tool right from this element/connector
@@ -1723,7 +1744,8 @@ export function Canvas() {
               },
             ]
           : []),
-        ...(contextMenu.connectorId !== null
+        ...(contextMenu.connectorId !== null &&
+        (diagram.connectors.find(c => c.id === contextMenu.connectorId)?.points.length ?? 0) >= 2
           ? [
               {
                 label: t('contextMenu.startBuswork'),
@@ -1742,7 +1764,8 @@ export function Canvas() {
         // unlike the generic Delete above (which already covers "delete
         // the whole wire" whenever this connector is part of the current
         // selection, so there's no separate "Delete wire" item any more).
-        ...(contextMenu.connectorId !== null
+        ...(contextMenu.connectorId !== null &&
+        (diagram.connectors.find(c => c.id === contextMenu.connectorId)?.points.length ?? 0) >= 2
           ? [
               {
                 label: t('contextMenu.deleteSegment'),
@@ -1757,13 +1780,12 @@ export function Canvas() {
           : []),
         {
           label: t('contextMenu.paste'),
-          disabled:
-            clipboard.elements.length === 0 &&
-            clipboard.connectors.length === 0 &&
-            clipboard.labels.length === 0 &&
-            clipboard.digitalDevices.length === 0,
+          disabled: clipboard === null,
           onSelect: () => {
-            updateDiagram(d => diagramOps.pasteGroup(d, clipboard, contextMenu.diagramPoint, snapPoint))
+            if (!clipboard) return
+            updateDiagram(d =>
+              diagramOps.placeCustomElement(d, clipboard, contextMenu.diagramPoint, elements, snapPoint, defaultVoltage),
+            )
           },
         },
       ]
@@ -1808,6 +1830,7 @@ export function Canvas() {
           !!armedWireKind ||
           !!armedLabel ||
           !!armedDigitalDevice ||
+          !!armedCustomElement ||
           !!ghost ||
           !!pointDrag ||
           !!routing ||
@@ -1830,7 +1853,7 @@ export function Canvas() {
               width: diagram.width,
               height: diagram.height,
               cursor:
-                armedSymbol || armedWireKind || armedLabel || armedDigitalDevice || routing
+                armedSymbol || armedWireKind || armedLabel || armedDigitalDevice || armedCustomElement || routing
                   ? 'crosshair'
                   : 'default',
             }}
@@ -2454,6 +2477,9 @@ export function Canvas() {
           items={contextMenuItems}
           onClose={() => setContextMenu(null)}
         />
+      )}
+      {customElementTemplate && (
+        <SaveCustomElementDialog template={customElementTemplate} onClose={() => setCustomElementTemplate(null)} />
       )}
     </div>
   )

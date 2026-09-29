@@ -1,4 +1,5 @@
 import type {
+  CustomElement,
   Diagram,
   DiagramWire,
   DiagramEntry,
@@ -181,6 +182,35 @@ export async function importDiagramSVG(svgText: string): Promise<{ diagram: Diag
 export async function listElements(): Promise<ElementSymbol[]> {
   const res = await fetch(`${BASE}/elements`)
   return asJSON(res)
+}
+
+/** Lists the server's custom elements (see CustomElement), each fully
+ * loaded, for the Elements palette's "Custom elements" group. */
+export async function listCustomElements(): Promise<CustomElement[]> {
+  const res = await fetch(`${BASE}/custom-elements`)
+  const data = await asJSON<(Omit<CustomElement, 'diagram'> & { diagram: DiagramWire })[] | null>(res)
+  return (data ?? []).map(c => ({ ...c, diagram: normalizeDiagram(c.diagram) }))
+}
+
+/** Saves diagram as a custom element named name (a bare file name, no "/")
+ * and returns the new palette entry. Throws ConflictError when the name is
+ * already taken and overwrite isn't set. */
+export async function saveCustomElement(name: string, diagram: Diagram, overwrite: boolean): Promise<CustomElement> {
+  const res = await fetch(
+    `${BASE}/custom-elements?name=${encodeURIComponent(name)}${overwrite ? '&overwrite=1' : ''}`,
+    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(diagram) },
+  )
+  if (res.status === 409) throw new ConflictError(name)
+  const data = await asJSON<Omit<CustomElement, 'diagram'> & { diagram: DiagramWire }>(res)
+  return { ...data, diagram: normalizeDiagram(data.diagram) }
+}
+
+/** Thrown by saveCustomElement when name already exists (HTTP 409). */
+export class ConflictError extends Error {
+  constructor(name: string) {
+    super(`"${name}" already exists`)
+    this.name = 'ConflictError'
+  }
 }
 
 export async function getConfig(): Promise<EditorConfig> {

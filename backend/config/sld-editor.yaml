@@ -1,5 +1,5 @@
 server:
-  bind: "0.0.0.0:8090"
+  bind: "0.0.0.0:8099"
 
 logging:
   level: info
@@ -8,6 +8,12 @@ diagrams:
   # Relative to the backend process's working directory (intended to be run
   # from backend/, e.g. `go run ./cmd/sld-editor -config config/sld-editor.yaml`).
   dir: "../diagrams"
+
+custom_elements:
+  # Predefined diagram fragments offered in the Elements palette's "Custom
+  # elements" group: every .xsld file directly inside this directory (an
+  # ordinary diagram, made and saved in the editor itself) is one entry.
+  dir: "../custom-elements"
 
 elements:
   # Element-library XML files, merged in order (a later file's definition of

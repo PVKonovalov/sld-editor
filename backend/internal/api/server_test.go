@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -37,7 +38,12 @@ func newTestServer(t *testing.T) *Server {
 	cfg.Editor.Background = "#12161d"
 	cfg.VoltageColors = []config.VoltageColor{{Name: "10 kV", Color: "#962896"}}
 
-	return NewServer(store, lib, cfg)
+	custom, err := storage.New(t.TempDir(), lib.SymbolLibrary(), "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return NewServer(store, custom, lib, cfg)
 }
 
 func doJSON(t *testing.T, s *Server, method, path string, body any) *httptest.ResponseRecorder {
@@ -413,5 +419,75 @@ func TestListElementsAndConfig(t *testing.T) {
 	}
 	if len(cfgResp.VoltageColors) != 1 || cfgResp.VoltageColors[0].Color != "#962896" {
 		t.Errorf("voltage colors = %+v", cfgResp.VoltageColors)
+	}
+}
+
+func TestListCustomElements(t *testing.T) {
+	s := newTestServer(t)
+
+	rec := doJSON(t, s, http.MethodGet, "/api/custom-elements", nil)
+	if rec.Code != http.StatusOK || strings.TrimSpace(rec.Body.String()) != "[]" {
+		t.Fatalf("empty dir: status = %d, body = %s, want 200 []", rec.Code, rec.Body.String())
+	}
+
+	d := &slddoc.Diagram{
+		Width: 100, Height: 100,
+		Elements: []slddoc.Element{{ID: 1, Class: "Breaker", Shape: "41", Name: "Breaker-1", X: 50, Y: 50}},
+	}
+	if _, err := s.custom.Save("CB", d); err != nil {
+		t.Fatal(err)
+	}
+
+	rec = doJSON(t, s, http.MethodGet, "/api/custom-elements", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+	var got []customElement
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Name != "CB" || len(got[0].Diagram.Elements) != 1 {
+		t.Fatalf("custom elements = %+v, want the one saved CB", got)
+	}
+	if !strings.Contains(got[0].SVG, "<svg") || strings.Contains(got[0].SVG, "data-editor-kind") {
+		t.Errorf("svg should be a Static render, got %q", got[0].SVG)
+	}
+}
+
+func TestSaveCustomElement(t *testing.T) {
+	s := newTestServer(t)
+	d := slddoc.Diagram{
+		Width: 40, Height: 40,
+		Elements: []slddoc.Element{{ID: 1, Class: "Breaker", Shape: "41", Name: "Breaker-1", X: 20, Y: 20}},
+	}
+
+	rec := doJSON(t, s, http.MethodPut, "/api/custom-elements?name=Bay", d)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var got customElement
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "Bay" || len(got.Diagram.Elements) != 1 || !strings.Contains(got.SVG, "<svg") {
+		t.Errorf("created entry = %+v", got)
+	}
+
+	if rec := doJSON(t, s, http.MethodPut, "/api/custom-elements?name=Bay", d); rec.Code != http.StatusConflict {
+		t.Errorf("duplicate: status = %d, want 409", rec.Code)
+	}
+	d.Elements[0].Name = "Renamed"
+	if rec := doJSON(t, s, http.MethodPut, "/api/custom-elements?name=Bay&overwrite=1", d); rec.Code != http.StatusOK {
+		t.Errorf("overwrite: status = %d, want 200", rec.Code)
+	}
+	loaded, err := s.custom.Load("Bay")
+	if err != nil || loaded.Elements[0].Name != "Renamed" {
+		t.Errorf("after overwrite: %+v, %v", loaded, err)
+	}
+
+	for _, bad := range []string{"", "a/b", "..", " x"} {
+		if rec := doJSON(t, s, http.MethodPut, "/api/custom-elements?name="+url.QueryEscape(bad), d); rec.Code != http.StatusBadRequest {
+			t.Errorf("name %q: status = %d, want 400", bad, rec.Code)
+		}
 	}
 }

@@ -29,12 +29,15 @@ const shutdownTimeout = 10 * time.Second
 type Server struct {
 	router *gin.Engine
 	store  *storage.Store
+	custom *storage.Store
 	lib    *elements.Library
 	cfg    *config.Config
 }
 
-// NewServer builds a ready-to-run Server.
-func NewServer(store *storage.Store, lib *elements.Library, cfg *config.Config) *Server {
+// NewServer builds a ready-to-run Server. custom is the custom-elements
+// store (config.Config.CustomElements.Dir), read-only from the API's side;
+// nil serves an empty custom-elements list.
+func NewServer(store, custom *storage.Store, lib *elements.Library, cfg *config.Config) *Server {
 	r := gin.Default()
 	// A diagram's own rendered SVG (and, for a large one, its JSON form
 	// too) is repetitive text — highly compressible — so this alone cuts
@@ -50,7 +53,7 @@ func NewServer(store *storage.Store, lib *elements.Library, cfg *config.Config) 
 	// reverse proxy, so there is no X-Forwarded-For chain to trust.
 	_ = r.SetTrustedProxies(nil)
 
-	s := &Server{router: r, store: store, lib: lib, cfg: cfg}
+	s := &Server{router: r, store: store, custom: custom, lib: lib, cfg: cfg}
 	s.routes()
 	return s
 }
@@ -109,6 +112,8 @@ func (s *Server) routes() {
 	grp.POST("/import/xml", s.importDiagramXML)
 	grp.POST("/import/svg", s.importDiagramSVG)
 	grp.GET("/elements", s.listElements)
+	grp.GET("/custom-elements", s.listCustomElements)
+	grp.PUT("/custom-elements", s.saveCustomElement)
 	grp.GET("/config", s.getConfig)
 
 	s.mountWebUI()

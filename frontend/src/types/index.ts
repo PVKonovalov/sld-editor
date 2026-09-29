@@ -440,6 +440,17 @@ export interface ElementSymbol {
   template: string
 }
 
+// Matches backend/internal/api.customElement: one entry of the Elements
+// palette's "Custom elements" group — a whole predefined diagram fragment
+// (an ordinary .xsld saved in the server's custom-elements directory),
+// placed as a copy of its contents by diagramOps.placeCustomElement. svg is
+// its Static rendering, used for the palette icon.
+export interface CustomElement {
+  name: string
+  diagram: Diagram
+  svg: string
+}
+
 export interface VoltageColor {
   name: string
   color: string

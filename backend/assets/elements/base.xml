@@ -203,6 +203,11 @@
     <template><![CDATA[
 <circle cx="0" cy="0" r="{junctionRadius}" style="fill:{junctionFill};stroke:{color};stroke-width:1" />
 ]]></template>
+    <!-- One terminal at the dot itself, matching slddoc's parseJunctionPoint
+         (a single port): every wire meeting here shares its node. -->
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
   </symbol>
 
   <!-- 26 Развилка (Fork) — ported from xsde2svg's own element_26.go

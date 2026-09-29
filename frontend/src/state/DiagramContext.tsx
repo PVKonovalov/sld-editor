@@ -8,6 +8,7 @@ import { t } from '../i18n'
 import type {
   Diagram,
   DiagramEntry,
+  CustomElement,
   ElementSymbol,
   EditorConfig,
   EditorSettings,
@@ -48,6 +49,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [armedWireKind, setArmedWireKindState] = useState<ConnectorKind | null>(null)
   const [armedLabel, setArmedLabelState] = useState(false)
   const [armedDigitalDevice, setArmedDigitalDeviceState] = useState(false)
+  const [customElements, setCustomElements] = useState<CustomElement[]>([])
+  const [armedCustomElement, setArmedCustomElementState] = useState<CustomElement | null>(null)
   const [defaultVoltage, setDefaultVoltage] = useState<number | undefined>(undefined)
   const [importLog, setImportLog] = useState<ImportLog | null>(null)
   const [importLogOpen, setImportLogOpen] = useState(false)
@@ -74,6 +77,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       .then(els => setElements(els ?? []))
       .catch(e => setError((e as Error).message))
     api.getConfig().then(setConfig).catch(e => setError((e as Error).message))
+    api
+      .listCustomElements()
+      .then(setCustomElements)
+      .catch(e => setError((e as Error).message))
   }, [browseDir])
 
   // Keeps the browser tab title in sync with whichever diagram is open —
@@ -107,6 +114,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setSelectedLabelIdState(null)
     setSelectedDigitalDeviceIdState(null)
     setArmedSymbolState(null)
+    setArmedCustomElementState(null)
   }, [])
 
   const selectConnector = useCallback((id: number | null) => {
@@ -116,6 +124,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setSelectedLabelIdState(null)
     setSelectedDigitalDeviceIdState(null)
     setArmedSymbolState(null)
+    setArmedCustomElementState(null)
   }, [])
 
   const selectLabel = useCallback((id: number | null) => {
@@ -125,6 +134,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setSelectedConnectorIdState(null)
     setSelectedDigitalDeviceIdState(null)
     setArmedSymbolState(null)
+    setArmedCustomElementState(null)
   }, [])
 
   const selectDigitalDevice = useCallback((id: number | null) => {
@@ -134,6 +144,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setSelectedConnectorIdState(null)
     setSelectedLabelIdState(null)
     setArmedSymbolState(null)
+    setArmedCustomElementState(null)
   }, [])
 
   const armSymbol = useCallback((symbol: ElementSymbol | null) => {
@@ -141,6 +152,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedWireKindState(null)
     setArmedLabelState(false)
     setArmedDigitalDeviceState(false)
+    setArmedCustomElementState(null)
     setSelectedElementIdState(null)
     setSelection(new Map())
     setSelectedConnectorIdState(null)
@@ -158,6 +170,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedSymbolState(null)
     setArmedLabelState(false)
     setArmedDigitalDeviceState(false)
+    setArmedCustomElementState(null)
     setSelectedElementIdState(null)
     setSelection(new Map())
     setSelectedConnectorIdState(null)
@@ -173,6 +186,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedSymbolState(null)
     setArmedWireKindState(null)
     setArmedDigitalDeviceState(false)
+    setArmedCustomElementState(null)
     setSelectedElementIdState(null)
     setSelection(new Map())
     setSelectedConnectorIdState(null)
@@ -189,6 +203,23 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedSymbolState(null)
     setArmedWireKindState(null)
     setArmedLabelState(false)
+    setArmedCustomElementState(null)
+    setSelectedElementIdState(null)
+    setSelection(new Map())
+    setSelectedConnectorIdState(null)
+    setSelectedLabelIdState(null)
+    setSelectedDigitalDeviceIdState(null)
+  }, [])
+
+  // The Elements panel's "Custom elements" group — click-to-place a copy of
+  // a whole predefined diagram fragment (diagramOps.placeCustomElement),
+  // mutually exclusive with every other arm/selection the same way.
+  const armCustomElement = useCallback((custom: CustomElement | null) => {
+    setArmedCustomElementState(custom)
+    setArmedSymbolState(null)
+    setArmedWireKindState(null)
+    setArmedLabelState(false)
+    setArmedDigitalDeviceState(false)
     setSelectedElementIdState(null)
     setSelection(new Map())
     setSelectedConnectorIdState(null)
@@ -282,7 +313,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       const raw = await api.getDiagram(name)
       // Both return the same reference when there's nothing to fix, so
       // d !== raw below still means "something actually changed".
-      const d = diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config)
+      const d = diagramOps.normalizeTopology(
+        diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config),
+        elements,
+      )
       setDiagramName(name)
       setDiagram(d)
       // ensureLastId returns the same object reference when it found
@@ -292,7 +326,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       // in-memory session, so it's flagged dirty the same as any other
       // edit rather than silently staying fixed only until the tab closes.
       // The same goes for a voltage class renamed from its preset
-      // (applyPresetVoltageNames).
+      // (applyPresetVoltageNames) and a topology repair (normalizeTopology:
+      // missing fixed ports, duplicate ports, zero-length wires).
       setDirty(d !== raw)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
@@ -305,7 +340,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       // some other way (e.g. a future "recent files" list).
       await browseDir(parentDir(name))
     },
-    [clearSelection, browseDir, config],
+    [clearSelection, browseDir, config, elements],
   )
 
   // Loads a dropped/picked file (see lib/importDiagram's prepareImport for
@@ -317,7 +352,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // report as importLog (and opens the import log dialog).
   const loadDiagramFromFile = useCallback(
     async (text: string, fileName: string, name: string) => {
-      const { diagram: d, report } = await prepareImport(text, fileName, config)
+      const { diagram: d, report } = await prepareImport(text, fileName, config, elements)
       const log: ImportLog | null = report ? { fileName, report } : null
       setDiagramName(name)
       setDiagram(d)
@@ -332,7 +367,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setDefaultVoltagePromptOpen(log === null && diagramOps.needsDefaultVoltage(d))
       await browseDir(parentDir(name))
     },
-    [clearSelection, browseDir, config],
+    [clearSelection, browseDir, config, elements],
   )
 
   // importDiagramFile is what a single-file drop/pick calls: it checks
@@ -387,7 +422,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           continue
         }
         try {
-          const { diagram: d } = await prepareImport(file.text, file.fileName, config)
+          const { diagram: d } = await prepareImport(file.text, file.fileName, config, elements)
           const { warning } = await api.saveDiagram(name, d)
           existing.add(baseName(name))
           items.push({ fileName: file.fileName, name, status: 'saved', message: warning })
@@ -397,7 +432,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       }
       return items
     },
-    [config],
+    [config, elements],
   )
 
   const importDiagramFiles = useCallback(
@@ -485,6 +520,15 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
 
   const clearError = useCallback(() => setError(null), [])
 
+  const saveCustomElement = useCallback(async (name: string, template: Diagram, overwrite: boolean) => {
+    const saved = await api.saveCustomElement(name, template, overwrite)
+    setCustomElements(prev =>
+      [...prev.filter(c => c.name !== saved.name), saved].sort((a, b) =>
+        a.name.toLowerCase().localeCompare(b.name.toLowerCase()),
+      ),
+    )
+  }, [])
+
   const value = useMemo<DiagramContextValue>(
     () => ({
       diagramName,
@@ -506,6 +550,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       armedWireKind,
       armedLabel,
       armedDigitalDevice,
+      customElements,
+      armedCustomElement,
       defaultVoltage,
       setDefaultVoltage,
       selectElement,
@@ -516,6 +562,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       armWireKind,
       armLabel,
       armDigitalDevice,
+      armCustomElement,
+      saveCustomElement,
       deleteSelected,
       clearError,
       newDiagram,
@@ -559,6 +607,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       armedWireKind,
       armedLabel,
       armedDigitalDevice,
+      customElements,
+      armedCustomElement,
       defaultVoltage,
       setDefaultVoltage,
       selectElement,
@@ -569,6 +619,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       armWireKind,
       armLabel,
       armDigitalDevice,
+      armCustomElement,
+      saveCustomElement,
       deleteSelected,
       clearError,
       newDiagram,

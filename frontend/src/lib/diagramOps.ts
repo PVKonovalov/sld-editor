@@ -409,6 +409,21 @@ function powerTransformerDefaults(defaultVoltage?: number): Pick<DiagramElement,
   }
 }
 
+// Element classes that never carry a voltage class of their own, so are
+// never seeded with defaultVoltage: the click-to-placed indicators/
+// decorations placeElement skips (see its own comment), plus every
+// decorative Points-based class (drawn by their own place* functions,
+// none of which seeds a voltage either). BusBarSection is the one
+// Points-based class that does carry one.
+const NO_VOLTAGE_CLASSES: ReadonlySet<ElementClass> = new Set<ElementClass>([
+  'Lamp',
+  'FaultPassageIndicator',
+  'PostPole',
+  'PowerflowIndicator',
+  'Table2',
+  ...[...POINTS_BASED_CLASSES].filter(c => c !== 'BusBarSection'),
+])
+
 export function placeElement(
   diagram: Diagram,
   symbol: ElementSymbol,
@@ -441,13 +456,7 @@ export function placeElement(
     // Table2 (313) — same non-electrical status as Table (312)/Rectangle/
     // Button, just click-to-place (a single anchor) instead of one of
     // those three's own dedicated drag-to-draw.
-    ...(elementClass === 'Lamp' ||
-    elementClass === 'FaultPassageIndicator' ||
-    elementClass === 'PostPole' ||
-    elementClass === 'PowerflowIndicator' ||
-    elementClass === 'Table2'
-      ? {}
-      : { voltage: defaultVoltage }),
+    ...(NO_VOLTAGE_CLASSES.has(elementClass) ? {} : { voltage: defaultVoltage }),
     x: point.x,
     y: point.y,
     ...(DEFAULT_CLOSED_CLASSES.has(elementClass) ? { state: STATE_CLOSE } : {}),
@@ -462,7 +471,9 @@ export function placeElement(
     ...(elementClass === 'PowerTransformer' ? powerTransformerDefaults(defaultVoltage) : {}),
     ...(elementClass === 'Table2' ? table2Defaults() : {}),
   }
-  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+  // Every fixed Port exists from the start (see fitElementPorts), joined to
+  // whatever wire or node the new element was dropped exactly onto.
+  return fitElementPorts({ ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }, id, [symbol])
 }
 
 /** Places a new BusBarSection spanning start..end — busbars are drawn from
@@ -873,258 +884,236 @@ export function updateArcBulge(diagram: Diagram, id: number, bulge: Point): Diag
   }
 }
 
-// What Copy captures for Paste: the element's own data minus its id (a
-// paste always gets a fresh one) and Ports (a pasted copy starts
-// unconnected — its ports referenced its old Node ids, which a copy has no
-// claim to).
-export type ClipboardEntry = Omit<DiagramElement, 'id' | 'ports'>
-
-/** Captures an element for a later Paste. */
-export function copyElement(el: DiagramElement): ClipboardEntry {
-  const { ports: _ports, ...rest } = el
-  return rest
-}
-
-/** Places a copied element at point — its anchor for most classes; for a
- * BusBarSection or Rectangle (see POINTS_BASED_CLASSES), point becomes the
- * new midpoint and the whole shape is translated to match, preserving its
- * length/angle/size (mirrors placeBusbar's own start..end -> anchor
- * convention). Named the same way a freshly placed element is —
- * "<type>-<id>" (e.g. "Busbar-5") — rather than "<original name> copy", so
- * a pasted copy reads like any other new element instead of accumulating
- * "copy" suffixes on repeated pastes.
+/** Places a copy of a whole custom element (see CustomElement) — every
+ * node, element, connector, label, and digital device of template — so
+ * its centroid (the same anchor average pasteGroup uses) lands at point.
+ * Unlike pasteGroup, the template's node topology is kept exactly: every
+ * Node is copied once under a fresh id and every Port/Connector end still
+ * points at the copy of the same Node, so two wires meeting at a shared
+ * junction stay connected rather than coming out as two dangling ends.
  *
- * snap, when given, is applied to each of a pasted points-based element's
- * translated endpoints (and the anchor is then re-derived as their
- * midpoint, mirroring updateBusbarPoint's convention). Without it, a
- * shape whose original anchor wasn't itself exactly on-grid — its anchor
- * is always the plain midpoint of its two endpoints, which for two
- * on-grid points spaced an odd multiple of the grid apart isn't itself a
- * grid point — would carry that same off-grid remainder into the pasted
- * copy's endpoints even though `point` (the paste target) is on-grid,
- * making Paste look like it ignores Snap to grid. */
-export function pasteElement(
+ * The whole group moves by one rigid offset, chosen so the first element's
+ * (or, with none, the first anchor's) snapped position is exact — a
+ * template drawn on-grid therefore lands on-grid without distorting it.
+ * Every id is fresh (IdSequence), elements are renamed "<type>-<id>" like a
+ * paste, and a named-line connector (overhead/cable) gets a fresh default
+ * name. A voltage reference is kept when the target diagram has a voltage
+ * class of the same name (case-insensitive), otherwise — including when
+ * unset — it becomes defaultVoltage (never for a class in
+ * NO_VOLTAGE_CLASSES). A layer is kept when the target has it, otherwise
+ * it becomes the target's default layer. Label.for is remapped to the
+ * copied element. Also what Paste uses, with the copied selection
+ * (extractSelection) as the template. */
+export function placeCustomElement(
   diagram: Diagram,
-  entry: ClipboardEntry,
+  template: Diagram,
   point: Point,
+  symbols: ElementSymbol[],
   snap: (p: Point) => Point = p => p,
-): Diagram {
-  const ids = new IdSequence(diagram)
-  const id = ids.take()
-  const baseName = (entry.name ?? entry.class).replace(/-\d+$/, '')
-  const element: DiagramElement = {
-    ...entry,
-    id,
-    name: `${baseName}-${id}`,
-    x: point.x,
-    y: point.y,
-  }
-  if (POINTS_BASED_CLASSES.has(element.class) && entry.points) {
-    const dx = point.x - entry.x
-    const dy = point.y - entry.y
-    const points = entry.points.map(p => snap({ x: p.x + dx, y: p.y + dy }))
-    const first = points[0]
-    const last = points[points.length - 1]
-    element.points = points
-    element.x = (first.x + last.x) / 2
-    element.y = (first.y + last.y) / 2
-  }
-  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
-}
-
-// What Copy captures for a connector: its own drawable fields, plus which
-// (if either) of the *same copy operation's* own elements[] entries it was
-// really attached to via a real Port — fromElementIndex/toElementIndex
-// index into ClipboardGroup.elements, null when that end wasn't a Port at
-// all (a tap onto a busbar or another connector's own line) or belonged to
-// an element outside the copied set. pasteGroup reconnects only the
-// non-null ends, to the matching *pasted* element's own fresh port —
-// every other end (including any tap case, even onto a busbar that's also
-// part of the same copy) comes out dangling, the same ordinary unconnected
-// state any route ended in mid-air already has; chasing every tap case
-// wasn't worth the complexity here.
-export type ClipboardConnectorEntry = Pick<
-  Connector,
-  'kind' | 'name' | 'voltage' | 'layer' | 'dashed' | 'lineStyle' | 'points'
-> & {
-  fromElementIndex: number | null
-  toElementIndex: number | null
-}
-
-// What Copy captures for a label: like ClipboardEntry, minus id (a paste
-// always gets a fresh one) and for — that field is already documented as
-// informational-only, never a live link, so a pasted copy simply starts
-// unlinked rather than trying to preserve a reference to an element that
-// paste may not even also be copying.
-export type ClipboardLabelEntry = Omit<Label, 'id' | 'for'>
-
-// What Copy captures for a digital device: like ClipboardLabelEntry, minus
-// id — a DigitalDevice has no for-style link to drop, so this is just the
-// id-less shape directly.
-export type ClipboardDigitalDeviceEntry = Omit<DigitalDevice, 'id'>
-
-// The clipboard's own shape once Copy can capture more than one kind at
-// once — elements, connectors, labels, and digital devices selected
-// together, all placed by one Paste as a single rigid group (see
-// pasteGroup).
-export interface ClipboardGroup {
-  elements: ClipboardEntry[]
-  connectors: ClipboardConnectorEntry[]
-  labels: ClipboardLabelEntry[]
-  digitalDevices: ClipboardDigitalDeviceEntry[]
-}
-
-/** Captures a mixed multi-selection (any combination of element/connector/
- * label/digital-device ids) for a later Paste — the unified counterpart of
- * copyElement, now covering every selectable kind Canvas's own
- * multi-select can hold. */
-export function copySelection(
-  diagram: Diagram,
-  ids: { elementIds: Set<number>; connectorIds: Set<number>; labelIds: Set<number>; digitalDeviceIds: Set<number> },
-): ClipboardGroup {
-  const elements = diagram.elements.filter(e => ids.elementIds.has(e.id))
-  const elementIndexById = new Map(elements.map((e, i) => [e.id, i]))
-
-  const ownerElementIndex = (nodeId: number): number | null => {
-    for (const e of elements) {
-      if ((e.ports ?? []).some(p => p.node === nodeId)) return elementIndexById.get(e.id) ?? null
-    }
-    return null
-  }
-
-  const connectors: ClipboardConnectorEntry[] = diagram.connectors
-    .filter(c => ids.connectorIds.has(c.id))
-    .map(c => ({
-      kind: c.kind,
-      name: c.name,
-      voltage: c.voltage,
-      layer: c.layer,
-      dashed: c.dashed,
-      lineStyle: c.lineStyle,
-      points: c.points,
-      fromElementIndex: ownerElementIndex(c.from),
-      toElementIndex: ownerElementIndex(c.to),
-    }))
-
-  const labels: ClipboardLabelEntry[] = diagram.labels
-    .filter(l => ids.labelIds.has(l.id))
-    .map(({ id: _id, for: _for, ...rest }) => rest)
-
-  const digitalDevices: ClipboardDigitalDeviceEntry[] = diagram.digitalDevices
-    .filter(dd => ids.digitalDeviceIds.has(dd.id))
-    .map(({ id: _id, ...rest }) => rest)
-
-  return { elements: elements.map(copyElement), connectors, labels, digitalDevices }
-}
-
-// Translates a connector's own points as one rigid body: only the first
-// point is snapped (to (dx, dy) plus this connector's own first point),
-// and the resulting adjustment is then applied identically to every other
-// point — never snapping each point independently, which could distort or
-// de-orthogonalize a multi-bend path in a way a single rigid shift can't.
-function translateConnectorPoints(points: Point[], dx: number, dy: number, snap: (p: Point) => Point): Point[] {
-  if (points.length === 0) return points
-  const first = points[0]
-  const snappedFirst = snap({ x: first.x + dx, y: first.y + dy })
-  const adjDx = snappedFirst.x - first.x
-  const adjDy = snappedFirst.y - first.y
-  return points.map(p => ({ x: p.x + adjDx, y: p.y + adjDy }))
-}
-
-/** Places a whole copied mixed selection as a rigid group — the unified
- * counterpart of the old pasteElements, now also covering connectors and
- * labels. point becomes where the group's own centroid (the average of
- * every element's/label's own anchor, plus every connector's own drawn
- * points) lands; every entry is placed at its original offset from that
- * centroid, so the selection's relative layout — including any connector
- * geometry — is preserved exactly, the same way a single pasteElement
- * preserves one busbar's own shape.
- *
- * Elements are placed first (via pasteElement, unchanged), in order, so
- * each copied connector's own fromElementIndex/toElementIndex can be
- * resolved to the matching *pasted* element's own new id and get a real
- * fresh Port there — see ClipboardConnectorEntry's own doc comment for
- * when an end instead comes out dangling. */
-export function pasteGroup(
-  diagram: Diagram,
-  group: ClipboardGroup,
-  point: Point,
-  snap: (p: Point) => Point = p => p,
+  defaultVoltage?: number,
 ): Diagram {
   const anchors: Point[] = [
-    ...group.elements.map(e => ({ x: e.x, y: e.y })),
-    ...group.labels.map(l => ({ x: l.x, y: l.y })),
-    ...group.digitalDevices.map(dd => ({ x: dd.x, y: dd.y })),
-    ...group.connectors.flatMap(c => c.points),
+    ...template.elements.map(e => ({ x: e.x, y: e.y })),
+    ...template.labels.map(l => ({ x: l.x, y: l.y })),
+    ...template.digitalDevices.map(dd => ({ x: dd.x, y: dd.y })),
+    ...template.connectors.flatMap(c => c.points),
   ]
   if (anchors.length === 0) return diagram
   const centroid = {
     x: anchors.reduce((sum, p) => sum + p.x, 0) / anchors.length,
     y: anchors.reduce((sum, p) => sum + p.y, 0) / anchors.length,
   }
-  const dx = point.x - centroid.x
-  const dy = point.y - centroid.y
+  const ref = anchors[0]
+  const snappedRef = snap({ x: ref.x + point.x - centroid.x, y: ref.y + point.y - centroid.y })
+  const dx = snappedRef.x - ref.x
+  const dy = snappedRef.y - ref.y
+  const shift = (p: Point): Point => ({ x: p.x + dx, y: p.y + dy })
 
-  let acc = diagram
-  const newElementIds: number[] = []
-  for (const entry of group.elements) {
-    acc = pasteElement(acc, entry, snap({ x: entry.x + dx, y: entry.y + dy }), snap)
-    newElementIds.push(acc.elements[acc.elements.length - 1].id)
+  const ids = new IdSequence(diagram)
+
+  const templateVoltageNames = new Map(template.voltageClasses.map(v => [v.id, v.name.trim().toLowerCase()]))
+  const targetVoltageByName = new Map(diagram.voltageClasses.map(v => [v.name.trim().toLowerCase(), v.id]))
+  const mapVoltage = (v: number | undefined): number | undefined => {
+    const name = v ? templateVoltageNames.get(v) : undefined
+    return (name !== undefined ? targetVoltageByName.get(name) : undefined) ?? defaultVoltage
+  }
+  const targetLayers = new Set(diagram.layers.map(l => l.id))
+  const mapLayer = (layer: number): number => (targetLayers.has(layer) ? layer : defaultLayer(diagram))
+
+  const newNodes: DiagramNode[] = []
+  const nodeIds = new Map<number, number>()
+  for (const n of template.nodes) {
+    const id = ids.take()
+    nodeIds.set(n.id, id)
+    newNodes.push({ id, ...shift(n) })
+  }
+  // A reference to a Node the template doesn't actually define still gets a
+  // real (fresh) Node, at the referencing end's own position.
+  const mapNode = (old: number, at: Point): number => {
+    const known = nodeIds.get(old)
+    if (known !== undefined) return known
+    const id = ids.take()
+    nodeIds.set(old, id)
+    newNodes.push({ id, ...at })
+    return id
   }
 
-  const ids = new IdSequence(acc)
+  const elementIds = new Map<number, number>()
+  const newElements: DiagramElement[] = template.elements.map(e => {
+    const id = ids.take()
+    elementIds.set(e.id, id)
+    const at = shift(e)
+    const baseName = (e.name ?? e.class).replace(/-\d+$/, '')
+    const electrical = !NO_VOLTAGE_CLASSES.has(e.class)
+    return {
+      ...e,
+      id,
+      name: `${baseName}-${id}`,
+      layer: mapLayer(e.layer),
+      x: at.x,
+      y: at.y,
+      ...(e.points ? { points: e.points.map(shift) } : {}),
+      ...(e.ports ? { ports: e.ports.map(p => ({ ...p, node: mapNode(p.node, at) })) } : {}),
+      ...(electrical ? { voltage: mapVoltage(e.voltage) } : {}),
+      ...(e.windings ? { windings: e.windings.map(w => ({ ...w, voltage: mapVoltage(w.voltage) })) } : {}),
+    }
+  })
 
-  if (group.labels.length > 0) {
-    const newLabels: Label[] = group.labels.map(entry => {
-      const p = snap({ x: entry.x + dx, y: entry.y + dy })
-      return { ...entry, id: ids.take(), x: p.x, y: p.y }
-    })
-    acc = { ...acc, labels: [...acc.labels, ...newLabels] }
-  }
-
-  if (group.digitalDevices.length > 0) {
-    const newDigitalDevices: DigitalDevice[] = group.digitalDevices.map(entry => {
-      const p = snap({ x: entry.x + dx, y: entry.y + dy })
-      return { ...entry, id: ids.take(), x: p.x, y: p.y }
-    })
-    acc = { ...acc, digitalDevices: [...acc.digitalDevices, ...newDigitalDevices] }
-  }
-
-  for (const entry of group.connectors) {
-    const points = translateConnectorPoints(entry.points, dx, dy, snap)
-    const start = points[0]
-    const end = points[points.length - 1]
-    const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
-    const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
-    const connectorId = ids.take()
-    const connector: Connector = {
-      id: connectorId,
-      kind: entry.kind,
-      name: entry.name,
-      voltage: entry.voltage,
-      layer: entry.layer,
-      dashed: entry.dashed,
-      lineStyle: entry.lineStyle,
-      from: fromNode.id,
-      to: toNode.id,
+  const newConnectors: Connector[] = template.connectors.map(c => {
+    const id = ids.take()
+    const points = c.points.map(shift)
+    const start = points[0] ?? shift(ref)
+    const end = points[points.length - 1] ?? start
+    return {
+      ...c,
+      id,
+      name: defaultConnectorName(c.kind, id) ?? c.name,
+      layer: mapLayer(c.layer),
+      voltage: mapVoltage(c.voltage),
+      from: mapNode(c.from, start),
+      to: mapNode(c.to, end),
       points,
     }
+  })
 
-    let elements = acc.elements
-    const attach = (elementIndex: number | null, node: DiagramNode) => {
-      if (elementIndex === null) return
-      const elId = newElementIds[elementIndex]
-      elements = elements.map(e =>
-        e.id === elId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: node.id }] } : e,
-      )
-    }
-    attach(entry.fromElementIndex, fromNode)
-    attach(entry.toElementIndex, toNode)
+  const newLabels: Label[] = template.labels.map(l => ({
+    ...l,
+    id: ids.take(),
+    layer: mapLayer(l.layer),
+    ...shift(l),
+    for: l.for ? elementIds.get(l.for) : undefined,
+  }))
 
-    acc = { ...acc, elements, nodes: [...acc.nodes, fromNode, toNode], connectors: [...acc.connectors, connector] }
+  const newDigitalDevices: DigitalDevice[] = template.digitalDevices.map(dd => ({
+    ...dd,
+    id: ids.take(),
+    layer: mapLayer(dd.layer),
+    ...shift(dd),
+  }))
+
+  const placed: Diagram = {
+    ...diagram,
+    lastId: ids.lastId,
+    nodes: [...diagram.nodes, ...newNodes],
+    elements: [...diagram.elements, ...newElements],
+    connectors: [...diagram.connectors, ...newConnectors],
+    labels: [...diagram.labels, ...newLabels],
+    digitalDevices: [...diagram.digitalDevices, ...newDigitalDevices],
   }
+  // The copy gets its shapes' full fixed Ports even when the template (an
+  // older file) lacked some, and joins whatever it was dropped onto.
+  let result = normalizeTopology(placed, symbols, new Set(newElements.map(e => e.id)))
+  for (const e of newElements) result = joinPortNodes(result, e.id)
+  return result
+}
 
-  return { ...acc, lastId: ids.lastId }
+// How far a symbol's own drawing reaches beyond its anchor, for sizing an
+// extracted custom element's page — a symbol has no measured extent here,
+// and most base.xml shapes fit within about this radius.
+const SYMBOL_EXTENT = 12
+
+/** Turns a selection into a small standalone diagram for "Save selection
+ * as custom element" — placeCustomElement's inverse. Only what's selected
+ * is copied (an unselected wire touching a selected element is left out;
+ * that element keeps its Port and Node, just with nothing attached), plus
+ * exactly the Nodes, voltage classes and layers those reference, the base
+ * layer always included. Label.for is kept only when its element is
+ * selected too. Ids stay as they are — placeCustomElement gives every
+ * entry a fresh one anyway. Everything is shifted by a whole number of grid
+ * steps so the contents start one step in from the top-left, and the page
+ * is cropped to fit; editor settings are copied from the source. Returns
+ * null for an empty selection. */
+export function extractSelection(
+  diagram: Diagram,
+  selection: Map<number, 'element' | 'connector' | 'label' | 'digitaldevice'>,
+  gridSpacing: number,
+): Diagram | null {
+  const has = (id: number, kind: string) => selection.get(id) === kind
+  const elements = diagram.elements.filter(e => has(e.id, 'element'))
+  const connectors = diagram.connectors.filter(c => has(c.id, 'connector'))
+  const labels = diagram.labels.filter(l => has(l.id, 'label'))
+  const digitalDevices = diagram.digitalDevices.filter(dd => has(dd.id, 'digitaldevice'))
+  if (elements.length + connectors.length + labels.length + digitalDevices.length === 0) return null
+
+  const extent: Point[] = [
+    ...elements.flatMap(e => [
+      { x: e.x - SYMBOL_EXTENT, y: e.y - SYMBOL_EXTENT },
+      { x: e.x + SYMBOL_EXTENT, y: e.y + SYMBOL_EXTENT },
+      ...(e.points ?? []),
+    ]),
+    ...connectors.flatMap(c => c.points),
+    ...labels.map(l => ({ x: l.x, y: l.y })),
+    ...digitalDevices.map(dd => ({ x: dd.x, y: dd.y })),
+  ]
+  const g = gridSpacing > 0 ? gridSpacing : 10
+  const minX = Math.min(...extent.map(p => p.x))
+  const minY = Math.min(...extent.map(p => p.y))
+  const dx = g - Math.floor(minX / g) * g
+  const dy = g - Math.floor(minY / g) * g
+  const shift = (p: Point): Point => ({ x: p.x + dx, y: p.y + dy })
+  const width = Math.ceil((Math.max(...extent.map(p => p.x)) + dx + g) / g) * g
+  const height = Math.ceil((Math.max(...extent.map(p => p.y)) + dy + g) / g) * g
+
+  const nodeIds = new Set<number>([
+    ...elements.flatMap(e => (e.ports ?? []).map(p => p.node)),
+    ...connectors.flatMap(c => [c.from, c.to]),
+  ])
+  const voltageIds = new Set<number>(
+    [
+      ...elements.flatMap(e => [e.voltage, ...(e.windings ?? []).map(w => w.voltage)]),
+      ...connectors.map(c => c.voltage),
+    ].filter((v): v is number => !!v),
+  )
+  const layerIds = new Set<number>([
+    BASE_LAYER,
+    ...elements.map(e => e.layer),
+    ...connectors.map(c => c.layer),
+    ...labels.map(l => l.layer),
+    ...digitalDevices.map(dd => dd.layer),
+  ])
+  const elementIds = new Set(elements.map(e => e.id))
+
+  return {
+    width,
+    height,
+    lastId: diagram.lastId,
+    editor: diagram.editor,
+    layers: diagram.layers.filter(l => layerIds.has(l.id)),
+    voltageClasses: diagram.voltageClasses.filter(v => voltageIds.has(v.id)),
+    nodes: diagram.nodes.filter(n => nodeIds.has(n.id)).map(n => ({ ...n, ...shift(n) })),
+    elements: elements.map(e => ({
+      ...e,
+      ...shift(e),
+      ...(e.points ? { points: e.points.map(shift) } : {}),
+    })),
+    connectors: connectors.map(c => ({ ...c, points: c.points.map(shift) })),
+    labels: labels.map(l => ({
+      ...l,
+      ...shift(l),
+      for: l.for !== undefined && elementIds.has(l.for) ? l.for : undefined,
+    })),
+    digitalDevices: digitalDevices.map(dd => ({ ...dd, ...shift(dd) })),
+  }
 }
 
 /** Translates an element by (dx, dy) — its anchor for most classes, or
@@ -1236,42 +1225,9 @@ export function moveSelection(
     if (!fromMoved && !toMoved) return connector
     if (fromMoved && toMoved) return { ...connector, points: connector.points.map(shift) }
 
-    const points = connector.points
-    if (fromMoved) {
-      const old0 = points[0]
-      const new0 = shift(old0)
-      if (points.length === 2) {
-        const other = points[1]
-        const wasHorizontal = old0.y === other.y
-        const bend = wasHorizontal ? { x: new0.x, y: other.y } : { x: other.x, y: new0.y }
-        return { ...connector, points: simplifyOrthogonalPath([new0, bend, other]) }
-      }
-      const neighbor = points[1]
-      const wasHorizontal = old0.y === neighbor.y
-      const adjusted = wasHorizontal
-        ? { ...neighbor, y: new0.y }
-        : old0.x === neighbor.x
-          ? { ...neighbor, x: new0.x }
-          : neighbor
-      return { ...connector, points: simplifyOrthogonalPath([new0, adjusted, ...points.slice(2)]) }
-    }
-
-    const oldLast = points[points.length - 1]
-    const newLast = shift(oldLast)
-    if (points.length === 2) {
-      const other = points[0]
-      const wasHorizontal = oldLast.y === other.y
-      const bend = wasHorizontal ? { x: newLast.x, y: other.y } : { x: other.x, y: newLast.y }
-      return { ...connector, points: simplifyOrthogonalPath([other, bend, newLast]) }
-    }
-    const neighbor = points[points.length - 2]
-    const wasHorizontal = oldLast.y === neighbor.y
-    const adjusted = wasHorizontal
-      ? { ...neighbor, y: newLast.y }
-      : oldLast.x === neighbor.x
-        ? { ...neighbor, x: newLast.x }
-        : neighbor
-    return { ...connector, points: simplifyOrthogonalPath([...points.slice(0, -2), adjusted, newLast]) }
+    const end = fromMoved ? 'from' : 'to'
+    const p = fromMoved ? connector.points[0] : connector.points[connector.points.length - 1]
+    return { ...connector, points: rerouteConnectorEnd(connector.points, end, shift(p)) }
   })
 
   const nodes = moved.nodes.map(n => {
@@ -1280,10 +1236,61 @@ export function moveSelection(
       if (c.from === n.id) return { ...n, x: c.points[0].x, y: c.points[0].y }
       if (c.to === n.id) return { ...n, x: c.points[c.points.length - 1].x, y: c.points[c.points.length - 1].y }
     }
-    return n
+    // A port node with no wire on it moves with its element all the same.
+    return { ...n, ...shift(n) }
   })
 
-  return { ...moved, connectors, nodes }
+  // A drop that squeezes a wire to zero length (a terminal dragged onto
+  // that wire's far end) joins its two ends instead of leaving a one-point
+  // wire behind, and a moved element's terminal that lands exactly on a
+  // node or a wire joins it there — see removeDegenerateConnectors and
+  // joinPortNodes.
+  let result = removeDegenerateConnectors({ ...moved, connectors, nodes })
+  for (const id of ids.elementIds) result = joinPortNodes(result, id)
+  return result
+}
+
+/** Moves one end of a connector's own path to newPoint, keeping the segment
+ * touching it orthogonal: a two-point wire gets a bend inserted, a longer
+ * one has its neighboring vertex slid along the axis that preserves that
+ * segment's orientation (moveConnectorVertex's projection-lock rule). */
+function rerouteConnectorEnd(points: Point[], end: 'from' | 'to', newPoint: Point): Point[] {
+  if (points.length < 2) return points
+  if (end === 'from') {
+    const old0 = points[0]
+    const new0 = newPoint
+    if (points.length === 2) {
+      const other = points[1]
+      const wasHorizontal = old0.y === other.y
+      const bend = wasHorizontal ? { x: new0.x, y: other.y } : { x: other.x, y: new0.y }
+      return simplifyOrthogonalPath([new0, bend, other])
+    }
+    const neighbor = points[1]
+    const wasHorizontal = old0.y === neighbor.y
+    const adjusted = wasHorizontal
+      ? { ...neighbor, y: new0.y }
+      : old0.x === neighbor.x
+        ? { ...neighbor, x: new0.x }
+        : neighbor
+    return simplifyOrthogonalPath([new0, adjusted, ...points.slice(2)])
+  }
+
+  const oldLast = points[points.length - 1]
+  const newLast = newPoint
+  if (points.length === 2) {
+    const other = points[0]
+    const wasHorizontal = oldLast.y === other.y
+    const bend = wasHorizontal ? { x: newLast.x, y: other.y } : { x: other.x, y: newLast.y }
+    return simplifyOrthogonalPath([other, bend, newLast])
+  }
+  const neighbor = points[points.length - 2]
+  const wasHorizontal = oldLast.y === neighbor.y
+  const adjusted = wasHorizontal
+    ? { ...neighbor, y: newLast.y }
+    : oldLast.x === neighbor.x
+      ? { ...neighbor, x: newLast.x }
+      : neighbor
+  return simplifyOrthogonalPath([...points.slice(0, -2), adjusted, newLast])
 }
 
 /** Updates one endpoint of a points-based element's own Points in place
@@ -1555,30 +1562,29 @@ export function connectElements(diagram: Diagram, fromId: number, toId: number):
   if (notConnectable(from) || notConnectable(to)) return diagram
 
   const ids = new IdSequence(diagram)
-  const fromNode: DiagramNode = { id: ids.take(), x: from.x, y: from.y }
-  const toNode: DiagramNode = { id: ids.take(), x: to.x, y: to.y }
+  const acc = { elements: diagram.elements, nodes: diagram.nodes }
+  // Each end uses its element's terminal nearest the other element (its
+  // bare anchor for one without fixed ports, as before).
+  const nodeAt = (id: number) => acc.nodes.find(n => n.id === id)!
+  const fromNodeId = attachElementEnd(acc, fromId, hasFixedPorts(from) ? to : from, ids)
+  const fromPoint = { x: nodeAt(fromNodeId).x, y: nodeAt(fromNodeId).y }
+  const toNodeId = attachElementEnd(acc, toId, hasFixedPorts(to) ? fromPoint : to, ids)
+  const toPoint = { x: nodeAt(toNodeId).x, y: nodeAt(toNodeId).y }
   const connector: Connector = {
     id: ids.take(),
     kind: 'BusWork',
     layer: from.layer,
     voltage: from.voltage ?? to.voltage,
-    from: fromNode.id,
-    to: toNode.id,
-    points: [
-      { x: from.x, y: from.y },
-      { x: to.x, y: to.y },
-    ],
+    from: fromNodeId,
+    to: toNodeId,
+    points: [fromPoint, toPoint],
   }
 
   return {
     ...diagram,
     lastId: ids.lastId,
-    nodes: [...diagram.nodes, fromNode, toNode],
-    elements: diagram.elements.map(e => {
-      if (e.id === fromId) return { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: fromNode.id }] }
-      if (e.id === toId) return { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: toNode.id }] }
-      return e
-    }),
+    nodes: acc.nodes,
+    elements: acc.elements,
     connectors: [...diagram.connectors, connector],
   }
 }
@@ -1614,8 +1620,9 @@ export function drawConnectorPath(
   const ids = new IdSequence(diagram)
   const start = points[0]
   const end = points[points.length - 1]
-  const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
-  const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
+  const acc = { elements: diagram.elements, nodes: diagram.nodes }
+  const fromNodeId = attachElementEnd(acc, fromId, start, ids)
+  const toNodeId = attachElementEnd(acc, toId, end, ids)
   const connectorId = ids.take()
   const connector: Connector = {
     id: connectorId,
@@ -1623,20 +1630,16 @@ export function drawConnectorPath(
     name: defaultConnectorName(kind, connectorId),
     layer: from.layer,
     voltage: from.voltage ?? to.voltage ?? defaultVoltage,
-    from: fromNode.id,
-    to: toNode.id,
+    from: fromNodeId,
+    to: toNodeId,
     points,
   }
 
   return {
     ...diagram,
     lastId: ids.lastId,
-    nodes: [...diagram.nodes, fromNode, toNode],
-    elements: diagram.elements.map(e => {
-      if (e.id === fromId) return { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: fromNode.id }] }
-      if (e.id === toId) return { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: toNode.id }] }
-      return e
-    }),
+    nodes: acc.nodes,
+    elements: acc.elements,
     connectors: [...diagram.connectors, connector],
   }
 }
@@ -1750,7 +1753,8 @@ export function drawConnectorPathToConnector(
   const tapPoint = points[points.length - 1]
   const splice = spliceConnectorAt(diagram, targetConnectorId, segmentIndex, tapPoint, ids)
   if (!splice) return diagram
-  const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
+  const acc = { elements: diagram.elements, nodes: diagram.nodes }
+  const fromNodeId = attachElementEnd(acc, fromId, start, ids)
 
   const tapConnectorId = ids.take()
   const tapConnector: Connector = {
@@ -1759,7 +1763,7 @@ export function drawConnectorPathToConnector(
     name: defaultConnectorName(kind, tapConnectorId),
     layer: from.layer,
     voltage: from.voltage ?? target.voltage ?? defaultVoltage,
-    from: fromNode.id,
+    from: fromNodeId,
     to: splice.junctionNode.id,
     points,
   }
@@ -1767,10 +1771,8 @@ export function drawConnectorPathToConnector(
   return {
     ...diagram,
     lastId: ids.lastId,
-    nodes: [...diagram.nodes, fromNode, ...splice.nodes],
-    elements: diagram.elements.map(e =>
-      e.id === fromId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: fromNode.id }] } : e,
-    ),
+    nodes: [...acc.nodes, ...splice.nodes],
+    elements: acc.elements,
     connectors: [...diagram.connectors.filter(c => c.id !== targetConnectorId), ...splice.connectors, tapConnector],
   }
 }
@@ -1801,7 +1803,8 @@ export function drawConnectorPathFromConnector(
   const end = points[points.length - 1]
   const splice = spliceConnectorAt(diagram, sourceConnectorId, sourceSegmentIndex, tapPoint, ids)
   if (!splice) return diagram
-  const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
+  const acc = { elements: diagram.elements, nodes: diagram.nodes }
+  const toNodeId = attachElementEnd(acc, toId, end, ids)
 
   const tapConnectorId = ids.take()
   const tapConnector: Connector = {
@@ -1811,17 +1814,15 @@ export function drawConnectorPathFromConnector(
     layer: to.layer,
     voltage: source.voltage ?? to.voltage ?? defaultVoltage,
     from: splice.junctionNode.id,
-    to: toNode.id,
+    to: toNodeId,
     points,
   }
 
   return {
     ...diagram,
     lastId: ids.lastId,
-    nodes: [...diagram.nodes, ...splice.nodes, toNode],
-    elements: diagram.elements.map(e =>
-      e.id === toId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: toNode.id }] } : e,
-    ),
+    nodes: [...acc.nodes, ...splice.nodes],
+    elements: acc.elements,
     connectors: [...diagram.connectors.filter(c => c.id !== sourceConnectorId), ...splice.connectors, tapConnector],
   }
 }
@@ -1903,7 +1904,8 @@ export function drawDanglingConnectorPath(
   const ids = new IdSequence(diagram)
   const start = points[0]
   const end = points[points.length - 1]
-  const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
+  const acc = { elements: diagram.elements, nodes: diagram.nodes }
+  const fromNodeId = attachElementEnd(acc, fromId, start, ids)
   const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
   const connectorId = ids.take()
   const connector: Connector = {
@@ -1912,7 +1914,7 @@ export function drawDanglingConnectorPath(
     name: defaultConnectorName(kind, connectorId),
     layer: from.layer,
     voltage: from.voltage ?? defaultVoltage,
-    from: fromNode.id,
+    from: fromNodeId,
     to: toNode.id,
     points,
   }
@@ -1920,10 +1922,8 @@ export function drawDanglingConnectorPath(
   return {
     ...diagram,
     lastId: ids.lastId,
-    nodes: [...diagram.nodes, fromNode, toNode],
-    elements: diagram.elements.map(e =>
-      e.id === fromId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: fromNode.id }] } : e,
-    ),
+    nodes: [...acc.nodes, toNode],
+    elements: acc.elements,
     connectors: [...diagram.connectors, connector],
   }
 }
@@ -1993,7 +1993,8 @@ export function drawConnectorPathFromPoint(
   const start = points[0]
   const end = points[points.length - 1]
   const fromNode: DiagramNode = { id: ids.take(), x: start.x, y: start.y }
-  const toNode: DiagramNode = { id: ids.take(), x: end.x, y: end.y }
+  const acc = { elements: diagram.elements, nodes: diagram.nodes }
+  const toNodeId = attachElementEnd(acc, toId, end, ids)
   const connectorId = ids.take()
   const connector: Connector = {
     id: connectorId,
@@ -2002,17 +2003,15 @@ export function drawConnectorPathFromPoint(
     layer: to.layer,
     voltage: to.voltage ?? defaultVoltage,
     from: fromNode.id,
-    to: toNode.id,
+    to: toNodeId,
     points,
   }
 
   return {
     ...diagram,
     lastId: ids.lastId,
-    nodes: [...diagram.nodes, fromNode, toNode],
-    elements: diagram.elements.map(e =>
-      e.id === toId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: toNode.id }] } : e,
-    ),
+    nodes: [...acc.nodes, fromNode],
+    elements: acc.elements,
     connectors: [...diagram.connectors, connector],
   }
 }
@@ -2607,4 +2606,354 @@ export function layerUsage(diagram: Diagram): Map<number, number> {
   for (const x of diagram.labels) add(x.layer)
   for (const x of diagram.digitalDevices) add(x.layer)
   return counts
+}
+
+// ---------------------------------------------------------------------------
+// Fixed ports and node topology.
+//
+// An element whose shape declares terminals (symbolTerminals — base.xml's
+// <terminals>, or a PowerTransformer's per-winding legs) always has exactly
+// that many Ports, named "1".."N" in terminal order, each on its own Node at
+// the terminal's real position — the same model slddoc's Extract produces
+// for an imported diagram. Wiring never adds a Port to one: a wire end on a
+// terminal uses that terminal's Node, so several wires on one terminal share
+// it. A BusBarSection is the exception — it has no discrete terminals, and a
+// tap anywhere along it still adds a Port of its own. An element whose shape
+// isn't in the loaded catalog is never touched.
+// ---------------------------------------------------------------------------
+
+const TOPOLOGY_EPSILON = 1e-6
+// How far an existing Port's Node may sit from a terminal and still count as
+// that terminal's (absorbs rotation rounding in older diagrams).
+const PORT_MATCH_TOLERANCE = 0.5
+
+function samePoint(a: Point, b: Point): boolean {
+  return Math.abs(a.x - b.x) < TOPOLOGY_EPSILON && Math.abs(a.y - b.y) < TOPOLOGY_EPSILON
+}
+
+function roundPoint(p: Point): Point {
+  return { x: Math.round(p.x * 1e6) / 1e6, y: Math.round(p.y * 1e6) / 1e6 }
+}
+
+function isOnSegment(p: Point, a: Point, b: Point): boolean {
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const len2 = dx * dx + dy * dy
+  if (len2 === 0) return samePoint(p, a)
+  const cross = (p.x - a.x) * dy - (p.y - a.y) * dx
+  if (Math.abs(cross) > TOPOLOGY_EPSILON * Math.sqrt(len2)) return false
+  const dot = (p.x - a.x) * dx + (p.y - a.y) * dy
+  return dot >= -TOPOLOGY_EPSILON && dot <= len2 + TOPOLOGY_EPSILON
+}
+
+/** The terminal positions an element's fixed Ports must sit on, or null
+ * when its Ports aren't fixed (a BusBarSection, a shape with no terminals,
+ * or one missing from the catalog). */
+function fixedTerminals(el: DiagramElement, symbols: ElementSymbol[]): Point[] | null {
+  if (el.class === 'BusBarSection') return null
+  const terminals = symbolTerminals(el, symbols)
+  return terminals && terminals.length > 0 ? terminals.map(roundPoint) : null
+}
+
+/** Replaces every reference to Node drop with keep (Ports, connector ends)
+ * and removes drop. */
+function mergeNode(diagram: Diagram, drop: number, keep: number): Diagram {
+  if (drop === keep) return diagram
+  return {
+    ...diagram,
+    nodes: diagram.nodes.filter(n => n.id !== drop),
+    elements: diagram.elements.map(e =>
+      (e.ports ?? []).some(p => p.node === drop)
+        ? { ...e, ports: e.ports!.map(p => (p.node === drop ? { ...p, node: keep } : p)) }
+        : e,
+    ),
+    connectors: diagram.connectors.map(c =>
+      c.from === drop || c.to === drop
+        ? { ...c, from: c.from === drop ? keep : c.from, to: c.to === drop ? keep : c.to }
+        : c,
+    ),
+  }
+}
+
+/** Removes every zero-length connector (fewer than two points, or all of
+ * them the same point) and joins its two end Nodes into one, keeping
+ * whichever an element's Port references — such a wire means its two ends
+ * were meant to be one connection (e.g. a terminal dragged onto a wire's
+ * far end), and a one-point wire has no segment for hit-testing to work
+ * with. Returns diagram itself when there's none. */
+export function removeDegenerateConnectors(diagram: Diagram): Diagram {
+  const degenerate = diagram.connectors.filter(
+    c => c.points.length < 2 || c.points.every(p => samePoint(p, c.points[0])),
+  )
+  if (degenerate.length === 0) return diagram
+  let d: Diagram = { ...diagram, connectors: diagram.connectors.filter(c => !degenerate.includes(c)) }
+  for (const c of degenerate) {
+    const portNodes = new Set(d.elements.flatMap(e => (e.ports ?? []).map(p => p.node)))
+    const keep = portNodes.has(c.from) || !portNodes.has(c.to) ? c.from : c.to
+    d = mergeNode(d, keep === c.from ? c.to : c.from, keep)
+  }
+  const used = new Set([
+    ...d.elements.flatMap(e => (e.ports ?? []).map(p => p.node)),
+    ...d.connectors.flatMap(c => [c.from, c.to]),
+  ])
+  return { ...d, nodes: d.nodes.filter(n => used.has(n.id)) }
+}
+
+/** Joins each of an element's Port Nodes to whatever lies exactly at its
+ * position: another Node there is merged into it, a wire whose line passes
+ * through it (not at one of its ends, and not an OverheadLine, which can't
+ * be tapped mid-span) is split there with this Node as the junction, and a
+ * BusBarSection whose line passes through it gets a Port on it. Wires
+ * already touching one of this element's own Ports are left alone, so a
+ * wire drawn past its own other terminal doesn't short it. */
+export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
+  const el = diagram.elements.find(e => e.id === elementId)
+  if (!el || !el.ports || el.ports.length === 0) return diagram
+  const ownNodes = new Set(el.ports.map(p => p.node))
+  let d = diagram
+  let ids: IdSequence | null = null
+
+  for (const port of el.ports) {
+    const node = d.nodes.find(n => n.id === port.node)
+    if (!node) continue
+
+    for (const other of d.nodes.filter(n => !ownNodes.has(n.id) && samePoint(n, node))) {
+      d = mergeNode(d, other.id, node.id)
+    }
+
+    const split: Connector[] = []
+    const touched = new Set<number>()
+    for (const c of d.connectors) {
+      if (ownNodes.has(c.from) || ownNodes.has(c.to) || c.kind === 'OverheadLine' || c.points.length < 2) continue
+      if (samePoint(c.points[0], node) || samePoint(c.points[c.points.length - 1], node)) continue
+      const k = c.points.findIndex((a, i) => i < c.points.length - 1 && isOnSegment(node, a, c.points[i + 1]))
+      if (k < 0) continue
+      ids ??= new IdSequence(d)
+      const at = { x: node.x, y: node.y }
+      const before = simplifyOrthogonalPath([...c.points.slice(0, k + 1), at])
+      const after = simplifyOrthogonalPath([at, ...c.points.slice(k + 1)])
+      const isDegenerate = (pts: Point[]) => pts.length < 2 || pts.every(q => samePoint(q, pts[0]))
+      if (isDegenerate(before) || isDegenerate(after)) continue
+      const secondId = ids.take()
+      split.push(
+        { ...c, to: node.id, points: before },
+        { ...c, id: secondId, name: defaultConnectorName(c.kind, secondId) ?? c.name, from: node.id, points: after },
+      )
+      touched.add(c.id)
+    }
+    if (touched.size > 0) d = { ...d, connectors: [...d.connectors.filter(c => !touched.has(c.id)), ...split] }
+
+    const tappedBuses = d.elements.filter(
+      bus =>
+        bus.id !== elementId &&
+        bus.class === 'BusBarSection' &&
+        bus.points &&
+        bus.points.length >= 2 &&
+        !(bus.ports ?? []).some(p => p.node === node.id) &&
+        bus.points.some((a, i) => i < bus.points!.length - 1 && isOnSegment(node, a, bus.points![i + 1])),
+    )
+    if (tappedBuses.length > 0) {
+      const tapped = new Set(tappedBuses.map(b => b.id))
+      d = {
+        ...d,
+        elements: d.elements.map(bus =>
+          tapped.has(bus.id) ? { ...bus, ports: [...(bus.ports ?? []), { name: nextPortName(bus), node: node.id }] } : bus,
+        ),
+      }
+    }
+  }
+  return ids ? { ...d, lastId: ids.lastId } : d
+}
+
+/** Gives an element exactly its shape's fixed Ports (see this section's
+ * header), each on a Node at its terminal. An existing Port whose Node sits
+ * at a terminal keeps it; duplicates on the same terminal are merged into
+ * one Node (their wires now share it); a leftover Port goes to the nearest
+ * still-free terminal; any Port beyond that is dropped, its wires left
+ * unconnected; a terminal with no Port gets a fresh Node, joined to
+ * whatever lies exactly there (joinPortNodes).
+ *
+ * With moveNodes (an edit that really moved the element's terminals —
+ * orientation, mirror, position, size), each kept Node is moved onto its
+ * terminal, the wire ends on it following. Without it (repairing a diagram
+ * on open), existing Nodes and wires are never moved: an imported diagram
+ * can legitimately keep a Port on a Node away from its terminal, such as
+ * one Node standing for a whole busbar that every device on it shares. A
+ * Node another element's Port also uses is never moved either way.
+ * Returns diagram itself when nothing changed. */
+export function fitElementPorts(
+  diagram: Diagram,
+  elementId: number,
+  symbols: ElementSymbol[],
+  moveNodes = false,
+  nodeIndex?: Map<number, DiagramNode>,
+  element?: DiagramElement,
+): Diagram {
+  const el = element ?? diagram.elements.find(e => e.id === elementId)
+  if (!el) return diagram
+  const terminals = fixedTerminals(el, symbols)
+  if (!terminals) return diagram
+
+  const nodeById = nodeIndex ?? new Map(diagram.nodes.map(n => [n.id, n]))
+  const slots: number[][] = terminals.map(() => [])
+  const leftover: number[] = []
+  for (const port of el.ports ?? []) {
+    const node = nodeById.get(port.node)
+    if (!node) continue
+    const i = terminals.findIndex(t => Math.hypot(t.x - node.x, t.y - node.y) <= PORT_MATCH_TOLERANCE)
+    if (i >= 0) {
+      if (!slots[i].includes(port.node)) slots[i].push(port.node)
+    } else if (!leftover.includes(port.node)) leftover.push(port.node)
+  }
+  // Each free terminal takes its closest leftover Port (closest pairs
+  // first). A leftover still unplaced then joins its nearest terminal when
+  // it's unambiguously that one's — within half the gap between terminals —
+  // so a stray second Port on the same terminal (an older diagram, or an
+  // import drawn a few units off) keeps its wire; anything farther (e.g. a
+  // winding a transformer no longer has) is dropped.
+  const dist = (nodeId: number, i: number) => {
+    const node = nodeById.get(nodeId)!
+    return Math.hypot(terminals[i].x - node.x, terminals[i].y - node.y)
+  }
+  const pairs = leftover.flatMap(nodeId => terminals.map((_, i) => ({ nodeId, i, d: dist(nodeId, i) })))
+  pairs.sort((a, b) => a.d - b.d)
+  const placed = new Set<number>()
+  const taken = new Set(slots.flatMap((nodes, i) => (nodes.length > 0 ? [i] : [])))
+  for (const { nodeId, i } of pairs) {
+    if (placed.has(nodeId) || taken.has(i)) continue
+    slots[i].push(nodeId)
+    placed.add(nodeId)
+    taken.add(i)
+  }
+  let minGap = Infinity
+  for (let i = 0; i < terminals.length; i++) {
+    for (let j = i + 1; j < terminals.length; j++) {
+      minGap = Math.min(minGap, Math.hypot(terminals[i].x - terminals[j].x, terminals[i].y - terminals[j].y))
+    }
+  }
+  for (const nodeId of leftover) {
+    if (placed.has(nodeId)) continue
+    let best = 0
+    for (let i = 1; i < terminals.length; i++) if (dist(nodeId, i) < dist(nodeId, best)) best = i
+    if (dist(nodeId, best) <= minGap / 2) slots[best].push(nodeId)
+  }
+
+  let d = diagram
+  const ids = new IdSequence(d)
+  const newNodes: DiagramNode[] = []
+  const portNodes = slots.map((nodes, i) => {
+    if (nodes.length === 0) {
+      const node = { id: ids.take(), ...terminals[i] }
+      newNodes.push(node)
+      return node.id
+    }
+    const [keep, ...rest] = nodes
+    for (const drop of rest) d = mergeNode(d, drop, keep)
+    return keep
+  })
+
+  // Move each kept Node (and the wire ends on it) onto its terminal.
+  const target = new Map<number, Point>()
+  if (moveNodes) {
+    const sharedNodes = new Set(
+      d.elements.filter(e => e.id !== elementId).flatMap(e => (e.ports ?? []).map(p => p.node)),
+    )
+    portNodes.forEach((nodeId, i) => {
+      const node = d.nodes.find(n => n.id === nodeId)
+      if (node && !sharedNodes.has(nodeId) && !samePoint(node, terminals[i])) target.set(nodeId, terminals[i])
+    })
+  }
+  if (target.size > 0) {
+    d = {
+      ...d,
+      nodes: d.nodes.map(n => (target.has(n.id) ? { ...n, ...target.get(n.id)! } : n)),
+      connectors: d.connectors.map(c => {
+        const from = target.get(c.from)
+        const to = target.get(c.to)
+        if (!from && !to) return c
+        let points = c.points
+        if (from && points.length > 0) points = rerouteConnectorEnd(points, 'from', from)
+        if (to && points.length > 0) points = rerouteConnectorEnd(points, 'to', to)
+        return { ...c, points }
+      }),
+    }
+  }
+  if (newNodes.length > 0) d = { ...d, nodes: [...d.nodes, ...newNodes], lastId: ids.lastId }
+
+  const ports = portNodes.map((node, i) => ({ name: String(i + 1), node }))
+  const samePorts =
+    (el.ports ?? []).length === ports.length &&
+    ports.every((p, i) => el.ports![i].name === p.name && el.ports![i].node === p.node)
+  if (!samePorts) d = { ...d, elements: d.elements.map(e => (e.id === elementId ? { ...e, ports } : e)) }
+  // Joining only ever concerns a Node that is really on its terminal — a
+  // fresh one, or one moved there; never an imported off-terminal Node.
+  return newNodes.length > 0 || target.size > 0 ? joinPortNodes(d, elementId) : d
+}
+
+/** Repairs a whole diagram's topology — removeDegenerateConnectors, then
+ * fitElementPorts (with join) for every element, or only those in onlyIds.
+ * Run on open/import and whenever a copied group lands (paste, custom
+ * element). Returns diagram itself when nothing needed fixing, so callers
+ * can tell whether to mark it dirty. */
+export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], onlyIds?: Set<number>): Diagram {
+  if (symbols.length === 0) return diagram
+  let d = removeDegenerateConnectors(diagram)
+  // One shared node index (rebuilt only after a fit actually changed
+  // something) keeps this linear on a large diagram rather than
+  // re-indexing every node for every element.
+  let index = new Map(d.nodes.map(n => [n.id, n]))
+  const elementsById = new Map(d.elements.map(e => [e.id, e]))
+  for (const el of diagram.elements) {
+    if (onlyIds && !onlyIds.has(el.id)) continue
+    const current = elementsById.get(el.id)
+    if (!current) continue
+    const next = fitElementPorts(d, el.id, symbols, false, index, current)
+    if (next !== d) {
+      d = next
+      index = new Map(d.nodes.map(n => [n.id, n]))
+      for (const e of d.elements) elementsById.set(e.id, e)
+    }
+  }
+  return removeDegenerateConnectors(d)
+}
+
+/** Whether an element's Ports are fixed and already in place (see this
+ * section's header) — attachElementEnd then picks one of them rather than
+ * adding a Port. */
+function hasFixedPorts(el: DiagramElement): boolean {
+  return el.class !== 'BusBarSection' && !!el.ports && el.ports.length > 0
+}
+
+/** The Node a new wire end at `at` attaches to on element elementId: for an
+ * element with fixed Ports, the Port Node nearest `at` (no Port is ever
+ * added); for a BusBarSection, or an element with no Ports at all (a shape
+ * without terminals), a fresh Node at `at` plus a new Port, as before.
+ * Mutates acc's elements/nodes in place of the caller's own copies. */
+function attachElementEnd(
+  acc: { elements: DiagramElement[]; nodes: DiagramNode[] },
+  elementId: number,
+  at: Point,
+  ids: IdSequence,
+): number {
+  const el = acc.elements.find(e => e.id === elementId)
+  if (el && el.ports && hasFixedPorts(el)) {
+    let best = el.ports[0].node
+    let bestDist = Infinity
+    for (const p of el.ports) {
+      const n = acc.nodes.find(x => x.id === p.node)
+      if (!n) continue
+      const dist = Math.hypot(n.x - at.x, n.y - at.y)
+      if (dist < bestDist) {
+        best = p.node
+        bestDist = dist
+      }
+    }
+    return best
+  }
+  const node: DiagramNode = { id: ids.take(), x: at.x, y: at.y }
+  acc.nodes = [...acc.nodes, node]
+  acc.elements = acc.elements.map(e =>
+    e.id === elementId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: node.id }] } : e,
+  )
+  return node.id
 }
