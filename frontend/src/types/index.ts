@@ -64,6 +64,7 @@ export type ElementClass =
   | 'ShortCircuiterNoGround'
   | 'DisconnectorFuse'
   | 'SynchronousCompensator'
+  | 'KnifeSwitch3'
   | 'Ground'
   | 'PowerTransformer'
   | 'Booster'

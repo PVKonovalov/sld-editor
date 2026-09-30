@@ -127,7 +127,7 @@ palette:
   - name: "Wiring"
     items: [ "7", "26", "14", "56", "32" ]
   - name: "Switching devices"
-    items: [ "41", "43", "42", "162", "164", "163", "399", "49", "51", "76" ]
+    items: [ "41", "43", "42", "162", "164", "163", "399", "49", "51", "76", "175" ]
   - name: "Grounding"
     items: [ "31", "54", "398" ]
   - name: "Transformers"

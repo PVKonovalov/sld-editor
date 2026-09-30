@@ -4465,3 +4465,17 @@ the source, the "=" mark stays upright whatever the orientation (a
 Properties (symmetric, no mirror branch in the source). `Extract` (sibling
 `slddoc`) reads it with `parseOnePortDevice`, like Generator. Checked against
 every real instance in the EMA corpus (8, none rotated): all extracted.
+
+2026-09-30: 3-position knife switch (xsde2svg shape 175), ported from
+`element_175.go`. New class `KnifeSwitch3` in the Elements palette's
+Switching devices group: three small circles and a thick blade, with three
+terminals, the pivot (0, 10) and the left and right contacts (±10, -10). The
+source's pivot is at (0, 5); it was moved down so every terminal sits on the
+grid. The source always draws the blade in the middle and has no state; here
+a Position dropdown in Properties (Left contact / Middle (off) / Right
+contact, stored in State as 0 / 1 or unset / 2) swings it. The blade stops at
+the circles' edges instead of relying on the source's background-filled
+circles to hide its ends. Mirror is hidden. `Extract` (sibling `slddoc`) reads
+it with `parseKnifeSwitch3` (ports at the circles' centers, State unset). No
+real corpus instance exists, so it was tested against markup in the source's
+own output format.

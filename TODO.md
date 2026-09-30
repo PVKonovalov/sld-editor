@@ -49,8 +49,8 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 - [+] 157 Thyristor
 - [+] 163 Short-circuiter without ground
 - [+] 166 Disconnector-fuse
-- [.] 174 Synchronous compensator
-- [ ] 175 3-position knife switch
+- [+] 174 Synchronous compensator
+- [+] 175 3-position knife switch
 - [ ] 302 Window icon
 - [ ] 310 Container
 - [ ] 319 Small window

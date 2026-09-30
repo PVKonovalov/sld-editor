@@ -174,6 +174,15 @@ const SUBSTATION_NTYPE_TRIANGLE = 1
 const POWERFLOW_DIRECTION_FORWARD = 0
 const POWERFLOW_DIRECTION_BACKWARD = 1
 
+// KnifeSwitch3's own State (backend/internal/slddoc's own Element.State,
+// reused rather than a dedicated field) is the blade's position, not an
+// Open/Close/Intermediate one, so it gets its own dropdown. 1/unset is the
+// middle (off) position, the only one the real source draws, matching
+// applyStateLine's own nil-defaults-to-first-option rule.
+const KNIFE_LEFT = 0
+const KNIFE_MIDDLE = 1
+const KNIFE_RIGHT = 2
+
 // A handful of common web-safe SVG font-family values for a Label's own
 // Font dropdown — an empty Label.font (this list's first entry) falls
 // back to the original hardcoded Arial (see model.go's own doc comment).
@@ -733,6 +742,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isResistor = el.class === 'Resistor'
   const isThyristor = el.class === 'Thyristor'
   const isSyncCompensator = el.class === 'SynchronousCompensator'
+  const isKnifeSwitch3 = el.class === 'KnifeSwitch3'
   const isTable = el.class === 'Table'
   const isTable2 = el.class === 'Table2'
   const isPackageSubstation = el.class === 'PackageSubstation'
@@ -1479,6 +1489,21 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
+        {isKnifeSwitch3 && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.knifePosition')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.state ?? KNIFE_MIDDLE}
+              onChange={e => patch({ state: Number(e.target.value) })}
+            >
+              <option value={KNIFE_LEFT}>{t('properties.knifeLeft')}</option>
+              <option value={KNIFE_MIDDLE}>{t('properties.knifeMiddle')}</option>
+              <option value={KNIFE_RIGHT}>{t('properties.knifeRight')}</option>
+            </select>
+          </label>
+        )}
+
         {isPowerflowIndicator && (
           <>
             <label className="block text-xs">
@@ -1986,8 +2011,9 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   real source has no mirror branch either (its circle is
                   symmetric and its arrow never rotates), nor a Resistor's; a Thyristor's mirror
                   branch is only the same symbol turned 180°. A Synchronous compensator
-                  is symmetric and has no mirror branch either. */}
-              {!isPowerflowIndicator && !isFork && !isBooster && !isResistor && !isThyristor && !isSyncCompensator && (
+                  is symmetric and has no mirror branch either; a 3-position knife
+                  switch's State already picks either side. */}
+              {!isPowerflowIndicator && !isFork && !isBooster && !isResistor && !isThyristor && !isSyncCompensator && !isKnifeSwitch3 && (
                 <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"

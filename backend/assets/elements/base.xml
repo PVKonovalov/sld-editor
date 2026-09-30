@@ -496,6 +496,30 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_175.go (element175, Рубильник
+       3-позиционный): three small circles (r 2, stroke-width 2), the pivot
+       below and two contacts at (±10, -10), and a thick blade
+       (stroke-width 4) from the pivot. The source puts the pivot at
+       (0, 5); here it's at (0, 10), so all three terminals (pivot "1",
+       left contact "2", right contact "3") sit on the grid and the blade
+       is 20 long rather than 15. The source has no state and always
+       draws the blade in the middle; here State moves it: 1 or unset is
+       that middle (off) position, 0 swings it to the left contact, 2 to
+       the right one. The source fills the circles with the page
+       background so the blade's end doesn't show through them; here the
+       circles are unfilled and the blade instead stops at their edges. -->
+  <symbol shape="175" class="KnifeSwitch3" name="3-position knife switch">
+    <terminals>
+      <terminal x="0" y="10"/>
+      <terminal x="-10" y="-10"/>
+      <terminal x="10" y="-10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="{state:M 0 8 V -8|M -0.9 8.2 L -9.1 -8.2|M 0.9 8.2 L 9.1 -8.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:4" />
+<path d="M -2 10 a 2 2 0 0 1 4 0 a 2 2 0 0 1 -4 0 M -12 -10 a 2 2 0 0 1 4 0 a 2 2 0 0 1 -4 0 M 8 -10 a 2 2 0 0 1 4 0 a 2 2 0 0 1 -4 0" style="fill:none;stroke:{color};stroke-width:2" />
+]]></template>
+  </symbol>
+
   <!-- Same withdrawable convention as shape 43 above: the two real
        terminals sit at the far chevron tips (y=±30), not the switch body
        itself, and the movable body (near chevrons/contact bars/blade) is
