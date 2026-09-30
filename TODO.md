@@ -29,7 +29,7 @@ Placing one from the palette works (see RELEASE.md, 2026-09-29). Still to do:
 xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one needs a template in
 `backend/assets/elements/base.xml`, `Extract` support in the sibling `slddoc` module, and a `palette` entry.
 
-- [ ] 6 Booster/voltage regulator (single-winding power transformer)
+- [+] 6 Booster/voltage regulator (single-winding power transformer)
 - [ ] 10 Connector
 - [ ] 11 Backdrop, image file
 - [ ] 19 Metal anchor/angle pole
@@ -38,27 +38,27 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 - [ ] 44 Knife switch
 - [ ] 50 Withdrawable sectionalizer
 - [ ] 60 Zone division
-- [ ] 71 RZD connection, disconnector. Porting it as its own type means removing the legacy `71` → `162` rewrite in
+- [ ] 71 Custom connection, disconnector. Porting it as its own type means removing the legacy `71` → `162` rewrite in
       `slddoc.Load` (`shapeDisconnectorLegacy`).
 - [ ] 83 Connector arrow
 - [ ] 102 Panel/board
 - [ ] 103 Automation device
 - [ ] 130 Device (generic placeholder; check what it actually draws first)
 - [ ] 146 Power pole
-- [ ] 156 Resistor
-- [ ] 157 Thyristor
-- [ ] 163 Short-circuiter without ground
-- [ ] 166 Disconnector-fuse
-- [ ] 174 Synchronous compensator
+- [+] 156 Resistor
+- [+] 157 Thyristor
+- [+] 163 Short-circuiter without ground
+- [+] 166 Disconnector-fuse
+- [.] 174 Synchronous compensator
 - [ ] 175 3-position knife switch
 - [ ] 302 Window icon
 - [ ] 310 Container
 - [ ] 319 Small window
-- [ ] 320 Custom element
+- [!] 320 Custom element - it's a common group name for elements started from type id 320XXX
 - [ ] 360 Substation (pictogram)
 - [ ] 389 Blocking filter
 - [ ] 391 RTF text
-- [ ] 3206 RZD connection, disconnector, arc-extinguishing contacts
+- [ ] 3206 Customer connection, disconnector, arc-extinguishing contacts
 - [ ] 320002 Lamp on pole
 
 ## Gaps in already-ported shapes

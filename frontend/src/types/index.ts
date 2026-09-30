@@ -61,8 +61,12 @@ export type ElementClass =
   | 'LoadBreakSwitch'
   | 'GroundSwitch'
   | 'ShortCircuiter'
+  | 'ShortCircuiterNoGround'
+  | 'DisconnectorFuse'
+  | 'SynchronousCompensator'
   | 'Ground'
   | 'PowerTransformer'
+  | 'Booster'
   | 'CurrentTransformer'
   | 'ChokeCoil'
   | 'Reactor'
@@ -70,6 +74,8 @@ export type ElementClass =
   | 'SurgeArrester'
   | 'Fuse'
   | 'Capacitor'
+  | 'Resistor'
+  | 'Thyristor'
   | 'CapacitorBank'
   | 'Starter'
   | 'Generator'
@@ -191,6 +197,10 @@ export interface DiagramElement {
   // points instead of just the second one, matching backend/internal/
   // slddoc's own Element.DoubleHeaded.
   doubleHeaded?: boolean
+  // Booster (shape 6) only — draws its own regulation arrow, matching
+  // slddoc's own Element.TapChanger (a PowerTransformer marks its
+  // regulated winding with TransformerWinding.tapChanger instead).
+  tapChanger?: boolean
   // PostPole (shape 292) only — draws its own square marker instead of
   // its default round one, matching backend/internal/slddoc's own
   // Element.Square.

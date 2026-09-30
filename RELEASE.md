@@ -4373,3 +4373,95 @@ copies every `backend/assets/USER_GUIDE*.md` (English and Russian) to the
 server's `assets/` folder next to the element library. The server's own
 `config/sld-editor.yaml` needs `user_guide: "assets/USER_GUIDE.md"` for the
 Help button to find them.
+
+2026-09-30: Booster/voltage regulator (xsde2svg shape 6, a single-winding power
+transformer), ported from `element_6.go`. New class `Booster` in the Elements
+palette's Transformers group: a radius-21 circle centered on the anchor with a
+lead on each side and two terminals at (±30, 0) (the source's own leads end at
+±28; lengthened by 2 so the terminals sit on the grid). The new
+`Element.TapChanger` (`tapChanger` attribute, the source's own `FArrowType`)
+draws the diagonal regulation arrow and is set in Properties with the existing
+"Regulation (OLTC)" checkbox; Mirror is hidden for this class (the source has
+no mirror branch). As in the source, the arrow and the small winding-connection
+mark (a three-leg star, the windings' star connection) stay upright whatever the orientation (`{counterRotate}` wrapper); both
+take the voltage color, like Power transformer's own arrow, instead of the
+corpus' fixed dark color. Templates get a new `{tapChanger:fragment}`
+placeholder (kept only when TapChanger is set; the palette icon always shows
+it). `Extract` (sibling `slddoc`) now reads shape 6 with `parseBooster`: ports
+are the circle path's two lead ends, the anchor their midpoint, rotated through
+that path's own `rotate()` when present (unrotated instances work too, at any
+export scale), and a closed second path sets TapChanger. Checked against every
+real instance in the EMA corpus (159, of which 103 with the arrow): none
+failed.
+
+2026-09-30: Capacitor bank (shape 172): the two short horizontal accent bars
+inside the triangle moved up 4 px (y 27/31 → 23/27).
+
+2026-09-30: Resistor (xsde2svg shape 156), ported from `element_156.go`. New
+class `Resistor` in the Elements palette's Other equipment group: a 40x16 box
+with a lead on each side, drawn horizontally, and two terminals at (±30, 0).
+The source is 1px off-center (leads from -36 to +34); here the box is centered
+on the anchor and the leads are 10 long, so both terminals sit on the grid.
+Mirror is hidden in Properties (the source has no mirror branch). `Extract`
+(sibling `slddoc`) reads it with the generic `parseTwoPortDevice`; the shape
+is drawn horizontally before rotation, so an unrotated instance gets Orient 0
+(`horizontalTwoPortShapes`), and a two-port device's `rotate()` angle is now
+normalized (`-180` → `180`). Checked against every real instance in the EMA
+corpus (49): all extracted.
+
+2026-09-30: Thyristor (xsde2svg shape 157), ported from `element_157.go`'s
+default (non-mirrored) geometry. New class `Thyristor` in the Elements
+palette's Other equipment group: a diode triangle pointing right with a cathode
+bar at its apex and a gate stub off the bar, three terminals: anode (-20, 0),
+cathode (20, 0) and gate (20, -20). The source's anode lead ends at -18 and its
+gate at (17, -19); here the anode lead is 2 px longer and the gate stub ends at
+(20, -20), so all three terminals sit on the grid. Drawn unfilled (the source fills it
+with the page background, which looks the same). Mirror is hidden in
+Properties: the source's mirror branch is the same symbol turned 180° at half
+size, which Orientation already covers. `Extract` (sibling `slddoc`) reads it
+with `parseThyristor`: anode and cathode as a horizontal two-port device
+(`parseTwoPortDevice`, `horizontalTwoPortShapes`), the gate as the path's last
+point.
+Checked against every real instance in the EMA corpus (6, in the "Нива"
+hydro plant diagrams): all extracted.
+
+2026-09-30: Short-circuiter without ground (xsde2svg shape 163), ported from
+`element_163.go`. New two-state class `ShortCircuiterNoGround` in the Elements
+palette's Switching devices group, after Sectionalizer: the same body as
+Sectionalizer (164), contact bars and terminals at (0, ±10), except the arm's
+arrowhead points in toward the rod. Open draws 164's full-length tilted rod
+pivoting at the bottom circle rather than the source's shorter stub; Mirror
+flips the arm to the right (the source's xMirror). Properties offers only
+Close/Open, and a newly placed one starts Open. `Extract` (sibling `slddoc`)
+reads it with `parseShortCircuiterNoGround`: `data-state` from the rod path,
+the anchor from `rotate()` or (unrotated) from the first contact bar and the
+arrowhead tip, Mirror from the arm's direction, and the ports at the ends of
+the source's bus-spacing legs (`sde.Distance`) when it draws them, else at
+the contact bars. The legs themselves are not drawn. Checked against every
+real instance in the EMA corpus (425, 97 of them with legs): all extracted.
+
+2026-09-30: Disconnector-fuse (xsde2svg shape 166), ported from
+`element_166.go`. New two-state class `DisconnectorFuse` in the Elements
+palette's Protection group, after the fuses: geometry as the source draws it
+at its default bus spacing, contact bars at ±9 with short legs to the
+terminals at (0, ±10). Closed draws the fuse body (a rod inside a 4x12
+rectangle) between the bars; Open keeps the top bar and swings the fuse about
+a pivot circle at the bottom, and Mirror swings it the other way (the
+source's xMirror). Properties offers only Close/Open, and a newly placed one
+starts Closed, like a Disconnector. `Extract` (sibling `slddoc`) reads it with
+`parseDisconnectorFuse`: state, voltage and name from the blade path, the
+anchor from the inner `<g>`'s `rotate()` or (unrotated) from the contact bars
+and the blade's pivot, Mirror from the open blade's direction, and the ports
+at the ends of the source's bus-spacing legs. Checked against every real
+instance in the EMA corpus (47): all extracted.
+
+2026-09-30: Synchronous compensator (xsde2svg shape 174), ported from
+`element_174.go`. New class `SynchronousCompensator` in the Elements palette's
+Generation group, after Generator: a radius-16 circle hanging from a 5-long
+stem, stroke-width 2, with an "=" mark inside. Like Generator it is anchored
+on its single terminal (the stem's tip, 21 above the circle's center). As in
+the source, the "=" mark stays upright whatever the orientation (a
+`{counterRotate}` wrapper about the circle's center). Mirror is hidden in
+Properties (symmetric, no mirror branch in the source). `Extract` (sibling
+`slddoc`) reads it with `parseOnePortDevice`, like Generator. Checked against
+every real instance in the EMA corpus (8, none rotated): all extracted.

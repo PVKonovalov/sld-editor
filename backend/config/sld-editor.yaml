@@ -127,18 +127,18 @@ palette:
   - name: "Wiring"
     items: [ "7", "26", "14", "56", "32" ]
   - name: "Switching devices"
-    items: [ "41", "43", "42", "162", "164", "399", "49", "51", "76" ]
+    items: [ "41", "43", "42", "162", "164", "163", "399", "49", "51", "76" ]
   - name: "Grounding"
     items: [ "31", "54", "398" ]
   - name: "Transformers"
-    items: [ "47" ]
+    items: [ "47", "6" ]
   - name: "Generation"
-    items: [ "173" ]
+    items: [ "173", "174" ]
   - name: "Measurement"
     items: [ "34", "55" ]
   - name: "Other equipment"
-    items: [ "33", "37", "397", "388", "172", "52", "385", "386" ]
+    items: [ "33", "37", "397", "388", "172", "156", "157", "52", "385", "386" ]
   - name: "Protection"
-    items: [ "35", "29", "168", "203", "154" ]
+    items: [ "35", "29", "168", "203", "154", "166" ]
   - name: "Indicators"
     items: [ "106", "134", "320003", "320001" ]

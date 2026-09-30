@@ -113,16 +113,19 @@ const SWITCHING_DEVICE_CLASSES = new Set([
   'LoadBreakSwitch',
   'GroundSwitch',
   'ShortCircuiter',
+  'ShortCircuiterNoGround',
+  'DisconnectorFuse',
   'Starter',
 ])
 
-// Sectionalizer (164), Power circuit breaker (399) and Short-circuiter
-// (398) only have two real positions — the real xsde2svg source never
-// modeled an Intermediate one for any of them (see base.xml's own
-// comments on shapes 164/398/399) — so
+// Sectionalizer (164), Power circuit breaker (399), the two
+// Short-circuiters (398, 163) and Disconnector-fuse (166) only have two
+// real positions — the real xsde2svg source never modeled an Intermediate
+// one for any of them (see base.xml's own comments on shapes
+// 163/164/166/398/399) — so
 // their own State dropdown offers only Open/Close, unlike every other
 // class in SWITCHING_DEVICE_CLASSES above.
-const TWO_STATE_CLASSES = new Set(['Sectionalizer', 'PowerCircuitBreaker', 'ShortCircuiter'])
+const TWO_STATE_CLASSES = new Set(['Sectionalizer', 'PowerCircuitBreaker', 'ShortCircuiter', 'ShortCircuiterNoGround', 'DisconnectorFuse'])
 
 // Shapes whose base.xml template also reacts to {positionAttr}/
 // {positionOffset} (a withdrawable device's own Service/Normal/Test
@@ -726,6 +729,10 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isArc = el.class === 'Arc'
   const isPowerflowIndicator = el.class === 'PowerflowIndicator'
   const isFork = el.class === 'Fork'
+  const isBooster = el.class === 'Booster'
+  const isResistor = el.class === 'Resistor'
+  const isThyristor = el.class === 'Thyristor'
+  const isSyncCompensator = el.class === 'SynchronousCompensator'
   const isTable = el.class === 'Table'
   const isTable2 = el.class === 'Table2'
   const isPackageSubstation = el.class === 'PackageSubstation'
@@ -1741,6 +1748,17 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {isBooster && (
+          <label className="flex items-center gap-1.5 text-xs">
+            <input
+              type="checkbox"
+              checked={el.tapChanger ?? false}
+              onChange={e => patch({ tapChanger: e.target.checked || undefined })}
+            />
+            {t('properties.transformerTapChanger')}
+          </label>
+        )}
+
         {el.class === 'PowerTransformer' && (
           <>
             <label className="flex items-center gap-1.5 text-xs">
@@ -1964,8 +1982,12 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   in the real source at all (unlike Orientation, which does
                   rotate it) — writePowerflowIndicator never applies it, so
                   the checkbox is skipped here the same reason Orientation
-                  itself is skipped for Lamp/PostPole just above. */}
-              {!isPowerflowIndicator && !isFork && (
+                  itself is skipped for Lamp/PostPole just above. A Booster's
+                  real source has no mirror branch either (its circle is
+                  symmetric and its arrow never rotates), nor a Resistor's; a Thyristor's mirror
+                  branch is only the same symbol turned 180°. A Synchronous compensator
+                  is symmetric and has no mirror branch either. */}
+              {!isPowerflowIndicator && !isFork && !isBooster && !isResistor && !isThyristor && !isSyncCompensator && (
                 <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"

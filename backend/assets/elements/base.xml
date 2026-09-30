@@ -50,6 +50,8 @@
   fragment stays upright (e.g. FaultPassageIndicator's own "FPI" label)
   regardless of the element's own rotation, while the rest of the
   template — and the element's own terminals — still rotate normally.
+  {tapChanger:fragment} keeps fragment only when the element's own
+  TapChanger is set (Booster's regulation arrow) and drops it otherwise.
 
   A <terminals> block (optional — a shape with none, like a busbar, simply
   isn't offered one) lists the local, unrotated points on a symbol where a
@@ -444,6 +446,56 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_163.go (element163, Короткозамыкатель
+       без земли), the default (non-xMirror) geometry: the same body as
+       Sectionalizer (164) just above, except the arm's own arrowhead
+       points in toward the rod (tip on the rod when Closed, just left of
+       it when Open). Open draws the full-length tilted rod pivoting at the
+       bottom circle, like 164, at the user's own request, instead of the
+       source's shorter stub starting 5 below the top bar; the top bar is
+       also kept at 164's width in both states. Mirror flips the arm to
+       the right (the source's xMirror). The source's bus-spacing legs
+       (sde.Distance) aren't drawn; Extract puts the ports at their real
+       ends instead. Two real states only, Closed(1)/Open(0), so the third
+       {state:...} option duplicates Open. -->
+  <symbol shape="163" class="ShortCircuiterNoGround" name="Short-circuiter without ground">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M -5 -10 h 10" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M -5 10 h 10|M 0 9 a 2 2 0 1 1 0 4 a 2 2 0 0 1 0 -4|M 0 9 a 2 2 0 1 1 0 4 a 2 2 0 0 1 0 -4}" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -9 v 18 M 0 0 h -11|M -6 -9 l 6 18 M -4 0 h -11|M -6 -9 l 6 18 M -4 0 h -11}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 0 0 l -8 3 v -6 z|M -4 0 l -8 3 v -6 z|M -4 0 l -8 3 v -6 z}" style="fill:{color};stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_166.go (element166,
+       Разъединитель-предохранитель), geometry exactly as the source draws
+       it at its default bus spacing: contact bars at ±9 with 1-long legs
+       out to the terminals at ±10. Closed draws the fuse body (a rod
+       inside a 4x12 rectangle) between the bars, with a 3 gap to each, as
+       the source does; Open keeps only the top bar and swings the fuse
+       about a pivot circle at the bottom. Mirror swings it the other way
+       (the source's xMirror; it only changes Open). The pivot circle is
+       unfilled here (the source fills it with the page background). The
+       source's legs grow with the bus spacing (sde.Distance); that isn't
+       modeled, and Extract puts the ports at their real ends instead. Two
+       real states only, Closed(1)/Open(0), so the third {state:...}
+       option duplicates Open. -->
+  <symbol shape="166" class="DisconnectorFuse" name="Disconnector-fuse">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="{state:M 0 -6 v 12 m 0 -12 h 2 v 12 h -4 v -12 h 2|M 0 9 l -8 -16 m -1 3 l 4 -2 l 5 10 l -4 2 z|M 0 9 l -8 -16 m -1 3 l 4 -2 l 5 10 l -4 2 z}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M -4 -9 h 8 m 0 18 h -8|M -4 -9 h 8 M 0 6 a 2 2 0 1 1 0 4 a 2 2 0 0 1 0 -4|M -4 -9 h 8 M 0 6 a 2 2 0 1 1 0 4 a 2 2 0 0 1 0 -4}" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -9 v -1 M 0 9 v 1" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <!-- Same withdrawable convention as shape 43 above: the two real
        terminals sit at the far chevron tips (y=±30), not the switch body
        itself, and the movable body (near chevrons/contact bars/blade) is
@@ -634,6 +686,31 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_6.go (element6, Booster/voltage
+       regulator, a single-winding power transformer): a radius-21 circle
+       centered on the anchor with a lead on each side. The real source's
+       own leads are 7 long (terminals at ±28); here they're 9, so both
+       terminals sit on the grid. The regulation arrow (only when the
+       element's own TapChanger is set, the real FArrowType) and the small
+       winding-connection mark (a star: three legs
+       from the center) are drawn unrotated in the real source,
+       hence the {counterRotate} wrapper. Corpus instances draw both in a
+       fixed dark color; here they take the voltage color, like Power
+       transformer's own regulation arrow. -->
+  <symbol shape="6" class="Booster" name="Booster/voltage regulator">
+    <terminals>
+      <terminal x="-30" y="0"/>
+      <terminal x="30" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M -30 0 h 9 a 21 21 0 0 1 42 0 a 21 21 0 0 1 -42 0 m 51 0 h -9" style="fill:none;stroke:{color};stroke-width:2" />
+<g transform="rotate({counterRotate})">
+{tapChanger:<path d="M -21 21 l 42 -42 m 0 0 l -5 3 l 2 2 z" style="fill:{color};stroke:{color};stroke-width:1" />}
+<path d="M 0 -7 v 7 l 5 5 M 0 0 l -5 5" style="fill:none;stroke:{color};stroke-width:1" />
+</g>
+]]></template>
+  </symbol>
+
   <!-- Ported from xsde2svg's own element_173.go (element173, non-mirrored
        case), re-anchored on its own top terminal rather than the circle's
        center: the real source's own sde.Origin *is* the circle's center
@@ -654,6 +731,27 @@
     </terminals>
     <template><![CDATA[
 <path d="M 0 0 v 9 m -16 16 a 16 16 0 0 1 32 0 a 16 16 0 0 1 -32 0 M -9 25 c 3 -3 6 -3 9 0 s 6 3 9 0" style="fill:none;stroke:{color};stroke-width:2" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_174.go (element174, Синхронный
+       компенсатор), re-anchored on its own terminal like Generator (173)
+       just above: the source's origin is the circle's center, with a
+       5-long stem up to the terminal 21 above it. The inner "=" mark is
+       drawn unrotated in the source (only the circle path gets the
+       rotate()), so it's wrapped in a counter-rotation about the circle's
+       center to stay upright whatever the Orient. Stroke-width 2, the
+       source's own minimum for this shape. No mirror branch in the
+       source. -->
+  <symbol shape="174" class="SynchronousCompensator" name="Synchronous compensator">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 5 m -16 16 a 16 16 0 0 1 32 0 a 16 16 0 0 1 -32 0" style="fill:none;stroke:{color};stroke-width:2" />
+<g transform="translate(0 21) rotate({counterRotate})">
+<path d="M -7 3 h 14 m -14 -6 h 14" style="fill:none;stroke:{color};stroke-width:2" />
+</g>
 ]]></template>
   </symbol>
 
@@ -867,6 +965,43 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_156.go (element156, Резистор): a
+       40x16 box with a lead on each side, drawn horizontally. The real
+       source is 1px off-center (leads from -36 to +34 around its origin);
+       here the box is centered on the anchor and the leads are 10 long,
+       so both terminals (±30) sit on the grid. No mirror branch in the
+       source. -->
+  <symbol shape="156" class="Resistor" name="Resistor">
+    <terminals>
+      <terminal x="-30" y="0"/>
+      <terminal x="30" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M -30 0 h 10 m 0 8 v -16 h 40 v 16 z m 40 -8 h 10" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_157.go (element157, Тиристор),
+       the default (non-xMirror) geometry: a diode triangle (anode side at
+       -8, apex at +12 pointing right), a cathode bar at the apex, and a
+       gate stub off the bar's top end. The real source's own anode lead
+       ends at -18 and its gate at (17,-19); here the anode lead is 2
+       longer and the gate stub ends at (20,-20), so all three terminals
+       (anode, cathode, gate) sit on the grid. The source fills the path
+       with the page background, which looks the same as no fill. Its
+       xMirror branch is the same symbol turned 180° (at half size), which
+       Orientation already covers, so Mirror isn't offered. -->
+  <symbol shape="157" class="Thyristor" name="Thyristor">
+    <terminals>
+      <terminal x="-20" y="0"/>
+      <terminal x="20" y="0"/>
+      <terminal x="20" y="-20"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 20 0 l -8 0 l -20 10 l 0 -20 l 20 10 m -20 0 l -12 0 m 32 10 l 0 -20 l 8 -8 l 0 -2" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <!-- Ported from xsde2svg's own element_172.go (element172), the default
        (non-"БСК_1_"CustomView) geometry — this schema has no per-instance
        CustomView field to pick the other layout. Anchor is the top
@@ -879,7 +1014,7 @@
       <terminal x="0" y="0"/>
     </terminals>
     <template><![CDATA[
-<path d="M 0 0 l 0 8 l -14 24 m 14 -24 l 14 24 h -28 z M 0 27 h 5 m -5 0 h -5 M 0 31 h 5 m -5 0 h -5" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 0 l 0 8 l -14 24 m 14 -24 l 14 24 h -28 z M 0 23 h 5 m -5 0 h -5 M 0 27 h 5 m -5 0 h -5" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 

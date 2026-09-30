@@ -9,6 +9,10 @@ import type { ElementSymbol } from '../types'
 // constant for the two shapes (Lamp, FaultPassageIndicator) that use one.
 const STATE_RE = /\{state:([^|}]*)\|([^|}]*)\|([^}]*)\}/g
 
+// {tapChanger:fragment} (Booster's regulation arrow) is always shown in the
+// icon; the fragment may itself contain other placeholders.
+const TAP_CHANGER_RE = /\{tapChanger:([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g
+
 // BusBarSection (shape 24) has no template — internal/slddoc.Render draws
 // its own Points as a polyline instead — so the palette shows a plain
 // line as a stand-in for "you drag this one instead of clicking it".
@@ -160,7 +164,9 @@ const ICON_ROTATION: Record<string, number> = { '54': 180, '398': 180 }
 export function elementIconMarkup(symbol: ElementSymbol): string {
   if (!symbol.template) return EMPTY_TEMPLATE_ICONS[symbol.shape] ?? BUSBAR_ICON
   const body = symbol.template
+    .replace(TAP_CHANGER_RE, (_match, fragment: string) => fragment)
     .replace(STATE_RE, (_match, parallel: string) => parallel)
+    .replace(/\{counterRotate\}/g, '0')
     .replace(/\{color\}/g, 'currentColor')
     .replace(/\{fill\}/g, 'none')
     .replace(/\{radius\}/g, '8')

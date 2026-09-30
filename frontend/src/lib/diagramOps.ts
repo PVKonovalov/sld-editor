@@ -295,7 +295,7 @@ function defaultLayer(diagram: Diagram): number {
  * seeds the new element's voltage class from whichever one the user last
  * picked in Properties, so placing several elements in a row doesn't
  * require re-assigning the same voltage each time. */
-// A Breaker/Disconnector/Sectionalizer/PowerCircuitBreaker/LoadBreakSwitch (either the fixed or
+// A Breaker/Disconnector/DisconnectorFuse/Sectionalizer/PowerCircuitBreaker/LoadBreakSwitch (either the fixed or
 // withdrawable shape — both share the same Class) starts out placed in
 // service, not open, so a freshly drawn one-line reads correctly without a
 // separate trip to Properties for every single device: 1 is "Close" in the
@@ -303,7 +303,7 @@ function defaultLayer(diagram: Diagram): number {
 // get their own default below instead, since leaving it unset now has a
 // different visual consequence (see GROUND_TYPE_DEFAULT_STATE's own
 // comment).
-const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector', 'Sectionalizer', 'PowerCircuitBreaker', 'LoadBreakSwitch'])
+const DEFAULT_CLOSED_CLASSES = new Set<ElementClass>(['Breaker', 'Disconnector', 'DisconnectorFuse', 'Sectionalizer', 'PowerCircuitBreaker', 'LoadBreakSwitch'])
 const STATE_CLOSE = 1
 
 // GroundSwitch/ShortCircuiter (base.xml shapes 54/398) both draw
@@ -466,6 +466,9 @@ export function placeElement(
     ...(elementClass === 'GroundSwitch' || elementClass === 'ShortCircuiter'
       ? { orient: GROUND_TYPE_DEFAULT_ORIENT, state: GROUND_TYPE_DEFAULT_STATE }
       : {}),
+    // A short-circuiter without ground is normally Open too (422 of 425
+    // real corpus instances), but keeps its own upright default orient.
+    ...(elementClass === 'ShortCircuiterNoGround' ? { state: GROUND_TYPE_DEFAULT_STATE } : {}),
     ...(WITHDRAWABLE_SHAPES.has(symbol.shape) ? { position: POSITION_NORMAL } : {}),
     ...(elementClass === 'FaultPassageIndicator' ? fpiDefaults(defaultFpiText) : {}),
     ...(elementClass === 'PowerTransformer' ? powerTransformerDefaults(defaultVoltage) : {}),
