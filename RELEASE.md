@@ -4479,3 +4479,52 @@ circles to hide its ends. Mirror is hidden. `Extract` (sibling `slddoc`) reads
 it with `parseKnifeSwitch3` (ports at the circles' centers, State unset). No
 real corpus instance exists, so it was tested against markup in the source's
 own output format.
+
+2026-10-01: SVG import fixes and an importable WSCC9 sample. `Extract` (sibling
+`slddoc`) now reads three things it used to reject: curve commands (C/S/Q/T,
+endpoint only, the same way arcs are read), so a Generator (173) symbol no
+longer fails; an overhead or cable line (22/23) wrapped in a named `<g>`,
+taking its points from the inner `<polyline>` and its name from `data-name`;
+and a bare top-level `<text>` with no `data-type`, which becomes a caption
+label. `WSCC9.svg` was rebuilt in real xsde2svg form from the `base.xml`
+symbols: absolute coordinates, `rotate(a,cx,cy)` on rotated symbols, bare
+busbar and buswork polylines, named overhead lines, object links for the
+loads and plain captions, with a breaker on both sides of every line and
+transformer. It imports by drag-and-drop with nothing skipped or failed. The
+old hand-drawn file had all its markup inside one `translate(50,50)` group and
+used pictogram shapes, so it imported as an empty diagram.
+
+2026-10-01: Static SVG in absolute coordinates. `Render` (sibling `slddoc`) now
+writes the saved `.svg`, its downloads, the SVG export and the custom-element
+palette icons the way real xsde2svg does: every coordinate absolute, and a
+rotated symbol carrying `transform="rotate(a,cx,cy)"` around its anchor
+instead of `translate(x,y) rotate(a)` around local geometry. A mirrored symbol
+gets `rotate(a,cx,cy) translate(2x,0) scale(-1,1)`. The conversion is one pass,
+`slddoc/absolute.go`, over each rendered symbol, transformer, arrow and
+object-link arrowhead. It shifts the geometry and rewrites nested template
+transforms so they keep their effect, and drops no-op nested groups. If a
+fragment has a form the pass can't convert exactly, it is left in the local
+form, which still draws correctly. The live canvas (Interactive) is unchanged,
+since dragging rewrites that translate. Bare buswork (21) and object-link (28)
+polylines now carry `data-voltage`, plus `data-name` when named, as real
+xsde2svg output does. A power transformer's outer `<g>` no longer carries a
+placeholder `data-voltage="gray"` in Static, and a winding with no
+connection-scheme glyph no longer writes an empty counter-rotate group. All 434
+diagrams in `diagrams/` and `custom-elements/` render pixel-identical to before
+(rasterized with rsvg-convert). The editor's own saved `.svg` now imports
+correctly: before, every symbol came back at (0,0). Of 53,033 symbols in those
+diagrams, 96% read back at exactly the same anchor and angle, and nearly all
+the rest at an equivalent angle (e.g. -180 vs 180). A new test renders every
+`base.xml` shape rotated and mirrored. `WSCC9.svg` is now plain `Render`
+output.
+
+2026-10-01: Typed captions in SVG. `Render` (sibling `slddoc`) now gives every
+caption (Label) `data-type="5"`. Static output (saved `.svg`, export,
+downloads) uses real xsde2svg's form: a `<!-- Text:5 -->` comment, then each
+caption as `<g data-type="5" data-name="…" id="…">` wrapping its `<text>`.
+`data-name` is the caption's text, with lines joined by spaces, which is how
+`Extract` links the caption back to the element of that name. Interactive keeps
+the bare `<text>` the canvas drags, now with `data-type="5"` on it. Digital
+devices get their own `<!-- Digital device2:134 -->` comment. Rendering is
+pixel-identical on all 434 diagrams. `WSCC9.svg` was regenerated; 39 of its 48
+captions link back to their element on import.

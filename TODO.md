@@ -24,6 +24,15 @@ Placing one from the palette works (see RELEASE.md, 2026-09-29). Still to do:
 - [ ] A BusBarSection's ports still grow per tap (it has no fixed terminals); tapping the same point twice adds a
       second port.
 
+## SVG import/export
+
+- [ ] `Extract` doesn't read every Static-rendered shape back at its own anchor and orientation; the list (with the
+      reason for each) is `extractRoundTripGaps` in `backend/internal/elements/static_render_test.go`. In the
+      diagrams corpus the ones that actually show up are cable joint (32, 1 unit low), ground switch (54, 2/3 unit
+      low) and package substation (385, 18 units up-left). `Extract` also reads Mirror for only a few shapes.
+- [ ] `Extract` links a caption (`data-type="5"`) only to an element whose name matches its `data-name`, never to a
+      connector, so a named line's or load link's caption imports unattached.
+
 ## Shapes not yet ported
 
 xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one needs a template in

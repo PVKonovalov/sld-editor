@@ -95,9 +95,12 @@ storage and the Gin API.
   affects rendering.
 - `Load` rewrites legacy values: connector kind `"ObjectLink"` → BusWork, and shape `"71"` → `"162"`. See memory: the
   71→162 rewrite must go once shape 71 is ported as its own type.
-- `RenderMode`: `Static` is a clean, xsde2svg-faithful document (the saved `.svg` and its downloads). `Interactive`
-  also adds `data-editor-kind="element|connector|label|digitaldevice"` and wider hit targets, and is used only by the
-  live canvas. `id`/`data-name`/`data-voltage`/`data-type`/`data-fill`/`data-state` are emitted in both modes.
+- `RenderMode`: `Static` is a clean, xsde2svg-faithful document (the saved `.svg` and its downloads): absolute
+  coordinates, with `rotate(a,cx,cy)` on rotated symbols (`slddoc/absolute.go` converts each fragment). `Interactive`
+  keeps symbols in their local frame, placed by `translate(x,y) rotate(a)`, because the canvas drags by rewriting that
+  translate and measures `getBBox()` locally. It also adds `data-editor-kind="element|connector|label|digitaldevice"`
+  and wider hit targets, and is used only by the live canvas. `id`/`data-name`/`data-voltage`/`data-type`/
+  `data-fill`/`data-state` are emitted in both modes.
 - Connector kinds render with xsde2svg type codes `21`/`22`/`23`/`28` (BusWork/OverheadLine/CableLine/LinkToObject).
   Overhead and cable lines are wrapped in a named `<g>`.
 - When matching xsde2svg output, verify against real corpus files (e.g. `sld-viewer/assets/sld/*.svg`).
