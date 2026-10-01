@@ -66,6 +66,17 @@ const LINE_STYLES: { value: ConnectorLineStyle | ''; labelKey: TranslationKey }[
 // element_16.go's own source produces ('dotted'/'dashDot'; it has no plain
 // dashed one — see slddoc's own ClassPolygon doc comment), '' meaning
 // Solid, same as LINE_STYLES.
+// A Container's (310) outline styles: the two xsde2svg element_310.go
+// draws (dotted 3,2 and dashed 6,5) plus solid.
+const CONTAINER_STYLES: { value: ConnectorLineStyle | ''; labelKey: TranslationKey }[] = [
+  { value: '', labelKey: 'properties.lineStyleSolid' },
+  { value: 'dotted', labelKey: 'properties.lineStyleDotted' },
+  { value: 'dashed', labelKey: 'properties.lineStyleDashed' },
+]
+
+// A Container caption's rotations: real corpus uses -90 (reading upward).
+const CONTAINER_CAPTION_ROTATIONS = [0, -90, 90, 180]
+
 const POLYGON_STYLES: { value: ConnectorLineStyle | ''; labelKey: TranslationKey }[] = [
   { value: '', labelKey: 'properties.lineStyleSolid' },
   { value: 'dotted', labelKey: 'properties.lineStyleDotted' },
@@ -728,13 +739,19 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const typeLabel = typeCodeLabel(typeName, el.shape)
   const isLamp = el.class === 'Lamp'
   const isRectangle = el.class === 'Rectangle'
+  const isSmallWindow = el.class === 'SmallWindow'
   const isCircle = el.class === 'Circle'
   const isArrow = el.class === 'Arrow'
   const isButton = el.class === 'Button'
+  const isWindowIcon = el.class === 'WindowIcon'
   const isRoad = el.class === 'Road'
   const isPostPole = el.class === 'PostPole'
+  const isLampOnPole = el.class === 'LampOnPole'
+  const isConnectorArrow = el.class === 'ConnectorArrow'
+  const isConnectorPoint = el.class === 'ConnectorPoint'
   const isLine = el.class === 'Line'
   const isPolygon = el.class === 'Polygon'
+  const isContainer = el.class === 'Container'
   const isArc = el.class === 'Arc'
   const isPowerflowIndicator = el.class === 'PowerflowIndicator'
   const isFork = el.class === 'Fork'
@@ -743,6 +760,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isThyristor = el.class === 'Thyristor'
   const isSyncCompensator = el.class === 'SynchronousCompensator'
   const isKnifeSwitch3 = el.class === 'KnifeSwitch3'
+  const isPowerPole = el.class === 'PowerPole'
   const isTable = el.class === 'Table'
   const isTable2 = el.class === 'Table2'
   const isPackageSubstation = el.class === 'PackageSubstation'
@@ -760,15 +778,21 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // shown below.
   const hasNoVoltage =
     isLamp ||
+    isLampOnPole ||
+    isConnectorArrow ||
+    isConnectorPoint ||
     el.class === 'FaultPassageIndicator' ||
     isRectangle ||
+    isSmallWindow ||
     isCircle ||
     isArrow ||
     isButton ||
+    isWindowIcon ||
     isRoad ||
     isPostPole ||
     isLine ||
     isPolygon ||
+    isContainer ||
     isArc ||
     isPowerflowIndicator ||
     isTable ||
@@ -899,7 +923,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
-        {isRectangle && (
+        {(isRectangle || isSmallWindow) && (
           <>
             <label className="block text-xs">
               <span className="flex items-center justify-between mb-1">
@@ -928,20 +952,23 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               <input
                 type="color"
                 className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
-                value={swatchColor(el.stroke, '#ffffff')}
+                value={swatchColor(el.stroke, isSmallWindow ? '#808080' : '#ffffff')}
                 onChange={e => patch({ stroke: e.target.value })}
               />
             </label>
-            <label className="block text-xs">
-              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
-              <input
-                type="number"
-                min={1}
-                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
-                value={el.strokeWidth ?? 1}
-                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
-              />
-            </label>
+            {/* A Small window's border is fixed at 1px (writeSmallWindow). */}
+            {isRectangle && (
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.strokeWidth ?? 1}
+                  onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+                />
+              </label>
+            )}
           </>
         )}
 
@@ -991,7 +1018,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
-        {isButton && (
+        {(isButton || isWindowIcon) && (
           <>
             <label className="block text-xs">
               <span className="block text-gray-400 mb-1">{t('properties.buttonText')}</span>
@@ -1027,26 +1054,29 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               <input
                 type="color"
                 className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
-                value={swatchColor(el.stroke, '#ffffff')}
+                value={swatchColor(el.stroke, isWindowIcon ? '#000000' : '#ffffff')}
                 onChange={e => patch({ stroke: e.target.value })}
               />
             </label>
-            <label className="block text-xs">
-              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
-              <input
-                type="number"
-                min={1}
-                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
-                value={el.strokeWidth ?? 1}
-                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
-              />
-            </label>
+            {/* A Window icon's border is fixed at 1px (writeWindowIcon). */}
+            {isButton && (
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.strokeWidth ?? 1}
+                  onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+                />
+              </label>
+            )}
             <label className="block text-xs">
               <span className="block text-gray-400 mb-1">{t('properties.buttonTextColor')}</span>
               <input
                 type="color"
                 className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
-                value={swatchColor(el.textColor, '#ffffff')}
+                value={swatchColor(el.textColor, isWindowIcon ? '#000000' : '#ffffff')}
                 onChange={e => patch({ textColor: e.target.value })}
               />
             </label>
@@ -1258,6 +1288,81 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {isConnectorArrow && (
+          <>
+            {/* Its own direction field instead of the generic Orientation
+                select below: a real arrow can point at any angle. No
+                Mirror (a straight arrow has nothing to flip). */}
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.arrowLength')}</span>
+                <input
+                  type="number"
+                  min={12}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.length ?? 30}
+                  onChange={e => patch({ length: Number(e.target.value) })}
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.arrowDirection')}</span>
+                <input
+                  type="number"
+                  step={15}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.orient ?? 0}
+                  onChange={e => patch({ orient: Math.round(Number(e.target.value)) })}
+                />
+              </label>
+            </div>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.arrowLineColor')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#ff7f50')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.arrowHeadColor')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.headStroke, '#696969')}
+                onChange={e => patch({ headStroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.arrowHeadFill')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#ffffff')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+
+        {(isLampOnPole || isConnectorPoint) && (
+          <>
+            {/* Its own color only: the 1px stroke is fixed, and like
+                PostPole it has no Orientation/Mirror (a circle crossed by
+                an ×, or a Connector's square, looks the same at every
+                right angle). */}
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.labelColor')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, isConnectorPoint ? '#ff00ff' : '#808080')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+          </>
+        )}
+
         {isPostPole && (
           <>
             {/* Reuses Rectangle's own Fill/Stroke i18n keys (identical
@@ -1402,6 +1507,157 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 onChange={e => patch({ lineStyle: (e.target.value || undefined) as ConnectorLineStyle | undefined })}
               >
                 {POLYGON_STYLES.map(opt => (
+                  <option key={opt.value} value={opt.value}>
+                    {t(opt.labelKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        )}
+
+        {isContainer && (
+          <>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.containerCaption')}</span>
+              <input
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.propertyText ?? ''}
+                onChange={e => patch({ propertyText: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.containerCaptionPosition')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={diagramOps.containerCaptionPresetOf(el) ?? ''}
+                onChange={e => {
+                  if (e.target.value && el.points) {
+                    patch(diagramOps.containerCaptionPlacement(el.points, e.target.value as diagramOps.ContainerCaptionPreset))
+                  }
+                }}
+              >
+                {diagramOps.containerCaptionPresetOf(el) === null && (
+                  <option value="">{t('properties.containerCaptionCustom')}</option>
+                )}
+                {diagramOps.CONTAINER_CAPTION_PRESETS.map(preset => (
+                  <option key={preset} value={preset}>
+                    {t(`properties.containerCaption.${preset}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.containerCaptionDx')}</span>
+                <input
+                  type="number"
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.textDx ?? 0}
+                  onChange={e => patch({ textDx: Number(e.target.value) })}
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.containerCaptionDy')}</span>
+                <input
+                  type="number"
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.textDy ?? 0}
+                  onChange={e => patch({ textDy: Number(e.target.value) })}
+                />
+              </label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.containerCaptionSize')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.textSize ?? 14}
+                  onChange={e => patch({ textSize: Number(e.target.value) })}
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.containerCaptionRotation')}</span>
+                <select
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.orient ?? 0}
+                  onChange={e => patch({ orient: Number(e.target.value) })}
+                >
+                  {CONTAINER_CAPTION_ROTATIONS.map(a => (
+                    <option key={a} value={a}>
+                      {a}°
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            {/* An imported caption is often invisible (fill none); the
+                Transparent reset keeps that possible for a new one. */}
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.containerCaptionColor')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ textColor: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.textColor, '#ffffff')}
+                onChange={e => patch({ textColor: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="flex items-center justify-between mb-1">
+                <span className="text-gray-400">{t('properties.rectangleFill')}</span>
+                <button
+                  type="button"
+                  className="text-[10px] text-gray-400 hover:text-white underline"
+                  onClick={() => patch({ fill: 'none' })}
+                >
+                  {t('properties.transparent')}
+                </button>
+              </span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.fill, '#000000')}
+                onChange={e => patch({ fill: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#808080')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStrokeWidth')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.strokeWidth ?? 1}
+                onChange={e => patch({ strokeWidth: Number(e.target.value) })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.lineStyle')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.lineStyle ?? ''}
+                onChange={e => patch({ lineStyle: (e.target.value || undefined) as ConnectorLineStyle | undefined })}
+              >
+                {CONTAINER_STYLES.map(opt => (
                   <option key={opt.value} value={opt.value}>
                     {t(opt.labelKey)}
                   </option>
@@ -1933,7 +2189,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {(el.class === 'BusBarSection' || isRectangle || isCircle || isArrow || isButton || isRoad || isLine || isPolygon || isArc || isTable) &&
+        {(el.class === 'BusBarSection' || isRectangle || isSmallWindow || isCircle || isArrow || isButton || isWindowIcon || isRoad || isLine || isPolygon || isContainer || isArc || isTable) &&
         el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>
@@ -1987,7 +2243,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           // the model at all (see slddoc's own ClassTable2 doc comment;
           // unlike Table (312), whose own Orient rotates just its label
           // and is shown in the Points-editor branch above instead).
-          !isLamp && !isPostPole && !isTable2 && (
+          !isLamp && !isPostPole && !isLampOnPole && !isConnectorArrow && !isConnectorPoint && !isTable2 && (
             <>
               <label className="block text-xs">
                 <span className="block text-gray-400 mb-1">{t('properties.orientation')}</span>
@@ -2012,8 +2268,9 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   symmetric and its arrow never rotates), nor a Resistor's; a Thyristor's mirror
                   branch is only the same symbol turned 180°. A Synchronous compensator
                   is symmetric and has no mirror branch either; a 3-position knife
-                  switch's State already picks either side. */}
-              {!isPowerflowIndicator && !isFork && !isBooster && !isResistor && !isThyristor && !isSyncCompensator && !isKnifeSwitch3 && (
+                  switch's State already picks either side. A Power pole is a
+                  symmetric circle with no mirror branch. */}
+              {!isPowerflowIndicator && !isFork && !isBooster && !isResistor && !isThyristor && !isSyncCompensator && !isKnifeSwitch3 && !isPowerPole && (
                 <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"

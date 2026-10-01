@@ -13,12 +13,18 @@ import type { Diagram, DiagramElement, Connector, Label, DigitalDevice, Point } 
 
 const BUSBAR_SHAPE = '24'
 const RECTANGLE_SHAPE = '3'
+const SMALL_WINDOW_SHAPE = '319'
 const CIRCLE_SHAPE = '4'
 const ARROW_SHAPE = '2'
 const BUTTON_SHAPE = '113'
+const WINDOW_ICON_SHAPE = '302'
 const ROAD_SHAPE = '335'
 const LINE_SHAPE = '1'
 const POLYGON_SHAPE = '16'
+const CONTAINER_SHAPE = '310'
+// Shapes drawn pen-tool style, one click per vertex: Polygon, and Container
+// (a closed outline with a caption).
+const PEN_DRAWN_SHAPES: ReadonlySet<string> = new Set([POLYGON_SHAPE, CONTAINER_SHAPE])
 const ARC_SHAPE = '9'
 // An Arc's (shape 9) own bulge handle, alongside its two real Points'
 // own handles — a virtual point index for pointDrag, committed through
@@ -55,9 +61,11 @@ const TABLE_SHAPE = '312'
 const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
   BUSBAR_SHAPE,
   RECTANGLE_SHAPE,
+  SMALL_WINDOW_SHAPE,
   CIRCLE_SHAPE,
   ARROW_SHAPE,
   BUTTON_SHAPE,
+  WINDOW_ICON_SHAPE,
   ROAD_SHAPE,
   LINE_SHAPE,
   ARC_SHAPE,
@@ -79,6 +87,10 @@ const GRID_TILE_DOTS: [number, number][] = Array.from({ length: GRID_TILE_FACTOR
 ).flat()
 // Half-length of a terminal marker's "X", in diagram units.
 const TERMINAL_MARK_SIZE = 4 / 3
+// A terminal/node mark's color: connected (a wire or another port on its
+// node) vs free.
+const TERMINAL_CONNECTED_COLOR = '#22c55e'
+const TERMINAL_FREE_COLOR = 'red'
 // Half-length of a selected Label/DigitalDevice's own anchor-point "X"
 // marker — same shape convention as TERMINAL_MARK_SIZE, just larger since
 // it's a standalone selection indicator rather than a small always-drawn
@@ -450,7 +462,7 @@ export function Canvas() {
   const [polygonDraft, setPolygonDraft] = useState<Point[] | null>(null)
   const [polygonCursor, setPolygonCursor] = useState<Point | null>(null)
   useEffect(() => {
-    if (armedSymbol?.shape !== POLYGON_SHAPE) {
+    if (!PEN_DRAWN_SHAPES.has(armedSymbol?.shape ?? '')) {
       setPolygonDraft(null)
       setPolygonCursor(null)
     }
@@ -877,7 +889,7 @@ export function Canvas() {
         if (arc) boxes.set(el.id, arcBounds(arc))
         continue
       }
-      if (el.class === 'Polygon' && el.points && el.points.length > 0) {
+      if ((el.class === 'Polygon' || el.class === 'Container') && el.points && el.points.length > 0) {
         // A bare <polygon> whose own Fill is often "none" (like
         // Rectangle's), so it gets the same click-tolerance box: its own
         // vertices' bounding box.
@@ -889,7 +901,7 @@ export function Canvas() {
         continue
       }
       if (
-        (el.class === 'Rectangle' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'Table') &&
+        (el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'Table') &&
         el.points
       ) {
         const [p0, p1] = el.points
@@ -972,12 +984,24 @@ export function Canvas() {
   function findElementBoxHit(point: Point): number | null {
     let bestId: number | null = null
     let bestArea = Infinity
+    // A Container frames a whole group of equipment, so only its edge
+    // counts: a press on the empty space inside it still starts a
+    // selection frame instead of grabbing the container.
+    const containerIds = new Set(diagram!.elements.filter(el => el.class === 'Container').map(el => el.id))
     for (const [id, box] of elementBoxes) {
       if (
         point.x < box.x - BOX_HIT_PAD ||
         point.x > box.x + box.width + BOX_HIT_PAD ||
         point.y < box.y - BOX_HIT_PAD ||
         point.y > box.y + box.height + BOX_HIT_PAD
+      )
+        continue
+      if (
+        containerIds.has(id) &&
+        point.x > box.x + BOX_HIT_PAD &&
+        point.x < box.x + box.width - BOX_HIT_PAD &&
+        point.y > box.y + BOX_HIT_PAD &&
+        point.y < box.y + box.height - BOX_HIT_PAD
       )
         continue
       const area = box.width * box.height
@@ -1132,13 +1156,17 @@ export function Canvas() {
   // "Start buswork" item, which must offer it only for a routable element.
   const NON_ROUTABLE_ELEMENT_CLASSES = new Set([
     'Rectangle',
+    'SmallWindow',
     'Circle',
     'Arrow',
     'Button',
+    'WindowIcon',
     'Road',
     'PostPole',
+    'LampOnPole',
     'Line',
     'Polygon',
+    'Container',
     'Arc',
     'PowerflowIndicator',
     'Table',
@@ -1309,11 +1337,13 @@ export function Canvas() {
     return draft.length >= 3 && Math.hypot(p.x - draft[0].x, p.y - draft[0].y) <= POLYGON_CLOSE_RADIUS
   }
 
-  // Places the draft as a real Polygon (when it has at least 3 vertices)
-  // and disarms, single-shot like every other armed symbol.
+  // Places the draft as a real Polygon or Container, whichever is armed
+  // (when it has at least 3 vertices), and disarms, single-shot like every
+  // other armed symbol.
   function finishPolygon(draft: Point[]) {
     if (draft.length < 3) return
-    updateDiagram(d => diagramOps.placePolygon(d, draft))
+    const container = armedSymbol?.shape === CONTAINER_SHAPE
+    updateDiagram(d => (container ? diagramOps.placeContainer(d, draft) : diagramOps.placePolygon(d, draft)))
     setPolygonDraft(null)
     setPolygonCursor(null)
     armSymbol(null)
@@ -1410,7 +1440,7 @@ export function Canvas() {
     // Each click of a double-click already reached handlePolygonClick (the
     // second as a duplicate vertex, ignored), so there's nothing more to do
     // here — and it must not fall through to add a connector bend point.
-    if (armedSymbol?.shape === POLYGON_SHAPE) {
+    if (PEN_DRAWN_SHAPES.has(armedSymbol?.shape ?? '')) {
       e.stopPropagation()
       return
     }
@@ -1488,13 +1518,18 @@ export function Canvas() {
       if (!el || !node) continue
       if ((el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line' || el.class === 'Polygon') && el.points) {
         node.setAttribute('points', el.points.map(p => `${p.x + dx},${p.y + dy}`).join(' '))
+      } else if (el.class === 'Container' && el.points) {
+        // A <g> of absolute-coordinate children (outline path and
+        // caption) with no transform of its own, so the group is shifted
+        // as a whole until the re-render on mouseup replaces it.
+        node.setAttribute('transform', `translate(${dx},${dy})`)
       } else if (el.class === 'Arc' && el.points) {
         const arc = elementArc(el)
         if (arc) {
           const shift = (p: Point) => ({ x: p.x + dx, y: p.y + dy })
           node.setAttribute('d', arcPathD({ ...arc, start: shift(arc.start), end: shift(arc.end) }))
         }
-      } else if (el.class === 'Rectangle' && el.points) {
+      } else if ((el.class === 'Rectangle' || el.class === 'SmallWindow') && el.points) {
         node.setAttribute('x', String(Math.min(el.points[0].x, el.points[1].x) + dx))
         node.setAttribute('y', String(Math.min(el.points[0].y, el.points[1].y) + dy))
       } else if (el.class === 'Circle' && el.points) {
@@ -1509,11 +1544,12 @@ export function Canvas() {
         const [p0, p1] = el.points
         const angle = (Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180) / Math.PI
         node.setAttribute('transform', `translate(${p0.x + dx},${p0.y + dy}) rotate(${angle})`)
-      } else if (el.class === 'Button' && el.points) {
+      } else if ((el.class === 'Button' || el.class === 'WindowIcon') && el.points) {
         // Unlike Rectangle's bare <rect>, a Button's own <rect>/<text> live
         // inside a wrapping <g> with no transform of its own (matching real
         // xsde2svg's own absolute-coordinate markup — see writeButton), so
-        // both children need their own x/y updated directly.
+        // both children need their own x/y updated directly. A Window
+        // icon's label sits 2 units below center (writeWindowIcon).
         const x = Math.min(el.points[0].x, el.points[1].x) + dx
         const y = Math.min(el.points[0].y, el.points[1].y) + dy
         const w = Math.abs(el.points[1].x - el.points[0].x)
@@ -1523,7 +1559,7 @@ export function Canvas() {
         rect?.setAttribute('y', String(y))
         const text = node.querySelector('text')
         text?.setAttribute('x', String(x + w / 2))
-        text?.setAttribute('y', String(y + h / 2))
+        text?.setAttribute('y', String(y + h / 2 + (el.class === 'WindowIcon' ? 2 : 0)))
       } else if (el.class === 'Table' && el.points) {
         // Same wrapping-<g>-of-absolute-coordinate-children structure as
         // Button just above (see writeTable) — its own label additionally
@@ -1636,7 +1672,7 @@ export function Canvas() {
 
     if (armedSymbol) {
       e.stopPropagation()
-      if (armedSymbol.shape === POLYGON_SHAPE) {
+      if (PEN_DRAWN_SHAPES.has(armedSymbol.shape)) {
         handlePolygonClick(point)
         return
       }
@@ -1657,12 +1693,16 @@ export function Canvas() {
             updateDiagram(d =>
               shape === RECTANGLE_SHAPE
                 ? diagramOps.placeRectangle(d, start, snappedEnd)
+                : shape === SMALL_WINDOW_SHAPE
+                  ? diagramOps.placeSmallWindow(d, start, snappedEnd)
                 : shape === CIRCLE_SHAPE
                   ? diagramOps.placeCircle(d, start, snappedEnd)
                   : shape === ARROW_SHAPE
                     ? diagramOps.placeArrow(d, start, snappedEnd)
                     : shape === BUTTON_SHAPE
                       ? diagramOps.placeButton(d, start, snappedEnd)
+                      : shape === WINDOW_ICON_SHAPE
+                        ? diagramOps.placeWindowIcon(d, start, snappedEnd)
                       : shape === ROAD_SHAPE
                         ? diagramOps.placeRoad(d, start, snappedEnd)
                         : shape === LINE_SHAPE
@@ -2092,6 +2132,9 @@ export function Canvas() {
       ? diagram.elements.find(el => el.id === selectedElementId)
       : null
   const selectedElements = diagram.elements.filter(el => elementSelection.has(el.id))
+  // Only computed when a terminal or node mark is actually drawn.
+  const connectedNodes =
+    showNodes || selectedElements.length > 0 ? diagramOps.connectedNodeIds(diagram) : new Set<number>()
   const selectedConnector =
     selectedConnectorId !== null ? diagram.connectors.find(c => c.id === selectedConnectorId) : null
 
@@ -2268,11 +2311,13 @@ export function Canvas() {
                   strokeDasharray="6 3"
                 />
               )}
-              {/* A small red X at each of a selected shape's own real
+              {/* A small X at each of a selected shape's own real
                   terminal positions (base.xml's <terminals>, rotated/
                   translated for this element's own orient/x/y) — purely a
                   visual aid showing where its fixed ports sit, which is
-                  where a wire attaches. Only drawn
+                  where a wire attaches: green when its port's node is
+                  connected (diagramOps.connectedNodeIds), red when it's
+                  free. Terminal i is port i (fixed ports). Only drawn
                   for the current selection, to keep a busy diagram
                   readable. Hidden for whichever element(s) are mid-drag:
                   dragElementsInDom moves the real symbol directly in the
@@ -2286,13 +2331,14 @@ export function Canvas() {
                     <path
                       key={`${el.id}-${i}`}
                       d={`M ${p.x - TERMINAL_MARK_SIZE} ${p.y - TERMINAL_MARK_SIZE} L ${p.x + TERMINAL_MARK_SIZE} ${p.y + TERMINAL_MARK_SIZE} M ${p.x - TERMINAL_MARK_SIZE} ${p.y + TERMINAL_MARK_SIZE} L ${p.x + TERMINAL_MARK_SIZE} ${p.y - TERMINAL_MARK_SIZE}`}
-                      stroke="red"
+                      stroke={connectedNodes.has(el.ports?.[i]?.node ?? 0) ? TERMINAL_CONNECTED_COLOR : TERMINAL_FREE_COLOR}
                       strokeWidth={0.5}
                     />
                   ))
                 })}
-              {/* Debug overlay (Settings' "Show nodes"): a small red X at
-                  every Diagram.Node's own position, regardless of
+              {/* Debug overlay (Settings' "Show nodes"): a small X at
+                  every Diagram.Node's own position (green connected, red
+                  free, as the terminal marks above), regardless of
                   selection — unlike the selected-terminal marks above,
                   which only show a symbol's own declared Terminals, this
                   shows the real electrical graph (wherever a connector end
@@ -2303,7 +2349,7 @@ export function Canvas() {
                   <path
                     key={`node-${n.id}`}
                     d={`M ${n.x - TERMINAL_MARK_SIZE} ${n.y - TERMINAL_MARK_SIZE} L ${n.x + TERMINAL_MARK_SIZE} ${n.y + TERMINAL_MARK_SIZE} M ${n.x - TERMINAL_MARK_SIZE} ${n.y + TERMINAL_MARK_SIZE} L ${n.x + TERMINAL_MARK_SIZE} ${n.y - TERMINAL_MARK_SIZE}`}
-                    stroke="red"
+                    stroke={connectedNodes.has(n.id) ? TERMINAL_CONNECTED_COLOR : TERMINAL_FREE_COLOR}
                     strokeWidth={0.25}
                   />
                 ))}
@@ -2337,7 +2383,7 @@ export function Canvas() {
                       />
                     ) : null
                   }
-                  if (el.class === 'Polygon' && el.points) {
+                  if ((el.class === 'Polygon' || el.class === 'Container') && el.points) {
                     return (
                       <polygon
                         key={el.id}
@@ -2349,7 +2395,7 @@ export function Canvas() {
                       />
                     )
                   }
-                  if ((el.class === 'Rectangle' || el.class === 'Button' || el.class === 'Table') && el.points) {
+                  if ((el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'Table') && el.points) {
                     const [p0, p1] = el.points
                     return (
                       <rect
@@ -2565,7 +2611,9 @@ export function Canvas() {
                 })()}
               {newBusbar &&
               (armedSymbol?.shape === RECTANGLE_SHAPE ||
+                armedSymbol?.shape === SMALL_WINDOW_SHAPE ||
                 armedSymbol?.shape === BUTTON_SHAPE ||
+                armedSymbol?.shape === WINDOW_ICON_SHAPE ||
                 armedSymbol?.shape === TABLE_SHAPE) ? (
                 <rect
                   x={Math.min(newBusbar.start.x, newBusbar.current.x)}
@@ -2623,12 +2671,15 @@ export function Canvas() {
               {selectedElement &&
                 (selectedElement.class === 'BusBarSection' ||
                   selectedElement.class === 'Rectangle' ||
+                  selectedElement.class === 'SmallWindow' ||
                   selectedElement.class === 'Circle' ||
                   selectedElement.class === 'Arrow' ||
                   selectedElement.class === 'Button' ||
+                  selectedElement.class === 'WindowIcon' ||
                   selectedElement.class === 'Road' ||
                   selectedElement.class === 'Line' ||
                   selectedElement.class === 'Polygon' ||
+                  selectedElement.class === 'Container' ||
                   selectedElement.class === 'Arc' ||
                   selectedElement.class === 'Table') &&
                 selectedElement.points && (
@@ -2643,7 +2694,7 @@ export function Canvas() {
                     pointDrag.elementId === selectedElement.id &&
                     (() => {
                       const pts = selectedElement.points!.map((p, i) => (i === pointDrag.pointIndex ? pointDrag.point : p))
-                      if (selectedElement.class === 'Rectangle' || selectedElement.class === 'Button' || selectedElement.class === 'Table') {
+                      if (selectedElement.class === 'Rectangle' || selectedElement.class === 'SmallWindow' || selectedElement.class === 'Button' || selectedElement.class === 'WindowIcon' || selectedElement.class === 'Table') {
                         const [p0, p1] = pts
                         return (
                           <rect
@@ -2679,7 +2730,7 @@ export function Canvas() {
                           <path d={arcPathD(arc)} fill="none" stroke={HIGHLIGHT} strokeWidth={2} strokeDasharray="6 4" />
                         ) : null
                       }
-                      if (selectedElement.class === 'Polygon') {
+                      if (selectedElement.class === 'Polygon' || selectedElement.class === 'Container') {
                         return (
                           <polygon
                             points={pts.map(p => `${p.x},${p.y}`).join(' ')}

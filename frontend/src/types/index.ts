@@ -86,16 +86,23 @@ export type ElementClass =
   | 'NonIntersection'
   | 'CableConnector'
   | 'CableJoint'
+  | 'PowerPole'
   | 'Lamp'
+  | 'LampOnPole'
+  | 'ConnectorPoint'
+  | 'ConnectorArrow'
   | 'FaultPassageIndicator'
   | 'Rectangle'
+  | 'SmallWindow'
   | 'Arrow'
   | 'Circle'
   | 'Button'
+  | 'WindowIcon'
   | 'Road'
   | 'PostPole'
   | 'Line'
   | 'Polygon'
+  | 'Container'
   | 'Arc'
   | 'PackageSubstation'
   | 'EnclosedSubstation'
@@ -243,6 +250,22 @@ export interface DiagramElement {
   // Button (shape 113) only — draws its own PropertyText in bold, matching
   // backend/internal/slddoc's own Element.Bold.
   bold?: boolean
+  // Container (shape 310) only — its caption's font size (unset = 14),
+  // anchor offset from the outline's top-left, and text-anchor/
+  // dominant-baseline (unset = middle), matching slddoc's own
+  // Element.TextSize/TextDx/TextDy/TextAnchor/TextBaseline. Its orient
+  // rotates the caption.
+  textSize?: number
+  textDx?: number
+  textDy?: number
+  textAnchor?: string
+  textBaseline?: string
+  // Connector arrow (shape 83) only — its total length (unset = 30) and
+  // arrowhead outline color, matching slddoc's own Element.Length/
+  // HeadStroke. Its orient is its direction (0 = pointing right, any
+  // angle), stroke its line color and fill its arrowhead fill.
+  length?: number
+  headStroke?: string
   // Arc (shape 9) only — its own SVG arc parameters, stored exactly as the
   // arc command writes them (points holds its start and end), matching
   // slddoc's own Element.RadiusX/RadiusY/LargeArc/Sweep.

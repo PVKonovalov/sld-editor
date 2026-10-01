@@ -64,6 +64,11 @@ const ENCLOSED_SUBSTATION_ICON =
 const BUTTON_ICON =
   '<rect x="-20" y="-14" width="40" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 3" />' +
   '<line x1="-11" y1="0" x2="11" y2="0" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />'
+// Window icon (shape 302): Button's smaller sibling, drawn as a smaller
+// filled tile with a short label line, so the two read apart in the palette.
+const WINDOW_ICON_ICON =
+  '<rect x="-14" y="-10" width="28" height="20" fill="currentColor" fill-opacity="0.25" stroke="currentColor" stroke-width="2" stroke-dasharray="5 3" />' +
+  '<line x1="-7" y1="1" x2="7" y2="1" stroke="currentColor" stroke-width="2" stroke-linecap="round" />'
 
 // Road (shape 335) likewise has no template (see BUSBAR_ICON above) — a
 // solid (not dashed — real corpus never draws one transparent-ish/hollow)
@@ -127,12 +132,33 @@ const TABLE2_ICON =
   '<line x1="0" y1="-14" x2="0" y2="14" stroke="currentColor" stroke-width="2" />' +
   '<line x1="-18" y1="0" x2="18" y2="0" stroke="currentColor" stroke-width="2" />'
 
+// Container (shape 310): a dotted outline with a short caption line above
+// it, the real corpus look (a dashed frame around a substation, named).
+const CONTAINER_ICON =
+  '<rect x="-20" y="-8" width="40" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2" />' +
+  '<line x1="-9" y1="-14" x2="9" y2="-14" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />'
+
+// Connector arrow (shape 83): a short line ending in an arrowhead, pointing
+// right (its own default direction), drawn from its own Length rather than
+// a template.
+const CONNECTOR_ARROW_ICON =
+  '<path d="M -20 0 h 24" fill="none" stroke="currentColor" stroke-width="2" />' +
+  '<path d="M 4 7 l 15 -7 l -15 -7 z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />'
+
+// Small window (shape 319): a smaller, solid-outlined square, telling it
+// apart from Rectangle's larger dashed box.
+const SMALL_WINDOW_ICON = '<rect x="-11" y="-11" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" />'
+
 const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '24': BUSBAR_ICON,
   '3': RECTANGLE_ICON,
+  '319': SMALL_WINDOW_ICON,
   '2': ARROW_ICON,
   '4': CIRCLE_ICON,
   '113': BUTTON_ICON,
+  '302': WINDOW_ICON_ICON,
+  '310': CONTAINER_ICON,
+  '83': CONNECTOR_ARROW_ICON,
   '335': ROAD_ICON,
   '292': POLE_ICON,
   '1': LINE_ICON,

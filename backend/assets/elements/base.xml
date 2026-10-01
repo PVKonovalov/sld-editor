@@ -62,6 +62,17 @@
   elements' bare anchors, not these.
 -->
 <symbols>
+  <!-- Connector arrow (xsde2svg element_83.go): where a line leaves the
+       sheet. Its length varies per instance, so slddoc.Render draws it from
+       the element's own Length/Orient/colors, not a template; its one
+       terminal is its tail, the anchor. -->
+  <symbol shape="83" class="ConnectorArrow" name="Connector arrow">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template></template>
+  </symbol>
+
   <symbol shape="24" class="BusBarSection" name="Busbar section">
     <!-- A busbar has no fixed template: its geometry is the element's own
          drawn Points (two or more vertices), rendered as a polyline
@@ -109,6 +120,14 @@
          press Enter to close, Backspace removes the last vertex, Esc
          cancels); an extracted one keeps all of its own vertices. Each
          vertex is then editable one at a time. -->
+    <template></template>
+  </symbol>
+
+  <symbol shape="310" class="Container" name="Container">
+    <!-- Like Polygon above, a Container is an arbitrary closed outline
+         drawn one click per vertex, here around a group of equipment
+         (xsde2svg element_310.go), plus an optional caption. Drawn by
+         slddoc.Render from its own Points; no terminals. -->
     <template></template>
   </symbol>
 
@@ -160,6 +179,19 @@
          not template substitution. This entry exists only so the Elements
          palette can offer "3D button" the same drag-two-corners way it
          already offers "Rectangle"/"Circle". -->
+    <template></template>
+  </symbol>
+
+  <symbol shape="319" class="SmallWindow" name="Small window">
+    <!-- Rectangle's same bare <rect> (xsde2svg element_319.go) with a
+         fixed 1px border, drawn by slddoc.Render from its own Points. -->
+    <template></template>
+  </symbol>
+
+  <symbol shape="302" class="WindowIcon" name="Window icon">
+    <!-- Button's smaller sibling (xsde2svg element_302.go): the same
+         two-corner box with a centered label, drawn by slddoc.Render from
+         its own Points with a 12px label and a fixed 1px border. -->
     <template></template>
   </symbol>
 
@@ -221,6 +253,18 @@
        sqrt(2)^scale); an element with no Radius draws the default 10
        (slddoc's own templateRadius), and the frontend scales these
        default-size terminals along with it. Mirror is visually inert. -->
+  <!-- Connector (xsde2svg element_10.go, "Коннектор"): a connection point
+       drawn as a 10x10 square; every wire ending on it shares its one
+       terminal at the center. {color} is its own Stroke, not a voltage. -->
+  <symbol shape="10" class="ConnectorPoint" name="Connector">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<rect x="-5" y="-5" width="10" height="10" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <symbol shape="26" class="Fork" name="Fork">
     <terminals>
       <terminal x="0" y="0"/>
@@ -301,6 +345,20 @@
     <template><![CDATA[
 <path d="M 0 -3 v -9 M 0 5 v 9" style="fill:none;stroke:{color};stroke-width:1" />
 <path d="M 0 -3 l 8 8 h -16 z" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Power pole (xsde2svg element_146.go): a voltage-colored r=8 circle
+       on the anchor with 2-unit leads, the source's exact path. Real
+       diagrams draw it over an overhead line; its terminals are the lead
+       tips. -->
+  <symbol shape="146" class="PowerPole" name="Power pole">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 -10 v 2 a 8 8 0 1 0 0 16 v 2 v -2 a 8 8 0 1 0 0 -16 z" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
@@ -1118,6 +1176,18 @@
   <symbol shape="106" class="Lamp" name="Lamp">
     <template><![CDATA[
 <circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:slategray;stroke-width:2" />
+]]></template>
+  </symbol>
+
+  <!-- Lamp on pole (xsde2svg element_320.go, "Лампа на опоре"): a street
+       light, a circle crossed by an ×, in the element's own color (its
+       Stroke, filled into {color} by slddoc.Render), not a voltage. No
+       terminals. -->
+  <symbol shape="320002" class="LampOnPole" name="Lamp on pole">
+    <template><![CDATA[
+<circle cx="0" cy="0" r="6" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -4 -4 l 8 8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 4 -4 l -8 8" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 

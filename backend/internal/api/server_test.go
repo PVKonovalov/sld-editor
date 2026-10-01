@@ -296,7 +296,7 @@ func TestImportDiagramSVG(t *testing.T) {
 	svgBody := `<?xml version="1.0"?>
 <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
 <polyline points="10,40 300,40" style="fill:none;stroke:#962896;stroke-width:2" data-voltage="#962896" data-name="Bus" data-type="24" id="1" />
-<g id="2" data-type="310"><rect x="0" y="0" width="10" height="10"/></g>
+<g id="2" data-type="130"><rect x="0" y="0" width="10" height="10"/></g>
 </svg>`
 	req := httptest.NewRequest(http.MethodPost, "/api/import/svg", strings.NewReader(svgBody))
 	req.Header.Set("Content-Type", "image/svg+xml")
@@ -319,8 +319,8 @@ func TestImportDiagramSVG(t *testing.T) {
 	if len(resp.Diagram.VoltageClasses) != 1 || resp.Diagram.VoltageClasses[0].Name != "10 kV" {
 		t.Errorf("voltage classes = %+v, want one named from the 10 kV preset", resp.Diagram.VoltageClasses)
 	}
-	if len(resp.Report.Skipped) != 1 || resp.Report.Skipped[0] != (importSkippedEntry{Code: "310", Name: "Container", Count: 1}) {
-		t.Errorf("report.skipped = %+v, want one 310 Container", resp.Report.Skipped)
+	if len(resp.Report.Skipped) != 1 || resp.Report.Skipped[0] != (importSkippedEntry{Code: "130", Name: "Device", Count: 1}) {
+		t.Errorf("report.skipped = %+v, want one 130 Device", resp.Report.Skipped)
 	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/import/svg", strings.NewReader("<html/>"))

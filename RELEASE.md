@@ -4528,3 +4528,137 @@ the bare `<text>` the canvas drags, now with `data-type="5"` on it. Digital
 devices get their own `<!-- Digital device2:134 -->` comment. Rendering is
 pixel-identical on all 434 diagrams. `WSCC9.svg` was regenerated; 39 of its 48
 captions link back to their element on import.
+
+2026-10-01: Window icon (xsde2svg shape 302), ported from `element_302.go`.
+New decorative class `WindowIcon` in the Elements palette's Annotations group,
+next to 3D button: a box you draw by dragging two corners, with a centered
+label. It works like 3D button (113) with three differences from the source:
+the label is 12px and sits 2 units below center, the border is fixed at 1px
+(so Properties has no border-width field), and the border and text default to
+black. A newly placed one gets the real corpus look: an orange fill and the
+text "Window" ("Окно" in the Russian build). Properties edits the text, fill,
+border color, text color, bold and the two corners. `Render` (sibling
+`slddoc`) draws it through Button's writer, now shared as `writeTextBox`, so
+Button's output is unchanged: all 434 diagrams, 38 of them with buttons,
+render pixel-identical. `Extract` reads it with `parseWindowIcon`. Both real
+instances in `ПС 35 кВ 49С Валаам.svg` import. The source writes an empty
+text `fill:`, which browsers draw black, so it imports as the black default
+and is written back as a real color. Both user guides list it with the
+drag-to-draw shapes.
+
+2026-10-01: Connected terminals in green. A selected device's terminal marks,
+and the "Show nodes" marks, are now green where something is connected and
+red where the terminal or node is still free. Before, every mark was red.
+Connected means a wire ends on that node, or two or more element ports share
+it, such as a terminal sitting straight on a busbar
+(`diagramOps.connectedNodeIds`). Both user guides describe the colors.
+
+2026-10-01: Container (xsde2svg shape 310), ported from `element_310.go`. New
+decorative class `Container` in the Annotations group, next to Polygon: a
+closed outline around a group of equipment, drawn one click per corner like
+Polygon (Enter closes it), with an optional caption. Properties edits:
+- the caption's text, its position (presets for the placements used in real
+  diagrams: above, below, left, right or inside, with the source's 5-unit
+  gap), its offset, size, color (Transparent gives the invisible caption most
+  real ones have) and rotation;
+- the outline's color, fill, width and style (dotted 3,2 or dashed 6,5, as in
+  the source);
+- the vertices.
+
+A new one is a dim gray dotted outline with a white 14px caption "Container"
+("Контейнер" in Russian) above it. Pressing on the empty space inside a
+container still starts a selection frame; the container is grabbed by its
+outline or caption. New Element fields `textSize`, `textDx`/`textDy` (the
+caption's offset from the outline's top-left, so it moves with the outline)
+and `textAnchor`/`textBaseline` store the caption as drawn, so a real one
+round-trips exactly; `orient` rotates it.
+
+Real xsde2svg put only the caption inside the `<g data-type="310">` and wrote
+the outline as a bare `<path>` after it, and gave an uncaptioned container no
+`data-type` at all. The sibling `xsde2svg` checkout's `element_310.go` is
+patched (uncommitted) to write one `<g data-type="310" id …>` holding the
+outline and the caption, which is also what `Render` writes. `Extract` reads
+that form and, for older exports, pairs a captioned group with the bare
+`<path>` right after it: all 1,569 captioned containers in the 90 real
+exports that have them import. Older uncaptioned ones stay unimported (see
+TODO). All 434 diagrams still render pixel-identical. `TestImportDiagramSVG`
+now uses Small window (319) as its example of an unsupported shape.
+
+2026-10-01: Power pole (xsde2svg shape 146), ported from `element_146.go`.
+New class `PowerPole` in the Elements palette's Wiring group, next to Cable
+joint: a pole on an overhead line, drawn as the source draws it, a
+voltage-colored circle of radius 8 on its anchor with 2-unit leads. It has two
+terminals at the lead tips, (0,-10) and (0,10), so a line can be wired
+through it. Orientation rotates it; Mirror is hidden, since it's symmetric.
+`Extract` (sibling `slddoc`) reads it with the generic two-terminal parser:
+the circle's center is the anchor and the rotated lead tips are the ports,
+whether it's a real bare `<path data-type="146">` or `Render`'s `<g>`. All
+232 poles in the 17 real exports that have them import. The 6 from scaled
+diagrams (radius 11) import at the standard size. All 434 diagrams still
+render pixel-identical.
+
+2026-10-01: Lamp on pole (xsde2svg shape 320002), ported from
+`element_320.go`. New class `LampOnPole` in the Elements palette's Indicators
+group, next to Lamp: a street light, drawn as a circle crossed by an × in its
+own color (gray by default). It isn't part of the electrical network: it has
+no terminals and no voltage. Properties has only its color; Orientation and
+Mirror are hidden, since it looks the same at every right angle, but an
+imported rotation is kept and written back. It's a `base.xml` template like
+any device, so Static output matches the real markup exactly. `Extract`
+(sibling `slddoc`) reads it with `parseLampOnPole` (anchor from the circle,
+color from its stroke) and doesn't turn that color into a voltage class. All
+302 lamps in the 51 real exports that have them import, and every one that
+could be paired with its real counterpart renders identically. The sibling
+`xsde2svg` checkout's `element_320.go` wrote `data-voltage` twice on this
+shape's group, which is invalid XML; it's fixed there (uncommitted), and
+`Extract` also accepts the duplicate.
+
+2026-10-01: Connector arrow (xsde2svg shape 83), ported from `element_83.go`.
+New class `ConnectorArrow` in the Elements palette's Wires group, next to
+Object link. It marks where a line leaves the sheet: an arrow whose tail is
+its one terminal, which in real diagrams sits on an overhead or cable line's
+end. It's placed by click and drawn as the source draws it: a line, then a
+filled arrowhead 11 long and 10 wide. New Element fields `length` (total
+length, default 30) and `headStroke` (arrowhead outline) join `stroke` (line,
+default coral), `fill` (arrowhead, default white) and `orient` (direction, any
+angle). Properties edits length, direction in degrees and the three colors;
+there's no voltage and no Mirror.
+
+`Render` (sibling `slddoc`) writes it in the arrow's local frame, so Static
+output is the source's own diagonal form, `rotate(angle,x,y)` around the tail.
+For a horizontal or vertical arrow that's written differently from the
+source's `l dx dy` form but looks identical. `Extract` reads both of the
+source's forms (`parseConnectorArrow`): direction and length come from the
+vector or from the rotation, plus any extra group rotation. All 205 arrows in
+the 81 real exports that have them import, 158 of them joined to their line.
+The source's on/off line color switch on `Closed` isn't modeled, since only
+one color is ever drawn. Both user guides mention it in the wiring section.
+
+2026-10-01: Small window (xsde2svg shape 319), ported from `element_319.go`.
+New decorative class `SmallWindow` in the Annotations group, next to Window
+icon: a box you draw by dragging two corners, the same bare `<rect>` as
+Rectangle but always with a 1px border (Properties has fill and border color,
+no width). A new one is unfilled with the light-blue border real diagrams
+mostly use. `Render` (sibling `slddoc`) draws it through Rectangle's writer,
+now shared as `writeRect`, so Rectangle's output is unchanged. Before this
+release, `element_319.go` wrote no element id. The sibling `xsde2svg`
+checkout now passes it (uncommitted). `Extract` reads it with
+`parseSmallWindow` and gives an older id-less window a fresh id. It keeps the
+border color as the box's own color rather than a voltage class. All 17 small
+windows in the 13 real exports that have them import. `TestImportDiagramSVG`
+now uses Device (130) as its example of an unsupported shape. Both user
+guides list it with the drag-to-draw shapes.
+
+2026-10-01: Connector (xsde2svg shape 10), ported from `element_10.go`. New
+class `ConnectorPoint` in the Elements palette's Wiring group, next to Junction
+point. It's a connection point drawn as a 10x10 square on its anchor, with one
+terminal at the center that every wire ending there shares. The class isn't
+called `Connector` because the model already uses that word for wires. Its
+color is its own (magenta by default, like every real one, the source's
+workplace "КОННЕКТОР" color), not a voltage, and the 1px border is fixed.
+Properties has only that color; Orientation and Mirror are hidden, though an
+imported rotation is kept. It's a `base.xml` template like any device.
+`Extract` (sibling `slddoc`) reads it with `parseConnectorPoint`, from the real
+bare `<rect>` or `Render`'s `<g>`, and doesn't turn its color into a voltage
+class. All 53 connectors in the 5 real exports that have them import, each
+with its wires joined to it.

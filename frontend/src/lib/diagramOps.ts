@@ -15,6 +15,7 @@ import type {
   TerminalDirection,
   TableCell,
 } from '../types'
+import { t } from '../i18n'
 import { circularArcThrough, defaultArcBulge } from './arc'
 
 // Element classes whose own geometry is a drawn Points array (two or more
@@ -35,12 +36,15 @@ import { circularArcThrough, defaultArcBulge } from './arc'
 const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'BusBarSection',
   'Rectangle',
+  'SmallWindow',
   'Circle',
   'Arrow',
   'Button',
+  'WindowIcon',
   'Road',
   'Line',
   'Polygon',
+  'Container',
   'Arc',
   'Table',
 ])
@@ -351,6 +355,23 @@ const LAMP_DEFAULTS: Pick<DiagramElement, 'state' | 'fillOff' | 'fillOn' | 'radi
   radius: 11,
 }
 
+// A freshly placed Lamp on pole (320002) is gray, its real corpus color
+// and render.go's own unset-Stroke fallback.
+const LAMP_ON_POLE_DEFAULTS: Pick<DiagramElement, 'stroke'> = { stroke: '#808080' }
+
+// A freshly placed Connector (10) is magenta, every real instance's color
+// and render.go's own unset-Stroke fallback.
+const CONNECTOR_POINT_DEFAULTS: Pick<DiagramElement, 'stroke'> = { stroke: '#ff00ff' }
+
+// A freshly placed Connector arrow (83) gets the real corpus look: a coral
+// line with a white, dim-gray-outlined arrowhead, render.go's own unset
+// fallbacks, pointing right at the default length.
+const CONNECTOR_ARROW_DEFAULTS: Pick<DiagramElement, 'stroke' | 'headStroke' | 'fill'> = {
+  stroke: '#ff7f50',
+  headStroke: '#696969',
+  fill: '#ffffff',
+}
+
 // A freshly placed PostPole starts as a real, visible round marker —
 // matching render.go's own unset-Fill/Stroke/Radius fallback
 // ("none"/"gray"/10) explicitly, the same reason LAMP_DEFAULTS/
@@ -417,6 +438,9 @@ function powerTransformerDefaults(defaultVoltage?: number): Pick<DiagramElement,
 // Points-based class that does carry one.
 const NO_VOLTAGE_CLASSES: ReadonlySet<ElementClass> = new Set<ElementClass>([
   'Lamp',
+  'LampOnPole',
+  'ConnectorArrow',
+  'ConnectorPoint',
   'FaultPassageIndicator',
   'PostPole',
   'PowerflowIndicator',
@@ -462,6 +486,9 @@ export function placeElement(
     ...(DEFAULT_CLOSED_CLASSES.has(elementClass) ? { state: STATE_CLOSE } : {}),
     ...(elementClass === 'Lamp' ? LAMP_DEFAULTS : {}),
     ...(elementClass === 'PostPole' ? POLE_DEFAULTS : {}),
+    ...(elementClass === 'LampOnPole' ? LAMP_ON_POLE_DEFAULTS : {}),
+    ...(elementClass === 'ConnectorArrow' ? CONNECTOR_ARROW_DEFAULTS : {}),
+    ...(elementClass === 'ConnectorPoint' ? CONNECTOR_POINT_DEFAULTS : {}),
     ...(elementClass === 'PowerflowIndicator' ? POWERFLOW_INDICATOR_DEFAULTS : {}),
     ...(elementClass === 'GroundSwitch' || elementClass === 'ShortCircuiter'
       ? { orient: GROUND_TYPE_DEFAULT_ORIENT, state: GROUND_TYPE_DEFAULT_STATE }
@@ -609,6 +636,56 @@ export function placeButton(diagram: Diagram, start: Point, end: Point): Diagram
     points: [start, end],
     propertyText: 'Button',
     ...BUTTON_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly drawn Small window's own colors: unfilled with the light-blue
+// border real corpus mostly uses; the border is always 1px (writeSmallWindow).
+const SMALL_WINDOW_DEFAULTS = { fill: 'none', stroke: '#00a0f0' }
+
+/** Places a new Small window (shape 319) spanning start..end: Rectangle's
+ * same decorative box (see slddoc's ClassSmallWindow), no Voltage, no
+ * Ports, never a routing target. */
+export function placeSmallWindow(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'SmallWindow',
+    shape: '319',
+    name: `Small window-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...SMALL_WINDOW_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly placed Window icon's own colors — the real corpus look (an
+// orange tile with a black border and black text), with render.go's own
+// fixed 1px border.
+const WINDOW_ICON_DEFAULTS = { fill: 'orange', stroke: '#000000', textColor: '#000000', bold: false }
+
+/** Places a new Window icon (shape 302) spanning start..end: Button's
+ * smaller sibling (see slddoc's ClassWindowIcon), decorative, no Voltage,
+ * no Ports, never a routing target. */
+export function placeWindowIcon(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'WindowIcon',
+    shape: '302',
+    name: `Window-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    propertyText: t('elementCatalog.defaultText.302'),
+    ...WINDOW_ICON_DEFAULTS,
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -839,6 +916,103 @@ export function placePolygon(diagram: Diagram, points: Point[]): Diagram {
     y: (points[0].y + points[points.length - 1].y) / 2,
     points,
     ...POLYGON_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+// A freshly drawn Container's own defaults: the real corpus look (a dim
+// gray dotted outline, no fill) with a visible white 14px caption above it.
+const CONTAINER_DEFAULTS = { fill: 'none', stroke: '#696969', strokeWidth: 1, lineStyle: 'dotted' as const, textColor: '#ffffff', textSize: 14 }
+
+/** The caption placements Properties offers for a Container (shape 310):
+ * the ones real corpus uses, computed the way xsde2svg's element_310.go
+ * does from the outline's bounding box with its 5-unit gap. */
+export const CONTAINER_CAPTION_PRESETS = [
+  'aboveCenter',
+  'aboveLeft',
+  'aboveRight',
+  'belowCenter',
+  'belowLeft',
+  'belowRight',
+  'left',
+  'right',
+  'center',
+] as const
+export type ContainerCaptionPreset = (typeof CONTAINER_CAPTION_PRESETS)[number]
+
+const CONTAINER_CAPTION_GAP = 5
+
+/** A Container caption's textDx/textDy/textAnchor/textBaseline for preset,
+ * relative to the outline's top-left, for the given vertices. */
+export function containerCaptionPlacement(
+  points: Point[],
+  preset: ContainerCaptionPreset,
+): Pick<DiagramElement, 'textDx' | 'textDy' | 'textAnchor' | 'textBaseline'> {
+  const xs = points.map(p => p.x)
+  const ys = points.map(p => p.y)
+  const w = Math.max(...xs) - Math.min(...xs)
+  const h = Math.max(...ys) - Math.min(...ys)
+  const g = CONTAINER_CAPTION_GAP
+  switch (preset) {
+    case 'aboveCenter':
+      return { textDx: w / 2, textDy: -g, textAnchor: 'middle', textBaseline: 'baseline' }
+    case 'aboveLeft':
+      return { textDx: 0, textDy: -g, textAnchor: 'start', textBaseline: 'baseline' }
+    case 'aboveRight':
+      return { textDx: w, textDy: -g, textAnchor: 'end', textBaseline: 'baseline' }
+    case 'belowCenter':
+      return { textDx: w / 2, textDy: h, textAnchor: 'middle', textBaseline: 'text-before-edge' }
+    case 'belowLeft':
+      return { textDx: 0, textDy: h, textAnchor: 'start', textBaseline: 'text-before-edge' }
+    case 'belowRight':
+      return { textDx: w, textDy: h, textAnchor: 'end', textBaseline: 'text-before-edge' }
+    case 'left':
+      return { textDx: -g, textDy: h / 2, textAnchor: 'end', textBaseline: 'middle' }
+    case 'right':
+      return { textDx: w + g, textDy: h / 2, textAnchor: 'start', textBaseline: 'middle' }
+    case 'center':
+      return { textDx: w / 2, textDy: h / 2, textAnchor: 'middle', textBaseline: 'middle' }
+  }
+}
+
+/** Which preset el's caption currently matches, or null for a custom
+ * placement (e.g. an imported one). */
+export function containerCaptionPresetOf(el: DiagramElement): ContainerCaptionPreset | null {
+  if (!el.points || el.points.length === 0) return null
+  for (const preset of CONTAINER_CAPTION_PRESETS) {
+    const p = containerCaptionPlacement(el.points, preset)
+    if (
+      (el.textDx ?? 0) === p.textDx &&
+      (el.textDy ?? 0) === p.textDy &&
+      (el.textAnchor || 'middle') === p.textAnchor &&
+      (el.textBaseline || 'middle') === p.textBaseline
+    ) {
+      return preset
+    }
+  }
+  return null
+}
+
+/** Places a new Container through points (at least 3, closed implicitly):
+ * a decorative outline around a group of equipment with a caption (see
+ * slddoc's ClassContainer), no Voltage, no Ports, never a routing target.
+ * Drawn pen-tool style like a Polygon. */
+export function placeContainer(diagram: Diagram, points: Point[]): Diagram {
+  if (points.length < 3) return diagram
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Container',
+    shape: '310',
+    name: `Container-${id}`,
+    layer: defaultLayer(diagram),
+    x: (points[0].x + points[points.length - 1].x) / 2,
+    y: (points[0].y + points[points.length - 1].y) / 2,
+    points,
+    propertyText: t('elementCatalog.defaultText.310'),
+    ...CONTAINER_DEFAULTS,
+    ...containerCaptionPlacement(points, 'aboveCenter'),
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -1549,6 +1723,28 @@ function transformerLocalTerminals(el: DiagramElement): Point[] {
  * transformerLocalTerminals). These are where an element's fixed Ports sit
  * (see fitElementPorts), and Canvas draws a marker at each one for the
  * current selection. */
+/** The ids of every node something is attached to besides a single port:
+ * a connector end, or two or more element ports sharing it (a terminal
+ * sitting straight on a busbar or another device). Canvas draws such a
+ * node's terminal mark green, an unattached one red. */
+export function connectedNodeIds(diagram: Diagram): Set<number> {
+  const connected = new Set<number>()
+  for (const c of diagram.connectors) {
+    connected.add(c.from)
+    connected.add(c.to)
+  }
+  const portCount = new Map<number, number>()
+  for (const el of diagram.elements) {
+    for (const p of el.ports ?? []) {
+      const n = (portCount.get(p.node) ?? 0) + 1
+      portCount.set(p.node, n)
+      if (n >= 2) connected.add(p.node)
+    }
+  }
+  connected.delete(0)
+  return connected
+}
+
 export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): Point[] | null {
   if (el.class === 'PowerTransformer') {
     return transformerLocalTerminals(el).map(t => placeLocalPoint(el, t))

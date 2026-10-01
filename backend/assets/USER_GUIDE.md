@@ -64,14 +64,17 @@ A plain left-drag on empty canvas does not pan: it draws a selection frame.
 
 Some elements are drawn instead of clicked:
 
-- **Busbar**, **Line**, **Road**, **Arrow**, **Rectangle**, **Circle**, **Button**, **Table**, **Arc**: press on the
-  canvas and drag from one corner or end to the other.
-- **Polygon**: click once per corner. Click the first corner again (or press **Enter**) to close it, **Backspace**
-  removes the last corner, **Esc** cancels.
+- **Busbar**, **Line**, **Road**, **Arrow**, **Rectangle**, **Small window**, **Circle**, **Button**, **Window icon**,
+  **Table**, **Arc**: press on the canvas and drag from one corner or end to the other.
+- **Polygon**, **Container**: click once per corner. Click the first corner again (or press **Enter**) to close it,
+  **Backspace** removes the last corner, **Esc** cancels. A container is a frame drawn around a group of equipment
+  (usually dotted) with a caption; Properties sets the caption's text, position, size, color and rotation. Pressing on
+  the empty space inside a container still starts a selection frame; grab a container by its outline or caption.
 - **Text** places a free text label; **Digital device** places a SCADA value readout.
 
 Newly placed elements start at the default voltage (switching devices start closed). A device's fixed connection
-points (its **terminals**) are shown as small red crosses while it is selected.
+points (its **terminals**) are shown as small crosses while it is selected: green where something is connected (a wire,
+or another device's terminal on the same point), red where the terminal is still free.
 
 ## Selecting
 
@@ -106,6 +109,10 @@ Moving respects **Snap to grid** (Settings). Wires attached to a moved device fo
 
 Drawing a wire always starts by choosing its kind in the Elements panel's **Wires** group: **Buswork** (plain
 wire), **Overhead line**, **Cable line** or **Object link**. The kind cannot be changed later.
+
+The same group also has **Connector arrow**, which is not a wire kind: it is placed like an element and marks where a
+line continues off the sheet. Its tail is its terminal, so draw the line from (or to) the tail; Properties sets its
+length, direction in degrees and colors.
 
 1. Click a wire kind to arm it.
 2. Click a device's **terminal** to start the wire. To start on a busbar or on an existing wire, hold **Ctrl**/**Cmd**
@@ -147,8 +154,8 @@ A wire end that is not attached to anything is allowed; you can connect it later
 - Rotating, mirroring or moving a device in Properties takes its connections along.
 - Deleting a wire leaves the devices' terminals as they are. Deleting a device also deletes the wires attached to
   it.
-- **Settings → Show nodes** marks every electrical connection point on the canvas with a small red cross, which is
-  useful for checking that things are really connected.
+- **Settings → Show nodes** marks every electrical connection point on the canvas with a small cross, green when
+  something is connected there and red when it is free, which is useful for checking that things are really connected.
 
 ## Custom elements
 

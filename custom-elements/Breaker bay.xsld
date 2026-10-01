@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diagram width="90" height="240" lastId="148694370">
+  <editor background="#12161d" defaultVoltage="1"/>
+  <layers>
+    <layer id="0" name="Base"/>
+  </layers>
+  <voltageClasses>
+    <class id="1" name="10 kV" color="#962896"/>
+  </voltageClasses>
+  <nodes>
+    <node id="51" x="30" y="20"/>
+    <node id="52" x="30" y="40"/>
+    <node id="53" x="30" y="90"/>
+    <node id="54" x="30" y="110"/>
+    <node id="55" x="30" y="130"/>
+    <node id="56" x="30" y="150"/>
+    <node id="57" x="30" y="170"/>
+    <node id="58" x="30" y="200"/>
+    <node id="59" x="40" y="60"/>
+    <node id="60" x="40" y="170"/>
+  </nodes>
+  <elements>
+    <element id="2471" class="Breaker" shape="41" name="В-10 Л-3" voltage="1" layer="0" x="30" y="100" state="1">
+      <port name="1" node="53"/>
+      <port name="2" node="54"/>
+    </element>
+    <element id="2475" class="GroundSwitch" shape="54" name="ЗР В-10 Л-3" voltage="1" layer="0" x="40" y="60" orient="90" state="0">
+      <port name="1" node="59"/>
+    </element>
+    <element id="2476" class="GroundSwitch" shape="54" name="ЗР-10 Л-3" voltage="1" layer="0" x="40" y="170" orient="90" state="0">
+      <port name="1" node="60"/>
+    </element>
+    <element id="2467" class="Disconnector" shape="162" name="ШР-10 Л-3" voltage="1" layer="0" x="30" y="30" state="1">
+      <port name="1" node="51"/>
+      <port name="2" node="52"/>
+    </element>
+    <element id="2472" class="Disconnector" shape="162" name="ЛР-10 Л-3" voltage="1" layer="0" x="30" y="140" state="1">
+      <port name="1" node="55"/>
+      <port name="2" node="56"/>
+    </element>
+  </elements>
+  <connectors>
+    <connector id="2464" kind="BusWork" voltage="1" layer="0" from="53" to="52">
+      <point x="30" y="90"/>
+      <point x="30" y="40"/>
+    </connector>
+    <connector id="2468" kind="BusWork" voltage="1" layer="0" from="55" to="54">
+      <point x="30" y="130"/>
+      <point x="30" y="110"/>
+    </connector>
+    <connector id="4390" kind="BusWork" voltage="1" layer="0" from="57" to="56">
+      <point x="30" y="170"/>
+      <point x="30" y="150"/>
+    </connector>
+    <connector id="4391" kind="LinkToObject" voltage="1" layer="0" from="57" to="58">
+      <point x="30" y="170"/>
+      <point x="30" y="200"/>
+    </connector>
+  </connectors>
+  <labels>
+    <label id="2466" for="2467" layer="0" x="40" y="35" size="13" anchor="start" color="white" font="Arial">ШР-10 Л-3</label>
+    <label id="2469" for="2471" layer="0" x="50" y="105" size="13" anchor="start" color="white" font="Arial">В-10 Л-3</label>
+    <label id="2470" for="2472" layer="0" x="40" y="145" size="13" anchor="start" color="white" font="Arial">ЛР-10 Л-3</label>
+    <label id="2473" layer="0" x="20" y="225" size="13" anchor="start" color="white" font="Arial">Л-3</label>
+    <label id="2477" for="2475" layer="0" x="80" y="65" size="13" anchor="start" color="white" font="Arial">ЗР В-10 Л-3</label>
+    <label id="2478" for="2476" layer="0" x="80" y="175" size="13" anchor="start" color="white" font="Arial">ЗР-10 Л-3</label>
+  </labels>
+</diagram>
