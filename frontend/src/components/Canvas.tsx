@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch'
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import { useDiagramContext, type SelectionKind } from '../state/useDiagramContext'
@@ -6,6 +6,7 @@ import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
 import { arcBounds, arcMidpoint, arcPathD, circularArcThrough, defaultArcBulge, type ArcParams } from '../lib/arc'
 import { clientToDiagramPoint, nearestSegmentOnPolyline, snapPointOnSegment, snapValue } from '../lib/geometry'
+import { fillPictureHrefs, readImageFile } from '../lib/picture'
 import { t } from '../i18n'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { SaveCustomElementDialog } from './SaveCustomElementDialog'
@@ -14,10 +15,12 @@ import type { Diagram, DiagramElement, Connector, Label, DigitalDevice, Point } 
 const BUSBAR_SHAPE = '24'
 const RECTANGLE_SHAPE = '3'
 const SMALL_WINDOW_SHAPE = '319'
+const PICTURE_SHAPE = '11'
 const CIRCLE_SHAPE = '4'
 const ARROW_SHAPE = '2'
 const BUTTON_SHAPE = '113'
 const WINDOW_ICON_SHAPE = '302'
+const AUTOMATION_DEVICE_SHAPE = '103'
 const ROAD_SHAPE = '335'
 const LINE_SHAPE = '1'
 const POLYGON_SHAPE = '16'
@@ -62,10 +65,12 @@ const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
   BUSBAR_SHAPE,
   RECTANGLE_SHAPE,
   SMALL_WINDOW_SHAPE,
+  PICTURE_SHAPE,
   CIRCLE_SHAPE,
   ARROW_SHAPE,
   BUTTON_SHAPE,
   WINDOW_ICON_SHAPE,
+  AUTOMATION_DEVICE_SHAPE,
   ROAD_SHAPE,
   LINE_SHAPE,
   ARC_SHAPE,
@@ -327,6 +332,20 @@ function patchFragmentsInDom(
   }
 }
 
+// Hides the rendered items of the given layers. Every item is a top-level
+// child of the rendered <svg> with data-layer set, except base-layer items,
+// which carry none (slddoc's withLayerAttr).
+function hiddenLayerCss(hidden: ReadonlySet<number>): string {
+  return [...hidden]
+    .map(layer =>
+      layer === diagramOps.BASE_LAYER
+        ? '.sld-rendered svg > [data-editor-kind]:not([data-layer])'
+        : `.sld-rendered svg > [data-layer="${layer}"]`,
+    )
+    .join(',\n')
+    .concat(' { display: none; }')
+}
+
 // Zoom in/out/fit-to-view buttons overlaid on the canvas, mirroring
 // sld-viewer's own ZoomControls (SldPanel.tsx) — mounted as a sibling of
 // TransformComponent, inside TransformWrapper, since useControls() only
@@ -425,7 +444,11 @@ export function Canvas() {
     armCustomElement,
     deleteSelected,
     updateDiagram,
+    hiddenLayers,
   } = useDiagramContext()
+  // An item on a layer hidden in the Layers section is neither drawn
+  // (hiddenLayerCss) nor picked by any diagram-state hit test below.
+  const isHidden = (item: { layer: number }) => hiddenLayers.has(item.layer)
 
   const [svg, setSvg] = useState('')
   const [warning, setWarning] = useState<string | null>(null)
@@ -646,17 +669,18 @@ export function Canvas() {
     const crossing = current.x < start.x
     const hits = new Map<number, SelectionKind>()
     const test = (box: Box | null) => (box ? (crossing ? boxesIntersect(box, rect) : boxInside(box, rect)) : false)
-    for (const el of diagram!.elements) if (test(itemBox(el.id, 'element'))) hits.set(el.id, 'element')
+    for (const el of diagram!.elements) if (!isHidden(el) && test(itemBox(el.id, 'element'))) hits.set(el.id, 'element')
     for (const c of diagram!.connectors) {
-      if (c.points.length === 0) continue
+      if (c.points.length === 0 || isHidden(c)) continue
       const hit = crossing
         ? c.points.some(p => pointInBox(p, rect)) ||
           c.points.some((p, i) => i < c.points.length - 1 && segmentCrossesBox(p, c.points[i + 1], rect))
         : c.points.every(p => pointInBox(p, rect))
       if (hit) hits.set(c.id, 'connector')
     }
-    for (const l of diagram!.labels) if (test(itemBox(l.id, 'label'))) hits.set(l.id, 'label')
-    for (const dd of diagram!.digitalDevices) if (test(itemBox(dd.id, 'digitaldevice'))) hits.set(dd.id, 'digitaldevice')
+    for (const l of diagram!.labels) if (!isHidden(l) && test(itemBox(l.id, 'label'))) hits.set(l.id, 'label')
+    for (const dd of diagram!.digitalDevices)
+      if (!isHidden(dd) && test(itemBox(dd.id, 'digitaldevice'))) hits.set(dd.id, 'digitaldevice')
     return hits
   }
 
@@ -699,6 +723,24 @@ export function Canvas() {
     for (const l of after.labels) if (!labs.has(l.id)) added.set(l.id, 'label')
     for (const dd of after.digitalDevices) if (!dds.has(dd.id)) added.set(dd.id, 'digitaldevice')
     return added
+  }
+
+  // A just-drawn Picture's image: the hidden file input below, opened for
+  // the Picture whose id is in pictureTargetRef.
+  const pictureInputRef = useRef<HTMLInputElement>(null)
+  const pictureTargetRef = useRef<number | null>(null)
+  function choosePictureImage(id: number) {
+    pictureTargetRef.current = id
+    pictureInputRef.current?.click()
+  }
+  function handlePictureFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const id = pictureTargetRef.current
+    e.target.value = ''
+    if (!file || id === null) return
+    readImageFile(file)
+      .then(href => updateDiagram(d => diagramOps.setPictureHref(d, id, href)))
+      .catch(err => setWarning((err as Error).message))
   }
 
   // Places template's copy so its centroid lands on point, then selects
@@ -881,6 +923,7 @@ export function Canvas() {
     }
     const boxes = new Map<number, ElementBox>()
     for (const el of diagram.elements) {
+      if (hiddenLayers.has(el.layer)) continue
       if (el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line') continue
       if (el.class === 'Arc') {
         // A thin bare <path>, fill always none — same click-tolerance
@@ -901,7 +944,7 @@ export function Canvas() {
         continue
       }
       if (
-        (el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'Table') &&
+        (el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'Table') &&
         el.points
       ) {
         const [p0, p1] = el.points
@@ -975,6 +1018,12 @@ export function Canvas() {
       boxes.set(el.id, { x: minX, y: minY, width: Math.max(...xs) - minX, height: Math.max(...ys) - minY })
     }
     setElementBoxes(boxes)
+  }, [svg, diagram, patchVersion, hiddenLayers])
+
+  // Pictures render without their image (see lib/picture.ts); put each
+  // one's href back into the DOM after every render or patch.
+  useLayoutEffect(() => {
+    if (renderedRef.current && diagram) fillPictureHrefs(renderedRef.current, diagram)
   }, [svg, diagram, patchVersion])
 
   /** Finds the smallest (by area) symbol element whose own real bounding
@@ -1157,10 +1206,12 @@ export function Canvas() {
   const NON_ROUTABLE_ELEMENT_CLASSES = new Set([
     'Rectangle',
     'SmallWindow',
+    'Picture',
     'Circle',
     'Arrow',
     'Button',
     'WindowIcon',
+    'AutomationDevice',
     'Road',
     'PostPole',
     'LampOnPole',
@@ -1241,7 +1292,7 @@ export function Canvas() {
     let bestDist = TERMINAL_HIT_RADIUS
     for (const el of diagram!.elements) {
       if (exclude?.kind === 'element' && el.id === exclude.elementId) continue
-      if (NON_ROUTABLE_ELEMENT_CLASSES.has(el.class)) continue
+      if (NON_ROUTABLE_ELEMENT_CLASSES.has(el.class) || isHidden(el)) continue
       // A busbar with fewer than 2 points (mid-creation, before its second
       // point exists) falls through to the plain-anchor terminal search
       // below regardless of includeBusbars, same as any other element —
@@ -1257,6 +1308,7 @@ export function Canvas() {
     if (includeBusbars) {
       for (const c of diagram!.connectors) {
         if (exclude?.kind === 'connector' && c.id === exclude.connectorId) continue
+        if (isHidden(c)) continue
         // A wire with fewer than two points has no segment to tap (one can
         // still exist in a diagram saved before removeDegenerateConnectors).
         if (c.points.length < 2) continue
@@ -1518,7 +1570,7 @@ export function Canvas() {
       if (!el || !node) continue
       if ((el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line' || el.class === 'Polygon') && el.points) {
         node.setAttribute('points', el.points.map(p => `${p.x + dx},${p.y + dy}`).join(' '))
-      } else if (el.class === 'Container' && el.points) {
+      } else if ((el.class === 'Container' || el.class === 'Picture') && el.points) {
         // A <g> of absolute-coordinate children (outline path and
         // caption) with no transform of its own, so the group is shifted
         // as a whole until the re-render on mouseup replaces it.
@@ -1544,7 +1596,7 @@ export function Canvas() {
         const [p0, p1] = el.points
         const angle = (Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180) / Math.PI
         node.setAttribute('transform', `translate(${p0.x + dx},${p0.y + dy}) rotate(${angle})`)
-      } else if ((el.class === 'Button' || el.class === 'WindowIcon') && el.points) {
+      } else if ((el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice') && el.points) {
         // Unlike Rectangle's bare <rect>, a Button's own <rect>/<text> live
         // inside a wrapping <g> with no transform of its own (matching real
         // xsde2svg's own absolute-coordinate markup — see writeButton), so
@@ -1559,7 +1611,7 @@ export function Canvas() {
         rect?.setAttribute('y', String(y))
         const text = node.querySelector('text')
         text?.setAttribute('x', String(x + w / 2))
-        text?.setAttribute('y', String(y + h / 2 + (el.class === 'WindowIcon' ? 2 : 0)))
+        text?.setAttribute('y', String(y + h / 2 + (el.class === 'WindowIcon' || el.class === 'AutomationDevice' ? 2 : 0)))
       } else if (el.class === 'Table' && el.points) {
         // Same wrapping-<g>-of-absolute-coordinate-children structure as
         // Button just above (see writeTable) — its own label additionally
@@ -1689,6 +1741,18 @@ export function Canvas() {
           setNewBusbar(null)
           const start = snapPoint(point)
           const snappedEnd = snapPoint(end)
+          if (shape === PICTURE_SHAPE && Math.hypot(snappedEnd.x - start.x, snappedEnd.y - start.y) > 1) {
+            // Placed, selected, and the file picker opened right away
+            // (still within this mouseup's user activation).
+            const before = diagram!
+            const after = diagramOps.placePicture(before, start, snappedEnd)
+            updateDiagram(() => after)
+            const added = addedItems(before, after)
+            selectMany(added)
+            const [id] = added.keys()
+            if (id !== undefined) choosePictureImage(id)
+            return
+          }
           if (Math.hypot(snappedEnd.x - start.x, snappedEnd.y - start.y) > 1) {
             updateDiagram(d =>
               shape === RECTANGLE_SHAPE
@@ -1703,6 +1767,8 @@ export function Canvas() {
                       ? diagramOps.placeButton(d, start, snappedEnd)
                       : shape === WINDOW_ICON_SHAPE
                         ? diagramOps.placeWindowIcon(d, start, snappedEnd)
+                      : shape === AUTOMATION_DEVICE_SHAPE
+                        ? diagramOps.placeAutomationDevice(d, start, snappedEnd)
                       : shape === ROAD_SHAPE
                         ? diagramOps.placeRoad(d, start, snappedEnd)
                         : shape === LINE_SHAPE
@@ -1742,7 +1808,7 @@ export function Canvas() {
     if (armedCustomElement) {
       e.stopPropagation()
       updateDiagram(d =>
-        diagramOps.placeCustomElement(d, armedCustomElement.diagram, snapPoint(point), elements, snapPoint, defaultVoltage),
+        diagramOps.placeCustomElement(d, armedCustomElement.diagram, snapPoint(point), elements, snapPoint, defaultVoltage, true),
       )
       armCustomElement(null)
       return
@@ -2204,7 +2270,14 @@ export function Canvas() {
                   : 'default',
             }}
           >
-            <div ref={renderedRef} style={{ position: 'absolute', inset: 0 }} dangerouslySetInnerHTML={{ __html: svg }} />
+            {hiddenLayers.size > 0 && <style>{hiddenLayerCss(hiddenLayers)}</style>}
+            <div
+              ref={renderedRef}
+              className="sld-rendered"
+              style={{ position: 'absolute', inset: 0 }}
+              dangerouslySetInnerHTML={{ __html: svg }}
+            />
+            <input ref={pictureInputRef} type="file" accept="image/*" className="hidden" onChange={handlePictureFile} />
             {/* Drawn as an overlay above the content, not behind it: the
                 backend-rendered SVG paints its own opaque background rect
                 (Diagram.Editor.Background), which would otherwise hide a
@@ -2395,7 +2468,7 @@ export function Canvas() {
                       />
                     )
                   }
-                  if ((el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'Table') && el.points) {
+                  if ((el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'Table') && el.points) {
                     const [p0, p1] = el.points
                     return (
                       <rect
@@ -2612,8 +2685,10 @@ export function Canvas() {
               {newBusbar &&
               (armedSymbol?.shape === RECTANGLE_SHAPE ||
                 armedSymbol?.shape === SMALL_WINDOW_SHAPE ||
+                armedSymbol?.shape === PICTURE_SHAPE ||
                 armedSymbol?.shape === BUTTON_SHAPE ||
                 armedSymbol?.shape === WINDOW_ICON_SHAPE ||
+                armedSymbol?.shape === AUTOMATION_DEVICE_SHAPE ||
                 armedSymbol?.shape === TABLE_SHAPE) ? (
                 <rect
                   x={Math.min(newBusbar.start.x, newBusbar.current.x)}
@@ -2672,10 +2747,12 @@ export function Canvas() {
                 (selectedElement.class === 'BusBarSection' ||
                   selectedElement.class === 'Rectangle' ||
                   selectedElement.class === 'SmallWindow' ||
+                  selectedElement.class === 'Picture' ||
                   selectedElement.class === 'Circle' ||
                   selectedElement.class === 'Arrow' ||
                   selectedElement.class === 'Button' ||
                   selectedElement.class === 'WindowIcon' ||
+                  selectedElement.class === 'AutomationDevice' ||
                   selectedElement.class === 'Road' ||
                   selectedElement.class === 'Line' ||
                   selectedElement.class === 'Polygon' ||
@@ -2694,7 +2771,7 @@ export function Canvas() {
                     pointDrag.elementId === selectedElement.id &&
                     (() => {
                       const pts = selectedElement.points!.map((p, i) => (i === pointDrag.pointIndex ? pointDrag.point : p))
-                      if (selectedElement.class === 'Rectangle' || selectedElement.class === 'SmallWindow' || selectedElement.class === 'Button' || selectedElement.class === 'WindowIcon' || selectedElement.class === 'Table') {
+                      if (selectedElement.class === 'Rectangle' || selectedElement.class === 'SmallWindow' || selectedElement.class === 'Picture' || selectedElement.class === 'Button' || selectedElement.class === 'WindowIcon' || selectedElement.class === 'AutomationDevice' || selectedElement.class === 'Table') {
                         const [p0, p1] = pts
                         return (
                           <rect

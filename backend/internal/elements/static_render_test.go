@@ -23,7 +23,9 @@ var extractRoundTripGaps = map[string]string{
 	"4":      "circle: anchor read as its center",
 	"113":    "3D button: anchor read as its center",
 	"302":    "window icon: anchor read as its center",
+	"103":    "automation device: anchor read as its center",
 	"319":    "small window: anchor read as its center",
+	"11":     "picture: anchor read as its center, no orientation",
 	"335":    "road: orientation lives in its points",
 	"7":      "junction point: no orientation",
 	"26":     "fork: template not recognized",
@@ -61,6 +63,9 @@ func TestStaticRender_AllShapesAbsolute(t *testing.T) {
 					ID: 1, Class: slddoc.Class(s.Class), Shape: s.Shape, Name: "X", Voltage: 1,
 					X: 100, Y: 200, Orient: orient, Mirror: mirror, State: &state,
 					Points: []slddoc.Point{{X: 100, Y: 200}, {X: 160, Y: 240}},
+				}
+				if s.Class == string(slddoc.ClassPicture) {
+					el.Href = "data:image/png;base64,iVBORw0KGgo="
 				}
 				if s.Class == string(slddoc.ClassPowerTransformer) {
 					el.Windings = []slddoc.TransformerWinding{{Voltage: 1}, {Voltage: 1}}

@@ -5,7 +5,7 @@ import type { ElementSymbol } from '../types'
 // state-less palette preview instead of a real instance's voltage/state:
 // {state:a|b|c} always shows the first (closed/parallel) variant, {color}
 // follows the button's own text color so the icon themes automatically,
-// {fill} is empty (no state to show), and {radius} is a reasonable
+// {fill} and {background} are empty (no state or page to show), and {radius} is a reasonable
 // constant for the two shapes (Lamp, FaultPassageIndicator) that use one.
 const STATE_RE = /\{state:([^|}]*)\|([^|}]*)\|([^}]*)\}/g
 
@@ -69,6 +69,12 @@ const BUTTON_ICON =
 const WINDOW_ICON_ICON =
   '<rect x="-14" y="-10" width="28" height="20" fill="currentColor" fill-opacity="0.25" stroke="currentColor" stroke-width="2" stroke-dasharray="5 3" />' +
   '<line x1="-7" y1="1" x2="7" y2="1" stroke="currentColor" stroke-width="2" stroke-linecap="round" />'
+
+// Automation device (shape 103): a two-state tile, drawn half filled to
+// suggest its On/Off look.
+const AUTOMATION_DEVICE_ICON =
+  '<rect x="-16" y="-10" width="32" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 3" />' +
+  '<rect x="-16" y="-10" width="16" height="20" fill="currentColor" fill-opacity="0.5" />'
 
 // Road (shape 335) likewise has no template (see BUSBAR_ICON above) — a
 // solid (not dashed — real corpus never draws one transparent-ish/hollow)
@@ -149,14 +155,35 @@ const CONNECTOR_ARROW_ICON =
 // apart from Rectangle's larger dashed box.
 const SMALL_WINDOW_ICON = '<rect x="-11" y="-11" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" />'
 
+// A framed landscape (sun and hills), the usual picture glyph.
+const PICTURE_ICON =
+  '<rect x="-13" y="-10" width="26" height="20" fill="none" stroke="currentColor" stroke-width="2" />' +
+  '<circle cx="-5" cy="-3" r="2.5" fill="currentColor" />' +
+  '<path d="M -13 10 L -3 1 L 3 6 L 7 3 L 13 8" fill="none" stroke="currentColor" stroke-width="2" />'
+
+// A circle in quarters, the Substation (360) pictogram with four voltages.
+const SUBSTATION_ICON =
+  '<circle r="13" fill="none" stroke="currentColor" stroke-width="2" />' +
+  '<path d="M 0 -13 V 13 M -13 0 H 13" stroke="currentColor" stroke-width="2" />' +
+  '<path d="M 0 0 V -13 A 13 13 0 0 1 13 0 Z" fill="currentColor" />'
+
+// A square split across, its lower half hatched: the thermal Power plant (38).
+const POWER_PLANT_ICON =
+  '<rect x="-12" y="-12" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" />' +
+  '<path d="M -12 0 H 12 M -12 8 L -4 0 M -6 12 L 6 0 M 4 12 L 12 4" stroke="currentColor" stroke-width="1.5" />'
+
 const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '24': BUSBAR_ICON,
   '3': RECTANGLE_ICON,
   '319': SMALL_WINDOW_ICON,
+  '11': PICTURE_ICON,
+  '360': SUBSTATION_ICON,
+  '38': POWER_PLANT_ICON,
   '2': ARROW_ICON,
   '4': CIRCLE_ICON,
   '113': BUTTON_ICON,
   '302': WINDOW_ICON_ICON,
+  '103': AUTOMATION_DEVICE_ICON,
   '310': CONTAINER_ICON,
   '83': CONNECTOR_ARROW_ICON,
   '335': ROAD_ICON,
@@ -195,6 +222,7 @@ export function elementIconMarkup(symbol: ElementSymbol): string {
     .replace(/\{counterRotate\}/g, '0')
     .replace(/\{color\}/g, 'currentColor')
     .replace(/\{fill\}/g, 'none')
+    .replace(/\{background\}/g, 'none')
     .replace(/\{radius\}/g, '8')
   const rotation = ICON_ROTATION[symbol.shape]
   return rotation ? `<g transform="rotate(${rotation})">${body}</g>` : body

@@ -7,6 +7,7 @@ import type {
   EditorConfig,
   ImportReport,
 } from '../types'
+import { stripPictureHrefs } from './picture'
 
 const BASE = '/api'
 
@@ -96,7 +97,7 @@ export async function renderPreview(diagram: Diagram): Promise<{ svg: string; wa
   const res = await fetch(`${BASE}/render`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(diagram),
+    body: JSON.stringify(stripPictureHrefs(diagram)),
   })
   return asJSON(res)
 }
@@ -118,7 +119,7 @@ export async function renderPreviewFragments(
   const res = await fetch(`${BASE}/render/fragments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ diagram, ids }),
+    body: JSON.stringify({ diagram: stripPictureHrefs(diagram), ids }),
   })
   return asJSON(res)
 }

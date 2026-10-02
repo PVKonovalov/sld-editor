@@ -24,6 +24,9 @@ export interface Port {
 export interface Layer {
   id: number
   name: string
+  // Drawing order: higher layers draw over lower ones; equal ones (all, by
+  // default) are interleaved. See slddoc's Layer.Z.
+  z?: number
 }
 
 export interface VoltageClass {
@@ -50,6 +53,8 @@ export interface EditorSettings {
   // Debug overlay: a small red X at every Diagram.Node's own position (not
   // just a symbol's declared Terminals) — see Canvas's own render of it.
   showNodes?: boolean
+  // The Layer.id newly placed items go on (absent = the base layer, 0).
+  activeLayer?: number
 }
 
 // Matches the shared slddoc module's Class (github.com/PVKonovalov/slddoc).
@@ -64,6 +69,8 @@ export type ElementClass =
   | 'ShortCircuiterNoGround'
   | 'DisconnectorFuse'
   | 'SynchronousCompensator'
+  | 'SynchronousMotor'
+  | 'KnifeSwitch'
   | 'KnifeSwitch3'
   | 'Ground'
   | 'PowerTransformer'
@@ -94,6 +101,12 @@ export type ElementClass =
   | 'FaultPassageIndicator'
   | 'Rectangle'
   | 'SmallWindow'
+  | 'Substation'
+  | 'BlockingFilter'
+  | 'PowerPlant'
+  | 'AnchorPole'
+  | 'AutomationDevice'
+  | 'Picture'
   | 'Arrow'
   | 'Circle'
   | 'Button'
@@ -298,6 +311,15 @@ export interface DiagramElement {
   rowHeights?: number[]
   columnWidths?: number[]
   cells?: TableCell[]
+  // An AutomationDevice's (shape 103) On text and text color; propertyText/
+  // textColor are its Off ones.
+  propertyTextOn?: string
+  textColorOn?: string
+  // A Substation's (shape 360) sector fills, 1–4, each a VoltageClass id.
+  sectors?: { voltage?: number }[]
+  // A Picture's (shape 11) image as a data URI. Stripped from live-render
+  // requests (lib/picture.ts).
+  href?: string
 }
 
 // Matches backend/internal/slddoc.TableCell — one real cell of a Table2

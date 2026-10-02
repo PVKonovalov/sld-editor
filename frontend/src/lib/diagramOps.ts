@@ -37,10 +37,12 @@ const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'BusBarSection',
   'Rectangle',
   'SmallWindow',
+  'Picture',
   'Circle',
   'Arrow',
   'Button',
   'WindowIcon',
+  'AutomationDevice',
   'Road',
   'Line',
   'Polygon',
@@ -284,10 +286,29 @@ export function diffDiagramForRender(previous: Diagram, next: Diagram): DiagramR
 
   if (structural) return { kind: 'full' }
   if (targets.length === 0) return { kind: 'none' }
+  // An item moved to another layer may now belong in another layer group
+  // of the document (Layer.z), which a patch in place can't do.
+  if (layerChanged(previous, next, targets)) return { kind: 'full' }
   return { kind: 'patch', targets }
 }
 
-function defaultLayer(diagram: Diagram): number {
+// Whether any of targets now sits on a different layer than before.
+function layerChanged(previous: Diagram, next: Diagram, targets: { id: number; kind: DataEditorKind }[]): boolean {
+  const layers = (d: Diagram) => {
+    const m = new Map<number, number>()
+    for (const list of [d.elements, d.connectors, d.labels, d.digitalDevices]) for (const x of list) m.set(x.id, x.layer)
+    return m
+  }
+  const before = layers(previous)
+  const after = layers(next)
+  return targets.some(({ id }) => before.get(id) !== after.get(id))
+}
+
+/** The layer newly placed items go on: the diagram's active layer
+ * (editor.activeLayer) while it still exists, else the first layer. */
+export function defaultLayer(diagram: Diagram): number {
+  const active = diagram.editor?.activeLayer
+  if (active !== undefined && diagram.layers.some(l => l.id === active)) return active
   return diagram.layers[0]?.id ?? 0
 }
 
@@ -341,7 +362,7 @@ const GROUND_TYPE_DEFAULT_STATE = 0
 // starts service in. Chassis (51) has no non-withdrawable sibling of its
 // own — every real instance has this same mechanism — but is still keyed
 // here by Shape for consistency with the other three.
-const WITHDRAWABLE_SHAPES = new Set(['43', '49', '154', '51'])
+const WITHDRAWABLE_SHAPES = new Set(['43', '49', '50', '154', '51'])
 const POSITION_NORMAL = 1
 
 // A freshly placed Lamp starts unlit (state 0) with a real fillOff/fillOn/
@@ -500,6 +521,8 @@ export function placeElement(
     ...(elementClass === 'FaultPassageIndicator' ? fpiDefaults(defaultFpiText) : {}),
     ...(elementClass === 'PowerTransformer' ? powerTransformerDefaults(defaultVoltage) : {}),
     ...(elementClass === 'Table2' ? table2Defaults() : {}),
+    // One sector, filled with the same default voltage as its outline.
+    ...(elementClass === 'Substation' ? { sectors: [{ voltage: defaultVoltage }] } : {}),
   }
   // Every fixed Port exists from the start (see fitElementPorts), joined to
   // whatever wire or node the new element was dropped exactly onto.
@@ -660,6 +683,67 @@ export function placeSmallWindow(diagram: Diagram, start: Point, end: Point): Di
     y: (start.y + end.y) / 2,
     points: [start, end],
     ...SMALL_WINDOW_DEFAULTS,
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+/** Places a new Picture (shape 11, Backdrop/image file) spanning
+ * start..end: a decorative two-corner frame (see slddoc's ClassPicture),
+ * no Voltage, no Ports, never a routing target. It starts with no image
+ * (drawn as a dashed placeholder); setPictureHref gives it one. It goes
+ * first in the element list, so it draws beneath everything else (a
+ * backdrop), since an opaque picture on top would hide the equipment. */
+export function placePicture(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'Picture',
+    shape: '11',
+    name: `Picture-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+  }
+  return { ...diagram, lastId: ids.lastId, elements: [element, ...diagram.elements] }
+}
+
+/** Sets the image (a data URI) of Picture id. */
+export function setPictureHref(diagram: Diagram, id: number, href: string): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(el => (el.id === id && el.class === 'Picture' ? { ...el, href } : el)),
+  }
+}
+
+// A freshly placed Automation device starts Off: a gray tile when Off, green
+// when On, white text in both, the source's black 1px border.
+const AUTOMATION_DEVICE_DEFAULTS = {
+  state: 0,
+  fillOff: '#808080',
+  fillOn: '#00aa00',
+  textColor: '#ffffff',
+  textColorOn: '#ffffff',
+  stroke: '#000000',
+}
+
+/** Places a new Automation device (shape 103) spanning start..end: a
+ * decorative two-state status tile (see slddoc's ClassAutomationDevice), no
+ * Voltage, no Ports, never a routing target. */
+export function placeAutomationDevice(diagram: Diagram, start: Point, end: Point): Diagram {
+  const ids = new IdSequence(diagram)
+  const id = ids.take()
+  const element: DiagramElement = {
+    id,
+    class: 'AutomationDevice',
+    shape: '103',
+    name: `Automation-${id}`,
+    layer: defaultLayer(diagram),
+    x: (start.x + end.x) / 2,
+    y: (start.y + end.y) / 2,
+    points: [start, end],
+    ...AUTOMATION_DEVICE_DEFAULTS,
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -1118,8 +1202,10 @@ export function selectionCentroid(
  * class of the same name (case-insensitive), otherwise — including when
  * unset — it becomes defaultVoltage (never for a class in
  * NO_VOLTAGE_CLASSES). A layer is kept when the target has it, otherwise
- * it becomes the target's default layer. Label.for is remapped to the
- * copied element. Also what Paste uses, with the copied selection
+ * it becomes the target's default layer (defaultLayer); with toActiveLayer
+ * (a custom element from the palette, whose layers mean nothing here) every
+ * item goes on the default layer. Label.for is remapped to the copied
+ * element. Also what Paste uses, with the copied selection
  * (extractSelection) as the template. */
 export function placeCustomElement(
   diagram: Diagram,
@@ -1128,6 +1214,7 @@ export function placeCustomElement(
   symbols: ElementSymbol[],
   snap: (p: Point) => Point = p => p,
   defaultVoltage?: number,
+  toActiveLayer = false,
 ): Diagram {
   const anchors = groupAnchors(template)
   const centroid = groupCentroid(template)
@@ -1147,7 +1234,8 @@ export function placeCustomElement(
     return (name !== undefined ? targetVoltageByName.get(name) : undefined) ?? defaultVoltage
   }
   const targetLayers = new Set(diagram.layers.map(l => l.id))
-  const mapLayer = (layer: number): number => (targetLayers.has(layer) ? layer : defaultLayer(diagram))
+  const mapLayer = (layer: number): number =>
+    !toActiveLayer && targetLayers.has(layer) ? layer : defaultLayer(diagram)
 
   const newNodes: DiagramNode[] = []
   const nodeIds = new Map<number, number>()
@@ -2755,12 +2843,29 @@ export function updateLayer(diagram: Diagram, id: number, patch: Partial<Layer>)
  * referencing a layer that no longer exists — unlike removeVoltageClass,
  * which leaves its references dangling, since every object must always
  * carry exactly one resolvable layer. */
+/** Moves the given items (a selection: id → kind) onto layer. */
+export function setItemsLayer(diagram: Diagram, items: ReadonlyMap<number, string>, layer: number): Diagram {
+  const move = <T extends { id: number; layer: number }>(list: T[], kind: string): T[] =>
+    list.some(x => items.get(x.id) === kind && x.layer !== layer)
+      ? list.map(x => (items.get(x.id) === kind && x.layer !== layer ? { ...x, layer } : x))
+      : list
+  return {
+    ...diagram,
+    elements: move(diagram.elements, 'element'),
+    connectors: move(diagram.connectors, 'connector'),
+    labels: move(diagram.labels, 'label'),
+    digitalDevices: move(diagram.digitalDevices, 'digitaldevice'),
+  }
+}
+
 export function removeLayer(diagram: Diagram, id: number): Diagram {
   if (id === BASE_LAYER) return diagram
   const move = <T extends { layer: number }>(items: T[]): T[] =>
     items.some(x => x.layer === id) ? items.map(x => (x.layer === id ? { ...x, layer: BASE_LAYER } : x)) : items
+  const editor = diagram.editor?.activeLayer === id ? { ...diagram.editor, activeLayer: undefined } : diagram.editor
   return {
     ...diagram,
+    editor,
     layers: diagram.layers.filter(l => l.id !== id),
     elements: move(diagram.elements),
     connectors: move(diagram.connectors),

@@ -12,7 +12,8 @@ This guide describes how to work with the editor. For installing and running it,
 - **Canvas**: the diagram itself, with zoom buttons in the bottom-right corner.
 - **Properties** panel: docked on the right. It can stay open together with the Elements panel.
 
-The browser tab shows the open diagram's name, with `*` when it has unsaved changes.
+The browser tab shows the open diagram's name, with `*` when it has unsaved changes. The editor guards them against
+being lost: see *Unsaved changes* below.
 
 ## Diagrams and files
 
@@ -46,6 +47,17 @@ With nothing selected, the Properties panel shows the diagram itself:
 When you open an older diagram, the editor may repair its connections (see *Connections* below); the diagram is then
 marked as changed. Save it to keep the repair.
 
+### Unsaved changes
+
+- Opening another diagram, creating a new one, or importing a file while the open diagram has unsaved edits first
+  asks: **Save** (then continue), **Don't save** (drop the edits) or **Cancel** (stay where you are). A repair made
+  automatically on opening doesn't count as an edit.
+- Closing or reloading the browser tab with unsaved edits shows the browser's own "Leave site?" warning.
+- While you edit, the editor keeps a recovery copy of the unsaved changes in your browser. If the tab was closed or
+  crashed before you saved, the next time you start the editor (or open that diagram) it offers to **Restore** them,
+  still unsaved, or **Discard** them; **Decide later** keeps the copy for next time. Saving deletes the copy. The copy
+  lives only in this browser on this computer.
+
 ## Moving around the canvas
 
 | Action | How |
@@ -70,6 +82,11 @@ Some elements are drawn instead of clicked:
   **Backspace** removes the last corner, **Esc** cancels. A container is a frame drawn around a group of equipment
   (usually dotted) with a caption; Properties sets the caption's text, position, size, color and rotation. Pressing on
   the empty space inside a container still starts a selection frame; grab a container by its outline or caption.
+- **Backdrop/image file**: drag a frame, then pick an image file (PNG, JPEG, BMP, SVG…) in the dialog that opens.
+  The picture is stretched over the frame and saved inside the diagram file. It is placed beneath everything else, so
+  it can serve as a backdrop. Until an image is chosen the frame is drawn dashed. In Properties, **Replace image…**
+  picks another file and **Fit to image proportions** sets the frame's height from its width and the image's own
+  aspect ratio.
 - **Text** places a free text label; **Digital device** places a SCADA value readout.
 
 Newly placed elements start at the default voltage (switching devices start closed). A device's fixed connection
@@ -184,9 +201,28 @@ it. The last voltage chosen becomes the default for new elements.
 
 ### Layers and voltage classes
 
-With nothing selected, Properties shows the diagram's **Layers** (rename, add, delete; items on a deleted layer move
-to the base layer) and **Voltage classes** (name, colour, how many items use it). An element or wire without a voltage
-class is drawn grey.
+With nothing selected, Properties shows the diagram's **Layers** and **Voltage classes** (name, colour, how many items
+use it). An element or wire without a voltage class is drawn grey.
+
+Layers group items so they can be shown or hidden together (for example disconnectors, ground switches or CTs) and
+set what is drawn on top. Every element, wire, text label and digital device is on exactly one layer; the base layer
+always exists.
+
+- **Add**, rename or delete layers. Items on a deleted layer move to the base layer. The `#` column counts the items
+  on each layer.
+- **Z** is the drawing order: a layer with a higher Z is drawn over one with a lower Z, both on the canvas and in the
+  saved SVG. Layers with the same Z (all of them start at 0) are drawn together as usual: devices, then wires, then
+  indicators, then text.
+- The eye button hides a layer while you edit: its items are not drawn and cannot be clicked, selected or wired to.
+  This is only a view setting; it is not saved and does not change the export.
+- **New items go on** picks the layer that newly drawn or placed items (including custom elements) start on. Copies
+  keep the layer of their original.
+- To move items to another layer, select them and pick the **Layer** in Properties; with several items selected it
+  moves them all.
+
+The saved SVG marks every item that is not on the base layer with `data-layer` and lists the layers in a `<metadata>`
+block, as xsde2svg does, so a viewer such as ctrlroom can switch layers on and off. Importing an xsde2svg SVG keeps its
+layers; a layer number the file uses without naming it is added as "Layer N".
 
 ## Settings
 

@@ -112,7 +112,10 @@ storage and the Gin API.
   Selection and "armed" tools are mutually exclusive: selecting or arming any of element/connector/label/symbol/wire
   kind clears the others. The exception is that selecting does *not* clear `armedWireKind`. Also here: import flows
   (single file → `pendingImport` confirm when the name exists; multi-file → `batchImport`) and the default-voltage
-  prompt. Split into two files to keep Vite Fast Refresh working.
+  prompt. Anything that replaces the open diagram (`openDiagram`, `newDiagram`, `importDiagramFile`, `restoreDraft`)
+  goes through `confirmLeave`, which asks Save / Don't save / Cancel when there are unsaved edits; a repair made on
+  open doesn't count (`openedRef`). Unsaved edits are also copied to an IndexedDB recovery draft (`lib/drafts.ts`),
+  offered back on startup and on open. Split into two files to keep Vite Fast Refresh working.
 - `lib/api.ts`: the only backend caller. It normalizes Go `null` slices to arrays.
 - `lib/diagramOps.ts`: pure, immutable `Diagram → Diagram` editing functions (place/move/connect/route/splice/
   reshape/delete/copy-paste/voltage classes/layers). Every edit goes through these via `updateDiagram`. Untouched
@@ -137,6 +140,8 @@ storage and the Gin API.
   - **Hit-testing:** reads `data-editor-kind` + `Number(id)` from the server-rendered SVG.
   - **Rendering:** debounced. Each change is diffed against the last render: `'patch'` fetches `/api/render/fragments`
     and swaps just those DOM nodes, `'full'` refetches `/api/render`, `'none'` skips.
+    A Picture's (shape 11) embedded image (`href`, a data URI) is stripped from both requests (`lib/picture.ts`);
+    Interactive render writes its `<image>` without an href and the canvas fills it in from state after each render.
   - **Dragging:** mutates the rendered DOM directly and commits to diagram state on mouseup.
   - **Selection:** click; Shift or Ctrl/Cmd-click toggles (`toggleSelection`); a left-drag from empty canvas draws a
     selection frame (`startMarquee`/`marqueeHits`: left→right picks only what's fully inside, right→left anything it
@@ -146,6 +151,9 @@ storage and the Gin API.
   - **Copy/duplicate:** Ctrl/Cmd+C/V (paste offset `PASTE_OFFSET_STEPS` grid steps from the original,
     `selectionCentroid`), right-click Copy/Paste, and Alt-drag (`startDuplicateDrag`: cloned DOM preview, copy placed
     on release). All place through `placeCustomElement` and select the copy (`placeCopy`/`addedItems`).
+  - **Layers:** `Render` draws layer groups in `Layer.Z` order and tags items with `data-layer` (plus `<metadata>`),
+    like xsde2svg; a layer hidden in the Layers section (`hiddenLayers`, session only) is hidden by CSS
+    (`hiddenLayerCss`) and skipped by every diagram-state hit test (`isHidden`).
   - **Overlays:** selection marks, terminals, nodes, and the grid are separate `<svg>` layers drawn from diagram
     state. The grid must sit above the server markup, which paints an opaque background.
   - **Routing:** only starts while a wire kind is armed from the palette (or via right-click "Start buswork"). It

@@ -4662,3 +4662,225 @@ imported rotation is kept. It's a `base.xml` template like any device.
 bare `<rect>` or `Render`'s `<g>`, and doesn't turn its color into a voltage
 class. All 53 connectors in the 5 real exports that have them import, each
 with its wires joined to it.
+
+2026-10-02: Synchronous motor (xsde2svg shape 39), ported from
+`element_39.go`. New class `SynchronousMotor` in the Elements palette's
+Generation group, after Synchronous compensator: a radius-12 circle hanging
+from a 5-long stem, stroke-width 2, with an "M" (Arial 12px) at its center.
+Like Generator and Synchronous compensator it is anchored on its single
+terminal (the stem's tip, 17 above the circle's center). As in the source,
+the "M" turns with the symbol (unlike the compensator's upright "=" mark).
+Mirror is hidden in Properties (symmetric, no mirror branch in the source).
+`Extract` (sibling `slddoc`) reads it with `parseOnePortDevice`. Checked
+against every real instance in the EMA corpus (57, 42 of them rotated):
+all extracted, at their real terminals and orientations.
+
+2026-10-02: Knife switch (xsde2svg shape 44), ported from `element_44.go`. New
+class `KnifeSwitch` in the Elements palette's Switching devices group, before
+the 3-position knife switch: the same three small circles (pivot and two
+contacts) with the thick blade always on the left contact, as in the source,
+which has no state and no mirror branch. It has three terminals, the pivot
+(0, 10) and the left and right contacts (±10, -10). The pivot moved down
+from the source's (0, 5) so every terminal sits on the grid; otherwise it is
+drawn as in the source: the full-length blade first, then the circles on top,
+filled with the diagram background so they hide the blade's ends. For that,
+symbol templates get a new `{background}` placeholder (sibling `slddoc`'s
+`Render`/`RenderFragments`), the diagram's background color or the default
+one; palette icons draw it unfilled. Mirror is hidden in Properties.
+`Extract` (sibling `slddoc`) reads it with `parseKnifeSwitch`, the former
+`parseKnifeSwitch3` now shared by both shapes. Checked against every real
+instance in the EMA corpus (70, 3 of them rotated): all extracted.
+
+2026-10-02: Backdrop/image file (xsde2svg shapes 11 and 12), ported from
+`element_11_12.go`. New decorative class `Picture` (shape 11) in the Elements
+palette's Annotations group: a picture stretched over a two-corner frame, with
+no voltage, terminals, rotation or state. You drag a frame and a file picker
+opens right away; the chosen image is read in the browser and embedded in the
+diagram as a data URI (new `Element.Href`, saved in the `.xsld` as an `<image>`
+child), so the file stays self-contained like the source's output. A new
+Picture goes first in the element list, so it draws beneath everything else.
+Until it has an image the canvas draws a dashed frame. Properties shows a
+preview, Replace image…, and Fit to image proportions (height from width and
+the image's aspect ratio), plus the corner points. Static render (the saved
+`.svg`, downloads) writes the source's bare `<image x y width height
+xlink:href>`. To keep traffic down, the live canvas strips every Picture's
+image from its `/api/render` and `/api/render/fragments` requests
+(`lib/picture.ts`); Interactive render leaves the `<image>` without an href,
+and the canvas fills it in from its own state after each render or patch, so
+editing a diagram with a large backdrop posts a few kilobytes rather than the
+picture. Save and export still send the full image. `Extract` (sibling
+`slddoc`) turns every bare top-level `<image>` (real xsde2svg gives it no id
+or data-type) into a Picture with a fresh id. Shapes 11 and 12 draw the same
+in the source, so both import as 11. Checked against the EMA corpus: all 1,519
+images in 251 files extracted with their data. Images there are PNG, JPEG and
+BMP, all labelled `image/jpeg` by the source; browsers detect the real format.
+
+2026-10-02: Knife switch (shape 44) position. Properties now has a Position
+dropdown for it, like the 3-position knife switch (175) but with two options:
+Left contact (the source's only drawing, State unset or 0) and Right contact
+(State 2), the same codes 175 uses. The blade swings between the two
+contacts; a newly placed one starts on the left. The blade carries
+`data-state`, and `Extract` (sibling `slddoc`, `parseKnifeSwitch`) now reads
+it back for both 44 and 175, so the editor's own exported positions round-trip.
+Real xsde2svg markup has no `data-state`, so its knife switches still import
+with State unset.
+
+2026-10-02: Protection against losing unsaved work, in three layers.
+(1) Opening another diagram, New, or a single-file import while the open
+diagram has unsaved edits now asks first (`UnsavedChangesDialog`): Save, Don't
+save or Cancel. The check is one gate in `DiagramContext` (`confirmLeave`)
+that `openDiagram`, `newDiagram` and `importDiagramFile` all pass through;
+`newDiagram` now resolves `false` when cancelled, so the New dialog stays open.
+A repair `openDiagram` makes by itself (topology, id backfill, preset voltage
+names) still marks the diagram dirty but doesn't count as an edit, so it
+neither prompts nor leaves a draft. (2) Closing or reloading the tab with
+unsaved edits triggers the browser's own `beforeunload` warning. (3) A second
+after each edit, the diagram is copied to a recovery draft in the browser's
+IndexedDB (`lib/drafts.ts`, keyed by diagram name; IndexedDB because embedded
+pictures can exceed localStorage's limit). Save, Save As and Don't save delete
+it. On startup, and when a diagram with a draft is opened, `DraftRecoveryDialog`
+offers each draft that is newer than its file on the server (or whose file was
+never saved, e.g. an import): Restore makes it the working diagram, still
+unsaved; Discard deletes it; Decide later keeps it. A draft older than its
+file is deleted silently. Drafts are per browser, and every storage failure
+is only logged. Tested live: the prompt with Cancel and Don't save, the
+`beforeunload` guard, recovery from a second tab after the first was left
+with unsaved edits, and Save clearing the draft.
+
+2026-10-02: Layers that work end to end, with a drawing order. Each layer now
+has a Z (`<layer z>`, sibling `slddoc` `Layer.Z`, default 0): `Render` draws the
+diagram layer group by layer group, lowest Z first, so a higher layer covers a
+lower one; layers sharing a Z are drawn together in the usual order (devices,
+wires, indicators, labels, digital devices), so existing diagrams render as
+before. The canvas draws the same order; moving an item to another layer, or
+changing a Z, triggers a full re-render. Render now writes `data-layer` on
+every item off the base layer (both modes, on the item's root node) and a
+`<metadata>` layer list, as xsde2svg does, so ctrlroom's layer switches work on
+SVGs saved here; non-zero Z values and the base layer's name/Z ride along as
+extra JSON keys, and `Extract` reads them back. `Extract` also adds a layer
+named "Layer N" for any layer id an item uses that `<metadata>` doesn't list
+(common in the corpus). In the editor: the Layers section has an eye button
+per layer that hides it while editing (not drawn, not clickable, selectable or
+routable; session only, never saved or exported; hiding deselects its items),
+a Z field, and "New items go on" (`editor.activeLayer`), which new drawn,
+placed and custom-element items use; copies keep their source layer.
+Properties has a Layer dropdown for an element, wire, label or digital device,
+and for a multi-selection (moving all of it). Checked against the ctrlroom
+corpus: every imported item keeps its `data-layer` (4,360 items in 346 files;
+the remaining 841 tags are on untyped paths the importer skips).
+
+2026-10-02: Withdrawable sectionalizer (xsde2svg shape 50), ported from
+`element_50.go`. A new shape of the existing `Sectionalizer` class, "Sectionalizer
+(withdrawable)" in the Switching devices group after the withdrawable
+disconnector. It is shape 49's withdrawable frame (outer chevrons at ±30,
+inner chevrons, contact bars; the bottom bar at +12 as in the source) around
+exactly Power circuit breaker (399)'s switch: a blade, vertical when Closed
+and horizontal when Open, and a small filled square. Terminals at (0, ±30).
+Two states (Open/Close), starting Closed. The default is the source's
+xMirror=1 layout; Mirror gives the xMirror=0 one approximately, as for 399.
+Unlike 49 there is no Position control: the source has no Service/Test drawing
+for this shape. `Extract` (sibling `slddoc`) reads it with
+`parseWithdrawableSectionalizer`: ports at the outer chevron tips, anchor
+their midpoint (any export scale), rotation from the source's inner
+`rotate()` group, state from `data-state`, Mirror from the square's side
+(logic now shared with 399, `bladeSquareMirrored`). Checked against the
+ctrlroom corpus: all 393 instances in 69 files extracted (245 Closed, 148
+Open, 114 mirrored).
+
+2026-10-02: Withdrawable sectionalizer (shape 50): Operational status and
+Position status, exactly as for the withdrawable disconnector (49). The state
+field is labelled Operational status (Open/Close), and a Position status
+dropdown (Normal/Service/Test) slides the movable body (blade, square, inner
+chevrons, contact bars) 10 units sideways for Service and Test, while the
+outer chevrons and the terminals stay put. A newly placed one starts Normal.
+`parseWithdrawableSectionalizer` (sibling `slddoc`) now also reads the
+`data-trolley` attribute back as Position (`parsePosition`), so the editor's
+own SVG round-trips; real xsde2svg output has none and imports as Normal.
+
+2026-10-02: Substation pictogram (xsde2svg shape 360), ported from
+`element_360.go`. New class `Substation` in the Elements palette's Other
+equipment group: a network-map symbol of a whole substation, a filled circle
+split into one sector per voltage (1 to 4: a whole circle, right/left halves,
+three sectors, or quadrants clockwise from upper-right, in the source's exact
+geometry), outlined in the element's own voltage color. New `Element.Sectors`
+(`<sectors><sector voltage/></sectors>`, sibling `slddoc`) holds each sector's
+voltage class, so a voltage class's color change repaints it; `Radius` sets
+the size (default 20, the source's scale-1 size). One terminal at the center,
+where any number of lines can end, as in the corpus. Orientation and Mirror as
+in the source (its xMirror reverses the sector colors, the same as a
+left-right flip). Properties lists the sectors (a voltage per sector, add up
+to four, remove down to one) and the radius; a new one has one sector at the
+default voltage. `Extract` reads it with `parseSubstation`: center and radius
+from the drawing at any export scale, rotation from `rotate()`, outline color
+from `data-voltage`, sector fills mapped to voltage classes like transformer
+winding colors. Checked against the ctrlroom corpus: all 7 instances in 2
+files extracted (radius 7, 14 and 20), 5 of them joined to their lines.
+
+2026-10-02: Blocking filter (xsde2svg shape 389), ported from `element_389.go`.
+New class `BlockingFilter` (a line trap) in the Elements palette's Other
+equipment group, after the shunt reactor: the source's single path, a slant
+from the left end down to (0, 11), a vertical stroke up to (0, -11) and a
+slant down to the right end, stroke-width 1 in the voltage color. It sits in
+a line, so its two terminals are the ends, (±10, 0). No state; Mirror is
+hidden (no mirror branch in the source). `Extract` (sibling `slddoc`) reads it
+with `parseBlockingFilter`, both the source's bare `<path>` and the editor's
+own `<g>`: ports at the path's first and last points, anchor their midpoint
+(any export scale), rotation from `rotate()`. No real corpus instance exists,
+so it was tested against markup in the source's own output format.
+
+2026-10-02: Power plant pictogram (xsde2svg shape 38, thermal and hydro), ported
+from `element_38.go`. New class `PowerPlant` in the Elements palette's
+Generation group: a square (Radius is its half side, default 20, the source's
+scale-1 size) split in two with one part hatched, in the element's voltage
+color. Kind (`NType`): 0 thermal, the lower half hatched with "/"
+lines; 1 hydro, the square split along a diagonal with one triangle
+hatched horizontally (Mirror gives the other diagonal, the source's xMirror;
+hidden in Properties for the symmetric thermal kind). One terminal at the
+center. The source hatches through `<pattern id="diagonal|horizontal">`
+blocks written again for every instance under the same ids, so in a browser
+every hatch takes the first instance's color; here each instance draws its
+own hatch lines at the source's 10-unit pitch. Properties: Kind, Half side,
+Orientation, Mirror (hydro only). `Extract` (sibling `slddoc`) reads it with
+`parsePowerPlant`: center and half side from the square, kind from the
+hatched part (half rectangle or triangle), Mirror from which corner the
+triangle starts at (or the editor's own `scale(-1,1)`), rotation from
+`rotate()`. An instance of a kind the source doesn't draw (empty paths)
+imports as thermal when its `rotate()` gives a position, and is reported as
+failed otherwise, since nothing in its markup says where it is. Checked
+against the ctrlroom corpus: 5 of 13 instances extracted (all 5 that are
+drawn); the other 8 are such empty, unplaceable ones. Corpus lines end on the
+square's edges rather than its center, so imported plants are not joined to
+their lines.
+
+2026-10-02: Metal anchor/angle pole (xsde2svg shape 19), ported from
+`element_19.go`. New class `AnchorPole` in the Elements palette's Wiring
+group, after Power pole: the source's single triangle, apex at (10, 0) and a
+vertical base at x = -10, stroke-width 1 in the voltage color. Mirror points
+the apex left (the source's xMirror); Orientation as usual. One terminal at
+the center, where pole-by-pole diagrams end their lines. The size is the
+source's scale-1 size, so poles exported at other scales import at that size.
+`Extract` (sibling `slddoc`) reads it with `parseAnchorPole`, both the
+source's bare `<path>` and the editor's own `<g>`: center halfway between the
+apex and the base (any export scale), Mirror from the apex side (or the
+editor's own `scale(-1,1)`), rotation from `rotate()`, name from `data-name`.
+The source's caption text imports as an ordinary label. Checked against the
+ctrlroom corpus: all 71 instances extracted (2 mirrored), 46 joined to a line.
+
+2026-10-02: Automation device (xsde2svg shape 103), ported from
+`element_103.go`. New decorative class `AutomationDevice` in the Elements
+palette's Indicators group: a two-state status tile drawn by dragging two
+corners, like the 3D button. State On shows the On fill, text and text color,
+Off the Off ones (the source's ColorOn/InText/ColorText1 and
+ColorOff/Text1/ColorText0); a 1px border (black by default, the source's
+`typ103_default`), a centered label 2 units below the center, 12px by
+default, optionally bold. New `Element` fields `PropertyTextOn` and
+`TextColorOn` (sibling `slddoc`) hold the On text and color; the Off ones,
+the fills and the size reuse `PropertyText`/`TextColor`, `FillOff`/`FillOn`
+and `TextSize`. Properties: State, a "When Off" and a "When On" block (text,
+fill, text color), border color, size, bold; a new tile starts Off, gray when
+Off and green when On, with white text. The source writes no state, so
+`Extract` (`parseAutomationDevice`) reads a source tile's drawn look as its
+Off look; the editor adds `data-state` to its own output, which reads back
+into the right state. No real corpus instance exists, so it was tested
+against markup in the source's own output format, plus a round trip in both
+states and a live check.

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
 import { baseName, joinDiagramPath, parentDir } from '../lib/diagramPath'
 import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
 import { prepareImport } from '../lib/importDiagram'
+import { deleteDraft, getDraft, listDrafts, putDraft, type Draft } from '../lib/drafts'
 import { t } from '../i18n'
 import type {
   Diagram,
@@ -19,10 +20,12 @@ import {
   type BatchImport,
   type BatchImportItem,
   type DiagramContextValue,
+  type DraftInfo,
   type ImportFile,
   type ImportLog,
   type PendingImport,
   type SelectionKind,
+  type UnsavedChoice,
 } from './useDiagramContext'
 
 // importTargetName is the server path a dropped/picked file is imported
@@ -58,6 +61,29 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [batchImport, setBatchImport] = useState<BatchImport | null>(null)
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Recovery drafts (lib/drafts.ts) offered by DraftRecoveryDialog, and the
+  // "Save / Don't save / Cancel" question UnsavedChangesDialog asks before
+  // unsaved edits would be replaced (see confirmLeave).
+  // Layers hidden on the canvas: a view preference for this session only,
+  // never saved and never affecting export.
+  const [hiddenLayers, setHiddenLayers] = useState<ReadonlySet<number>>(new Set())
+  const [recoverableDrafts, setRecoverableDrafts] = useState<DraftInfo[]>([])
+  const [unsavedPrompt, setUnsavedPrompt] = useState<{ diagramName: string } | null>(null)
+  const unsavedResolverRef = useRef<((proceed: boolean) => void) | null>(null)
+
+  // The diagram exactly as openDiagram loaded it. Opening can already mark
+  // a diagram dirty (a topology repair or id backfill that ought to reach
+  // disk), but that is not the user's work: leaving it unsaved loses
+  // nothing, since the next open repairs it again. So only a diagram that
+  // differs from this one counts as having unsaved edits. null after an
+  // import, whose whole content is unsaved.
+  const openedRef = useRef<Diagram | null>(null)
+  const latestRef = useRef({ diagramName, diagram, dirty })
+  latestRef.current = { diagramName, diagram, dirty }
+  const hasUnsavedEdits = useCallback(() => {
+    const { diagram: d, dirty: isDirty } = latestRef.current
+    return isDirty && d !== null && d !== openedRef.current
+  }, [])
 
   // Navigates the File panel's own folder browser to dir (a folder row's
   // own full path, ".."'s parentDir(currentDir), or a just-opened/-saved
@@ -65,9 +91,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // contents. The one place diagrams/currentDir are ever both set, so
   // they can never drift apart the way two separate setters could.
   const browseDir = useCallback(async (dir: string) => {
-    const entries = await api.listDiagrams(dir)
+    const entries = (await api.listDiagrams(dir)) ?? []
     setCurrentDir(dir)
-    setDiagrams(entries ?? [])
+    setDiagrams(entries)
+    return entries
   }, [])
 
   useEffect(() => {
@@ -83,6 +110,64 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       .catch(e => setError((e as Error).message))
   }, [browseDir])
 
+  // A draft is still worth offering only if its diagram was not saved after
+  // it was written (or has never been saved at all, e.g. an import). A stale
+  // one is deleted.
+  const draftIsCurrent = useCallback(async (draft: Draft, entries?: DiagramEntry[]) => {
+    const siblings = entries ?? (await api.listDiagrams(parentDir(draft.name))) ?? []
+    const file = siblings.find(e => !e.isDir && e.name === baseName(draft.name))
+    if (file && Date.parse(file.modTime) >= draft.savedAt) {
+      void deleteDraft(draft.name)
+      return false
+    }
+    return true
+  }, [])
+
+  // On startup, offer every draft left behind by a session that ended with
+  // unsaved edits.
+  useEffect(() => {
+    listDrafts()
+      .then(async drafts => {
+        const current: DraftInfo[] = []
+        for (const draft of drafts) {
+          if (await draftIsCurrent(draft)) current.push({ name: draft.name, savedAt: draft.savedAt })
+        }
+        if (current.length > 0) setRecoverableDrafts(current.sort((a, b) => b.savedAt - a.savedAt))
+      })
+      .catch(e => console.warn('sld-editor: draft recovery:', e))
+  }, [draftIsCurrent])
+
+  // Writes a recovery draft a second after the last edit.
+  useEffect(() => {
+    if (!diagramName || !diagram || !dirty || diagram === openedRef.current) return
+    const name = diagramName
+    const handle = setTimeout(() => void putDraft(name, diagram), 1000)
+    return () => clearTimeout(handle)
+  }, [diagramName, diagram, dirty])
+
+  // Closing or reloading the tab with unsaved edits asks first (the browser
+  // shows its own generic prompt).
+  useEffect(() => {
+    function onBeforeUnload(e: BeforeUnloadEvent) {
+      if (!hasUnsavedEdits()) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [hasUnsavedEdits])
+
+  // Resolves to true when the open diagram may be replaced: right away if
+  // it has no unsaved edits, otherwise once UnsavedChangesDialog's Save or
+  // Don't save has run (false on Cancel).
+  const confirmLeave = useCallback((): Promise<boolean> => {
+    if (!hasUnsavedEdits()) return Promise.resolve(true)
+    return new Promise(resolve => {
+      unsavedResolverRef.current = resolve
+      setUnsavedPrompt({ diagramName: latestRef.current.diagramName ?? '' })
+    })
+  }, [hasUnsavedEdits])
+
   // Keeps the browser tab title in sync with whichever diagram is open —
   // the same "*" dirty marker FilePanel's own Save button already shows,
   // so an unsaved change is visible even when that panel isn't.
@@ -97,6 +182,28 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setSelectedLabelIdState(null)
     setSelectedDigitalDeviceIdState(null)
   }, [])
+
+  // Hiding a layer drops whatever it holds from the selection, since its
+  // items can no longer be seen or picked.
+  const setLayerHidden = useCallback(
+    (layer: number, hidden: boolean) => {
+      setHiddenLayers(prev => {
+        const next = new Set(prev)
+        if (hidden) next.add(layer)
+        else next.delete(layer)
+        return next
+      })
+      if (!hidden || !diagram) return
+      const onLayer = new Set<number>()
+      for (const list of [diagram.elements, diagram.connectors, diagram.labels, diagram.digitalDevices])
+        for (const x of list) if (x.layer === layer) onLayer.add(x.id)
+      if ([...selection.keys()].some(id => onLayer.has(id))) clearSelection()
+    },
+    [diagram, selection, clearSelection],
+  )
+
+  // Every diagram starts with all of its layers shown.
+  useEffect(() => setHiddenLayers(new Set()), [diagramName])
 
   // Deliberately doesn't touch armedWireKind (unlike armedSymbol): a route
   // start is a tight-radius terminal hit (findConnectionTarget), so a
@@ -290,7 +397,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // then saved immediately (a second write right after the initial create)
   // so the very first .xsld on disk already carries it, not just an
   // in-memory, still-dirty value waiting on the user's next explicit Save.
-  const newDiagram = useCallback(
+  const newDiagramNow = useCallback(
     async (name: string, width?: number, height?: number, defaultVoltageName?: string) => {
       const { diagram: created, warning } = await api.createDiagram(name, width, height)
       let d = created
@@ -300,6 +407,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         const voltageClass = d.voltageClasses[d.voltageClasses.length - 1]
         d = { ...d, editor: { ...d.editor, defaultVoltage: voltageClass.id } }
       }
+      void deleteDraft(name)
+      openedRef.current = d
       setDiagramName(name)
       setDiagram(d)
       setDirty(false)
@@ -319,7 +428,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [browseDir, clearSelection, config],
   )
 
-  const openDiagram = useCallback(
+  const openDiagramNow = useCallback(
     async (name: string) => {
       const raw = await api.getDiagram(name)
       // Both return the same reference when there's nothing to fix, so
@@ -328,6 +437,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config),
         elements,
       )
+      openedRef.current = d
       setDiagramName(name)
       setDiagram(d)
       // ensureLastId returns the same object reference when it found
@@ -349,9 +459,30 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       // actually lives — most often a no-op re-fetch of the folder it was
       // just opened from, but also correct if openDiagram is ever called
       // some other way (e.g. a future "recent files" list).
-      await browseDir(parentDir(name))
+      const entries = await browseDir(parentDir(name))
+      // Unsaved edits of this diagram left behind earlier are offered again.
+      const draft = await getDraft(name)
+      if (draft && (await draftIsCurrent(draft, entries))) {
+        setRecoverableDrafts([{ name: draft.name, savedAt: draft.savedAt }])
+      }
     },
-    [clearSelection, browseDir, config, elements],
+    [clearSelection, browseDir, config, elements, draftIsCurrent],
+  )
+
+  const newDiagram = useCallback(
+    async (name: string, width?: number, height?: number, defaultVoltageName?: string) => {
+      if (!(await confirmLeave())) return false
+      await newDiagramNow(name, width, height, defaultVoltageName)
+      return true
+    },
+    [confirmLeave, newDiagramNow],
+  )
+
+  const openDiagram = useCallback(
+    async (name: string) => {
+      if (await confirmLeave()) await openDiagramNow(name)
+    },
+    [confirmLeave, openDiagramNow],
   )
 
   // Loads a dropped/picked file (see lib/importDiagram's prepareImport for
@@ -365,6 +496,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     async (text: string, fileName: string, name: string) => {
       const { diagram: d, report } = await prepareImport(text, fileName, config, elements)
       const log: ImportLog | null = report ? { fileName, report } : null
+      openedRef.current = null
       setDiagramName(name)
       setDiagram(d)
       setDirty(true)
@@ -390,6 +522,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const importDiagramFile = useCallback(
     async (text: string, fileName: string) => {
       if (!diagramFileKind(fileName)) throw new Error(t('file.invalidDiagramFile', { name: fileName }))
+      if (!(await confirmLeave())) return
       const name = importTargetName(currentDir, fileName)
       const siblings = await api.listDiagrams(parentDir(name))
       if (siblings.some(e => !e.isDir && e.name === baseName(name))) {
@@ -398,7 +531,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       }
       await loadDiagramFromFile(text, fileName, name)
     },
-    [loadDiagramFromFile, currentDir],
+    [loadDiagramFromFile, currentDir, confirmLeave],
   )
 
   // Loads the parked pendingImport ("Reload") — cleared only once that
@@ -474,6 +607,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const saveDiagram = useCallback(async () => {
     if (!diagramName || !diagram) return
     const { diagram: d, warning } = await api.saveDiagram(diagramName, diagram)
+    void deleteDraft(diagramName)
     setDiagram(d)
     setDirty(false)
     setError(warning ?? null)
@@ -484,13 +618,15 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     async (name: string) => {
       if (!diagram) return
       const { diagram: d, warning } = await api.saveDiagram(name, diagram)
+      if (diagramName) void deleteDraft(diagramName)
+      void deleteDraft(name)
       setDiagramName(name)
       setDiagram(d)
       setDirty(false)
       setError(warning ?? null)
       await browseDir(parentDir(name))
     },
-    [diagram, browseDir],
+    [diagram, diagramName, browseDir],
   )
 
   const updateDiagram = useCallback((updater: (d: Diagram) => Diagram) => {
@@ -530,6 +666,51 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   }, [selection, updateDiagram, clearSelection])
 
   const clearError = useCallback(() => setError(null), [])
+
+  // UnsavedChangesDialog's answer. Save rejects (keeping the question open)
+  // if the save fails; Don't save also drops the diagram's recovery draft.
+  const resolveUnsavedPrompt = useCallback(
+    async (choice: UnsavedChoice) => {
+      if (choice === 'save') await saveDiagram()
+      if (choice === 'discard' && diagramName) await deleteDraft(diagramName)
+      setUnsavedPrompt(null)
+      const resolve = unsavedResolverRef.current
+      unsavedResolverRef.current = null
+      resolve?.(choice !== 'cancel')
+    },
+    [saveDiagram, diagramName],
+  )
+
+  // Restores draft name as the working diagram, with its edits still
+  // unsaved.
+  const restoreDraft = useCallback(
+    async (name: string) => {
+      const draft = await getDraft(name)
+      setRecoverableDrafts(list => list.filter(d => d.name !== name))
+      if (!draft) return
+      if (name !== latestRef.current.diagramName && !(await confirmLeave())) return
+      openedRef.current = null
+      setDiagramName(name)
+      setDiagram(draft.diagram)
+      setDirty(true)
+      setDefaultVoltage(draft.diagram.editor?.defaultVoltage)
+      clearSelection()
+      setImportLog(null)
+      setImportLogOpen(false)
+      setDefaultVoltagePromptOpen(false)
+      await browseDir(parentDir(name))
+    },
+    [confirmLeave, clearSelection, browseDir],
+  )
+
+  const discardDraft = useCallback(async (name: string) => {
+    await deleteDraft(name)
+    setRecoverableDrafts(list => list.filter(d => d.name !== name))
+  }, [])
+
+  // "Decide later": the drafts stay stored and are offered again on the
+  // next start, or when their diagram is opened.
+  const closeDraftRecovery = useCallback(() => setRecoverableDrafts([]), [])
 
   const saveCustomElement = useCallback(async (name: string, template: Diagram, overwrite: boolean) => {
     const saved = await api.saveCustomElement(name, template, overwrite)
@@ -598,6 +779,14 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       saveDiagramAs,
       updateDiagram,
       updateEditorSettings,
+      hiddenLayers,
+      setLayerHidden,
+      unsavedPrompt,
+      resolveUnsavedPrompt,
+      recoverableDrafts,
+      restoreDraft,
+      discardDraft,
+      closeDraftRecovery,
     }),
     [
       diagramName,
@@ -656,6 +845,14 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       saveDiagramAs,
       updateDiagram,
       updateEditorSettings,
+      hiddenLayers,
+      setLayerHidden,
+      unsavedPrompt,
+      resolveUnsavedPrompt,
+      recoverableDrafts,
+      restoreDraft,
+      discardDraft,
+      closeDraftRecovery,
     ],
   )
 

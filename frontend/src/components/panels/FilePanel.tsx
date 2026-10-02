@@ -26,7 +26,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
   const [localError, setLocalError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  async function run(action: () => Promise<void>) {
+  async function run(action: () => Promise<unknown>) {
     setBusy(true)
     setLocalError(null)
     clearError()

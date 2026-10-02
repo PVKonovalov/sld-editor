@@ -13,6 +13,8 @@ import { AboutDialog } from './components/AboutDialog'
 import { HelpDialog } from './components/HelpDialog'
 import { BatchImportDialog } from './components/BatchImportDialog'
 import { DefaultVoltageDialog } from './components/DefaultVoltageDialog'
+import { DraftRecoveryDialog } from './components/DraftRecoveryDialog'
+import { UnsavedChangesDialog } from './components/UnsavedChangesDialog'
 import { diagramFileKind, readFileAsText, readFilesAsText } from './lib/fileTransfer'
 import { t } from './i18n'
 
@@ -169,6 +171,8 @@ function Shell() {
       {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
       {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
       {batchImport && <BatchImportDialog />}
+      <DraftRecoveryDialog />
+      <UnsavedChangesDialog />
       {dropError && (
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-red-900/90 text-red-100 text-xs rounded px-3 py-2 shadow">
           <span>{dropError}</span>

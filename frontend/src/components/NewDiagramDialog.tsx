@@ -26,13 +26,14 @@ export function NewDiagramDialog({ onClose }: { onClose: () => void }) {
     setBusy(true)
     setError(null)
     try {
-      await newDiagram(
+      const created = await newDiagram(
         joinDiagramPath(currentDir, name.trim()),
         width ? Number(width) : undefined,
         height ? Number(height) : undefined,
         defaultVoltageName || undefined,
       )
-      onClose()
+      // Cancelled at the unsaved-changes question: stay open.
+      if (created) onClose()
     } catch (e) {
       setError((e as Error).message)
     } finally {

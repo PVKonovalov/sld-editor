@@ -4,6 +4,7 @@ import * as diagramOps from '../../lib/diagramOps'
 import { PanelShell } from './PanelShell'
 import { LayersSection, VoltageClassesSection } from './DiagramSections'
 import { DiagramFileSection } from './DiagramFileSection'
+import { PictureSection } from './PictureSection'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
 import { CONNECTOR_KIND_CODES, LABEL_SHAPE, DIGITAL_DEVICE_SHAPE } from '../../lib/paletteItem'
@@ -148,7 +149,7 @@ const TWO_STATE_CLASSES = new Set(['Sectionalizer', 'PowerCircuitBreaker', 'Shor
 // new "Position status" field — Fuse (154) and Chassis (51) have no State
 // field at all (SWITCHING_DEVICE_CLASSES doesn't include either), so they
 // only ever show Position status, never that relabeling.
-const WITHDRAWABLE_SHAPES = new Set(['43', '49', '154', '51'])
+const WITHDRAWABLE_SHAPES = new Set(['43', '49', '50', '154', '51'])
 
 // A Lamp reads its own two fixed FillOff/FillOn colors (see
 // diagramOps.LAMP_DEFAULTS/render.go's lampColor), not a voltage class
@@ -157,6 +158,8 @@ const WITHDRAWABLE_SHAPES = new Set(['43', '49', '154', '51'])
 // section instead of the ordinary Voltage class + State fields.
 const LAMP_STATE_OFF = 0
 const LAMP_STATE_ON = 1
+// An Automation device's (103) default label size (render.go).
+const AUTOMATION_DEVICE_FONT_SIZE = 12
 
 // PackageSubstation's own State (backend/internal/slddoc's own
 // Element.State, reused rather than a dedicated field) isn't an
@@ -189,7 +192,9 @@ const POWERFLOW_DIRECTION_BACKWARD = 1
 // reused rather than a dedicated field) is the blade's position, not an
 // Open/Close/Intermediate one, so it gets its own dropdown. 1/unset is the
 // middle (off) position, the only one the real source draws, matching
-// applyStateLine's own nil-defaults-to-first-option rule.
+// applyStateLine's own nil-defaults-to-first-option rule. A two-position
+// KnifeSwitch (44) uses the same codes, left and right only, with unset
+// meaning left (the source's only drawing).
 const KNIFE_LEFT = 0
 const KNIFE_MIDDLE = 1
 const KNIFE_RIGHT = 2
@@ -320,6 +325,120 @@ function WindingEditor({
   )
 }
 
+// A Substation's (360) sectors, never fewer than one (render.go draws an
+// empty list as one sector in the outline color).
+function substationSectors(el: DiagramElement): { voltage?: number }[] {
+  return el.sectors && el.sectors.length > 0 ? el.sectors : [{}]
+}
+
+const SUBSTATION_MAX_SECTORS = 4
+// A Power plant's (38) kinds, its NType.
+const POWER_PLANT_THERMAL = 0
+const POWER_PLANT_HYDRO = 1
+const SUBSTATION_DEFAULT_RADIUS = 20
+
+// A Substation's sector list (one voltage per sector, 1–4, add/remove) and
+// its circle radius.
+function SubstationSectors({
+  el,
+  voltageOptions,
+  patch,
+  onVoltageChange,
+}: {
+  el: DiagramElement
+  voltageOptions: { value: string; label: string }[]
+  patch: (fields: Partial<DiagramElement>) => void
+  onVoltageChange: (index: number, rawValue: string) => void
+}) {
+  const sectors = substationSectors(el)
+  return (
+    <div className="space-y-2">
+      <span className="block text-xs text-gray-400">{t('properties.substationSectors')}</span>
+      {sectors.map((s, i) => (
+        <div key={i} className="flex items-center gap-1">
+          <span className="w-4 shrink-0 text-[11px] text-gray-500 tabular-nums">{i + 1}</span>
+          <select
+            aria-label={t('properties.substationSector', { n: i + 1 })}
+            className="flex-1 min-w-0 bg-surface-800 border border-surface-600 rounded px-2 py-1 text-xs"
+            value={s.voltage ?? ''}
+            onChange={e => onVoltageChange(i, e.target.value)}
+          >
+            <option value="">{t('common.none')}</option>
+            {voltageOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={sectors.length <= 1}
+            aria-label={t('properties.substationRemoveSector')}
+            title={t('properties.substationRemoveSector')}
+            onClick={() => patch({ sectors: sectors.filter((_, idx) => idx !== i) })}
+            className="text-red-400 hover:text-red-300 disabled:opacity-30 disabled:hover:text-red-400 shrink-0"
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      ))}
+      {sectors.length < SUBSTATION_MAX_SECTORS && (
+        <button
+          type="button"
+          onClick={() => patch({ sectors: [...sectors, {}] })}
+          className="px-2 py-1 text-xs rounded border border-surface-600 hover:bg-surface-600 text-gray-200"
+        >
+          {t('properties.substationAddSector')}
+        </button>
+      )}
+      <label className="block text-xs">
+        <span className="block text-gray-400 mb-1">{t('properties.substationRadius')}</span>
+        <input
+          type="number"
+          min={1}
+          className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+          value={el.radius ?? SUBSTATION_DEFAULT_RADIUS}
+          onChange={e => {
+            const v = Number(e.target.value)
+            patch({ radius: v > 0 && v !== SUBSTATION_DEFAULT_RADIUS ? v : undefined })
+          }}
+        />
+      </label>
+    </div>
+  )
+}
+
+// The Layer dropdown every item's Properties (and a multi-selection's)
+// shows. value is undefined when a multi-selection spans several layers.
+function LayerSelect({
+  layers,
+  value,
+  onChange,
+}: {
+  layers: { id: number; name: string }[]
+  value: number | undefined
+  onChange: (layer: number) => void
+}) {
+  return (
+    <label className="block text-xs">
+      <span className="block text-gray-400 mb-1">{t('properties.layer')}</span>
+      <select
+        className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+        value={value ?? ''}
+        onChange={e => onChange(Number(e.target.value))}
+      >
+        {value === undefined && <option value="">{t('properties.layerMixed')}</option>}
+        {value !== undefined && !layers.some(l => l.id === value) && <option value={value}>{value}</option>}
+        {layers.map(l => (
+          <option key={l.id} value={l.id}>
+            {l.name || l.id}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
+
 function DeleteButton({ label, onDelete }: { label: string; onDelete: () => void }) {
   return (
     <button
@@ -354,6 +473,21 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const label = diagram?.labels.find(l => l.id === selectedLabelId) ?? null
   const digitalDevice = diagram?.digitalDevices.find(dd => dd.id === selectedDigitalDeviceId) ?? null
   const voltageOptions = diagram ? diagramOps.voltageClassOptions(diagram, config) : []
+
+  function moveItemToLayer(id: number, kind: string, layer: number) {
+    updateDiagram(d => diagramOps.setItemsLayer(d, new Map([[id, kind]]), layer))
+  }
+  function moveToLayer(layer: number) {
+    updateDiagram(d => diagramOps.setItemsLayer(d, selection, layer))
+  }
+  // The one layer every selected item is on, or undefined when they differ.
+  function selectionLayer(): number | undefined {
+    if (!diagram) return undefined
+    const layers = new Set<number>()
+    for (const list of [diagram.elements, diagram.connectors, diagram.labels, diagram.digitalDevices])
+      for (const x of list) if (selection.has(x.id)) layers.add(x.layer)
+    return layers.size === 1 ? [...layers][0] : undefined
+  }
 
   if (!diagram) {
     return (
@@ -429,6 +563,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
       <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
         <div className="space-y-3">
           <p className="text-xs text-gray-400">{t('properties.multiSelection', { count: selection.size })}</p>
+          <LayerSelect layers={diagram.layers} value={selectionLayer()} onChange={moveToLayer} />
           <DeleteButton label={t('properties.deleteElements')} onDelete={deleteSelected} />
         </div>
       </PanelShell>
@@ -507,6 +642,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               </select>
             </label>
           )}
+          <LayerSelect layers={diagram.layers} value={connector.layer} onChange={layer => moveItemToLayer(connector.id, 'connector', layer)} />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: connector.id })}</p>
           <DeleteButton label={t('properties.deleteConnector')} onDelete={deleteSelected} />
         </div>
@@ -607,6 +743,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               ))}
             </select>
           </label>
+          <LayerSelect layers={diagram.layers} value={label.layer} onChange={layer => moveItemToLayer(label.id, 'label', layer)} />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: label.id })}</p>
           <DeleteButton label={t('properties.deleteLabel')} onDelete={deleteSelected} />
         </div>
@@ -713,6 +850,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               ))}
             </select>
           </label>
+          <LayerSelect layers={diagram.layers} value={digitalDevice.layer} onChange={layer => moveItemToLayer(digitalDevice.id, 'digitaldevice', layer)} />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: digitalDevice.id })}</p>
           <DeleteButton label={t('properties.deleteDigitalDevice')} onDelete={deleteSelected} />
         </div>
@@ -740,10 +878,14 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isLamp = el.class === 'Lamp'
   const isRectangle = el.class === 'Rectangle'
   const isSmallWindow = el.class === 'SmallWindow'
+  const isPicture = el.class === 'Picture'
+  const isSubstation = el.class === 'Substation'
+  const isPowerPlant = el.class === 'PowerPlant'
   const isCircle = el.class === 'Circle'
   const isArrow = el.class === 'Arrow'
   const isButton = el.class === 'Button'
   const isWindowIcon = el.class === 'WindowIcon'
+  const isAutomationDevice = el.class === 'AutomationDevice'
   const isRoad = el.class === 'Road'
   const isPostPole = el.class === 'PostPole'
   const isLampOnPole = el.class === 'LampOnPole'
@@ -759,7 +901,10 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isResistor = el.class === 'Resistor'
   const isThyristor = el.class === 'Thyristor'
   const isSyncCompensator = el.class === 'SynchronousCompensator'
+  const isSyncMotor = el.class === 'SynchronousMotor'
   const isKnifeSwitch3 = el.class === 'KnifeSwitch3'
+  const isKnifeSwitch = el.class === 'KnifeSwitch'
+  const isBlockingFilter = el.class === 'BlockingFilter'
   const isPowerPole = el.class === 'PowerPole'
   const isTable = el.class === 'Table'
   const isTable2 = el.class === 'Table2'
@@ -784,10 +929,12 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     el.class === 'FaultPassageIndicator' ||
     isRectangle ||
     isSmallWindow ||
+    isPicture ||
     isCircle ||
     isArrow ||
     isButton ||
     isWindowIcon ||
+    isAutomationDevice ||
     isRoad ||
     isPostPole ||
     isLine ||
@@ -922,6 +1069,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             </label>
           </>
         )}
+
+        {isPicture && <PictureSection el={el} patch={patch} />}
 
         {(isRectangle || isSmallWindow) && (
           <>
@@ -1078,6 +1227,93 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
                 value={swatchColor(el.textColor, isWindowIcon ? '#000000' : '#ffffff')}
                 onChange={e => patch({ textColor: e.target.value })}
+              />
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <input type="checkbox" checked={!!el.bold} onChange={e => patch({ bold: e.target.checked })} />
+              <span className="text-gray-400">{t('properties.labelBold')}</span>
+            </label>
+          </>
+        )}
+
+        {isAutomationDevice && (
+          <>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.lampState')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.state === LAMP_STATE_ON ? LAMP_STATE_ON : LAMP_STATE_OFF}
+                onChange={e => patch({ state: Number(e.target.value) })}
+              >
+                <option value={LAMP_STATE_OFF}>{t('properties.lampOff')}</option>
+                <option value={LAMP_STATE_ON}>{t('properties.lampOn')}</option>
+              </select>
+            </label>
+            {(
+              [
+                ['properties.automationWhenOff', 'fillOff', 'propertyText', 'textColor'],
+                ['properties.automationWhenOn', 'fillOn', 'propertyTextOn', 'textColorOn'],
+              ] as const
+            ).map(([heading, fillKey, textKey, colorKey]) => (
+              <div key={heading} className="border border-surface-700 rounded p-2 space-y-2">
+                <p className="text-[11px] text-gray-400">{t(heading)}</p>
+                <label className="block text-xs">
+                  <span className="block text-gray-500 mb-0.5">{t('properties.buttonText')}</span>
+                  <input
+                    className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                    value={el[textKey] ?? ''}
+                    onChange={e => patch({ [textKey]: e.target.value })}
+                  />
+                </label>
+                <label className="block text-xs">
+                  <span className="flex items-center justify-between mb-0.5">
+                    <span className="text-gray-500">{t('properties.rectangleFill')}</span>
+                    <button
+                      type="button"
+                      className="text-[10px] text-gray-400 hover:text-white underline"
+                      onClick={() => patch({ [fillKey]: 'none' })}
+                    >
+                      {t('properties.transparent')}
+                    </button>
+                  </span>
+                  <input
+                    type="color"
+                    className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                    value={swatchColor(el[fillKey], '#808080')}
+                    onChange={e => patch({ [fillKey]: e.target.value })}
+                  />
+                </label>
+                <label className="block text-xs">
+                  <span className="block text-gray-500 mb-0.5">{t('properties.buttonTextColor')}</span>
+                  <input
+                    type="color"
+                    className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                    value={swatchColor(el[colorKey], '#000000')}
+                    onChange={e => patch({ [colorKey]: e.target.value })}
+                  />
+                </label>
+              </div>
+            ))}
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.rectangleStroke')}</span>
+              <input
+                type="color"
+                className="w-full h-8 bg-surface-800 border border-surface-600 rounded px-1 py-1"
+                value={swatchColor(el.stroke, '#000000')}
+                onChange={e => patch({ stroke: e.target.value })}
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.labelSize')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.textSize ?? AUTOMATION_DEVICE_FONT_SIZE}
+                onChange={e => {
+                  const v = Number(e.target.value)
+                  patch({ textSize: v > 0 && v !== AUTOMATION_DEVICE_FONT_SIZE ? v : undefined })
+                }}
               />
             </label>
             <label className="flex items-center gap-2 text-xs">
@@ -1745,6 +1981,20 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
+        {isKnifeSwitch && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.knifePosition')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.state === KNIFE_RIGHT ? KNIFE_RIGHT : KNIFE_LEFT}
+              onChange={e => patch({ state: Number(e.target.value) })}
+            >
+              <option value={KNIFE_LEFT}>{t('properties.knifeLeft')}</option>
+              <option value={KNIFE_RIGHT}>{t('properties.knifeRight')}</option>
+            </select>
+          </label>
+        )}
+
         {isKnifeSwitch3 && (
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.knifePosition')}</span>
@@ -2118,6 +2368,53 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </>
         )}
 
+        {isPowerPlant && (
+          <>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.powerPlantKind')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.nType ?? POWER_PLANT_THERMAL}
+                onChange={e => {
+                  const nType = Number(e.target.value)
+                  patch({ nType: nType === POWER_PLANT_THERMAL ? undefined : nType })
+                }}
+              >
+                <option value={POWER_PLANT_THERMAL}>{t('properties.powerPlantThermal')}</option>
+                <option value={POWER_PLANT_HYDRO}>{t('properties.powerPlantHydro')}</option>
+              </select>
+            </label>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.powerPlantSize')}</span>
+              <input
+                type="number"
+                min={1}
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={el.radius ?? SUBSTATION_DEFAULT_RADIUS}
+                onChange={e => {
+                  const v = Number(e.target.value)
+                  patch({ radius: v > 0 && v !== SUBSTATION_DEFAULT_RADIUS ? v : undefined })
+                }}
+              />
+            </label>
+          </>
+        )}
+
+        {isSubstation && (
+          <SubstationSectors
+            el={el}
+            voltageOptions={voltageOptions}
+            patch={patch}
+            onVoltageChange={(i, rawValue) =>
+              updateDiagram(d => {
+                const { diagram: withClass, voltage } = diagramOps.resolveVoltageSelection(d, config, rawValue)
+                const sectors = substationSectors(el).map((s, idx) => (idx === i ? { ...s, voltage } : s))
+                return { ...withClass, elements: withClass.elements.map(x => (x.id === el.id ? { ...x, sectors } : x)) }
+              })
+            }
+          />
+        )}
+
         {SWITCHING_DEVICE_CLASSES.has(el.class) && (
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">
@@ -2189,7 +2486,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {(el.class === 'BusBarSection' || isRectangle || isSmallWindow || isCircle || isArrow || isButton || isWindowIcon || isRoad || isLine || isPolygon || isContainer || isArc || isTable) &&
+        {(el.class === 'BusBarSection' || isRectangle || isSmallWindow || isPicture || isCircle || isArrow || isButton || isWindowIcon || isAutomationDevice || isRoad || isLine || isPolygon || isContainer || isArc || isTable) &&
         el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>
@@ -2267,10 +2564,12 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   real source has no mirror branch either (its circle is
                   symmetric and its arrow never rotates), nor a Resistor's; a Thyristor's mirror
                   branch is only the same symbol turned 180°. A Synchronous compensator
-                  is symmetric and has no mirror branch either; a 3-position knife
-                  switch's State already picks either side. A Power pole is a
+                  (and a Synchronous motor) is symmetric and has no mirror branch either; a 3-position knife
+                  switch's State already picks either side, and a Knife switch and a
+                  Blocking filter have no mirror branch. A thermal Power plant is
+                  symmetric; only the hydro kind has a mirrored layout. A Power pole is a
                   symmetric circle with no mirror branch. */}
-              {!isPowerflowIndicator && !isFork && !isBooster && !isResistor && !isThyristor && !isSyncCompensator && !isKnifeSwitch3 && !isPowerPole && (
+              {!isPowerflowIndicator && !isFork && !isBooster && !isResistor && !isThyristor && !isSyncCompensator && !isSyncMotor && !isKnifeSwitch3 && !isKnifeSwitch && !isBlockingFilter && !(isPowerPlant && el.nType !== POWER_PLANT_HYDRO) && !isPowerPole && (
                 <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"
@@ -2284,8 +2583,9 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           )
         )}
 
+        <LayerSelect layers={diagram.layers} value={el.layer} onChange={layer => moveItemToLayer(el.id, 'element', layer)} />
         <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: el.id })}</p>
-        <p className="text-[10px] text-gray-500">{t('properties.connectHint')}</p>
+        {!isPicture && !isAutomationDevice && <p className="text-[10px] text-gray-500">{t('properties.connectHint')}</p>}
         <DeleteButton label={t('properties.deleteElement')} onDelete={deleteSelected} />
       </div>
     </PanelShell>

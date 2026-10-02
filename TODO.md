@@ -43,18 +43,18 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 
 - [+] 6 Booster/voltage regulator (single-winding power transformer)
 - [+] 10 Connector
-- [ ] 11 Backdrop, image file
-- [ ] 19 Metal anchor/angle pole
-- [ ] 38 Thermal power plant (pictogram)
-- [ ] 39 Synchronous motor
-- [ ] 44 Knife switch
-- [ ] 50 Withdrawable sectionalizer
+- [+] 11 Backdrop, image file
+- [+] 19 Metal anchor/angle pole
+- [+] 38 Thermal power plant (pictogram)
+- [+] 39 Synchronous motor
+- [+] 44 Knife switch
+- [+] 50 Withdrawable sectionalizer
 - [ ] 60 Zone division
 - [ ] 71 Custom connection, disconnector. Porting it as its own type means removing the legacy `71` → `162` rewrite in
       `slddoc.Load` (`shapeDisconnectorLegacy`).
 - [+] 83 Connector arrow
 - [ ] 102 Panel/board
-- [ ] 103 Automation device
+- [+] 103 Automation device
 - [ ] 130 Device (generic placeholder; check what it actually draws first)
 - [+] 146 Power pole
 - [+] 156 Resistor
@@ -67,8 +67,8 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 - [+] 310 Container
 - [+] 319 Small window
 - [!] 320 Custom element - it's a common group name for elements started from type id 320XXX
-- [ ] 360 Substation (pictogram)
-- [ ] 389 Blocking filter
+- [+] 360 Substation (pictogram)
+- [+] 389 Blocking filter
 - [ ] 391 RTF text
 - [ ] 3206 Customer connection, disconnector, arc-extinguishing contacts
 - [+] 320002 Lamp on pole

@@ -188,6 +188,21 @@
     <template></template>
   </symbol>
 
+  <symbol shape="11" class="Picture" name="Backdrop/image file">
+    <!-- xsde2svg element_11_12.go (Backdrop/Image file): a picture
+         stretched over two corners, drawn by slddoc.Render from its own
+         Points as a bare <image> holding the embedded data URI (Href). -->
+    <template></template>
+  </symbol>
+
+  <symbol shape="103" class="AutomationDevice" name="Automation device">
+    <!-- xsde2svg element_103.go: a two-state status tile, Button's box
+         and centered label with a 1px border, its fill, text and text
+         color picked by State (On/Off), drawn by slddoc.Render from its
+         own Points. -->
+    <template></template>
+  </symbol>
+
   <symbol shape="302" class="WindowIcon" name="Window icon">
     <!-- Button's smaller sibling (xsde2svg element_302.go): the same
          two-corner box with a centered label, drawn by slddoc.Render from
@@ -345,6 +360,22 @@
     <template><![CDATA[
 <path d="M 0 -3 v -9 M 0 5 v 9" style="fill:none;stroke:{color};stroke-width:1" />
 <path d="M 0 -3 l 8 8 h -16 z" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_19.go (element19, Metal
+       anchor/angle pole): the source's single triangle path, apex at
+       (10, 0) and a vertical base at x = -10, its default (xMirror 0)
+       layout; Mirror points the apex left, the source's xMirror. One
+       terminal at the center, where pole-by-pole diagrams end their
+       lines. The source's optional caption is a separate text, imported
+       as a label. -->
+  <symbol shape="19" class="AnchorPole" name="Metal anchor/angle pole">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 10 0 l -20 10 v -20 z" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
@@ -554,6 +585,30 @@
 ]]></template>
   </symbol>
 
+  <!-- Ported from xsde2svg's own element_44.go (element44, Knife switch):
+       the same three circles as shape 175 below (r 2, stroke-width 2, the
+       pivot below and two contacts at (±10, -10)), with the thick blade
+       (stroke-width 4) drawn from the left contact to the pivot. The
+       source has no state and no mirror branch and always draws that left
+       position; here State moves the blade, as for 175: unset or 0 is the
+       left contact, 2 the right one (1 also draws left). As in the source, the
+       blade is drawn full length first and the circles on top, filled
+       with the diagram background ({background}) so they hide its ends.
+       The one change: the pivot moves from the source's (0, 5) to
+       (0, 10), so all three terminals (pivot "1", left contact "2", right
+       contact "3") sit on the grid. -->
+  <symbol shape="44" class="KnifeSwitch" name="Knife switch">
+    <terminals>
+      <terminal x="0" y="10"/>
+      <terminal x="-10" y="-10"/>
+      <terminal x="10" y="-10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="{state:M -10 -10 L 0 10|M -10 -10 L 0 10|M 10 -10 L 0 10}"{stateAttr} style="fill:{color};stroke:{color};stroke-width:4" />
+<path d="M -2 10 a 2 2 0 0 1 4 0 a 2 2 0 0 1 -4 0 M -12 -10 a 2 2 0 0 1 4 0 a 2 2 0 0 1 -4 0 M 8 -10 a 2 2 0 0 1 4 0 a 2 2 0 0 1 -4 0" style="fill:{background};stroke:{color};stroke-width:2" />
+]]></template>
+  </symbol>
+
   <!-- Ported from xsde2svg's own element_175.go (element175, Рубильник
        3-позиционный): three small circles (r 2, stroke-width 2), the pivot
        below and two contacts at (±10, -10), and a thick blade
@@ -606,6 +661,37 @@
     <template><![CDATA[
 <g transform="translate({positionOffset},0)"{positionAttr}>
 <path d="M 0 -22 l -4 4 m 4 -4 l 4 4 m -4 -4 v 12 m -4 0 h 8 {state:m -4 2 v 16 m -4 2|m -12 10 h 16 m -12 10|m -8.6 5.4 l 9.2 9.2 m -8.6 5.4} h 8 m -4 0 v 12 l -4 -4 m 4 4 l 4 -4"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+</g>
+<path d="M 0 30 l -4 -4 m 4 4 l 4 -4 M 0 -30 l -4 4 m 4 -4 l 4 4" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_50.go (element50, Withdrawable
+       sectionalizer): shape 49's withdrawable frame (outer chevrons at ±30,
+       inner chevrons, contact bars) around exactly Power circuit breaker
+       (399)'s switch, a blade (vertical Closed, horizontal Open) plus a
+       small filled square, with the same xMirror==1 default geometry (the
+       more common one in the corpus; Extract marks an xMirror==0 instance
+       Mirror=true, an approximation as for 399). As in the source, the
+       bottom contact bar sits at +12 rather than +10, so the lower half is
+       2 units longer. Position status works exactly as for shape 49: the
+       movable body (blade, square, inner chevrons, contact bars) sits in a
+       <g data-trolley="{Position}"> slid by {positionOffset}, the outer
+       chevrons and the terminals stay put (the source itself always draws
+       the normal position). Two states only, Closed(1)/Open(0) (TWO_STATE_CLASSES), the
+       third {state:...} option a copy of Closed as the source draws
+       anything but "0" closed. The source draws the outer chevrons twice;
+       once is enough. -->
+  <symbol shape="50" class="Sectionalizer" name="Sectionalizer (withdrawable)">
+    <terminals>
+      <terminal x="0" y="-30"/>
+      <terminal x="0" y="30"/>
+    </terminals>
+    <template><![CDATA[
+<g transform="translate({positionOffset},0)"{positionAttr}>
+<path d="{state:M 0 6 v -12|M -6 0 h 12|M 0 6 v -12}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -2 h 2 v 2 h -2 z|M 2 0 h 2 v 2 h -2 z|M 0 -2 h 2 v 2 h -2 z}" style="fill:{color};stroke:{color};stroke-width:1" />
+<path d="M 0 -22 l -4 4 m 4 -4 l 4 4 m -4 -4 v 12 m -4 0 h 8 M -4 12 h 8 m -4 0 v 12 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
 </g>
 <path d="M 0 30 l -4 -4 m 4 4 l 4 -4 M 0 -30 l -4 4 m 4 -4 l 4 4" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
@@ -834,6 +920,25 @@
 <g transform="translate(0 21) rotate({counterRotate})">
 <path d="M -7 3 h 14 m -14 -6 h 14" style="fill:none;stroke:{color};stroke-width:2" />
 </g>
+]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_39.go (element39, Synchronous
+       motor), re-anchored on its own terminal like Generator (173)
+       and Synchronous compensator (174): the source's origin is the
+       circle's center (radius 12), with a 5-long stem up to the terminal
+       17 above it. Unlike 174's "=" mark, the source gives the "M" letter
+       the same rotate() as the circle, so it turns with the symbol (real
+       rotated instances show it upside down). Stroke-width 2, the
+       source's own minimum for this shape. No mirror branch in the
+       source. -->
+  <symbol shape="39" class="SynchronousMotor" name="Synchronous motor">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 5 m -12 12 a 12 12 0 0 1 24 0 a 12 12 0 0 1 -24 0" style="fill:none;stroke:{color};stroke-width:2" />
+<text x="0" y="17" style="fill:{color};font-size:12px;font-family:Arial;text-anchor:middle;dominant-baseline:middle" >M</text>
 ]]></template>
   </symbol>
 
@@ -1116,6 +1221,50 @@
     <template><![CDATA[
 <path d="M 0 0 v 12 l -4 -4 m 4 4 l 4 -4 m -4 12 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
+  </symbol>
+
+  <!-- Ported from xsde2svg's own element_389.go (element389,
+       Blocking filter, a line trap): one stroke-width 1 path from the
+       left end down to (0, 11), straight up to (0, -11) and down to the
+       right end, exactly as the source draws it. It sits in a line, so its
+       two terminals are those ends, (±10, 0). The source has no state and
+       no mirror branch (Mirror is hidden in Properties). -->
+  <symbol shape="389" class="BlockingFilter" name="Blocking filter">
+    <terminals>
+      <terminal x="-10" y="0"/>
+      <terminal x="10" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M -10 0 l 10 11 v -22 l 10 11" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- xsde2svg element_38.go (element38, thermal or hydro power plant): a network-map
+       pictogram of a power plant, a square of half side Radius (default
+       20) split in two with one part hatched: NType 0 thermal (lower half,
+       "/" hatching), 1 hydro (a diagonal triangle, horizontal hatching;
+       Mirror the other diagonal, the source's xMirror). Drawn by
+       slddoc.Render (writePowerPlant), with the hatching as plain lines
+       rather than the source's shared <pattern>. One terminal at the
+       center. -->
+  <symbol shape="38" class="PowerPlant" name="Power plant">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template></template>
+  </symbol>
+
+  <!-- xsde2svg element_360.go (element360, Substation): a network-map
+       pictogram of a whole substation, a filled circle (Radius, default 20)
+       split into one sector per voltage (1–4, Element.Sectors), outlined in
+       the element's own voltage color. Drawn by slddoc.Render
+       (writeSubstation), since the sector count varies per instance. Lines
+       end at its center, its single terminal. -->
+  <symbol shape="360" class="Substation" name="Substation">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template></template>
   </symbol>
 
   <!-- Ported from xsde2svg's own element_385.go (element385) — a
