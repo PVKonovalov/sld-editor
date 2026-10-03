@@ -1811,6 +1811,28 @@ function transformerLocalTerminals(el: DiagramElement): Point[] {
  * transformerLocalTerminals). These are where an element's fixed Ports sit
  * (see fitElementPorts), and Canvas draws a marker at each one for the
  * current selection. */
+/** One thing attached to a Node: an element's Port, or a connector's end. */
+export type NodeAttachment =
+  | { kind: 'element'; id: number; port: string }
+  | { kind: 'connector'; id: number; end: 'from' | 'to' }
+
+/** Everything attached to each Node, keyed by node id — the Properties
+ * panel's Connections section lists it per port / wire end. */
+export function nodeAttachments(diagram: Diagram): Map<number, NodeAttachment[]> {
+  const byNode = new Map<number, NodeAttachment[]>()
+  const add = (node: number, a: NodeAttachment) => {
+    const list = byNode.get(node)
+    if (list) list.push(a)
+    else byNode.set(node, [a])
+  }
+  for (const el of diagram.elements) for (const p of el.ports ?? []) add(p.node, { kind: 'element', id: el.id, port: p.name })
+  for (const c of diagram.connectors) {
+    add(c.from, { kind: 'connector', id: c.id, end: 'from' })
+    add(c.to, { kind: 'connector', id: c.id, end: 'to' })
+  }
+  return byNode
+}
+
 /** The ids of every node something is attached to besides a single port:
  * a connector end, or two or more element ports sharing it (a terminal
  * sitting straight on a busbar or another device). Canvas draws such a
@@ -2734,7 +2756,12 @@ export function moveConnectorEndpoint(diagram: Diagram, connectorId: number, end
     ),
     nodes: diagram.nodes.map(n => (n.id === nodeId ? { ...n, x: point.x, y: point.y } : n)),
   }
-  // A wire end dropped on a busbar connects to it.
+  // A wire end dropped exactly on another Node (a device terminal's, or
+  // another wire's end) joins it, keeping that Node; one dropped on a
+  // busbar connects to it. Never onto this wire's own other end.
+  const otherEnd = end === 'from' ? connector.to : connector.from
+  const onto = diagram.nodes.find(n => n.id !== nodeId && n.id !== otherEnd && samePoint(n, point))
+  if (onto) return mergeNode(moved, nodeId, onto.id)
   return joinNodesToBusbars(moved, new Set([nodeId]))
 }
 
@@ -3193,7 +3220,31 @@ export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], on
       for (const e of d.elements) elementsById.set(e.id, e)
     }
   }
-  return removeDegenerateConnectors(d)
+  return mergeNodesOntoPorts(removeDegenerateConnectors(d), onlyIds)
+}
+
+/** Merges every Node that isn't any element's Port but sits exactly on a
+ * Port Node into that Port Node (a wire end left lying on a terminal
+ * without being attached, e.g. by an older drag of a free wire end). No
+ * Node moves and no wire is split, so an imported diagram stays as drawn.
+ * With onlyIds, only those elements' Port Nodes collect. */
+function mergeNodesOntoPorts(diagram: Diagram, onlyIds?: Set<number>): Diagram {
+  const allPorts = new Set(diagram.elements.flatMap(e => (e.ports ?? []).map(p => p.node)))
+  const collecting = onlyIds
+    ? new Set(diagram.elements.filter(e => onlyIds.has(e.id)).flatMap(e => (e.ports ?? []).map(p => p.node)))
+    : allPorts
+  const byPoint = new Map<string, number>()
+  for (const n of diagram.nodes) if (collecting.has(n.id)) byPoint.set(`${n.x},${n.y}`, n.id)
+  let d = diagram
+  for (const n of diagram.nodes) {
+    if (allPorts.has(n.id)) continue
+    const keep = byPoint.get(`${n.x},${n.y}`)
+    if (keep === undefined) continue
+    // Don't collapse a wire running from this terminal straight back onto it.
+    if (d.connectors.some(c => (c.from === n.id && c.to === keep) || (c.to === n.id && c.from === keep))) continue
+    d = mergeNode(d, n.id, keep)
+  }
+  return d
 }
 
 /** Whether an element's Ports are fixed and already in place (see this

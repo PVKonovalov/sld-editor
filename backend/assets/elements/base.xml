@@ -1177,7 +1177,8 @@
        (anode, cathode, gate) sit on the grid. The source fills the path
        with the page background, which looks the same as no fill. Its
        xMirror branch is the same symbol turned 180° (at half size), which
-       Orientation already covers, so Mirror isn't offered. -->
+       Orientation already covers; Mirror here is the generic horizontal
+       flip instead (anode and cathode swap sides, the gate stays on top). -->
   <symbol shape="157" class="Thyristor" name="Thyristor">
     <terminals>
       <terminal x="-20" y="0"/>

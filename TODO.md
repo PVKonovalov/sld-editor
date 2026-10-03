@@ -84,4 +84,4 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
       modeled (no corpus instance found to confirm them).
 - [ ] Junction point (7): its extracted label is a standalone Label (`For` = junction id) and doesn't move when the
       junction is dragged.
-- [ ] Add mirror for 157 Thyristor
+- [ ] Add mirror property for 157 Thyristor

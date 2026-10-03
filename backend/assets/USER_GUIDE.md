@@ -154,7 +154,8 @@ Select a wire to show its handles:
 - Click a bend handle and press **Delete** to remove just that bend.
 - Right-click a wire → **Delete segment** removes only the segment under the cursor.
 
-A wire end that is not attached to anything is allowed; you can connect it later.
+A wire end that is not attached to anything is allowed; you can connect it later by dragging its hollow square end handle
+exactly onto a device terminal, another wire's end or a busbar.
 
 ## Connections
 
@@ -173,6 +174,9 @@ A wire end that is not attached to anything is allowed; you can connect it later
   it.
 - **Settings → Show nodes** marks every electrical connection point on the canvas with a small cross, green when
   something is connected there and red when it is free, which is useful for checking that things are really connected.
+- The **Connections** section in Properties lists, for a selected device or busbar, each of its ports with the node
+  it sits on (id and coordinates) and everything else attached there; for a selected wire, the same for its two ends.
+  A port with nothing attached shows *not connected*, a wire end *free end*. Click a listed item to select it.
 
 ## Custom elements
 

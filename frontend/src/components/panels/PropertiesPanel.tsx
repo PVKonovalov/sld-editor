@@ -5,6 +5,7 @@ import { PanelShell } from './PanelShell'
 import { LayersSection, VoltageClassesSection } from './DiagramSections'
 import { DiagramFileSection } from './DiagramFileSection'
 import { PictureSection } from './PictureSection'
+import { ConnectionsSection } from './ConnectionsSection'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
 import { CONNECTOR_KIND_CODES, LABEL_SHAPE, DIGITAL_DEVICE_SHAPE } from '../../lib/paletteItem'
@@ -642,6 +643,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               </select>
             </label>
           )}
+          <ConnectionsSection connector={connector} />
           <LayerSelect layers={diagram.layers} value={connector.layer} onChange={layer => moveItemToLayer(connector.id, 'connector', layer)} />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: connector.id })}</p>
           <DeleteButton label={t('properties.deleteConnector')} onDelete={deleteSelected} />
@@ -899,7 +901,6 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isFork = el.class === 'Fork'
   const isBooster = el.class === 'Booster'
   const isResistor = el.class === 'Resistor'
-  const isThyristor = el.class === 'Thyristor'
   const isSyncCompensator = el.class === 'SynchronousCompensator'
   const isSyncMotor = el.class === 'SynchronousMotor'
   const isKnifeSwitch3 = el.class === 'KnifeSwitch3'
@@ -2562,14 +2563,13 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   the checkbox is skipped here the same reason Orientation
                   itself is skipped for Lamp/PostPole just above. A Booster's
                   real source has no mirror branch either (its circle is
-                  symmetric and its arrow never rotates), nor a Resistor's; a Thyristor's mirror
-                  branch is only the same symbol turned 180°. A Synchronous compensator
+                  symmetric and its arrow never rotates), nor a Resistor's. A Synchronous compensator
                   (and a Synchronous motor) is symmetric and has no mirror branch either; a 3-position knife
                   switch's State already picks either side, and a Knife switch and a
                   Blocking filter have no mirror branch. A thermal Power plant is
                   symmetric; only the hydro kind has a mirrored layout. A Power pole is a
                   symmetric circle with no mirror branch. */}
-              {!isPowerflowIndicator && !isFork && !isBooster && !isResistor && !isThyristor && !isSyncCompensator && !isSyncMotor && !isKnifeSwitch3 && !isKnifeSwitch && !isBlockingFilter && !(isPowerPlant && el.nType !== POWER_PLANT_HYDRO) && !isPowerPole && (
+              {!isPowerflowIndicator && !isFork && !isBooster && !isResistor && !isSyncCompensator && !isSyncMotor && !isKnifeSwitch3 && !isKnifeSwitch && !isBlockingFilter && !(isPowerPlant && el.nType !== POWER_PLANT_HYDRO) && !isPowerPole && (
                 <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"
@@ -2583,6 +2583,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           )
         )}
 
+        <ConnectionsSection element={el} />
         <LayerSelect layers={diagram.layers} value={el.layer} onChange={layer => moveItemToLayer(el.id, 'element', layer)} />
         <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: el.id })}</p>
         {!isPicture && !isAutomationDevice && <p className="text-[10px] text-gray-500">{t('properties.connectHint')}</p>}

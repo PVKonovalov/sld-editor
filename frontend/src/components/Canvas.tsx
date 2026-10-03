@@ -1672,7 +1672,12 @@ export function Canvas() {
         node.setAttribute('y', String(y + 3))
         node.setAttribute('transform', `rotate(${el.orient ?? 0},${x},${y})`)
       } else {
-        node.setAttribute('transform', `translate(${el.x + dx},${el.y + dy}) rotate(${el.orient ?? 0})`)
+        // Keep render.go's mirrorScale, or a Mirror'd element flips back
+        // for the drag (and stays so when the drop re-renders nothing).
+        node.setAttribute(
+          'transform',
+          `translate(${el.x + dx},${el.y + dy}) rotate(${el.orient ?? 0})${el.mirror ? ' scale(-1,1)' : ''}`,
+        )
       }
     }
   }

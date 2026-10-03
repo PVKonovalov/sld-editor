@@ -4884,3 +4884,35 @@ Off look; the editor adds `data-state` to its own output, which reads back
 into the right state. No real corpus instance exists, so it was tested
 against markup in the source's own output format, plus a round trip in both
 states and a live check.
+
+2026-10-03: Thyristor (xsde2svg shape 157) Mirror. The Properties panel now
+offers the Mirror checkbox for a Thyristor: a horizontal flip about its
+anchor that swaps the anode and cathode sides and keeps the gate on top. It
+uses the generic `Element.Mirror` path already shared by every other shape
+(render, static SVG, terminal positions); SVG import still never sets it,
+since the source's xMirror layout reads back as a 180° rotation.
+
+2026-10-03: Fix: dragging a mirrored element no longer un-mirrors it. The
+canvas's drag preview rewrote the element's transform as `translate rotate`
+only, dropping the `scale(-1,1)` the renderer adds for Mirror, so the
+symbol flipped back while dragging and stayed so whenever the drop needed
+no re-render (e.g. it snapped back to the same spot). This affected every
+mirrorable shape, not only the Thyristor.
+
+2026-10-03: Fix: a free wire end dragged onto a device terminal now connects
+to it. `moveConnectorEndpoint` only joined a dropped end to a busbar, so a
+wire end dropped exactly on a terminal (or on another wire's end) got its own
+separate node at the same spot, which looked connected but wasn't. It now
+merges into the node already there. `normalizeTopology` (run on open, import
+and paste) also repairs diagrams saved with this fault: a node that isn't any
+element's port but sits exactly on a port node is merged into it, with
+nothing moved and no wire split.
+
+2026-10-03: Connections section in Properties. A selected element with
+ports (every device with terminals, transformers, busbars) lists each port
+with the node it sits on (id and coordinates) and everything else attached
+to that node (wires, other elements' ports); a selected wire lists the same
+for its from/to ends. An unattached port reads "not connected", a wire end
+"free end", and each listed item is a link that selects it. Read-only, built
+from `diagramOps.nodeAttachments` (`components/panels/ConnectionsSection.tsx`),
+with en/ru strings and both user guides updated.
