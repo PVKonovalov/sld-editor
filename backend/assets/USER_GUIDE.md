@@ -36,7 +36,10 @@ being lost: see *Unsaved changes* below.
   what was skipped. **File → Show import log** reopens it.
 - xsde2svg draws each device at its own size step (each step √2 larger). An `.svg` import recovers the step from where
   the device's connection points lie, so the symbol fills the gap between its wires. Devices whose leads also stretch
-  per instance (breakers, disconnectors and similar) keep the library size; set their **Size** by hand if needed.
+  per instance (breakers, disconnectors and similar) get their size from their drawn body and their **Leads** from
+  their two connection points.
+- A device lead that ends a unit or two beside a wire (a T-tap, such as a ground switch on a feeder) is connected to
+  that wire on import, splitting it there.
 
 ### Saving and exporting
 
@@ -145,6 +148,15 @@ length, direction in degrees and colors.
 Right-clicking a device or a wire also offers **Start buswork**, which starts a Buswork wire from it without using the
 palette.
 
+Its **Topology** submenu connects two points directly. Right-click near the terminal (or the point of a wire) to start
+from, choose an item, then click the terminal, busbar point or wire point to connect to; **Esc** cancels.
+
+- **Connect to…** joins the two into one electrical node without drawing anything. Use it where an imported drawing
+  already touches but the connection is missing (the terminal cross stays red).
+- **Create wire to…** draws a Buswork wire between the two.
+
+Clicking the middle of a wire splits it there, as when a wire is drawn onto it.
+
 Joining a wire in the middle of another wire splits it and creates a real junction. Overhead and cable lines get an
 automatic name (`Overhead line-12`).
 
@@ -198,7 +210,12 @@ place like a single element.
 Select a single item to edit it in the Properties panel:
 
 - **Devices**: name, voltage class, state (for switching devices), orientation and mirror, **Size** (the xsde2svg size
-  step: 0 is the library size, each step √2 larger; its terminals and wires move along), and shape-specific fields
+  step: 0 is the library size, each step √2 larger; its terminals and wires move along), **Leads** for breakers,
+  disconnectors and fuses (xsde2svg's lead distance 2, 3 or 4: the terminals end up that many grid steps apart when
+  **Snap to grid** is on, or that many times 10 when it is off, scaled by the size step; the grid step in force when
+  you pick it is used, and later grid changes leave it alone. With snapping on, only lengths that put both terminals
+  on grid points without moving the device are offered, so with a grid of 10 there is no 3. The body keeps its size.
+  The current spacing is always listed, as its own entry when it matches none of them), and shape-specific fields
   (for example a transformer's windings or a lamp's colours).
 - **Wires**: name and voltage class.
 - **Text labels**: text, size, anchors, bold, colour, font, and the element it belongs to.

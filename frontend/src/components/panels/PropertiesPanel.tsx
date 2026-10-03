@@ -877,6 +877,12 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // typeCodeLabel for the same convention generalized to a Connector/
   // Label/DigitalDevice.
   const typeLabel = typeCodeLabel(typeName, el.shape)
+  // A lead shape's Distance unit: the grid step when snapping (as Canvas
+  // resolves both), else xsde2svg's own.
+  const snapEnabled = diagram.editor?.snap ?? config?.editor.snap ?? true
+  const leadUnit = snapEnabled
+    ? (diagram.editor?.gridSpacing ?? config?.editor.gridSpacing ?? diagramOps.XSDE_LEAD_UNIT)
+    : diagramOps.XSDE_LEAD_UNIT
   const isLamp = el.class === 'Lamp'
   const isRectangle = el.class === 'Rectangle'
   const isSmallWindow = el.class === 'SmallWindow'
@@ -2602,6 +2608,47 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             </select>
           </label>
         )}
+        {/* A lead shape's leads (slddoc's Element.Span, the terminal
+            spacing): xsde2svg's Distance 2..4, in grid steps when snapping
+            (applied when picked; the result is stored as a fixed spacing).
+            When snapping, only a spacing whose half is a whole number of
+            grid steps is offered, so the terminals (±span/2 about the
+            anchor) land on grid points without moving the element. At the
+            library spacing it is unset; a spacing shorter than that can't
+            be drawn, so it isn't offered either. The current spacing is
+            always listed, as its own entry when no choice matches it. */}
+        {typeSymbol?.leads &&
+          (() => {
+            const unit = leadUnit
+            const step = typeSymbol.scalable ? (el.scale ?? 0) : 0
+            const base = diagramOps.defaultLeadSpan(el, elements)
+            const current = el.span ?? base
+            const choices = diagramOps.LEAD_DISTANCES.map(distance => ({
+              distance,
+              span: diagramOps.leadSpanFor(distance, unit, step),
+            })).filter(c => c.span >= base && (!snapEnabled || (c.span / 2) % leadUnit === 0))
+            const match = choices.find(c => c.span === current)
+            return (
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.leadSpan')}</span>
+                <select
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={match ? String(match.distance) : 'current'}
+                  onChange={e => {
+                    const choice = choices.find(c => String(c.distance) === e.target.value)
+                    if (choice) patch({ span: choice.span > base ? choice.span : undefined })
+                  }}
+                >
+                  {!match && <option value="current">{t('properties.leadCurrent', { span: current })}</option>}
+                  {choices.map(c => (
+                    <option key={c.distance} value={c.distance}>
+                      {t('properties.leadDistance', { distance: c.distance, span: c.span })}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )
+          })()}
         <ConnectionsSection element={el} />
         <LayerSelect layers={diagram.layers} value={el.layer} onChange={layer => moveItemToLayer(el.id, 'element', layer)} />
         <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: el.id })}</p>

@@ -17,6 +17,7 @@ import type {
 } from '../types'
 import { t } from '../i18n'
 import { circularArcThrough, defaultArcBulge } from './arc'
+import { nearestPointOnSegment } from './geometry'
 
 // Element classes whose own geometry is a drawn Points array (two or more
 // vertices) rather than a single x/y anchor+orient — BusBarSection (a real
@@ -202,7 +203,80 @@ export function ensureLastId(diagram: Diagram): Diagram {
     d = { ...d, lastId: ids.lastId, labels }
   }
 
-  return d
+  return ensureUniqueIds(d)
+}
+
+/** Repairs a diagram whose items share an id (older .svg imports numbered
+ * their nodes and voltage classes 1..N, colliding with the source's own
+ * ids, and the source writes a Powerflow arrow and its reading under one
+ * id): elements, then connectors, digital devices and labels keep the
+ * first use of an id, later ones get a fresh id; a colliding node or
+ * voltage class is renumbered with every reference to it. Layer ids are
+ * never reused. Returns diagram itself when every id is already unique. */
+export function ensureUniqueIds(diagram: Diagram): Diagram {
+  const used = new Set<number>(diagram.layers.map(l => l.id))
+  const collides = (id: number) => id === 0 || used.has(id)
+  let dirty = false
+  const ids = new IdSequence(diagram)
+  const take = () => {
+    let id = ids.take()
+    while (used.has(id)) id = ids.take()
+    used.add(id)
+    dirty = true
+    return id
+  }
+  const keep = <T extends { id: number }>(items: T[]): T[] =>
+    items.map(x => {
+      if (collides(x.id)) return { ...x, id: take() }
+      used.add(x.id)
+      return x
+    })
+  const elements = keep(diagram.elements)
+  const connectors = keep(diagram.connectors)
+  const digitalDevices = keep(diagram.digitalDevices)
+  const labels = keep(diagram.labels)
+
+  const nodeId = new Map<number, number>()
+  const nodes = diagram.nodes.map(n => {
+    if (!collides(n.id)) {
+      used.add(n.id)
+      return n
+    }
+    const id = take()
+    nodeId.set(n.id, id)
+    return { ...n, id }
+  })
+  const classId = new Map<number, number>()
+  const voltageClasses = diagram.voltageClasses.map(vc => {
+    if (!collides(vc.id)) {
+      used.add(vc.id)
+      return vc
+    }
+    const id = take()
+    classId.set(vc.id, id)
+    return { ...vc, id }
+  })
+  if (!dirty) return diagram
+
+  const node = (id: number) => nodeId.get(id) ?? id
+  const volt = (v: number | undefined) => (v === undefined ? v : (classId.get(v) ?? v))
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    nodes,
+    voltageClasses,
+    elements: elements.map(e => ({
+      ...e,
+      voltage: volt(e.voltage),
+      ports: e.ports?.map(p => ({ ...p, node: node(p.node) })),
+      windings: e.windings?.map(w => ({ ...w, voltage: volt(w.voltage) })),
+      sectors: e.sectors?.map(sc => ({ ...sc, voltage: volt(sc.voltage) })),
+    })),
+    connectors: connectors.map(c => ({ ...c, from: node(c.from), to: node(c.to), voltage: volt(c.voltage) })),
+    digitalDevices,
+    labels,
+    editor: diagram.editor && { ...diagram.editor, defaultVoltage: volt(diagram.editor.defaultVoltage) },
+  }
 }
 
 // Matches a rendered node's own data-editor-kind attribute (internal/
@@ -1866,9 +1940,37 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
   // its terminals at the default size, so they scale along with it.
   const scale = el.class === 'Fork' && el.radius ? el.radius / FORK_ARM_LENGTH : 1
   const step = symbol.scalable ? (el.scale ?? 0) : 0
-  return symbol.terminals.map(t =>
-    placeLocalPoint(el, { x: scaledLength(t.x * scale, step), y: scaledLength(t.y * scale, step) }),
-  )
+  const half = symbol.leads && el.span ? el.span / 2 : 0
+  return symbol.terminals.map(t => {
+    const x = scaledLength(t.x * scale, step)
+    let y = scaledLength(t.y * scale, step)
+    // A lead shape's leads reach ±span/2 (slddoc's LeadTerminal).
+    if (half > Math.abs(y) && y !== 0) y = Math.sign(y) * half
+    return placeLocalPoint(el, { x, y })
+  })
+}
+
+/** The lead distances (xsde2svg's Distance) the Properties panel offers. */
+export const LEAD_DISTANCES = [2, 3, 4]
+
+/** xsde2svg's own lead unit (Xsde2svgScale): a Distance of 2 is 20 apart. */
+export const XSDE_LEAD_UNIT = 10
+
+/** A lead shape's terminal spacing for a Distance: the source's
+ * Scale(step, distance·unit), unit being the grid step when snapping (so
+ * the terminals stay on the grid) or XSDE_LEAD_UNIT. */
+export function leadSpanFor(distance: number, unit: number, step: number): number {
+  return scaledLength(distance * unit, step)
+}
+
+/** A lead shape's terminal-to-terminal distance at its size step when its
+ * span is unset: the library's own spacing, scaled. */
+export function defaultLeadSpan(el: DiagramElement, symbols: ElementSymbol[]): number {
+  const symbol = symbols.find(s => s.shape === el.shape)
+  const ys = (symbol?.terminals ?? []).map(t => t.y)
+  if (ys.length < 2) return 0
+  const step = symbol?.scalable ? (el.scale ?? 0) : 0
+  return scaledLength(Math.max(...ys), step) - scaledLength(Math.min(...ys), step)
 }
 
 /** The size steps (DiagramElement.scale) offered in Properties and tried
@@ -1901,9 +2003,10 @@ function scaledLength(v: number, step: number): number {
  * xsde2svg diagram draws every element at its own step, and Extract reads
  * the real port positions but not the step. Only elements whose shape
  * takes a size step and has two or more terminals are considered (one
- * terminal on the anchor is the same at every step), except
- * VARIABLE_LEAD_SHAPES; a port whose Node is shared with another element
- * (one Node for a whole busbar) is skipped. */
+ * terminal on the anchor is the same at every step), except lead shapes
+ * (ElementSymbol.leads), whose step Extract reads from the drawn body; a
+ * port whose Node is shared with another element (one Node for a whole
+ * busbar) is skipped. */
 export function inferSizeSteps(diagram: Diagram, symbols: ElementSymbol[]): Diagram {
   const nodes = new Map(diagram.nodes.map(n => [n.id, n]))
   const portUse = new Map<number, number>()
@@ -1912,7 +2015,9 @@ export function inferSizeSteps(diagram: Diagram, symbols: ElementSymbol[]): Diag
   const elements = diagram.elements.map(el => {
     const symbol = symbols.find(s => s.shape === el.shape)
     if (!symbol?.scalable || !symbol.terminals || symbol.terminals.length < 2 || el.scale) return el
-    if (VARIABLE_LEAD_SHAPES.has(el.shape)) return el
+    // Extract already set a lead shape's step from its drawn body: its port
+    // spacing is its per-instance lead length, not its size.
+    if (symbol.leads) return el
     const points = (el.ports ?? [])
       .filter(p => portUse.get(p.node) === 1)
       .map(p => nodes.get(p.node))
@@ -1939,10 +2044,131 @@ export function inferSizeSteps(diagram: Diagram, symbols: ElementSymbol[]): Diag
   return changed ? { ...diagram, elements } : diagram
 }
 
-// Shapes whose source also stretches its leads per instance
-// (Scale(step, max(CBDistanceBase, Distance)·Xsde2svgScale) apart, e.g.
-// element_41.go), so their port spacing doesn't tell their size step.
-const VARIABLE_LEAD_SHAPES = new Set(['41', '42', '43', '71', '162', '163', '164', '166', '203', '399', '3206'])
+/** Joins each imported element Port that is still connected to nothing to
+ * a wire or busbar passing within PORT_TAP_TOLERANCE of its side: the Port
+ * Node moves onto that line and the wire is split there (joinPortNodes).
+ * xsde2svg draws a T-tap by ending a device's lead a unit or two short of
+ * (or past) the wire it meets — e.g. a ground switch's stub tip 2 units
+ * beside a vertical wire — and Extract only snaps points to wire ends and
+ * busbars. Wires already on one of the element's own Ports are left
+ * alone, and so are overhead lines (never tapped mid-span) — except for a
+ * grounding device (GROUNDING_CLASSES) within LINE_ENTRANCE_REACH of the
+ * line's nearer end, its line grounding switch at the substation: there
+ * the piece from that end to the tap becomes BusWork (tapLineEntrance). */
+export function tapFreePortsOntoWires(diagram: Diagram): Diagram {
+  const portUse = new Map<number, number>()
+  for (const e of diagram.elements) for (const p of e.ports ?? []) portUse.set(p.node, (portUse.get(p.node) ?? 0) + 1)
+  const wired = new Set(diagram.connectors.flatMap(c => [c.from, c.to]))
+  let d = diagram
+  for (const el of diagram.elements) {
+    if (el.class === 'BusBarSection' || !el.ports) continue
+    const own = new Set(el.ports.map(p => p.node))
+    for (const port of el.ports) {
+      if (portUse.get(port.node) !== 1 || wired.has(port.node)) continue
+      const node = d.nodes.find(n => n.id === port.node)
+      if (!node) continue
+      let best: Point | null = null
+      let bestDist = PORT_TAP_TOLERANCE
+      let line: { id: number; segment: number } | null = null
+      const consider = (pts: Point[], lineId?: number) => {
+        for (let i = 0; i < pts.length - 1; i++) {
+          const q = nearestPointOnSegment(pts[i], pts[i + 1], node)
+          const dist = Math.hypot(q.x - node.x, q.y - node.y)
+          // Not rounded: on a slightly slanted wire a rounded point would
+          // fall off the line, and joinPortNodes splits only exactly on it.
+          if (dist <= bestDist) {
+            best = q
+            bestDist = dist
+            line = lineId === undefined ? null : { id: lineId, segment: i }
+          }
+        }
+      }
+      const grounding = GROUNDING_CLASSES.has(el.class)
+      for (const c of d.connectors) {
+        if (own.has(c.from) || own.has(c.to)) continue
+        if (c.kind === 'OverheadLine') {
+          if (grounding) consider(c.points, c.id)
+          continue
+        }
+        consider(c.points)
+      }
+      for (const bus of d.elements) if (bus.class === 'BusBarSection' && bus.points) consider(bus.points)
+      if (!best) continue
+      // A port already exactly on the wire still needs the split.
+      const at: Point = best
+      const before = d
+      if (!samePoint(at, node)) d = { ...d, nodes: d.nodes.map(n => (n.id === node.id ? { ...n, x: at.x, y: at.y } : n)) }
+      const hit = line as { id: number; segment: number } | null
+      if (hit) {
+        const moved = d
+        d = tapLineEntrance(d, hit.id, hit.segment, node.id, at)
+        if (d === moved) d = before // too far along the line: leave the port as it was
+      } else {
+        d = joinPortNodes(d, el.id)
+      }
+    }
+  }
+  return d
+}
+
+// How far (diagram units) a free imported Port may sit from the wire it
+// taps — Extract's own snapTolerance.
+const PORT_TAP_TOLERANCE = 5
+
+// Single-port grounding devices that may tap an overhead line at its
+// substation end (tapFreePortsOntoWires).
+const GROUNDING_CLASSES = new Set<string>(['GroundSwitch', 'Ground', 'ShortCircuiter'])
+
+// How far along an overhead line (diagram units) from its nearer end a
+// grounding device may tap it: the line entrance at the substation (154 of
+// the corpus's 156 such switches sit within 50).
+const LINE_ENTRANCE_REACH = 50
+
+/** Joins node (a grounding device's Port Node, already moved to at, a point
+ * on segment `segment` of overhead line lineId) to that line: the piece
+ * from the line's nearer end to at becomes a BusWork wire of the same
+ * voltage and layer, and the line, keeping its id and name, now starts (or
+ * ends) at node. Electrically the device then sits on the line's
+ * substation-end node, and the line stays one object. Returns diagram
+ * itself when at is further than LINE_ENTRANCE_REACH from both ends; when
+ * at is the end itself, node is merged into that end's Node instead. */
+function tapLineEntrance(diagram: Diagram, lineId: number, segment: number, nodeId: number, at: Point): Diagram {
+  const c = diagram.connectors.find(x => x.id === lineId)
+  if (!c) return diagram
+  const pts = c.points
+  let total = 0
+  let along = 0
+  for (let i = 0; i < pts.length - 1; i++) {
+    const len = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y)
+    if (i === segment) along = total + Math.hypot(at.x - pts[i].x, at.y - pts[i].y)
+    total += len
+  }
+  const fromStart = along <= total - along
+  const reach = fromStart ? along : total - along
+  if (reach > LINE_ENTRANCE_REACH) return diagram
+  const endNode = fromStart ? c.from : c.to
+  if (reach < TOPOLOGY_EPSILON) return mergeNode(diagram, endNode, nodeId)
+
+  const head = simplifyOrthogonalPath([...pts.slice(0, segment + 1), at])
+  const tail = simplifyOrthogonalPath([at, ...pts.slice(segment + 1)])
+  const ids = new IdSequence(diagram)
+  const stubId = ids.take()
+  const stub: Connector = {
+    id: stubId,
+    kind: 'BusWork',
+    voltage: c.voltage,
+    layer: c.layer,
+    from: fromStart ? c.from : nodeId,
+    to: fromStart ? nodeId : c.to,
+    points: fromStart ? head : tail,
+  }
+  const rest: Connector = fromStart ? { ...c, from: nodeId, points: tail } : { ...c, to: nodeId, points: head }
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    connectors: [...diagram.connectors.map(x => (x.id === lineId ? rest : x)), stub],
+  }
+}
 
 // How far (diagram units) an imported port may sit from its terminal at
 // the inferred size step: base.xml moves some terminals a unit or two onto
@@ -3367,6 +3593,62 @@ function attachElementEnd(
     e.id === elementId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: node.id }] } : e,
   )
   return node.id
+}
+
+/** One end of a "Topology → Connect to…" join: an element at the terminal
+ * (or busbar point) nearest point, or a connector at point on segment
+ * segmentIndex — Canvas's own ConnectTarget. */
+export type TopologyTarget =
+  | { kind: 'element'; elementId: number; point: Point }
+  | { kind: 'connector'; connectorId: number; segmentIndex: number; point: Point }
+
+/** The Node target resolves to, adding what it needs: a device's terminal
+ * Port Node, a new busbar Port at the point, or a connector's end Node (a
+ * point mid-wire splits it there, spliceConnectorAt). */
+function topologyTargetNode(
+  diagram: Diagram,
+  target: TopologyTarget,
+  ids: IdSequence,
+): { diagram: Diagram; node: number } | null {
+  if (target.kind === 'element') {
+    if (!diagram.elements.some(e => e.id === target.elementId)) return null
+    const acc = { elements: diagram.elements, nodes: diagram.nodes }
+    const node = attachElementEnd(acc, target.elementId, target.point, ids)
+    return { diagram: { ...diagram, elements: acc.elements, nodes: acc.nodes }, node }
+  }
+  const splice = spliceConnectorAt(diagram, target.connectorId, target.segmentIndex, target.point, ids)
+  if (!splice) return null
+  return {
+    diagram: {
+      ...diagram,
+      nodes: [...diagram.nodes, ...splice.nodes],
+      connectors: [...diagram.connectors.filter(c => c.id !== target.connectorId), ...splice.connectors],
+    },
+    node: splice.junctionNode.id,
+  }
+}
+
+/** "Topology → Connect to…": joins first to second without drawing
+ * anything — first's Node is merged into second's, which keeps its
+ * position (wires that ended on first's Node keep their drawn geometry).
+ * For an imported diagram whose drawing already touches but whose topology
+ * doesn't. Returns diagram itself when both are the same item or already
+ * share a Node. */
+export function joinTopologyTargets(diagram: Diagram, first: TopologyTarget, second: TopologyTarget): Diagram {
+  const sameItem =
+    first.kind === second.kind &&
+    (first.kind === 'element'
+      ? first.elementId === (second as typeof first).elementId
+      : first.connectorId === (second as typeof first).connectorId)
+  if (sameItem) return diagram
+  const ids = new IdSequence(diagram)
+  // They are different items, so resolving one (splitting its wire) never
+  // renumbers the other.
+  const b = topologyTargetNode(diagram, second, ids)
+  if (!b) return diagram
+  const a = topologyTargetNode(b.diagram, first, ids)
+  if (!a || a.node === b.node) return diagram
+  return removeDegenerateConnectors({ ...mergeNode(a.diagram, a.node, b.node), lastId: ids.lastId })
 }
 
 /** A busbar has one Port per connection point (each on its own Node — the

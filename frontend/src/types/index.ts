@@ -182,6 +182,10 @@ export interface DiagramElement {
   // (unset = 0, the library's own size). Only for a symbol whose
   // ElementSymbol.scalable is set; see diagramOps.symbolTerminals.
   scale?: number
+  // slddoc's Element.Span: a lead shape's (ElementSymbol.leads) distance
+  // between its two terminals in diagram units; unset = the library's own
+  // spacing at its size step. See diagramOps.symbolTerminals.
+  span?: number
   // Also a PowerflowIndicator's (shape 320001) own two-way arrow direction:
   // nil/0 draws "→", any other value draws "←" — not a real switching
   // status, matching backend/internal/slddoc's own Element.State doc
@@ -501,6 +505,10 @@ export interface ElementSymbol {
   // Whether a placed element of this shape takes a size step
   // (DiagramElement.scale): it is drawn from template.
   scalable?: boolean
+  // Whether a placed element of this shape draws its leads to a
+  // per-instance length (DiagramElement.span): breakers, disconnectors and
+  // similar two-terminal devices.
+  leads?: boolean
 }
 
 // Matches backend/internal/api.customElement: one entry of the Elements

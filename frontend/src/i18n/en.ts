@@ -256,6 +256,9 @@ export const dictionary = {
   'properties.connectionsHint': 'Click an item to select it.',
   'properties.size': 'Size',
   'properties.sizeStep': '{{step}} (×{{factor}})',
+  'properties.leadSpan': 'Leads',
+  'properties.leadDistance': '{{distance}} ({{span}} between terminals)',
+  'properties.leadCurrent': '{{span}} between terminals',
   'properties.mirror': 'Mirror',
   'properties.points': 'Points',
   'properties.pointX': 'Point {{n}} X',
@@ -407,6 +410,11 @@ export const dictionary = {
   'customElement.overwrite': 'Overwrite',
   'customElement.save': 'Save',
   'contextMenu.delete': 'Delete',
+  'contextMenu.topology': 'Topology',
+  'contextMenu.connectTo': 'Connect to…',
+  'contextMenu.createWireTo': 'Create wire to…',
+  'canvas.connectToHint': 'Click the terminal to connect to (joined without a wire) — Esc cancels',
+  'canvas.createWireToHint': 'Click the terminal to draw a wire to — Esc cancels',
   'contextMenu.deleteSegment': 'Delete segment',
 } as const
 

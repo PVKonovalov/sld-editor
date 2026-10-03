@@ -33,9 +33,7 @@ export async function prepareImport(
   let report: ImportReport | null = null
   if (kind === 'svg') {
     const extracted = await api.importDiagramSVG(text)
-    // Extract reads each element's real port positions but not its size
-    // step, so recover the step from where those ports sit.
-    raw = diagramOps.inferSizeSteps(extracted.diagram, symbols)
+    raw = extracted.diagram
     report = extracted.report
     const voltage = diagramOps.mostUsedVoltage(raw)
     if (voltage !== undefined && raw.editor?.defaultVoltage === undefined) {
@@ -44,6 +42,13 @@ export async function prepareImport(
   } else {
     raw = await api.importDiagramXML(text)
   }
-  const fixed = diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config)
+  let fixed = diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config)
+  if (kind === 'svg') {
+    // Extract reads each element's real port positions but not its size
+    // step, so recover the step from where those ports sit; it also only
+    // snaps ports to wire ends, so join a port drawn just beside a wire (a
+    // T-tap) to it. After ensureLastId: a tap may split a wire (new ids).
+    fixed = diagramOps.tapFreePortsOntoWires(diagramOps.inferSizeSteps(fixed, symbols))
+  }
   return { diagram: diagramOps.normalizeTopology(fixed, symbols), report }
 }

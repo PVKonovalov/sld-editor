@@ -4937,3 +4937,83 @@ joint and Chassis instances to steps 1-3. Properties gets a Size selector
 (steps -2..4) that carries the terminals and wires along; the canvas drag
 preview and selection boxes honour the step. Existing imported `.xsld` files
 don't store the step and must be imported again to pick it up.
+
+2026-10-03: SVG import: one-port grounding devices connect. Extract put the
+only port of a Ground switch (54), Ground terminal (31) and Short-circuiter
+(398) at the symbol's anchor, a whole stub length away from the wire it
+meets, so none of them connected (corpus: 0 of 2004 ground switches, 0 of
+219 grounds, 0 of 18 short-circuiters). The port is now the stub's free end
+(rotated about the anchor). The editor's import also joins a still-free port
+lying within 5 units beside a wire or busbar to it, splitting the wire there
+(`diagramOps.tapFreePortsOntoWires`): xsde2svg draws such T-taps a unit or
+two off the wire, and Extract only snaps to wire ends. Corpus result: 1821
+ground switches, 198 grounds and all 18 short-circuiters connected.
+
+2026-10-03: Lead length for breakers and disconnectors. xsde2svg draws
+shapes 41, 42, 71/162, 163, 164, 166, 203 and 399 with terminals
+`Scale(s, max(2, Distance)·10)` apart, independent of the body's size step.
+New `slddoc.Element.Span` (`.xsld` `span`) holds that terminal distance:
+`Render` extends the template's leads from its terminals to ±Span/2, terminals
+sit there (`slddoc.LeadTerminal`, `diagramOps.symbolTerminals`), and Extract
+sets each instance's `Scale` from its drawn body (half-length along the lead
+axis, calibrated on the corpus) and its `Span` from its two ports. The element
+catalog exposes `leads`; frontend size inference skips these shapes. Breaker
+43 is not one of them (its spacing follows the size step only), so it is now
+inferred from its ports like the others. Properties gets "Length (terminal
+to terminal)". Corpus: ports more than 5 units off a terminal dropped from
+2836 to 28 for breaker 41, 2357 to 26 for disconnector 162, 278 to 32 for
+breaker 43.
+
+2026-10-03: Unique ids. SVG import produced colliding ids in the shared id
+space: `buildTopology` and `buildVoltageClasses` numbered nodes and voltage
+classes 1..N (colliding with the source's own ids, about 3100 cases over the
+corpus) and the source writes a Powerflow arrow (320001) and its reading
+(134) under one id. Extract now ends with `assignUniqueIDs`: nodes and
+voltage classes are renumbered past the highest source id with every
+reference following, and a later element/connector/digital device/label
+reusing an id gets a fresh one (elements keep theirs, so label `for` stays
+right); layer ids are never reused; `lastId` covers them all. A corpus test
+asserts uniqueness. Diagrams already saved with duplicates are repaired on
+open and import by `diagramOps.ensureUniqueIds` (run from `ensureLastId`,
+not counted as an unsaved edit): over the 147 diagrams in `diagrams/`,
+15962 duplicate ids become 0 with no reference broken.
+
+2026-10-03: Leads dropdown. The breaker/disconnector "Length" field is now
+a "Leads" dropdown offering xsde2svg's lead Distance 2, 3 and 4: the
+terminal spacing is `Scale(step, Distance·unit)`, unit being the grid step
+when Snap to grid is on and 10 (xsde2svg's own) when off. The grid step is
+applied when a value is picked and stored as the fixed `span`, so changing
+the grid later leaves placed devices alone. A spacing shorter than the
+library's isn't offered (disabled); an imported spacing matching none of the
+choices is listed as its own entry.
+
+2026-10-03: Leads dropdown offers only grid-aligned lengths. With Snap to
+grid on, a lead distance is offered only when half its terminal spacing is a
+whole number of grid steps: the terminals sit at ±span/2 about the anchor, so
+an odd distance (e.g. 3 at grid 10, spacing 30) put both of them halfway
+between grid points. The element never shifts; such distances are simply not
+listed (nor are spacings shorter than the library's). The current spacing is
+still listed as its own entry when it matches no choice.
+
+2026-10-03: SVG import: line grounding switches connect. A ground switch
+(or ground terminal, short-circuiter) drawn beside an overhead line within
+50 units of the line's nearer end (the line entrance at the substation) is
+now joined to it: the piece of the line from that end to the switch becomes
+a BusWork wire and the overhead line, keeping its id and name, starts at the
+switch's node (`tapLineEntrance`). Also fixed in the import tap step: a port
+lying exactly on a wire was skipped, and a tap on a slightly slanted wire
+was rounded off the line. Corpus: 1991 of 2004 ground switches connected
+(was 1821); the 13 left are 6 eight units off a disconnector terminal, 3
+thirteen units off a line, 2 further than 50 along a line and 2 with nothing
+near.
+
+2026-10-03: Topology context menu. Right-clicking a device or a wire now
+offers a Topology submenu (the context menu gained submenu support,
+`ContextMenu.tsx`): the first end is the terminal / wire point nearest the
+right-click, then a click picks the second (device terminal, busbar point or
+wire point, as routing finds it; Esc cancels; a hint shows while picking).
+"Connect to…" joins the two into one node without drawing anything
+(`diagramOps.joinTopologyTargets`: the first's node is merged into the
+second's, a mid-wire point splitting that wire), for imported drawings that
+touch without being connected; "Create wire to…" draws a Buswork wire
+between them (Canvas `commitRoute`, now shared with routing).

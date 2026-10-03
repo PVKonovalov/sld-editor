@@ -10,7 +10,7 @@ import { fillPictureHrefs, readImageFile } from '../lib/picture'
 import { t } from '../i18n'
 import { ContextMenu, type ContextMenuItem } from './ContextMenu'
 import { SaveCustomElementDialog } from './SaveCustomElementDialog'
-import type { Diagram, DiagramElement, Connector, Label, DigitalDevice, Point } from '../types'
+import type { Diagram, DiagramElement, Connector, ConnectorKind, Label, DigitalDevice, Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
 const RECTANGLE_SHAPE = '3'
@@ -491,6 +491,10 @@ export function Canvas() {
     }
   }, [armedSymbol])
   const [connectTarget, setConnectTarget] = useState<ConnectTarget | null>(null)
+  // "Topology → Connect to… / Create wire to…" waiting for its second
+  // terminal: from is the first (picked by the right-click), mode what a
+  // click on the second does (join the two nodes, or draw a buswork wire).
+  const [topologyPick, setTopologyPick] = useState<{ mode: 'join' | 'wire'; from: ConnectTarget } | null>(null)
   const [vertexDrag, setVertexDrag] = useState<VertexDrag | null>(null)
   const [selectedVertex, setSelectedVertex] = useState<SelectedVertex | null>(null)
   const [elementBoxes, setElementBoxes] = useState<Map<number, ElementBox>>(new Map())
@@ -1099,7 +1103,10 @@ export function Canvas() {
           deleteSelected()
         }
       } else if (e.key === 'Escape') {
-        if (routing) {
+        if (topologyPick) {
+          setTopologyPick(null)
+          setConnectTarget(null)
+        } else if (routing) {
           setRouting(null)
           setRoutingCursor(null)
         } else if (selectedVertex) setSelectedVertex(null)
@@ -1360,7 +1367,9 @@ export function Canvas() {
     }
     if (armedSymbol || ghost || pointDrag || newBusbar || labelDrag || digitalDeviceDrag) return
     const point = toPoint(e.clientX, e.clientY)
-    if (routing) {
+    if (topologyPick) {
+      setConnectTarget(findConnectionTarget(point, topologyPick.from, true))
+    } else if (routing) {
       setConnectTarget(findConnectionTarget(point, routing.from, true))
       setRoutingCursor(point)
     } else if (armedWireKind) {
@@ -1415,56 +1424,7 @@ export function Canvas() {
     if (!routing) return
     const target = findConnectionTarget(point, routing.from, true)
     if (target) {
-      const path = appendOrthogonalPoint(routing.path, target.point)
-      const from = routing.from
-      const kind = armedWireKind ?? 'BusWork'
-      updateDiagram(d => {
-        if (from.kind === 'element') {
-          return target.kind === 'element'
-            ? diagramOps.drawConnectorPath(d, from.elementId, target.elementId, path, defaultVoltage, kind)
-            : diagramOps.drawConnectorPathToConnector(
-                d,
-                from.elementId,
-                target.connectorId,
-                target.segmentIndex,
-                path,
-                defaultVoltage,
-                kind,
-              )
-        }
-        if (from.kind === 'connector') {
-          return target.kind === 'element'
-            ? diagramOps.drawConnectorPathFromConnector(
-                d,
-                from.connectorId,
-                from.segmentIndex,
-                target.elementId,
-                path,
-                defaultVoltage,
-                kind,
-              )
-            : diagramOps.drawConnectorBetweenConnectors(
-                d,
-                from.connectorId,
-                from.segmentIndex,
-                target.connectorId,
-                target.segmentIndex,
-                path,
-                defaultVoltage,
-                kind,
-              )
-        }
-        return target.kind === 'element'
-          ? diagramOps.drawConnectorPathFromPoint(d, path, target.elementId, defaultVoltage, kind)
-          : diagramOps.drawConnectorPathFromPointToConnector(
-              d,
-              path,
-              target.connectorId,
-              target.segmentIndex,
-              defaultVoltage,
-              kind,
-            )
-      })
+      commitRoute(routing.from, target, appendOrthogonalPoint(routing.path, target.point), armedWireKind ?? 'BusWork')
       setRouting(null)
       setRoutingCursor(null)
       setConnectTarget(null)
@@ -1472,6 +1432,76 @@ export function Canvas() {
       return
     }
     setRouting({ ...routing, path: appendOrthogonalPoint(routing.path, snapPoint(point)) })
+  }
+
+  // Completes "Topology → Connect to… / Create wire to…" on the terminal
+  // (device terminal, busbar point, or wire point) nearest the click; a
+  // click on nothing connectable keeps waiting (Esc cancels).
+  function handleTopologyPickClick(point: Point) {
+    if (!topologyPick) return
+    const target = findConnectionTarget(point, topologyPick.from, true)
+    if (!target) return
+    const { mode, from } = topologyPick
+    if (mode === 'join') {
+      updateDiagram(d => diagramOps.joinTopologyTargets(d, from, target))
+    } else {
+      commitRoute(from, target, appendOrthogonalPoint([from.point], target.point), 'BusWork')
+    }
+    setTopologyPick(null)
+    setConnectTarget(null)
+  }
+
+  // Creates a wire along path from `from` to target, each end attached the
+  // way its kind needs (see the diagramOps creators' own doc comments) —
+  // shared by a completed route and "Topology → Create wire to…".
+  function commitRoute(from: RouteStart, target: ConnectTarget, path: Point[], kind: ConnectorKind) {
+    updateDiagram(d => {
+      if (from.kind === 'element') {
+        return target.kind === 'element'
+          ? diagramOps.drawConnectorPath(d, from.elementId, target.elementId, path, defaultVoltage, kind)
+          : diagramOps.drawConnectorPathToConnector(
+              d,
+              from.elementId,
+              target.connectorId,
+              target.segmentIndex,
+              path,
+              defaultVoltage,
+              kind,
+            )
+      }
+      if (from.kind === 'connector') {
+        return target.kind === 'element'
+          ? diagramOps.drawConnectorPathFromConnector(
+              d,
+              from.connectorId,
+              from.segmentIndex,
+              target.elementId,
+              path,
+              defaultVoltage,
+              kind,
+            )
+          : diagramOps.drawConnectorBetweenConnectors(
+              d,
+              from.connectorId,
+              from.segmentIndex,
+              target.connectorId,
+              target.segmentIndex,
+              path,
+              defaultVoltage,
+              kind,
+            )
+      }
+      return target.kind === 'element'
+        ? diagramOps.drawConnectorPathFromPoint(d, path, target.elementId, defaultVoltage, kind)
+        : diagramOps.drawConnectorPathFromPointToConnector(
+            d,
+            path,
+            target.connectorId,
+            target.segmentIndex,
+            defaultVoltage,
+            kind,
+          )
+    })
   }
 
   // Double-click either ends an in-progress route "in mid-air" at wherever
@@ -1729,6 +1759,12 @@ export function Canvas() {
     // (those stop propagation before this ever runs), so any such click
     // deselects whichever specific bend point was selected.
     if (selectedVertex) setSelectedVertex(null)
+
+    if (topologyPick) {
+      e.stopPropagation()
+      handleTopologyPickClick(point)
+      return
+    }
 
     if (routing) {
       e.stopPropagation()
@@ -2121,6 +2157,25 @@ export function Canvas() {
     setContextMenu({ x: e.clientX, y: e.clientY, diagramPoint, elementId, connectorId })
   }
 
+  // The context menu's "Topology" submenu: both items start a pick of the
+  // second terminal from the first, the one nearest the right-click.
+  function topologyMenu(first: () => ConnectTarget | null): ContextMenuItem {
+    const start = (mode: 'join' | 'wire') => () => {
+      const from = first()
+      if (!from) return
+      setRouting(null)
+      setTopologyPick({ mode, from })
+      setConnectTarget(null)
+    }
+    return {
+      label: t('contextMenu.topology'),
+      children: [
+        { label: t('contextMenu.connectTo'), onSelect: start('join') },
+        { label: t('contextMenu.createWireTo'), onSelect: start('wire') },
+      ],
+    }
+  }
+
   const contextMenuItems: ContextMenuItem[] = contextMenu
     ? [
         ...(selection.size > 0
@@ -2157,6 +2212,10 @@ export function Canvas() {
                   startBusworkFrom(nearestTargetOnElement(el, contextMenu.diagramPoint))
                 },
               },
+              topologyMenu(() => {
+                const el = diagram.elements.find(e => e.id === contextMenu.elementId)
+                return el ? nearestTargetOnElement(el, contextMenu.diagramPoint) : null
+              }),
             ]
           : []),
         ...(contextMenu.connectorId !== null &&
@@ -2170,6 +2229,10 @@ export function Canvas() {
                   startBusworkFrom(nearestTargetOnConnector(connector, contextMenu.diagramPoint))
                 },
               },
+              topologyMenu(() => {
+                const connector = diagram.connectors.find(c => c.id === contextMenu.connectorId)
+                return connector ? nearestTargetOnConnector(connector, contextMenu.diagramPoint) : null
+              }),
             ]
           : []),
         // "Delete segment" removes just the segment right-clicked
@@ -2279,7 +2342,7 @@ export function Canvas() {
               height: diagram.height,
               cursor: spaceHeld
                 ? 'grab'
-                : armedSymbol || armedWireKind || armedLabel || armedDigitalDevice || armedCustomElement || routing
+                : armedSymbol || armedWireKind || armedLabel || armedDigitalDevice || armedCustomElement || routing || topologyPick
                   ? 'crosshair'
                   : 'default',
             }}
@@ -2958,10 +3021,33 @@ export function Canvas() {
                   plain red per-selection terminal marks above) — both the
                   same shape per the same convention, just recolored/resized
                   for what a click would do right now. */}
+              {/* A pending Topology pick: its first terminal ringed, and a
+                  dashed line to the second while one is under the cursor. */}
+              {topologyPick && (
+                <circle
+                  cx={topologyPick.from.point.x}
+                  cy={topologyPick.from.point.y}
+                  r={TERMINAL_MARK_SIZE * 2}
+                  fill="none"
+                  stroke={CONNECT_TARGET_COLOR}
+                  strokeWidth={1}
+                />
+              )}
+              {topologyPick && connectTarget && (
+                <line
+                  x1={topologyPick.from.point.x}
+                  y1={topologyPick.from.point.y}
+                  x2={connectTarget.point.x}
+                  y2={connectTarget.point.y}
+                  stroke={CONNECT_TARGET_COLOR}
+                  strokeWidth={1}
+                  strokeDasharray="4 3"
+                />
+              )}
               {connectTarget && (
                 <path
                   d={`M ${connectTarget.point.x - TERMINAL_MARK_SIZE * 2} ${connectTarget.point.y - TERMINAL_MARK_SIZE * 2} L ${connectTarget.point.x + TERMINAL_MARK_SIZE * 2} ${connectTarget.point.y + TERMINAL_MARK_SIZE * 2} M ${connectTarget.point.x - TERMINAL_MARK_SIZE * 2} ${connectTarget.point.y + TERMINAL_MARK_SIZE * 2} L ${connectTarget.point.x + TERMINAL_MARK_SIZE * 2} ${connectTarget.point.y - TERMINAL_MARK_SIZE * 2}`}
-                  stroke={routing ? CONNECT_TARGET_COLOR : HIGHLIGHT}
+                  stroke={routing || topologyPick ? CONNECT_TARGET_COLOR : HIGHLIGHT}
                   strokeWidth={1}
                 />
               )}
@@ -2969,6 +3055,11 @@ export function Canvas() {
           </div>
         </TransformComponent>
       </TransformWrapper>
+      {topologyPick && (
+        <div className="pointer-events-none absolute left-1/2 top-2 z-20 -translate-x-1/2 rounded bg-surface-700/90 px-3 py-1 text-xs text-gray-200 shadow">
+          {t(topologyPick.mode === 'join' ? 'canvas.connectToHint' : 'canvas.createWireToHint')}
+        </div>
+      )}
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
