@@ -953,6 +953,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     isTable ||
     isTable2
 
+  // A label already For this element: "Add name label" is then disabled.
+  const hasNameLabel = diagram.labels.some(l => l.for === el.id)
   // "Add name label": a label with the element's name, For it, placed to
   // its right — one grid step past its drawn outline, at its vertical
   // centre, on the grid when snapping.
@@ -994,9 +996,9 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             </label>
             <button
               type="button"
-              title={t('properties.addNameLabel')}
+              title={t(hasNameLabel ? 'properties.hasNameLabel' : 'properties.addNameLabel')}
               aria-label={t('properties.addNameLabel')}
-              disabled={!el.name}
+              disabled={!el.name || hasNameLabel}
               onClick={addNameLabel}
               className="text-gray-400 hover:text-white disabled:text-gray-600 disabled:hover:text-gray-600"
             >

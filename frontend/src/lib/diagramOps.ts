@@ -2737,10 +2737,11 @@ export function placeLabel(diagram: Diagram, point: Point, forId?: number): Diag
  * element, at point: size 10, start-anchored, bottom-aligned (the default),
  * Arial, white, on the element's own layer — the Properties panel's "Add
  * name label" button, which places it to the element's right. Returns
- * diagram itself when the element has no name. */
+ * diagram itself when the element has no name or already has a label For
+ * it. */
 export function placeNameLabel(diagram: Diagram, elementId: number, point: Point): Diagram {
   const el = diagram.elements.find(e => e.id === elementId)
-  if (!el?.name) return diagram
+  if (!el?.name || diagram.labels.some(l => l.for === elementId)) return diagram
   const ids = new IdSequence(diagram)
   const label: Label = {
     id: ids.take(),

@@ -260,6 +260,7 @@ export const dictionary = {
   'properties.leadDistance': '{{distance}} ({{span}} between terminals)',
   'properties.leadCurrent': '{{span}} between terminals',
   'properties.addNameLabel': 'Add name label',
+  'properties.hasNameLabel': 'This element already has a label',
   'properties.mirror': 'Mirror',
   'properties.points': 'Points',
   'properties.pointX': 'Point {{n}} X',

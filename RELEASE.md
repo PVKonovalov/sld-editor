@@ -5025,3 +5025,7 @@ element, on its layer: size 10, anchor start, bottom-aligned, Arial, white
 element's drawn outline at its vertical centre, snapped to the grid when
 snapping (`lib/elementBox.ts` reads the outline from the rendered markup the
 way the canvas does). Disabled while the name is empty.
+
+2026-10-03: "Add name label" is disabled (tooltip "This element already has
+a label") once any label's `for` points at the element; `placeNameLabel`
+refuses it too.

@@ -256,6 +256,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.leadDistance': '{{distance}} ({{span}} между выводами)',
   'properties.leadCurrent': '{{span}} между выводами',
   'properties.addNameLabel': 'Добавить надпись с именем',
+  'properties.hasNameLabel': 'У элемента уже есть надпись',
   'properties.mirror': 'Отразить',
   'properties.points': 'Точки',
   'properties.pointX': 'Точка {{n}}, X',
