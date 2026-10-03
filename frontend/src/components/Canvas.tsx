@@ -25,9 +25,12 @@ const ROAD_SHAPE = '335'
 const LINE_SHAPE = '1'
 const POLYGON_SHAPE = '16'
 const CONTAINER_SHAPE = '310'
-// Shapes drawn pen-tool style, one click per vertex: Polygon, and Container
-// (a closed outline with a caption).
-const PEN_DRAWN_SHAPES: ReadonlySet<string> = new Set([POLYGON_SHAPE, CONTAINER_SHAPE])
+// Shapes drawn pen-tool style, one click per vertex: Polygon and Container
+// (a closed outline with a caption), and the open polylines Road and Line.
+const PEN_DRAWN_SHAPES: ReadonlySet<string> = new Set([POLYGON_SHAPE, CONTAINER_SHAPE, ROAD_SHAPE, LINE_SHAPE])
+// The pen-drawn shapes that stay open: no closing click on the first
+// vertex; double-click or Enter finishes them (2+ vertices).
+const OPEN_PEN_SHAPES: ReadonlySet<string> = new Set([ROAD_SHAPE, LINE_SHAPE])
 const ARC_SHAPE = '9'
 // An Arc's (shape 9) own bulge handle, alongside its two real Points'
 // own handles — a virtual point index for pointDrag, committed through
@@ -71,8 +74,6 @@ const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
   BUTTON_SHAPE,
   WINDOW_ICON_SHAPE,
   AUTOMATION_DEVICE_SHAPE,
-  ROAD_SHAPE,
-  LINE_SHAPE,
   ARC_SHAPE,
   TABLE_SHAPE,
 ])
@@ -497,6 +498,12 @@ export function Canvas() {
   const [topologyPick, setTopologyPick] = useState<{ mode: 'join' | 'wire'; from: ConnectTarget } | null>(null)
   const [vertexDrag, setVertexDrag] = useState<VertexDrag | null>(null)
   const [selectedVertex, setSelectedVertex] = useState<SelectedVertex | null>(null)
+  // One vertex of the selected Road/Line, picked by clicking its handle
+  // without dragging, so Delete/Backspace removes just it.
+  const [selectedPoint, setSelectedPoint] = useState<{ elementId: number; index: number } | null>(null)
+  useEffect(() => {
+    setSelectedPoint(p => (p && p.elementId === selectedElementId ? p : null))
+  }, [selectedElementId])
   const [elementBoxes, setElementBoxes] = useState<Map<number, ElementBox>>(new Map())
   const wrapperRef = useRef<HTMLDivElement>(null)
   // The diagram exactly as of the last successful render (full or
@@ -1093,6 +1100,10 @@ export function Canvas() {
           e.preventDefault()
           updateDiagram(d => diagramOps.removeConnectorVertex(d, selectedVertex.connectorId, selectedVertex.index))
           setSelectedVertex(null)
+        } else if (selectedPoint) {
+          e.preventDefault()
+          updateDiagram(d => diagramOps.removeElementPoint(d, selectedPoint.elementId, selectedPoint.index))
+          setSelectedPoint(null)
         } else if (
           selectedElementId !== null ||
           selectedConnectorId !== null ||
@@ -1110,6 +1121,7 @@ export function Canvas() {
           setRouting(null)
           setRoutingCursor(null)
         } else if (selectedVertex) setSelectedVertex(null)
+        else if (selectedPoint) setSelectedPoint(null)
         else if (contextMenu) setContextMenu(null)
         else if (armedSymbol) armSymbol(null)
         else if (armedWireKind) armWireKind(null)
@@ -1141,6 +1153,7 @@ export function Canvas() {
     contextMenu,
     routing,
     selectedVertex,
+    selectedPoint,
     updateDiagram,
     polygonDraft,
   ])
@@ -1387,7 +1400,7 @@ export function Canvas() {
   function handlePolygonClick(point: Point) {
     const p = snapPoint(point)
     const draft = polygonDraft ?? []
-    if (draft.length >= 3 && isPolygonClosePoint(draft, p)) {
+    if (!OPEN_PEN_SHAPES.has(armedSymbol?.shape ?? '') && draft.length >= 3 && isPolygonClosePoint(draft, p)) {
       finishPolygon(draft)
       return
     }
@@ -1405,9 +1418,22 @@ export function Canvas() {
   // (when it has at least 3 vertices), and disarms, single-shot like every
   // other armed symbol.
   function finishPolygon(draft: Point[]) {
-    if (draft.length < 3) return
-    const container = armedSymbol?.shape === CONTAINER_SHAPE
-    updateDiagram(d => (container ? diagramOps.placeContainer(d, draft) : diagramOps.placePolygon(d, draft)))
+    const shape = armedSymbol?.shape ?? ''
+    if (draft.length < (OPEN_PEN_SHAPES.has(shape) ? 2 : 3)) return
+    updateDiagram(d =>
+      shape === CONTAINER_SHAPE
+        ? diagramOps.placeContainer(d, draft)
+        : shape === ROAD_SHAPE
+          ? diagramOps.placeRoad(d, draft)
+          : shape === LINE_SHAPE
+            ? diagramOps.placeLine(
+                d,
+                draft,
+                defaultVoltage,
+                d.editor?.background ?? config?.editor?.background ?? diagramOps.DEFAULT_BACKGROUND,
+              )
+            : diagramOps.placePolygon(d, draft),
+    )
     setPolygonDraft(null)
     setPolygonCursor(null)
     armSymbol(null)
@@ -1527,6 +1553,8 @@ export function Canvas() {
     // here — and it must not fall through to add a connector bend point.
     if (PEN_DRAWN_SHAPES.has(armedSymbol?.shape ?? '')) {
       e.stopPropagation()
+      // An open Road/Line finishes on a double-click.
+      if (OPEN_PEN_SHAPES.has(armedSymbol?.shape ?? '') && polygonDraft) finishPolygon(polygonDraft)
       return
     }
     if (routing) {
@@ -1553,6 +1581,16 @@ export function Canvas() {
       setRoutingCursor(null)
       setConnectTarget(null)
       if (armedWireKind) armWireKind(null)
+      return
+    }
+    // A double-click on a Road/Line adds a bend there, like on a wire.
+    const elementHit = (e.target as HTMLElement).closest('[data-editor-kind="element"]') as HTMLElement | null
+    const polyline = elementHit ? diagram!.elements.find(el => el.id === Number(elementHit.id)) : undefined
+    if (polyline && diagramOps.POLYLINE_ELEMENT_CLASSES.has(polyline.class) && polyline.points && polyline.points.length >= 2) {
+      e.stopPropagation()
+      const { index, point } = nearestSegmentOnPolyline(polyline.points, toPoint(e.clientX, e.clientY))
+      updateDiagram(d => diagramOps.insertElementPoint(d, polyline.id, index, snapPoint(point)))
+      selectElement(polyline.id)
       return
     }
     const hit = (e.target as HTMLElement).closest('[data-editor-kind="connector"]') as HTMLElement | null
@@ -1759,6 +1797,7 @@ export function Canvas() {
     // (those stop propagation before this ever runs), so any such click
     // deselects whichever specific bend point was selected.
     if (selectedVertex) setSelectedVertex(null)
+    if (selectedPoint) setSelectedPoint(null)
 
     if (topologyPick) {
       e.stopPropagation()
@@ -1819,10 +1858,6 @@ export function Canvas() {
                         ? diagramOps.placeWindowIcon(d, start, snappedEnd)
                       : shape === AUTOMATION_DEVICE_SHAPE
                         ? diagramOps.placeAutomationDevice(d, start, snappedEnd)
-                      : shape === ROAD_SHAPE
-                        ? diagramOps.placeRoad(d, start, snappedEnd)
-                        : shape === LINE_SHAPE
-                          ? diagramOps.placeLine(d, start, snappedEnd)
                           : shape === ARC_SHAPE
                             ? diagramOps.placeArc(d, start, snappedEnd)
                             : shape === TABLE_SHAPE
@@ -1978,14 +2013,26 @@ export function Canvas() {
   // diagramOps.updateBusbarPoint).
   function handlePointMouseDown(e: React.MouseEvent, elementId: number, pointIndex: number) {
     e.stopPropagation()
+    const start = toPoint(e.clientX, e.clientY)
+    let moved = false
     const onMove = (ev: MouseEvent) => {
-      setPointDrag({ elementId, pointIndex, point: snapPoint(toPoint(ev.clientX, ev.clientY)) })
+      const p = toPoint(ev.clientX, ev.clientY)
+      if (Math.hypot(p.x - start.x, p.y - start.y) > 1) moved = true
+      setPointDrag({ elementId, pointIndex, point: snapPoint(p) })
     }
     const onUp = (ev: MouseEvent) => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
       const point = snapPoint(toPoint(ev.clientX, ev.clientY))
       setPointDrag(null)
+      // A Road/Line handle clicked without moving selects that vertex
+      // (Delete removes it) instead of re-committing it in place.
+      const el = diagram!.elements.find(x => x.id === elementId)
+      if (!moved && el && diagramOps.POLYLINE_ELEMENT_CLASSES.has(el.class)) {
+        setSelectedPoint({ elementId, index: pointIndex })
+        return
+      }
+      setSelectedPoint(null)
       updateDiagram(d =>
         pointIndex === ARC_BULGE_INDEX && d.elements.find(el => el.id === elementId)?.class === 'Arc'
           ? diagramOps.updateArcBulge(d, elementId, point)
@@ -2918,7 +2965,15 @@ export function Canvas() {
                         onMouseDown={e => handlePointMouseDown(e, selectedElement.id, i)}
                       >
                         <circle cx={pos.x} cy={pos.y} r={10} fill="transparent" />
-                        <rect x={pos.x - 5} y={pos.y - 5} width={10} height={10} fill="none" stroke="red" strokeWidth={1} />
+                        <rect
+                          x={pos.x - 5}
+                          y={pos.y - 5}
+                          width={10}
+                          height={10}
+                          fill={selectedPoint?.elementId === selectedElement.id && selectedPoint.index === i ? 'red' : 'none'}
+                          stroke="red"
+                          strokeWidth={1}
+                        />
                       </g>
                     )
                   })}
@@ -2977,7 +3032,7 @@ export function Canvas() {
                   {polygonDraft.map((p, i) => (
                     <rect key={i} x={p.x - 1.5} y={p.y - 1.5} width={3} height={3} fill={HIGHLIGHT} />
                   ))}
-                  {(() => {
+                  {!OPEN_PEN_SHAPES.has(armedSymbol?.shape ?? '') && (() => {
                     const closing = !!polygonCursor && isPolygonClosePoint(polygonDraft, polygonCursor)
                     return (
                       <circle

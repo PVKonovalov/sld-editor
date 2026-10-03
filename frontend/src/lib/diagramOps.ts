@@ -986,32 +986,33 @@ export function updateTable2CellText(diagram: Diagram, id: number, row: number, 
 
 // A freshly placed Road's own color/width — matching render.go's own
 // unset-Stroke/StrokeWidth fallback ("white"/8) explicitly, the same
-// reason ARROW_DEFAULTS spells theirs out. No fill (an open line, like
-// Arrow).
-const ROAD_DEFAULTS = { stroke: '#ffffff', strokeWidth: 8 }
+// reason ARROW_DEFAULTS spells theirs out — except the stroke, a road
+// brown (#A0451A) rather than render.go's white. No fill (an open line,
+// like Arrow).
+const ROAD_DEFAULTS = { stroke: '#A0451A', strokeWidth: 8 }
 
-/** Places a new Road spanning start..end — a purely decorative geographic
- * background line, not real electrical equipment (see slddoc's own
- * ClassRoad doc comment): no Voltage, no Ports, never a valid
- * routing target. Drawn from its own Points the same
- * drag-not-click way placeBusbar places a BusBarSection (this editor can
- * only draw a fresh Road as a straight two-point line this way — see
- * base.xml's own shape-335 entry — a Road extracted from a real multi-bend
- * file keeps every one of its own original vertices instead, editable one
- * at a time via the same per-point drag handle every other points-based
- * element already has). */
-export function placeRoad(diagram: Diagram, start: Point, end: Point): Diagram {
+/** Places a new Road through points (at least 2) — a purely decorative
+ * geographic background polyline, not real electrical equipment (see
+ * slddoc's own ClassRoad doc comment): no Voltage, no Ports, never a valid
+ * routing target. Canvas collects the points pen-tool style, one click per
+ * vertex (an open line, unlike Polygon); its bends are edited afterwards
+ * with insertElementPoint/removeElementPoint and the per-point handles. */
+export function placeRoad(diagram: Diagram, points: Point[]): Diagram {
+  if (points.length < 2) return diagram
   const ids = new IdSequence(diagram)
   const id = ids.take()
+  const first = points[0]
+  const last = points[points.length - 1]
   const element: DiagramElement = {
     id,
     class: 'Road',
     shape: '335',
     name: `Road-${id}`,
     layer: defaultLayer(diagram),
-    x: (start.x + end.x) / 2,
-    y: (start.y + end.y) / 2,
-    points: [start, end],
+    // Same first/last-vertex midpoint updateBusbarPoint keeps it at.
+    x: (first.x + last.x) / 2,
+    y: (first.y + last.y) / 2,
+    points,
     ...ROAD_DEFAULTS,
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
@@ -1019,31 +1020,68 @@ export function placeRoad(diagram: Diagram, start: Point, end: Point): Diagram {
 
 // A freshly placed Line's own color/width — matching render.go's own
 // unset-Stroke/StrokeWidth fallback ("black"/1) explicitly, the same
-// reason ROAD_DEFAULTS spells theirs out. No fill (an open line, like
+// reason ROAD_DEFAULTS spells theirs out (placeLine overrides the stroke
+// with the default voltage class's colour, or one contrasting with the
+// background). No fill (an open line, like
 // Arrow/Road); lineStyle left unset (solid, the real default either way).
 const LINE_DEFAULTS = { stroke: '#000000', strokeWidth: 1 }
 
-/** Places a new Line spanning start..end — a purely decorative generic
- * line, not real electrical equipment (see slddoc's own ClassLine doc
- * comment): no Voltage, no Ports, never a valid routing
- * target. Drawn from its own Points the same drag-not-click way
- * placeRoad places a Road (this editor can only draw a fresh Line as a
- * straight two-point line this way — see base.xml's own shape-1 entry —
- * a Line extracted from a real multi-bend file keeps every one of its
- * own original vertices instead, editable one at a time). */
-export function placeLine(diagram: Diagram, start: Point, end: Point): Diagram {
+// The diagram background new items are drawn against when it sets none —
+// slddoc's own defaultBackground.
+export const DEFAULT_BACKGROUND = '#12161d'
+
+/** White on a dark background, black on a light one, by perceived
+ * brightness. Reads #rgb, #rrggbb and rgb()/rgba(); anything else (a
+ * colour name) counts as dark, like the default background. */
+export function contrastColor(background: string): string {
+  const s = background.trim().toLowerCase()
+  let rgb: number[] | null = null
+  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/.exec(s)
+  if (hex) {
+    const h = hex[1].length === 3 ? [...hex[1]].map(c => c + c).join('') : hex[1]
+    rgb = [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16))
+  } else {
+    const fn = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/.exec(s)
+    if (fn) rgb = fn.slice(1, 4).map(Number)
+    else if (s === 'white') rgb = [255, 255, 255]
+  }
+  if (!rgb) return '#ffffff'
+  const brightness = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000
+  return brightness > 128 ? '#000000' : '#ffffff'
+}
+
+/** A new Line's stroke: the defaultVoltage class's colour, else the colour
+ * contrasting with background (the diagram's own when not given). */
+function newLineStroke(diagram: Diagram, defaultVoltage?: number, background?: string): string {
+  return (
+    diagram.voltageClasses.find(vc => vc.id === defaultVoltage)?.color ||
+    contrastColor(background ?? diagram.editor?.background ?? DEFAULT_BACKGROUND)
+  )
+}
+
+/** Places a new Line through points (at least 2) — a purely decorative
+ * generic polyline, not real electrical equipment (see slddoc's own
+ * ClassLine doc comment): no Voltage, no Ports, never a valid routing
+ * target. Drawn and edited the same way as placeRoad's Road. Its stroke is
+ * the colour of the defaultVoltage class (the one new devices get), else
+ * the colour contrasting with background (contrastColor). */
+export function placeLine(diagram: Diagram, points: Point[], defaultVoltage?: number, background?: string): Diagram {
+  if (points.length < 2) return diagram
   const ids = new IdSequence(diagram)
   const id = ids.take()
+  const first = points[0]
+  const last = points[points.length - 1]
   const element: DiagramElement = {
     id,
     class: 'Line',
     shape: '1',
     name: `Line-${id}`,
     layer: defaultLayer(diagram),
-    x: (start.x + end.x) / 2,
-    y: (start.y + end.y) / 2,
-    points: [start, end],
+    x: (first.x + last.x) / 2,
+    y: (first.y + last.y) / 2,
+    points,
     ...LINE_DEFAULTS,
+    stroke: newLineStroke(diagram, defaultVoltage, background),
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -1675,6 +1713,41 @@ function rerouteConnectorEnd(points: Point[], end: 'from' | 'to', newPoint: Poin
  * A no-op for any other class, or an out-of-range point index. Kept the
  * name "Busbar" for historical reasons (every caller predates Rectangle),
  * not because it's busbar-specific. */
+/** Element classes whose Points are an open polyline the user edits vertex
+ * by vertex (insertElementPoint/removeElementPoint). */
+export const POLYLINE_ELEMENT_CLASSES: ReadonlySet<string> = new Set(['Road', 'Line'])
+
+/** Inserts point as a new vertex of a Road/Line after points[segmentIndex]
+ * (the segment it lies on). The anchor stays the first/last-vertex
+ * midpoint, which an inner vertex doesn't change. */
+export function insertElementPoint(diagram: Diagram, id: number, segmentIndex: number, point: Point): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.id !== id || !POLYLINE_ELEMENT_CLASSES.has(e.class) || !e.points) return e
+      if (segmentIndex < 0 || segmentIndex >= e.points.length - 1) return e
+      const points = [...e.points.slice(0, segmentIndex + 1), point, ...e.points.slice(segmentIndex + 1)]
+      return { ...e, points }
+    }),
+  }
+}
+
+/** Removes vertex pointIndex of a Road/Line, keeping at least 2; removing
+ * an end recomputes the first/last-vertex midpoint anchor. */
+export function removeElementPoint(diagram: Diagram, id: number, pointIndex: number): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.id !== id || !POLYLINE_ELEMENT_CLASSES.has(e.class) || !e.points || e.points.length <= 2) return e
+      if (pointIndex < 0 || pointIndex >= e.points.length) return e
+      const points = e.points.filter((_, i) => i !== pointIndex)
+      const first = points[0]
+      const last = points[points.length - 1]
+      return { ...e, points, x: (first.x + last.x) / 2, y: (first.y + last.y) / 2 }
+    }),
+  }
+}
+
 export function updateBusbarPoint(diagram: Diagram, id: number, pointIndex: number, point: Point): Diagram {
   return joinBusbar(reshapePoints(diagram, id, pointIndex, point), id)
 }

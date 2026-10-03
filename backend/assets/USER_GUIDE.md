@@ -82,8 +82,12 @@ A plain left-drag on empty canvas does not pan: it draws a selection frame.
 
 Some elements are drawn instead of clicked:
 
-- **Busbar**, **Line**, **Road**, **Arrow**, **Rectangle**, **Small window**, **Circle**, **Button**, **Window icon**,
-  **Table**, **Arc**: press on the canvas and drag from one corner or end to the other.
+- **Busbar**, **Arrow**, **Rectangle**, **Small window**, **Circle**, **Button**, **Window icon**, **Table**, **Arc**:
+  press on the canvas and drag from one corner or end to the other.
+- **Line**, **Road**: click once per point. Double-click (or press **Enter**) to finish, once there are at least two
+  points; **Backspace** removes the last point, **Esc** cancels. Afterwards, double-click the line to add a bend there,
+  drag a point's square handle to move it, or click the handle (it fills in) and press **Delete** to remove that point
+  (at least two stay).
 - **Polygon**, **Container**: click once per corner. Click the first corner again (or press **Enter**) to close it,
   **Backspace** removes the last corner, **Esc** cancels. A container is a frame drawn around a group of equipment
   (usually dotted) with a caption; Properties sets the caption's text, position, size, color and rotation. Pressing on
@@ -262,10 +266,10 @@ the diagram.
 | --- | --- |
 | **Ctrl+C** / **Cmd+C** | Copy the selection |
 | **Ctrl+V** / **Cmd+V** | Paste, offset from the original |
-| **Delete** / **Backspace** | Delete the selection (or the selected bend of a wire) |
+| **Delete** / **Backspace** | Delete the selection (or the selected bend of a wire, or point of a line or road) |
 | **Esc** | Cancel the current tool or wire; otherwise clear the selection |
 | **Space** (hold) | Pan by dragging |
-| **Enter** | Close the polygon being drawn |
+| **Enter** | Close the polygon being drawn, or finish the line or road being drawn |
 | **Shift** / **Ctrl** / **Cmd** + click | Add or remove an item from the selection |
 | **Alt** / **Option** + drag | Duplicate the dragged item or selection |
 

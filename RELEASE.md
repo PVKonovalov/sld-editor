@@ -5029,3 +5029,33 @@ way the canvas does). Disabled while the name is empty.
 2026-10-03: "Add name label" is disabled (tooltip "This element already has
 a label") once any label's `for` points at the element; `placeNameLabel`
 refuses it too.
+
+2026-10-03: Road (335) and Line (1) as multi-point polylines. Both were
+drawn only as a straight two-point drag. They are now drawn with the pen
+tool Polygon/Container use, left open: one click per point, double-click or
+Enter finishes (2+ points), Backspace removes the last point, Esc cancels
+(Canvas `OPEN_PEN_SHAPES`; `placeRoad`/`placeLine` take a point list). A
+placed one is edited like a wire: double-click a segment to insert a point
+(`diagramOps.insertElementPoint`), click a point handle without dragging to
+select it (it fills in) and Delete/Backspace removes it, keeping at least two
+(`removeElementPoint`); the anchor stays the first/last-point midpoint.
+Rendering already drew any number of points.
+
+2026-10-03: A new Line (shape 1) is drawn in the default voltage class's
+colour (the class new devices and wires get) instead of always black; black
+remains the fallback when no default voltage is set. Its colour is still
+editable in Properties.
+
+2026-10-03: With no default voltage class, a new Line is drawn in the
+colour contrasting with the diagram background (white on a dark one, black
+on a light one, by perceived brightness; `diagramOps.contrastColor`) instead
+of always black.
+
+2026-10-03: A new Road (shape 335) is coloured like a new Line: the default
+voltage class's colour, else the colour contrasting with the diagram
+background (`diagramOps.newLineStroke`, shared by `placeRoad`/`placeLine`),
+instead of always white. Its width stays 8.
+
+2026-10-03: A new Road's default colour is #A0451A (road brown), replacing
+the previous entry's default-voltage/contrast colouring for Roads (Lines keep
+it). Width stays 8.
