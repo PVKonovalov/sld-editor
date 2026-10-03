@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { TransformWrapper, TransformComponent, useControls } from 'react-zoom-pan-pinch'
+import { TransformWrapper, TransformComponent, useControls, type ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
 import { useDiagramContext, type SelectionKind } from '../state/useDiagramContext'
 import * as api from '../lib/api'
@@ -121,6 +121,12 @@ const BOX_HIGHLIGHT_PAD = 6
 // Screen pixels a press must travel before it counts as drawing a
 // selection frame rather than a plain click on empty canvas.
 const MARQUEE_MIN_DRAG = 4
+// The move/frame modifier: Cmd on macOS, where Ctrl-click opens the
+// context menu; Ctrl (or Cmd) elsewhere.
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
+function hasMoveModifier(e: { ctrlKey: boolean; metaKey: boolean }): boolean {
+  return IS_MAC ? e.metaKey : e.ctrlKey || e.metaKey
+}
 // Grid steps a keyboard paste lands right and down from the original.
 const PASTE_OFFSET_STEPS = 2
 
@@ -168,6 +174,9 @@ function segmentCrossesBox(a: Point, b: Point, box: Box): boolean {
   })
 }
 const BOX_HIT_PAD = 2
+// Click tolerance around a wire, in screen pixels (so it stays the same at
+// any zoom): a wire renders as a bare 1px polyline, too thin to hit exactly.
+const CONNECTOR_HIT_PX = 5
 
 type Ghost = { ids: number[]; dx: number; dy: number }
 type NewBusbar = { start: Point; current: Point }
@@ -464,9 +473,12 @@ export function Canvas() {
   // the copied group sat (diagramOps.selectionCentroid) and pastes how many
   // times Ctrl/Cmd+V has pasted it, for the growing paste offset.
   const [clipboard, setClipboard] = useState<{ template: Diagram; centroid: Point; pastes: number } | null>(null)
-  // Space held: left-drag pans the view instead of drawing a selection
-  // frame (see the TransformWrapper's panning prop).
+  // Space held: left-drag pans through the TransformWrapper's own
+  // panning even while a tool is armed (see its panning prop).
   const [spaceHeld, setSpaceHeld] = useState(false)
+  // A plain left-drag pans the view (startPanOrClick), through this ref.
+  const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
+  const [panning, setPanning] = useState(false)
   // An in-progress selection frame (left-drag from empty canvas): start/
   // current in diagram units; crossing when dragged right-to-left (picks
   // whatever it touches) rather than left-to-right (only what's fully
@@ -695,10 +707,10 @@ export function Canvas() {
     return hits
   }
 
-  // A left-drag from empty canvas: draws the selection frame and, on
-  // release, selects what it picked (added to the current selection with
-  // Shift/Ctrl/Cmd). A release within a few pixels of the press is a plain
-  // click on empty canvas instead: it clears the selection, as before.
+  // A Ctrl/Cmd-drag from empty canvas: draws the selection frame and, on
+  // release, selects what it picked (added to the current selection when
+  // additive). A release within a few pixels of the press selects nothing
+  // new; a non-additive one clears the selection.
   function startMarquee(point: Point, clientX: number, clientY: number, additive: boolean) {
     const base = additive ? new Map(selection) : new Map<number, SelectionKind>()
     const onMove = (ev: MouseEvent) => {
@@ -718,6 +730,68 @@ export function Canvas() {
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+  }
+
+  // A plain left press, on an item or on empty canvas: dragging past
+  // MARQUEE_MIN_DRAG pans the whole view; releasing before that is a click,
+  // which selects item (Shift toggles it) or, on empty canvas, clears the
+  // selection.
+  function startPanOrClick(
+    clientX: number,
+    clientY: number,
+    item: { id: number; kind: SelectionKind } | null,
+    toggle: boolean,
+  ) {
+    const zoom = transformRef.current
+    const start = zoom ? { ...zoom.instance.state } : null
+    let moved = false
+    const onMove = (ev: MouseEvent) => {
+      const dx = ev.clientX - clientX
+      const dy = ev.clientY - clientY
+      if (!moved && Math.hypot(dx, dy) < MARQUEE_MIN_DRAG) return
+      if (!moved) setPanning(true)
+      moved = true
+      if (zoom && start) zoom.setTransform(start.positionX + dx, start.positionY + dy, start.scale, 0)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      if (moved) {
+        setPanning(false)
+        return
+      }
+      if (!item) selectElement(null)
+      else if (toggle) toggleSelection(item.id, item.kind)
+      else selectItem(item.id, item.kind)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // A Ctrl/Cmd press on an item: dragging past MARQUEE_MIN_DRAG moves it
+  // (or the whole selection it belongs to, startGroupDrag); releasing
+  // before that toggles it in the selection.
+  function startModifierDrag(point: Point, clientX: number, clientY: number, id: number, kind: SelectionKind) {
+    const onMove = (ev: MouseEvent) => {
+      if (Math.hypot(ev.clientX - clientX, ev.clientY - clientY) < MARQUEE_MIN_DRAG) return
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      startGroupDrag(point, id, kind)
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      toggleSelection(id, kind)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  function selectItem(id: number, kind: SelectionKind) {
+    if (kind === 'element') selectElement(id)
+    else if (kind === 'connector') selectConnector(id)
+    else if (kind === 'label') selectLabel(id)
+    else selectDigitalDevice(id)
   }
 
   // Every item in after that before didn't have: what a paste/duplicate
@@ -1039,6 +1113,27 @@ export function Canvas() {
   useLayoutEffect(() => {
     if (renderedRef.current && diagram) fillPictureHrefs(renderedRef.current, diagram)
   }, [svg, diagram, patchVersion])
+
+  /** Finds the visible connector nearest point within CONNECTOR_HIT_PX
+   * screen pixels of one of its segments; null if none is. The click
+   * fallback for a press that missed every rendered node. */
+  function findConnectorNearHit(point: Point): number | null {
+    const rect = wrapperRef.current?.getBoundingClientRect()
+    if (!rect || rect.width === 0) return null
+    const tolerance = (CONNECTOR_HIT_PX * diagram!.width) / rect.width
+    let bestId: number | null = null
+    let bestDist = tolerance
+    for (const c of diagram!.connectors) {
+      if (isHidden(c) || c.points.length < 2) continue
+      const { point: nearest } = nearestSegmentOnPolyline(c.points, point)
+      const dist = Math.hypot(nearest.x - point.x, nearest.y - point.y)
+      if (dist <= bestDist) {
+        bestDist = dist
+        bestId = c.id
+      }
+    }
+    return bestId
+  }
 
   /** Finds the smallest (by area) symbol element whose own real bounding
    * box — padded by BOX_HIT_PAD for click tolerance — contains point;
@@ -1937,72 +2032,53 @@ export function Canvas() {
     // its real drawn geometry, no fallback needed.
     let hitKind = hit?.dataset.editorKind
     let hitId = hit ? Number(hit.id) : NaN
-    // Shift or Ctrl/Cmd adds to/removes from the selection.
-    const toggles = e.shiftKey || e.ctrlKey || e.metaKey
+    const moveMod = hasMoveModifier(e)
     if (!hit) {
-      const boxHit = findElementBoxHit(point)
-      if (boxHit === null) {
-        // Inside a multi-selection's group box (between its items):
-        // drags the whole group. Anywhere else: starts a selection frame.
+      // A wire is checked first: it's a precise distance test, while an
+      // element's padded box can reach over a wire running next to it.
+      const connectorHit = findConnectorNearHit(point)
+      const boxHit = connectorHit === null ? findElementBoxHit(point) : null
+      if (connectorHit !== null) {
+        hitKind = 'connector'
+        hitId = connectorHit
+      } else if (boxHit !== null) {
+        hitKind = 'element'
+        hitId = boxHit
+      } else if (moveMod) {
+        // Ctrl/Cmd inside a multi-selection's group box (between its
+        // items) drags the whole group; anywhere else it starts a
+        // selection frame that adds to the selection.
         const box = selection.size > 1 ? selectionBox() : null
-        if (box && !toggles && pointInBox(point, box)) {
+        if (box && pointInBox(point, box)) {
           e.stopPropagation()
           const [id, kind] = [...selection][0]
           startGroupDrag(point, id, kind)
           return
         }
-        startMarquee(point, e.clientX, e.clientY, toggles)
+        startMarquee(point, e.clientX, e.clientY, true)
+        return
+      } else {
+        startPanOrClick(e.clientX, e.clientY, null, false)
         return
       }
-      hitKind = 'element'
-      hitId = boxHit
     }
     e.stopPropagation()
+    if (hitKind !== 'element' && hitKind !== 'connector' && hitKind !== 'label' && hitKind !== 'digitaldevice') return
+    const kind: SelectionKind = hitKind
 
     // Alt/Option-drag duplicates: the whole selection when the item is part
     // of it, otherwise just this item.
-    if (e.altKey && (hitKind === 'element' || hitKind === 'connector' || hitKind === 'label' || hitKind === 'digitaldevice')) {
-      startDuplicateDrag(point, hitId, hitKind)
+    if (e.altKey) {
+      startDuplicateDrag(point, hitId, kind)
       return
     }
 
-    if (hitKind === 'connector') {
-      if (toggles) {
-        toggleSelection(hitId, 'connector')
-        return
-      }
-      startGroupDrag(point, hitId, 'connector')
+    // Ctrl/Cmd-drag moves the item (or its selection); a plain drag pans.
+    if (moveMod) {
+      startModifierDrag(point, e.clientX, e.clientY, hitId, kind)
       return
     }
-
-    if (hitKind === 'label') {
-      if (toggles) {
-        toggleSelection(hitId, 'label')
-        return
-      }
-      startGroupDrag(point, hitId, 'label')
-      return
-    }
-
-    if (hitKind === 'digitaldevice') {
-      if (toggles) {
-        toggleSelection(hitId, 'digitaldevice')
-        return
-      }
-      startGroupDrag(point, hitId, 'digitaldevice')
-      return
-    }
-
-    const elementId = hitId
-
-    // Shift- or Ctrl/Cmd-click toggles this element in/out of the
-    // multi-selection instead of replacing it or starting a drag.
-    if (toggles) {
-      toggleSelection(elementId, 'element')
-      return
-    }
-
-    startGroupDrag(point, elementId, 'element')
+    startPanOrClick(e.clientX, e.clientY, { id: hitId, kind }, e.shiftKey)
   }
 
   // Starts dragging one endpoint of a selected busbar's Points, from its
@@ -2354,6 +2430,7 @@ export function Canvas() {
         </div>
       )}
       <TransformWrapper
+        ref={transformRef}
         minScale={0.1}
         maxScale={8}
         limitToBounds={false}
@@ -2387,7 +2464,9 @@ export function Canvas() {
               position: 'relative',
               width: diagram.width,
               height: diagram.height,
-              cursor: spaceHeld
+              cursor: panning
+                ? 'grabbing'
+                : spaceHeld
                 ? 'grab'
                 : armedSymbol || armedWireKind || armedLabel || armedDigitalDevice || armedCustomElement || routing || topologyPick
                   ? 'crosshair'

@@ -70,9 +70,9 @@ marked as changed. Save it to keep the repair.
 | --- | --- |
 | Zoom | Mouse wheel, or the zoom buttons |
 | Fit the page | The bottom zoom button |
-| Pan | Hold **Space** and drag, or drag with the **middle mouse button** |
+| Pan | Drag with the left mouse button anywhere, on empty canvas or on an item. Dragging with the **middle mouse button**, or holding **Space** and dragging, also pans (even while a tool is armed) |
 
-A plain left-drag on empty canvas does not pan: it draws a selection frame.
+A plain left-drag never moves an item: hold **Ctrl** (**Cmd** on a Mac) to move it (see *Moving, copying and deleting*).
 
 ## Placing elements
 
@@ -91,7 +91,7 @@ Some elements are drawn instead of clicked:
 - **Polygon**, **Container**: click once per corner. Click the first corner again (or press **Enter**) to close it,
   **Backspace** removes the last corner, **Esc** cancels. A container is a frame drawn around a group of equipment
   (usually dotted) with a caption; Properties sets the caption's text, position, size, color and rotation. Pressing on
-  the empty space inside a container still starts a selection frame; grab a container by its outline or caption.
+  the empty space inside a container pans the canvas; to move a container, **Ctrl**/**Cmd**-drag its outline or caption.
 - **Backdrop/image file**: drag a frame, then pick an image file (PNG, JPEG, BMP, SVG…) in the dialog that opens.
   The picture is stretched over the frame and saved inside the diagram file. It is placed beneath everything else, so
   it can serve as a backdrop. Until an image is chosen the frame is drawn dashed. In Properties, **Replace image…**
@@ -109,19 +109,19 @@ or another device's terminal on the same point), red where the terminal is still
 | --- | --- |
 | Select one item | Click it |
 | Add or remove an item | **Shift**-click or **Ctrl**-click (**Cmd**-click on a Mac) |
-| Select everything inside an area | Drag **left → right** from empty canvas: a solid frame picks only items fully inside it |
-| Select everything an area touches | Drag **right → left** from empty canvas: a dashed frame picks every item it touches |
-| Add a frame to the current selection | Hold **Shift** or **Ctrl**/**Cmd** while dragging the frame |
+| Select everything inside an area | Hold **Ctrl** (**Cmd** on a Mac) and drag **left → right** from empty canvas: a solid frame picks only items fully inside it |
+| Select everything an area touches | Hold **Ctrl** (**Cmd** on a Mac) and drag **right → left** from empty canvas: a dashed frame picks every item it touches |
 | Clear the selection | Click empty canvas, or press **Esc** |
 
-While the frame is being dragged, the items it would pick are highlighted. When more than one item is selected, a
+While the frame is being dragged, the items it would pick are highlighted. The frame adds to the current
+selection (click empty canvas first to start over). When more than one item is selected, a
 dashed box is drawn around the whole group, and Properties shows how many items are selected.
 
 ## Moving, copying and deleting
 
 | Action | How |
 | --- | --- |
-| Move | Drag an item. Dragging any item of a multi-selection, or empty space inside its dashed box, moves the whole group |
+| Move | Hold **Ctrl** (**Cmd** on a Mac) and drag an item. Ctrl/Cmd-dragging any item of a multi-selection, or empty space inside its dashed box, moves the whole group. Without the key a drag pans the canvas |
 | Duplicate by dragging | Hold **Alt** (**Option** on a Mac) and drag an item: a copy follows the cursor and the original stays. With a multi-selection, the whole group is copied |
 | Copy | **Ctrl+C** (**Cmd+C**), or right-click → **Copy** |
 | Paste | **Ctrl+V** (**Cmd+V**) pastes the copy two grid steps down and to the right of the original, a step further with each paste. Right-click → **Paste** pastes it where you clicked |
@@ -166,7 +166,7 @@ automatic name (`Overhead line-12`).
 
 ### Editing a wire
 
-Select a wire to show its handles:
+Select a wire to show its handles (a click within a few pixels of a wire counts as a click on it):
 
 - Drag a square handle to move a bend; the wire stays orthogonal.
 - Drag a round handle (the middle of a segment) to add a bend there, or double-click the wire.
@@ -268,9 +268,10 @@ the diagram.
 | **Ctrl+V** / **Cmd+V** | Paste, offset from the original |
 | **Delete** / **Backspace** | Delete the selection (or the selected bend of a wire, or point of a line or road) |
 | **Esc** | Cancel the current tool or wire; otherwise clear the selection |
-| **Space** (hold) | Pan by dragging |
+| **Space** (hold) | Pan by dragging, even while a tool is armed |
 | **Enter** | Close the polygon being drawn, or finish the line or road being drawn |
-| **Shift** / **Ctrl** / **Cmd** + click | Add or remove an item from the selection |
+| **Shift** / **Ctrl** / **Cmd** + click | Add or remove an item from the selection (on a Mac: **Shift** or **Cmd**) |
+| **Ctrl** / **Cmd** + drag | Move the dragged item or selection; from empty canvas, draw a selection frame |
 | **Alt** / **Option** + drag | Duplicate the dragged item or selection |
 
 Shortcuts are ignored while typing in a text field.

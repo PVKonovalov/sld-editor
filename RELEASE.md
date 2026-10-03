@@ -5059,3 +5059,28 @@ instead of always white. Its width stays 8.
 2026-10-03: A new Road's default colour is #A0451A (road brown), replacing
 the previous entry's default-voltage/contrast colouring for Roads (Lines keep
 it). Width stays 8.
+
+2026-10-03: Russian UI: connector kind BusWork (xsde2svg type 21) is now
+translated as "Oshinovka" (buswork) instead of "Provod" (wire), in the
+palette, Properties and the Russian user guide, matching the existing
+"Start buswork" context-menu translation.
+
+2026-10-03: Wires are easier to click. A wire renders as a bare 1px
+polyline, so a click had to land exactly on it; one slightly off fell
+through to the canvas, started an empty selection frame, and left the wire
+unselected. A press that misses every rendered node now picks the visible
+wire within 5 screen pixels of the cursor (any zoom), checked before the
+element bounding-box fallback (Canvas `findConnectorNearHit`).
+
+2026-10-03: Left-drag pans. A plain left-drag anywhere on the canvas, on
+empty space or on an item, now pans the whole view; a click without
+dragging still selects the item (Shift toggles) or clears the selection on
+empty canvas. Items move with Ctrl+drag (Cmd+drag on macOS, where
+Ctrl-click opens the context menu), which moves the whole selection when
+the item is part of it; Ctrl/Cmd-click without dragging toggles the item.
+The selection frame moved from a plain drag to Ctrl/Cmd+drag from empty
+canvas and always adds to the current selection. Middle-button and
+Space+drag panning are unchanged, and selection handles (wire bends/ends,
+busbar/Road/Line points) still drag without a modifier. Canvas
+`startPanOrClick`/`startModifierDrag`/`hasMoveModifier`; English and
+Russian user guides updated.

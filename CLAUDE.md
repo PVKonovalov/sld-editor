@@ -143,11 +143,18 @@ storage and the Gin API.
     A Picture's (shape 11) embedded image (`href`, a data URI) is stripped from both requests (`lib/picture.ts`);
     Interactive render writes its `<image>` without an href and the canvas fills it in from state after each render.
   - **Dragging:** mutates the rendered DOM directly and commits to diagram state on mouseup.
-  - **Selection:** click; Shift or Ctrl/Cmd-click toggles (`toggleSelection`); a left-drag from empty canvas draws a
-    selection frame (`startMarquee`/`marqueeHits`: left→right picks only what's fully inside, right→left anything it
-    touches; the result is set with the context's `selectMany`). A multi-selection gets one dashed group box
-    (`selectionBox`, no handles) that can be dragged from its empty space. Left-drag therefore never pans: panning
-    is Space+drag or the middle button (the `TransformWrapper`'s `panning` prop, `spaceHeld`).
+  - **Selection and panning:** a plain left press (on an item or empty canvas) goes through `startPanOrClick`:
+    dragging pans the whole view (`transformRef.setTransform`), releasing without moving selects the item (Shift
+    toggles) or, on empty canvas, clears the selection. Plain left-drag never moves an item. The move/frame
+    modifier is Ctrl/Cmd, Cmd only on macOS (`hasMoveModifier`, since Ctrl-click opens the context menu there):
+    Ctrl/Cmd on an item drags it or its whole selection (`startModifierDrag` → `startGroupDrag`, a release without
+    moving toggles it), Ctrl/Cmd from empty canvas draws an additive selection frame (`startMarquee`/`marqueeHits`:
+    left→right picks only what's fully inside, right→left anything it touches; set with the context's
+    `selectMany`), and Ctrl/Cmd inside a multi-selection's dashed group box (`selectionBox`, no handles) drags the
+    group. A press that misses every rendered node still hits a wire within `CONNECTOR_HIT_PX` screen pixels
+    (`findConnectorNearHit`) or an element's padded box (`findElementBoxHit`). Selection handles (wire bends/ends,
+    busbar/Road/Line points) drag plainly. Space+drag and the middle button pan through the `TransformWrapper`'s
+    own `panning` prop, also while a tool is armed.
   - **Copy/duplicate:** Ctrl/Cmd+C/V (paste offset `PASTE_OFFSET_STEPS` grid steps from the original,
     `selectionCentroid`), right-click Copy/Paste, and Alt-drag (`startDuplicateDrag`: cloned DOM preview, copy placed
     on release). All place through `placeCustomElement` and select the copy (`placeCopy`/`addedItems`).

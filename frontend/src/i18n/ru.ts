@@ -103,7 +103,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'elements.customGroup': 'Пользовательские элементы',
   'elements.customArmedHint': 'Щёлкните на схеме, чтобы разместить «{{name}}». Esc — отмена.',
   'connectorKind.BusbarWire': 'Шинный провод',
-  'connectorKind.BusWork': 'Провод',
+  'connectorKind.BusWork': 'Ошиновка',
   'connectorKind.OverheadLine': 'Воздушная линия',
   'connectorKind.CableLine': 'Кабельная линия',
   'connectorKind.LinkToObject': 'Связь с объектом',
