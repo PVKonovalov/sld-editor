@@ -209,7 +209,8 @@ place like a single element.
 
 Select a single item to edit it in the Properties panel:
 
-- **Devices**: name, voltage class, state (for switching devices), orientation and mirror, **Size** (the xsde2svg size
+- **Devices**: name (the caption icon beside it adds a text label with the name, linked to the device and placed to
+  its right: size 10, left-aligned, bottom anchor, Arial, white), voltage class, state (for switching devices), orientation and mirror, **Size** (the xsde2svg size
   step: 0 is the library size, each step √2 larger; its terminals and wires move along), **Leads** for breakers,
   disconnectors and fuses (xsde2svg's lead distance 2, 3 or 4: the terminals end up that many grid steps apart when
   **Snap to grid** is on, or that many times 10 when it is off, scaled by the size step; the grid step in force when

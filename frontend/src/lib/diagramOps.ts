@@ -2733,6 +2733,30 @@ export function placeLabel(diagram: Diagram, point: Point, forId?: number): Diag
   return { ...diagram, lastId: ids.lastId, labels: [...diagram.labels, label] }
 }
 
+/** Adds a text label (shape 5) showing element elementId's name, For that
+ * element, at point: size 10, start-anchored, bottom-aligned (the default),
+ * Arial, white, on the element's own layer — the Properties panel's "Add
+ * name label" button, which places it to the element's right. Returns
+ * diagram itself when the element has no name. */
+export function placeNameLabel(diagram: Diagram, elementId: number, point: Point): Diagram {
+  const el = diagram.elements.find(e => e.id === elementId)
+  if (!el?.name) return diagram
+  const ids = new IdSequence(diagram)
+  const label: Label = {
+    id: ids.take(),
+    for: el.id,
+    layer: el.layer,
+    x: point.x,
+    y: point.y,
+    size: 10,
+    anchor: 'start',
+    font: 'Arial',
+    color: 'white',
+    text: el.name,
+  }
+  return { ...diagram, lastId: ids.lastId, labels: [...diagram.labels, label] }
+}
+
 /** Translates a label's own anchor by (dx, dy). */
 export function moveLabel(diagram: Diagram, id: number, dx: number, dy: number): Diagram {
   return {

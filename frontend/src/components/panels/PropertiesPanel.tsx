@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react'
+import { Captions, Trash2 } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { PanelShell } from './PanelShell'
@@ -6,6 +6,7 @@ import { LayersSection, VoltageClassesSection } from './DiagramSections'
 import { DiagramFileSection } from './DiagramFileSection'
 import { PictureSection } from './PictureSection'
 import { ConnectionsSection } from './ConnectionsSection'
+import { elementDiagramBox } from '../../lib/elementBox'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
 import { CONNECTOR_KIND_CODES, LABEL_SHAPE, DIGITAL_DEVICE_SHAPE } from '../../lib/paletteItem'
@@ -952,6 +953,21 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     isTable ||
     isTable2
 
+  // "Add name label": a label with the element's name, For it, placed to
+  // its right — one grid step past its drawn outline, at its vertical
+  // centre, on the grid when snapping.
+  function addNameLabel() {
+    const grid = diagram!.editor?.gridSpacing ?? config?.editor.gridSpacing ?? 10
+    const box = elementDiagramBox(el, elements)
+    let x = box.x + box.width + grid
+    let y = box.y + box.height / 2
+    if (snapEnabled) {
+      x = Math.ceil((box.x + box.width + grid / 2) / grid) * grid
+      y = Math.round(y / grid) * grid
+    }
+    updateDiagram(d => diagramOps.placeNameLabel(d, el.id, { x, y }))
+  }
+
   // Re-fits the element's fixed ports afterward, so a change that moves
   // its terminals (orientation, mirror, position, a Fork's size, a
   // transformer's winding count) carries its port nodes and the wire ends
@@ -971,14 +987,29 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
       <div className="space-y-3">
         <p className="text-xs text-gray-400">{typeLabel}</p>
-        <label className="block text-xs">
-          <span className="block text-gray-400 mb-1">{t('properties.name')}</span>
+        <div className="text-xs">
+          <div className="flex items-center justify-between mb-1">
+            <label htmlFor="element-name" className="text-gray-400">
+              {t('properties.name')}
+            </label>
+            <button
+              type="button"
+              title={t('properties.addNameLabel')}
+              aria-label={t('properties.addNameLabel')}
+              disabled={!el.name}
+              onClick={addNameLabel}
+              className="text-gray-400 hover:text-white disabled:text-gray-600 disabled:hover:text-gray-600"
+            >
+              <Captions size={14} />
+            </button>
+          </div>
           <input
+            id="element-name"
             className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
             value={el.name ?? ''}
             onChange={e => patch({ name: e.target.value })}
           />
-        </label>
+        </div>
 
         {!hasNoVoltage && (
           <label className="block text-xs">

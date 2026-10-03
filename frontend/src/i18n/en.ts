@@ -259,6 +259,7 @@ export const dictionary = {
   'properties.leadSpan': 'Leads',
   'properties.leadDistance': '{{distance}} ({{span}} between terminals)',
   'properties.leadCurrent': '{{span}} between terminals',
+  'properties.addNameLabel': 'Add name label',
   'properties.mirror': 'Mirror',
   'properties.points': 'Points',
   'properties.pointX': 'Point {{n}} X',

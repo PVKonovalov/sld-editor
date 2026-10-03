@@ -5017,3 +5017,11 @@ wire point, as routing finds it; Esc cancels; a hint shows while picking).
 second's, a mid-wire point splitting that wire), for imported drawings that
 touch without being connected; "Create wire to…" draws a Buswork wire
 between them (Canvas `commitRoute`, now shared with routing).
+
+2026-10-03: "Add name label" button. A caption icon beside an element's
+Name in Properties adds a text label (shape 5) with that name, `for` the
+element, on its layer: size 10, anchor start, bottom-aligned, Arial, white
+(`diagramOps.placeNameLabel`). It is placed one grid step right of the
+element's drawn outline at its vertical centre, snapped to the grid when
+snapping (`lib/elementBox.ts` reads the outline from the rendered markup the
+way the canvas does). Disabled while the name is empty.
