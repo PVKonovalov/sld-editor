@@ -250,6 +250,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.connectionNotConnected': 'не подключён',
   'properties.connectionFreeEnd': 'свободный конец',
   'properties.connectionsHint': 'Щёлкните по элементу, чтобы выделить его.',
+  'properties.size': 'Размер',
+  'properties.sizeStep': '{{step}} (×{{factor}})',
   'properties.mirror': 'Отразить',
   'properties.points': 'Точки',
   'properties.pointX': 'Точка {{n}}, X',

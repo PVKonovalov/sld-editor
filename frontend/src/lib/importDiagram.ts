@@ -16,7 +16,8 @@ export interface PreparedImport {
 
 /** Parses an .xsld as-is, or reconstructs a diagram from an xsde2svg-style
  * .svg (slddoc.Extract, with editor.defaultVoltage defaulted to its most-used
- * extracted voltage class, since Extract never sets one), then applies the
+ * extracted voltage class, since Extract never sets one, and each element's
+ * size step recovered by inferSizeSteps), then applies the
  * same fixes opening a diagram does: ensureLastId, applyPresetVoltageNames and
  * normalizeTopology.
  * Rejects for an unsupported extension. */
@@ -32,7 +33,9 @@ export async function prepareImport(
   let report: ImportReport | null = null
   if (kind === 'svg') {
     const extracted = await api.importDiagramSVG(text)
-    raw = extracted.diagram
+    // Extract reads each element's real port positions but not its size
+    // step, so recover the step from where those ports sit.
+    raw = diagramOps.inferSizeSteps(extracted.diagram, symbols)
     report = extracted.report
     const voltage = diagramOps.mostUsedVoltage(raw)
     if (voltage !== undefined && raw.editor?.defaultVoltage === undefined) {

@@ -47,6 +47,10 @@ type Symbol struct {
 	Name      string         `xml:"name,attr" json:"name"`
 	Terminals []slddoc.Point `xml:"terminals>terminal,omitempty" json:"terminals,omitempty"`
 	Template  string         `xml:"template" json:"template"`
+	// Scalable is whether an element of this symbol takes a size step
+	// (slddoc.Element.Scale, slddoc.UsesSizeStep): true when it is drawn
+	// from Template. Derived from Class on Load, never read from the file.
+	Scalable bool `xml:"-" json:"scalable,omitempty"`
 }
 
 type rawLibrary struct {
@@ -73,6 +77,7 @@ func Load(data []byte) (*Library, error) {
 		if s.Shape == "" {
 			return nil, fmt.Errorf("elements: symbol %q missing shape attribute", s.Name)
 		}
+		s.Scalable = slddoc.UsesSizeStep(slddoc.Class(s.Class))
 		lib.Symbols = append(lib.Symbols, s)
 	}
 	return lib, nil

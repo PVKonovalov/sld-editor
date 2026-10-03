@@ -1005,12 +1005,15 @@ export function Canvas() {
       } catch {
         continue // an element with no drawn geometry at all (getBBox can throw)
       }
+      // getBBox() is in the template's own frame, before its size step's
+      // scale().
+      const f = diagramOps.elementSizeFactor(el, elements)
       const corners = [
         { x: local.x, y: local.y },
         { x: local.x + local.width, y: local.y },
         { x: local.x, y: local.y + local.height },
         { x: local.x + local.width, y: local.y + local.height },
-      ].map(p => diagramOps.placeLocalPoint(el, p))
+      ].map(p => diagramOps.placeLocalPoint(el, { x: p.x * f, y: p.y * f }))
       const xs = corners.map(p => p.x)
       const ys = corners.map(p => p.y)
       const minX = Math.min(...xs)
@@ -1564,6 +1567,11 @@ export function Canvas() {
   function dragElementsInDom(ids: number[], dx: number, dy: number) {
     const root = wrapperRef.current
     if (!root) return
+    // render.go's sizeStepScale (rounded the same way).
+    const sizeStepScale = (el: DiagramElement) => {
+      const f = diagramOps.elementSizeFactor(el, elements)
+      return f === 1 ? '' : ` scale(${Math.round(f * 1e6) / 1e6})`
+    }
     for (const id of ids) {
       const el = diagram!.elements.find(e => e.id === id)
       const node = root.querySelector(`[data-editor-kind="element"][id="${id}"]`)
@@ -1672,11 +1680,12 @@ export function Canvas() {
         node.setAttribute('y', String(y + 3))
         node.setAttribute('transform', `rotate(${el.orient ?? 0},${x},${y})`)
       } else {
-        // Keep render.go's mirrorScale, or a Mirror'd element flips back
-        // for the drag (and stays so when the drop re-renders nothing).
+        // Keep render.go's mirrorScale and size step, or a Mirror'd or
+        // resized element changes for the drag (and stays so when the drop
+        // re-renders nothing).
         node.setAttribute(
           'transform',
-          `translate(${el.x + dx},${el.y + dy}) rotate(${el.orient ?? 0})${el.mirror ? ' scale(-1,1)' : ''}`,
+          `translate(${el.x + dx},${el.y + dy}) rotate(${el.orient ?? 0})${el.mirror ? ' scale(-1,1)' : ''}${sizeStepScale(el)}`,
         )
       }
     }

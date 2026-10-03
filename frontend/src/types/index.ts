@@ -178,6 +178,10 @@ export interface DiagramElement {
   // Mirror field. Meaningless for a BusBarSection (its own drawn `points`
   // are already absolute geometry, no local template to flip).
   mirror?: boolean
+  // slddoc's Element.Scale: the xsde2svg size step, each step √2 larger
+  // (unset = 0, the library's own size). Only for a symbol whose
+  // ElementSymbol.scalable is set; see diagramOps.symbolTerminals.
+  scale?: number
   // Also a PowerflowIndicator's (shape 320001) own two-way arrow direction:
   // nil/0 draws "→", any other value draws "←" — not a real switching
   // status, matching backend/internal/slddoc's own Element.State doc
@@ -494,6 +498,9 @@ export interface ElementSymbol {
   // (0,0)) this shape renders from — see lib/elementIcon.ts for turning
   // it into a static palette preview icon.
   template: string
+  // Whether a placed element of this shape takes a size step
+  // (DiagramElement.scale): it is drawn from template.
+  scalable?: boolean
 }
 
 // Matches backend/internal/api.customElement: one entry of the Elements

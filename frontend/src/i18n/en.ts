@@ -254,6 +254,8 @@ export const dictionary = {
   'properties.connectionNotConnected': 'not connected',
   'properties.connectionFreeEnd': 'free end',
   'properties.connectionsHint': 'Click an item to select it.',
+  'properties.size': 'Size',
+  'properties.sizeStep': '{{step}} (×{{factor}})',
   'properties.mirror': 'Mirror',
   'properties.points': 'Points',
   'properties.pointX': 'Point {{n}} X',

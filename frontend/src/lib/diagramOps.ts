@@ -1865,8 +1865,89 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
   // FORK_ARM_LENGTH — see slddoc's own ClassFork), while base.xml declares
   // its terminals at the default size, so they scale along with it.
   const scale = el.class === 'Fork' && el.radius ? el.radius / FORK_ARM_LENGTH : 1
-  return symbol.terminals.map(t => placeLocalPoint(el, { x: t.x * scale, y: t.y * scale }))
+  const step = symbol.scalable ? (el.scale ?? 0) : 0
+  return symbol.terminals.map(t =>
+    placeLocalPoint(el, { x: scaledLength(t.x * scale, step), y: scaledLength(t.y * scale, step) }),
+  )
 }
+
+/** The size steps (DiagramElement.scale) offered in Properties and tried
+ * on SVG import. */
+export const SIZE_STEPS = [-2, -1, 0, 1, 2, 3, 4]
+
+/** A size step's own scale factor, √2^step — slddoc's SizeFactor. */
+export function sizeFactor(step: number): number {
+  return Math.SQRT2 ** step
+}
+
+/** The factor el's template is drawn at (its size step, when its symbol
+ * takes one), for mapping its rendered local geometry to the diagram. */
+export function elementSizeFactor(el: DiagramElement, symbols: ElementSymbol[]): number {
+  if (!el.scale) return 1
+  return symbols.find(s => s.shape === el.shape)?.scalable ? sizeFactor(el.scale) : 1
+}
+
+// xsde2svg's Scale(step, v) = int(v·√2^step), truncated toward zero, with
+// a nudge so an exact whole product isn't truncated one short by
+// floating-point noise — slddoc's scaledLength.
+function scaledLength(v: number, step: number): number {
+  if (step === 0) return v
+  const p = v * sizeFactor(step)
+  return Math.trunc(p < 0 ? p - 1e-9 : p + 1e-9)
+}
+
+/** Sets each imported element's size step (scale) when its Port Nodes sit
+ * where its terminals do at one step but not at the library size: an
+ * xsde2svg diagram draws every element at its own step, and Extract reads
+ * the real port positions but not the step. Only elements whose shape
+ * takes a size step and has two or more terminals are considered (one
+ * terminal on the anchor is the same at every step), except
+ * VARIABLE_LEAD_SHAPES; a port whose Node is shared with another element
+ * (one Node for a whole busbar) is skipped. */
+export function inferSizeSteps(diagram: Diagram, symbols: ElementSymbol[]): Diagram {
+  const nodes = new Map(diagram.nodes.map(n => [n.id, n]))
+  const portUse = new Map<number, number>()
+  for (const e of diagram.elements) for (const p of e.ports ?? []) portUse.set(p.node, (portUse.get(p.node) ?? 0) + 1)
+  let changed = false
+  const elements = diagram.elements.map(el => {
+    const symbol = symbols.find(s => s.shape === el.shape)
+    if (!symbol?.scalable || !symbol.terminals || symbol.terminals.length < 2 || el.scale) return el
+    if (VARIABLE_LEAD_SHAPES.has(el.shape)) return el
+    const points = (el.ports ?? [])
+      .filter(p => portUse.get(p.node) === 1)
+      .map(p => nodes.get(p.node))
+      .filter((n): n is DiagramNode => !!n)
+    if (points.length === 0) return el
+    // The worst distance from a port to its nearest terminal at a step.
+    const error = (step: number) => {
+      const terminals = symbolTerminals({ ...el, scale: step }, symbols) ?? []
+      return Math.max(...points.map(p => Math.min(...terminals.map(t => Math.hypot(t.x - p.x, t.y - p.y)))))
+    }
+    let best = 0
+    let bestError = error(0)
+    for (const step of SIZE_STEPS) {
+      const e = error(step)
+      if (e < bestError - 0.5) {
+        best = step
+        bestError = e
+      }
+    }
+    if (best === 0 || bestError > SIZE_STEP_TOLERANCE) return el
+    changed = true
+    return { ...el, scale: best }
+  })
+  return changed ? { ...diagram, elements } : diagram
+}
+
+// Shapes whose source also stretches its leads per instance
+// (Scale(step, max(CBDistanceBase, Distance)·Xsde2svgScale) apart, e.g.
+// element_41.go), so their port spacing doesn't tell their size step.
+const VARIABLE_LEAD_SHAPES = new Set(['41', '42', '43', '71', '162', '163', '164', '166', '203', '399', '3206'])
+
+// How far (diagram units) an imported port may sit from its terminal at
+// the inferred size step: base.xml moves some terminals a unit or two onto
+// the grid (e.g. the Thyristor's anode lead), which scales along.
+const SIZE_STEP_TOLERANCE = 6
 
 // A Fork's (shape 26) own default arm length — slddoc's own forkArmLength.
 export const FORK_ARM_LENGTH = 10

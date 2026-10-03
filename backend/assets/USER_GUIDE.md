@@ -34,6 +34,9 @@ being lost: see *Unsaved changes* below.
   dialog can overwrite them.
 - An `.svg` import (an xsde2svg drawing) shows an **import log**: what was recognised, the voltage classes found and
   what was skipped. **File → Show import log** reopens it.
+- xsde2svg draws each device at its own size step (each step √2 larger). An `.svg` import recovers the step from where
+  the device's connection points lie, so the symbol fills the gap between its wires. Devices whose leads also stretch
+  per instance (breakers, disconnectors and similar) keep the library size; set their **Size** by hand if needed.
 
 ### Saving and exporting
 
@@ -194,7 +197,8 @@ place like a single element.
 
 Select a single item to edit it in the Properties panel:
 
-- **Devices**: name, voltage class, state (for switching devices), orientation and mirror, and shape-specific fields
+- **Devices**: name, voltage class, state (for switching devices), orientation and mirror, **Size** (the xsde2svg size
+  step: 0 is the library size, each step √2 larger; its terminals and wires move along), and shape-specific fields
   (for example a transformer's windings or a lamp's colours).
 - **Wires**: name and voltage class.
 - **Text labels**: text, size, anchors, bold, colour, font, and the element it belongs to.

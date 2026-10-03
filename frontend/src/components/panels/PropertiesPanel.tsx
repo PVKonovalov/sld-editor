@@ -2583,6 +2583,25 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           )
         )}
 
+        {/* The xsde2svg size step (slddoc's Element.Scale), for a symbol
+            drawn from its template; patch re-fits its ports, so wires on
+            its terminals follow. */}
+        {typeSymbol?.scalable && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.size')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.scale ?? 0}
+              onChange={e => patch({ scale: Number(e.target.value) || undefined })}
+            >
+              {diagramOps.SIZE_STEPS.map(step => (
+                <option key={step} value={step}>
+                  {t('properties.sizeStep', { step, factor: Number(diagramOps.sizeFactor(step).toFixed(2)) })}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <ConnectionsSection element={el} />
         <LayerSelect layers={diagram.layers} value={el.layer} onChange={layer => moveItemToLayer(el.id, 'element', layer)} />
         <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: el.id })}</p>

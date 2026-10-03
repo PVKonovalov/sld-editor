@@ -4916,3 +4916,24 @@ for its from/to ends. An unattached port reads "not connected", a wire end
 "free end", and each listed item is a link that selects it. Read-only, built
 from `diagramOps.nodeAttachments` (`components/panels/ConnectionsSection.tsx`),
 with en/ru strings and both user guides updated.
+
+2026-10-03: Element size step (xsde2svg `Scale`). xsde2svg draws each
+element at its own size step, every length `int(v·√2^s)` of its step-0
+value, but this schema had no such field, so an imported symbol drawn at a
+larger step showed at library size with gaps between it and its wires (e.g.
+a Wire jump at step 2 in RP_10kV_Yarkovo). `slddoc.Element.Scale` (`.xsld`
+`scale` attribute, documented in `XSLD_FORMAT.md`) now holds it: `Render`
+draws a template symbol under an extra `scale(√2^s)` about its anchor with
+stroke widths divided back (the Static SVG keeps absolute coordinates plus
+that scale), and `slddoc.ScaledTerminal` / `diagramOps.symbolTerminals`
+place its terminals with the source's truncating math. Custom-drawn classes
+(busbar, transformer, substations, rectangles and other annotations,
+`slddoc.UsesSizeStep`) ignore it; the element catalog exposes this as
+`scalable`. SVG import infers each element's step from where its ports lie
+(`diagramOps.inferSizeSteps`), skipping one-terminal shapes and shapes whose
+source also stretches its leads per instance (41, 42, 43, 71, 162, 163, 164,
+166, 203, 399, 3206). Over the corpus (72 diagrams) it sets Wire jump, Cable
+joint and Chassis instances to steps 1-3. Properties gets a Size selector
+(steps -2..4) that carries the terminals and wires along; the canvas drag
+preview and selection boxes honour the step. Existing imported `.xsld` files
+don't store the step and must be imported again to pick it up.
