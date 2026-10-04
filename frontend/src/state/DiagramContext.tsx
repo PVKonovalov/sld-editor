@@ -205,6 +205,24 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // Every diagram starts with all of its layers shown.
   useEffect(() => setHiddenLayers(new Set()), [diagramName])
 
+  // Drops selected ids an edit removed (or a newly opened diagram doesn't
+  // have), so the selection never points at an item that isn't there.
+  useEffect(() => {
+    if (selection.size === 0) return
+    const ids = new Set<number>()
+    if (diagram)
+      for (const list of [diagram.elements, diagram.connectors, diagram.labels, diagram.digitalDevices])
+        for (const x of list) ids.add(x.id)
+    const kept = new Map([...selection].filter(([id]) => ids.has(id)))
+    if (kept.size === selection.size) return
+    const only = kept.size === 1 ? [...kept][0] : null
+    setSelection(kept)
+    setSelectedElementIdState(only && only[1] === 'element' ? only[0] : null)
+    setSelectedConnectorIdState(only && only[1] === 'connector' ? only[0] : null)
+    setSelectedLabelIdState(only && only[1] === 'label' ? only[0] : null)
+    setSelectedDigitalDeviceIdState(only && only[1] === 'digitaldevice' ? only[0] : null)
+  }, [diagram, selection])
+
   // Deliberately doesn't touch armedWireKind (unlike armedSymbol): a route
   // start is a tight-radius terminal hit (findConnectionTarget), so a
   // slightly-off click meant to hit a terminal very often lands on the

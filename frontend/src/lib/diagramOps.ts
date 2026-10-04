@@ -1819,36 +1819,16 @@ export function placeLocalPoint(el: DiagramElement, p: Point): Point {
 // ever uses). Kept in sync by hand, like every other JSON-shape mirror in
 // this file — there's no codegen linking the two.
 const TRANSFORMER_RADIUS = 22
-const TRANSFORMER_X_SHIFT = 18
-const TRANSFORMER_TOP_SHIFT = 25
-const TRANSFORMER_SIDE_SHIFT = 29
+const TRANSFORMER_GRID_SHIFT = 20
+const TRANSFORMER_TOP_SHIFT = 30
+const TRANSFORMER_SIDE_SHIFT = 30
 const TRANSFORMER_VERT_SHIFT = 20
 
-/** Winding index i's own leg length, for a transformer with the given
- * real winding count — mirrors render.go's transformerLegLength exactly
- * (see its own doc comment for why this varies by position: each value is
- * chosen so offset+TRANSFORMER_RADIUS+length is a multiple of the
- * editor's own default 10-unit grid, for that winding's own *default*
- * TerminalDirection). Kept in sync by hand like everything else here. */
-function transformerLegLength(count: number, i: number): number {
-  switch (count) {
-    case 2:
-      return 10
-    case 3:
-      return i === 0 ? 13 : 10
-    case 4:
-      switch (i) {
-        case 0:
-          return 8
-        case 1:
-          return 10
-        default:
-          return 9
-      }
-    default:
-      return 10
-  }
-}
+/** Every winding's lead length past its circle edge — mirrors render.go's
+ * transformerLeadLength. Every circle offset is a multiple of 10, so with
+ * the radius of 22 each lead tip lands on the 10-unit grid in any
+ * direction. */
+const TRANSFORMER_LEAD_LENGTH = 8
 
 /** Real winding index i's own local (pre-rotation) circle-center offset,
  * for a PowerTransformer with the given real winding count — mirrors
@@ -1856,16 +1836,16 @@ function transformerLegLength(count: number, i: number): number {
 function transformerWindingOffset(count: number, i: number): Point {
   switch (count) {
     case 2:
-      return i === 0 ? { x: TRANSFORMER_X_SHIFT, y: 0 } : { x: -TRANSFORMER_X_SHIFT, y: 0 }
+      return i === 0 ? { x: TRANSFORMER_GRID_SHIFT, y: 0 } : { x: -TRANSFORMER_GRID_SHIFT, y: 0 }
     case 3:
       if (i === 0) return { x: 0, y: -TRANSFORMER_TOP_SHIFT }
-      return i === 1 ? { x: TRANSFORMER_X_SHIFT, y: 0 } : { x: -TRANSFORMER_X_SHIFT, y: 0 }
+      return i === 1 ? { x: TRANSFORMER_GRID_SHIFT, y: 0 } : { x: -TRANSFORMER_GRID_SHIFT, y: 0 }
     case 4:
       switch (i) {
         case 0:
           return { x: 0, y: -TRANSFORMER_VERT_SHIFT }
         case 1:
-          return { x: 0, y: TRANSFORMER_X_SHIFT }
+          return { x: 0, y: TRANSFORMER_GRID_SHIFT }
         case 2:
           return { x: -TRANSFORMER_SIDE_SHIFT, y: 0 }
         default:
@@ -1904,7 +1884,7 @@ function defaultTransformerTerminal(count: number, i: number): TerminalDirection
 }
 
 /** A winding's own lead tip — its real electrical terminal — given its own
- * circle center, lead direction, and own leg length (transformerLegLength);
+ * circle center, lead direction, and lead length (TRANSFORMER_LEAD_LENGTH);
  * mirrors render.go's transformerLegEndpoint exactly. */
 function transformerLegEndpoint(cx: number, cy: number, dir: TerminalDirection, legLen: number): Point {
   switch (dir) {
@@ -1926,7 +1906,7 @@ function transformerLegEndpoint(cx: number, cy: number, dir: TerminalDirection, 
 // (local x=0) regardless of winding count or Windings[0]'s own dX, so it
 // stays grid-aligned the same way every other fixed-offset terminal here
 // does.
-const TRANSFORMER_TAP_OFFSET_Y = -50
+const TRANSFORMER_TAP_OFFSET_Y = -70
 
 /** A PowerTransformer's own local (pre-rotation) lead-tip positions, one
  * per winding, in Windings order, plus (autotransformer only) the tap's
@@ -1943,7 +1923,7 @@ function transformerLocalTerminals(el: DiagramElement): Point[] {
   for (let i = 0; i < count; i++) {
     const offset = transformerWindingOffset(count, i)
     const dir = el.windings?.[i]?.terminal || defaultTransformerTerminal(count, i)
-    points.push(transformerLegEndpoint(offset.x, offset.y, dir, transformerLegLength(count, i)))
+    points.push(transformerLegEndpoint(offset.x, offset.y, dir, TRANSFORMER_LEAD_LENGTH))
   }
   if (el.autotransformer) {
     points.push({ x: 0, y: TRANSFORMER_TAP_OFFSET_Y })

@@ -504,7 +504,9 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // of just "nothing selected", since those otherwise have no home to be
   // edited from after creation (NewDiagramDialog is the only other place
   // that sets them, and only at creation time).
-  if (!element && !connector && !label && !digitalDevice && selection.size === 0) {
+  // A single selected id that matches nothing (a stale selection, pruned
+  // by DiagramContext right after this render) also shows the diagram.
+  if (!element && !connector && !label && !digitalDevice && selection.size <= 1) {
     return (
       <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
         <div className="space-y-3">

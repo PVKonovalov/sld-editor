@@ -5084,3 +5084,58 @@ Space+drag panning are unchanged, and selection handles (wire bends/ends,
 busbar/Road/Line points) still drag without a modifier. Canvas
 `startPanOrClick`/`startModifierDrag`/`hasMoveModifier`; English and
 Russian user guides updated.
+
+2026-10-04: Properties no longer crashes on a stale selection. Clicking a
+busbar could leave the selection pointing at an id missing from the diagram,
+and the Properties panel failed with "null is not an object (evaluating
+'el.shape')". `DiagramContext` now drops selected ids that are no longer in
+the diagram after every change (and re-derives the single-item ids), and
+`PropertiesPanel` shows the diagram view for a single selection that matches
+nothing instead of assuming it is an element.
+
+2026-10-04: 3-winding transformer side terminals on the grid. Windings 2 and 3
+of a 3-winding PowerTransformer sat at x=±18 (xsde2svg's offset), so a lead
+turned up or down ended off the 10-unit grid. Their circles now sit at
+x=±20 with an 8-unit default lead (tip still at ±50), so every direction ends
+on the grid. Changed in slddoc's `transformerWindingOffset`/
+`transformerLegLength` (`transformer3SideShift`) and mirrored in
+`diagramOps.ts`. A saved diagram keeps its existing port nodes where they
+are, so on an older diagram a side winding's node can sit 2 units from the
+drawn tip.
+
+2026-10-04: 2-winding transformer terminals on the grid too. The same change
+as the 3-winding one above: both circles of a 2-winding PowerTransformer
+(autotransformer included) now sit at x=±20 instead of ±18 with an 8-unit
+default lead (tips still at ±50), so a lead turned up or down ends on the
+grid. slddoc's offset constant is now `transformerGridShift`, shared by the
+2- and 3-winding cases; `diagramOps.ts` mirrors it. The autotransformer tap
+arc now lands at (37,-14) instead of (35,-14). Older diagrams keep their
+existing port nodes, so a node can sit 2 units from the drawn tip.
+
+2026-10-04: 4-winding transformer terminals on the grid too. A 4-winding
+PowerTransformer's bottom circle moves from y=18 to y=20 and its side
+circles from x=±29 to x=±30 (the top one was already at y=-20), and every
+lead is now 8 units long (tips still at (0,±50) and (±60,0)), so each winding
+ends on the grid whichever way it is led. slddoc drops `transformerXShift`;
+`transformerSideShift` is 30; `diagramOps.ts` mirrors both. Older diagrams
+keep their existing port nodes, so a node can sit up to 2 units from the
+drawn tip.
+
+2026-10-04: 3-winding transformer top winding on the grid. Its circle moves
+from y=-25 to y=-30, so every PowerTransformer circle offset is now a
+multiple of 10 and every winding of every transformer ends on the grid in
+any direction. All leads are now 8 units long (top tip still at -60), so
+slddoc's per-winding `transformerLegLength` became the constant
+`transformerLeadLength` (`TRANSFORMER_LEAD_LENGTH` in `diagramOps.ts`). SVG
+import fix: an unrotated transformer's anchor was recovered by reversing the
+editor's own winding offsets, which no longer match xsde2svg's since the
+circles were widened onto the grid, so imports landed 2-5 units off; it now
+uses xsde2svg's original offsets (`xsde2svgWindingZeroOffset`). The
+3-winding autotransformer tap arc now lands at (17,-44) instead of (17,-39).
+
+2026-10-04: Autotransformer tap terminal moved to (0,-70), above a 3-winding
+top winding's lead tip (-60) instead of below it. slddoc's
+`transformerTapOffsetY` and `diagramOps.ts`'s `TRANSFORMER_TAP_OFFSET_Y` are
+now -70; the tap's 20-unit stub runs from -70 to -50 and the arc starts at
+-50. On a 3-winding autotransformer the stub still overlaps the top winding's
+lead between -60 and -52.
