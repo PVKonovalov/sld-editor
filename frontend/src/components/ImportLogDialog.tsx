@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import * as diagramOps from '../lib/diagramOps'
 import { t } from '../i18n'
+import { GuideButton } from './GuideButton'
 
 /** A centered modal (backdrop click or Esc dismisses, same as
  * NewDiagramDialog) showing the last .svg import's own log — what
@@ -47,7 +48,10 @@ export function ImportLogDialog({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
         <div className="pointer-events-auto w-[28rem] max-h-[80vh] overflow-y-auto rounded border border-surface-600 bg-surface-700 p-4 shadow-lg space-y-3 text-xs">
           <div>
-            <h2 className="text-sm font-semibold text-gray-100">{t('importLog.title')}</h2>
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-100">
+              {t('importLog.title')}
+              <GuideButton topic="import" />
+            </h2>
             <p className="text-[11px] text-gray-500 break-all">{fileName}</p>
           </div>
 

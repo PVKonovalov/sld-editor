@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import { t } from '../i18n'
+import { GuideButton } from './GuideButton'
 
 /** A centered modal (backdrop click or Esc cancels, same as
  * NewDiagramDialog/ImportLogDialog) shown when a dropped/picked .xsld/.svg
@@ -40,7 +41,10 @@ export function ConfirmReloadDialog() {
       <div className="fixed inset-0 z-30 bg-black/50" onClick={cancelPendingImport} />
       <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
         <div className="pointer-events-auto w-96 rounded border border-surface-600 bg-surface-700 p-4 shadow-lg space-y-3 text-xs">
-          <h2 className="text-sm font-semibold text-gray-100">{t('reload.title')}</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-100">
+            {t('reload.title')}
+            <GuideButton topic="import" />
+          </h2>
           <p className="text-gray-300 break-words">
             {t('reload.message', { name: pendingImport.name, file: pendingImport.fileName })}
           </p>

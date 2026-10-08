@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { t } from '../../i18n'
+import { GuideButton } from '../GuideButton'
 
 interface Props {
   title: string
@@ -11,9 +12,12 @@ interface Props {
    * Elements, Settings, docked next to the icon rail); Properties docks on
    * the right instead, next to whatever is selected on the canvas. */
   side?: 'left' | 'right'
+  /** User guide heading id: adds a "?" beside the title that opens the
+   * guide there (GuideButton). */
+  topic?: string
 }
 
-export function PanelShell({ title, onClose, children, side = 'left' }: Props) {
+export function PanelShell({ title, onClose, children, side = 'left', topic }: Props) {
   return (
     <div
       className={`w-72 shrink-0 h-full bg-surface-700 flex flex-col ${
@@ -21,7 +25,10 @@ export function PanelShell({ title, onClose, children, side = 'left' }: Props) {
       }`}
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-surface-600">
-        <h2 className="text-sm font-semibold text-gray-100">{title}</h2>
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-100">
+          {title}
+          {topic && <GuideButton topic={topic} />}
+        </h2>
         <button
           type="button"
           onClick={onClose}

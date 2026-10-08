@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import { joinDiagramPath } from '../lib/diagramPath'
 import { t } from '../i18n'
+import { GuideButton } from './GuideButton'
 
 /** A centered modal (backdrop click or Esc dismisses, matching
  * ContextMenu's own "click away to close" convention) collecting
@@ -46,7 +47,10 @@ export function NewDiagramDialog({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-30 bg-black/50" onClick={onClose} />
       <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
         <div className="pointer-events-auto w-80 rounded border border-surface-600 bg-surface-700 p-4 shadow-lg space-y-3">
-          <h2 className="text-sm font-semibold text-gray-100">{t('file.newDiagramTitle')}</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-100">
+            {t('file.newDiagramTitle')}
+            <GuideButton topic="create-open" />
+          </h2>
           {currentDir && <p className="text-[11px] text-gray-500">{t('file.creatingIn', { dir: currentDir })}</p>}
 
           <label className="block text-xs">

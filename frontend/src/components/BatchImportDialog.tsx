@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import { t } from '../i18n'
+import { GuideButton } from './GuideButton'
 
 const STATUS_CLASS = {
   saved: 'text-green-400',
@@ -51,7 +52,10 @@ export function BatchImportDialog() {
       <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
         <div className="pointer-events-auto w-[30rem] max-h-[80vh] flex flex-col rounded border border-surface-600 bg-surface-700 p-4 shadow-lg text-xs space-y-3">
           <div>
-            <h2 className="text-sm font-semibold text-gray-100">{t('batchImport.title')}</h2>
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-100">
+              {t('batchImport.title')}
+              <GuideButton topic="import" />
+            </h2>
             <p className="text-[11px] text-gray-500 break-all">{t('batchImport.folder', { dir: dir || '/' })}</p>
             <p className="text-gray-400 mt-1">
               {t('batchImport.summary', { saved: count('saved'), skipped, failed: count('failed') })}

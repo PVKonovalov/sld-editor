@@ -35,7 +35,7 @@ body {
   height: 100% !important;
 }
 
-/* The Help dialog's rendered user guide (HelpDialog): plain Markdown HTML
+/* The user guide window's rendered guide (GuideWindow): plain Markdown HTML
    from the backend, styled for the dark theme. */
 .guide-content {
   @apply text-sm text-gray-300 leading-relaxed;
@@ -76,4 +76,19 @@ body {
 }
 .guide-content th {
   @apply bg-surface-800 text-gray-100 font-semibold;
+}
+
+/* A guide heading just scrolled to from a topic link or the table of
+   contents: a brief fading highlight. */
+@keyframes guide-topic-flash {
+  from {
+    background-color: rgb(59 130 246 / 0.35);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+.guide-content .guide-topic-highlight {
+  @apply rounded;
+  animation: guide-topic-flash 1.6s ease-out;
 }

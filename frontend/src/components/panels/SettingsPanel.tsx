@@ -22,7 +22,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <PanelShell title={t('sidebar.settings')} onClose={onClose}>
+    <PanelShell title={t('sidebar.settings')} onClose={onClose} topic="settings">
       {!diagram && <p className="text-xs text-gray-500 mb-3">{t('settings.noDiagram')}</p>}
       <div className="space-y-3">
         <label className="block text-xs">

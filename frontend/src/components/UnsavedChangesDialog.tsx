@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import type { UnsavedChoice } from '../state/useDiagramContext'
 import { t } from '../i18n'
+import { GuideButton } from './GuideButton'
 
 /** Asked before a diagram with unsaved edits would be replaced (opening
  * another one, New, or a single-file import; see DiagramContext's
@@ -43,7 +44,10 @@ export function UnsavedChangesDialog() {
       <div className="fixed inset-0 z-50 bg-black/50" onClick={() => !busy && void answer('cancel')} />
       <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
         <div className="pointer-events-auto w-96 rounded border border-surface-600 bg-surface-700 p-4 shadow-lg space-y-3 text-xs">
-          <h2 className="text-sm font-semibold text-gray-100">{t('unsaved.title')}</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-100">
+            {t('unsaved.title')}
+            <GuideButton topic="unsaved" />
+          </h2>
           <p className="text-gray-300 break-words">{t('unsaved.message', { name: unsavedPrompt.diagramName })}</p>
           {error && <p className="text-red-400">{error}</p>}
           <div className="flex justify-end gap-2">

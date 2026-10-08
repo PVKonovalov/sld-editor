@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import { ConflictError } from '../lib/api'
 import { t } from '../i18n'
+import { GuideButton } from './GuideButton'
 import type { Diagram } from '../types'
 
 /** "Save selection as custom element": asks for a name and saves template
@@ -45,7 +46,10 @@ export function SaveCustomElementDialog({ template, onClose }: { template: Diagr
       <div className="fixed inset-0 z-30 bg-black/50" onClick={onClose} />
       <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
         <div className="pointer-events-auto w-80 rounded border border-surface-600 bg-surface-700 p-4 shadow-lg space-y-3">
-          <h2 className="text-sm font-semibold text-gray-100">{t('customElement.saveTitle')}</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-100">
+            {t('customElement.saveTitle')}
+            <GuideButton topic="custom-elements" />
+          </h2>
 
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('file.name')}</span>

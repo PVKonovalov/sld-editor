@@ -29,6 +29,7 @@ export function LayersSection() {
         label={`${t('diagram.layers')} (${diagram.layers.length})`}
         collapsed={collapsed}
         onToggle={() => setCollapsed(c => !c)}
+        topic="layers"
       />
       {!collapsed && (
         <div className="space-y-1">
@@ -147,6 +148,7 @@ export function VoltageClassesSection() {
         label={`${t('diagram.voltageClasses')} (${diagram.voltageClasses.length})`}
         collapsed={collapsed}
         onToggle={() => setCollapsed(c => !c)}
+        topic="layers"
       />
       {!collapsed && (
         <div>

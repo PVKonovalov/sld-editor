@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import * as diagramOps from '../lib/diagramOps'
 import { t } from '../i18n'
+import { GuideButton } from './GuideButton'
 
 /** A centered modal (backdrop click or Esc skips, same as ImportLogDialog)
  * shown right after opening a diagram — from the File panel, or a dropped/
@@ -51,7 +52,10 @@ export function DefaultVoltageDialog() {
       <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
         <div className="pointer-events-auto w-[26rem] max-h-[80vh] overflow-y-auto rounded border border-surface-600 bg-surface-700 p-4 shadow-lg space-y-3 text-xs">
           <div>
-            <h2 className="text-sm font-semibold text-gray-100">{t('defaultVoltage.title')}</h2>
+            <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-100">
+              {t('defaultVoltage.title')}
+              <GuideButton topic="create-open" />
+            </h2>
             <p className="text-gray-400 mt-1">{t('defaultVoltage.message')}</p>
           </div>
 

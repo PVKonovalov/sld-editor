@@ -507,7 +507,7 @@ func TestGetUserGuide(t *testing.T) {
 	}
 
 	s.cfg.UserGuide = filepath.Join(t.TempDir(), "guide.md")
-	md := "# Guide\n\n| Keys | Action |\n| --- | --- |\n| **Esc** | Cancel |\n\n<script>alert(1)</script>\n"
+	md := "# Guide\n\n## Wiring {#wiring}\n\n| Keys | Action |\n| --- | --- |\n| **Esc** | Cancel |\n\n<script>alert(1)</script>\n"
 	if err := os.WriteFile(s.cfg.UserGuide, []byte(md), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -516,7 +516,7 @@ func TestGetUserGuide(t *testing.T) {
 		t.Fatalf("status = %d", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"<h1>Guide</h1>", "<table>", "<strong>Esc</strong>"} {
+	for _, want := range []string{`<h1 id="guide">Guide</h1>`, `<h2 id="wiring">Wiring</h2>`, "<table>", "<strong>Esc</strong>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("rendered guide lacks %q: %s", want, body)
 		}
@@ -530,10 +530,10 @@ func TestGetUserGuide(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, c := range []struct{ lang, want string }{
-		{"ru", "<h1>Руководство</h1>"},
-		{"de", "<h1>Guide</h1>"},   // no translation: falls back
-		{"../x", "<h1>Guide</h1>"}, // not a locale code: ignored
-		{"", "<h1>Guide</h1>"},
+		{"ru", ">Руководство</h1>"},
+		{"de", ">Guide</h1>"},   // no translation: falls back
+		{"../x", ">Guide</h1>"}, // not a locale code: ignored
+		{"", ">Guide</h1>"},
 	} {
 		rec := doJSON(t, s, http.MethodGet, "/api/user-guide?lang="+url.QueryEscape(c.lang), nil)
 		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), c.want) {

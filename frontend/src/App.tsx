@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import { DiagramProvider } from './state/DiagramContext'
 import { useDiagramContext } from './state/useDiagramContext'
 import { Sidebar, type PanelId } from './components/Sidebar'
@@ -10,13 +10,14 @@ import { Canvas } from './components/Canvas'
 import { ImportLogDialog } from './components/ImportLogDialog'
 import { ConfirmReloadDialog } from './components/ConfirmReloadDialog'
 import { AboutDialog } from './components/AboutDialog'
-import { HelpDialog } from './components/HelpDialog'
+import { GuideWindow } from './components/GuideWindow'
 import { BatchImportDialog } from './components/BatchImportDialog'
 import { DefaultVoltageDialog } from './components/DefaultVoltageDialog'
 import { DraftRecoveryDialog } from './components/DraftRecoveryDialog'
 import { UnsavedChangesDialog } from './components/UnsavedChangesDialog'
 import { diagramFileKind, readFileAsText, readFilesAsText } from './lib/fileTransfer'
 import { t } from './i18n'
+import { GuideContext, type GuideApi } from './lib/guide'
 
 type LeftPanelId = Exclude<PanelId, 'properties'>
 
@@ -28,7 +29,13 @@ function Shell() {
   const [activeLeftPanel, setActiveLeftPanel] = useState<LeftPanelId | null>('file')
   const [propertiesOpen, setPropertiesOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
-  const [helpOpen, setHelpOpen] = useState(false)
+  // The user guide window: null while closed. requestId changes on every
+  // openGuide, so asking for the same topic again scrolls to it again.
+  const [guide, setGuide] = useState<{ topic?: string; requestId: number } | null>(null)
+  const guideApi = useMemo<GuideApi>(
+    () => ({ openGuide: topic => setGuide(prev => ({ topic, requestId: (prev?.requestId ?? 0) + 1 })) }),
+    [],
+  )
   const {
     diagramName,
     selectedElementId,
@@ -139,49 +146,51 @@ function Shell() {
   }
 
   return (
-    <div
-      className="relative flex h-full w-full overflow-hidden"
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      <Sidebar
-        activeLeftPanel={activeLeftPanel}
-        propertiesOpen={propertiesOpen}
-        onPanelToggle={togglePanel}
-        onHelp={() => setHelpOpen(true)}
-        onAbout={() => setAboutOpen(true)}
-      />
-      {activeLeftPanel === 'file' && <FilePanel onClose={() => setActiveLeftPanel(null)} />}
-      {activeLeftPanel === 'elements' && <ElementsPanel onClose={() => setActiveLeftPanel(null)} />}
-      {activeLeftPanel === 'settings' && <SettingsPanel onClose={() => setActiveLeftPanel(null)} />}
-      <Canvas />
-      {propertiesOpen && <PropertiesPanel onClose={() => setPropertiesOpen(false)} />}
-      {dragCounter > 0 && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 pointer-events-none">
-          <p className="text-lg text-white border-2 border-dashed border-white rounded-lg px-6 py-4">
-            {t('file.dropOverlay')}
-          </p>
-        </div>
-      )}
-      {pendingImport && <ConfirmReloadDialog />}
-      {importLogOpen && <ImportLogDialog onClose={() => setImportLogOpen(false)} />}
-      {defaultVoltagePromptOpen && !pendingImport && <DefaultVoltageDialog />}
-      {helpOpen && <HelpDialog onClose={() => setHelpOpen(false)} />}
-      {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
-      {batchImport && <BatchImportDialog />}
-      <DraftRecoveryDialog />
-      <UnsavedChangesDialog />
-      {dropError && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-red-900/90 text-red-100 text-xs rounded px-3 py-2 shadow">
-          <span>{dropError}</span>
-          <button type="button" className="underline shrink-0" onClick={() => setDropError(null)}>
-            {t('common.close')}
-          </button>
-        </div>
-      )}
-    </div>
+    <GuideContext.Provider value={guideApi}>
+      <div
+        className="relative flex h-full w-full overflow-hidden"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <Sidebar
+          activeLeftPanel={activeLeftPanel}
+          propertiesOpen={propertiesOpen}
+          onPanelToggle={togglePanel}
+          onHelp={() => guideApi.openGuide()}
+          onAbout={() => setAboutOpen(true)}
+        />
+        {activeLeftPanel === 'file' && <FilePanel onClose={() => setActiveLeftPanel(null)} />}
+        {activeLeftPanel === 'elements' && <ElementsPanel onClose={() => setActiveLeftPanel(null)} />}
+        {activeLeftPanel === 'settings' && <SettingsPanel onClose={() => setActiveLeftPanel(null)} />}
+        <Canvas />
+        {propertiesOpen && <PropertiesPanel onClose={() => setPropertiesOpen(false)} />}
+        {dragCounter > 0 && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 pointer-events-none">
+            <p className="text-lg text-white border-2 border-dashed border-white rounded-lg px-6 py-4">
+              {t('file.dropOverlay')}
+            </p>
+          </div>
+        )}
+        {pendingImport && <ConfirmReloadDialog />}
+        {importLogOpen && <ImportLogDialog onClose={() => setImportLogOpen(false)} />}
+        {defaultVoltagePromptOpen && !pendingImport && <DefaultVoltageDialog />}
+        {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
+        {batchImport && <BatchImportDialog />}
+        <DraftRecoveryDialog />
+        <UnsavedChangesDialog />
+        {guide && <GuideWindow topic={guide.topic} requestId={guide.requestId} onClose={() => setGuide(null)} />}
+        {dropError && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-red-900/90 text-red-100 text-xs rounded px-3 py-2 shadow">
+            <span>{dropError}</span>
+            <button type="button" className="underline shrink-0" onClick={() => setDropError(null)}>
+              {t('common.close')}
+            </button>
+          </div>
+        )}
+      </div>
+    </GuideContext.Provider>
   )
 }
 

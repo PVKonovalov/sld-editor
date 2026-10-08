@@ -493,7 +493,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
 
   if (!diagram) {
     return (
-      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
+      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="create-open">
         <p className="text-xs text-gray-500">{t('properties.noSelection')}</p>
       </PanelShell>
     )
@@ -508,7 +508,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // by DiagramContext right after this render) also shows the diagram.
   if (!element && !connector && !label && !digitalDevice && selection.size <= 1) {
     return (
-      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
+      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="save-export">
         <div className="space-y-3">
           <p className="text-xs text-gray-400">{t('properties.diagram')}</p>
           <label className="block text-xs">
@@ -564,7 +564,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // deleteSelected).
   if (selection.size > 1) {
     return (
-      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
+      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="selecting">
         <div className="space-y-3">
           <p className="text-xs text-gray-400">{t('properties.multiSelection', { count: selection.size })}</p>
           <LayerSelect layers={diagram.layers} value={selectionLayer()} onChange={moveToLayer} />
@@ -576,7 +576,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
 
   if (connector) {
     return (
-      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
+      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="wiring">
         <div className="space-y-3">
           <p className="text-xs text-gray-400">
             {typeCodeLabel(t(CONNECTOR_KIND_LABELS[connector.kind]), CONNECTOR_KIND_CODES[connector.kind])}
@@ -660,7 +660,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
       updateDiagram(d => diagramOps.updateLabel(d, label.id, fields))
     }
     return (
-      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
+      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="properties">
         <div className="space-y-3">
           <p className="text-xs text-gray-400">{typeCodeLabel(t('elements.text'), LABEL_SHAPE)}</p>
           <label className="block text-xs">
@@ -761,7 +761,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
       updateDiagram(d => diagramOps.updateDigitalDevice(d, digitalDevice.id, fields))
     }
     return (
-      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
+      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="properties">
         <div className="space-y-3">
           <p className="text-xs text-gray-400">{typeCodeLabel(t('elements.digitalDevice'), DIGITAL_DEVICE_SHAPE)}</p>
           <label className="block text-xs">
@@ -988,7 +988,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right">
+    <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="properties">
       <div className="space-y-3">
         <p className="text-xs text-gray-400">{typeLabel}</p>
         <div className="text-xs">

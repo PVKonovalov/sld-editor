@@ -40,7 +40,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <PanelShell title={t('sidebar.file')} onClose={onClose}>
+    <PanelShell title={t('sidebar.file')} onClose={onClose} topic="files">
       <div className="space-y-4">
         <section>
           <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{t('file.new')}</h3>

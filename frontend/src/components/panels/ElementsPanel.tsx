@@ -116,7 +116,7 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
     })
 
   return (
-    <PanelShell title={t('sidebar.elements')} onClose={onClose}>
+    <PanelShell title={t('sidebar.elements')} onClose={onClose} topic="placing">
       {groups.length === 0 && <p className="text-xs text-gray-500">{t('elements.empty')}</p>}
       {diagram && (
         <p className="text-xs text-gray-400 mb-2">
@@ -138,6 +138,7 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
           <div key={group.name}>
             <GroupHeader
               label={categoryDisplayName(group.name)}
+              topic={group.name === 'Wires' ? 'wiring' : undefined}
               collapsed={!expandedGroups.has(group.name)}
               onToggle={() => toggleGroup(group.name)}
             />
@@ -220,6 +221,7 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
           <div>
             <GroupHeader
               label={t('elements.customGroup')}
+              topic="custom-elements"
               collapsed={!expandedGroups.has(CUSTOM_GROUP_KEY)}
               onToggle={() => toggleGroup(CUSTOM_GROUP_KEY)}
             />

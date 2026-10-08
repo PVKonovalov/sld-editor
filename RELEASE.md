@@ -5139,3 +5139,18 @@ top winding's lead tip (-60) instead of below it. slddoc's
 now -70; the tap's 20-unit stub runs from -70 to -50 and the arc starts at
 -50. On a 3-winding autotransformer the stub still overlaps the top winding's
 lead between -60 and -52.
+
+2026-10-08: User guide window with contents, topic links and a step-by-step how-to. The sidebar's Help now opens
+`components/GuideWindow.tsx` (replacing the modal `HelpDialog`), modelled on sld-viewer's guide window: a non-modal
+window, dragged by its header and resized from its corner (`hooks/useDraggableDialog.ts`), with a filterable table of
+contents built from the guide's h2/h3 headings beside the text. The entry for the section being read is highlighted,
+picking an entry scrolls to it with a brief flash (`.guide-topic-highlight`), and `#id` links inside the guide scroll
+within it. A "?" button (`components/GuideButton.tsx`, through `lib/guide.ts`'s `GuideContext`/`useGuide`) in the
+headers of the New diagram, Import log, Batch import, Reload, Default voltage, Save custom element, Unsaved changes and
+Draft recovery dialogs opens the guide on that dialog's topic. So do the File/Elements/Settings/Properties panels
+(`PanelShell`'s `topic`; Properties picks one per view) and the Wires, Custom elements, Layers, Voltage classes and
+Connections groups (`GroupHeader`'s `topic`). Backend: `GET /api/user-guide` now renders heading ids (goldmark
+`parser.WithAttribute()` + `WithAutoHeadingID()`), and both `USER_GUIDE.md` and `USER_GUIDE.ru.md` carry explicit
+`{#id}` anchors, identical in both languages. Cross-references in the guide are now links. The guide opens with a new
+"How to: draw a diagram step by step" section: eleven steps from creating the diagram through busbar, devices,
+wiring, a ground-switch tap, an outgoing line, names and labels, checking connections, repeating bays, and saving.

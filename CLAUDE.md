@@ -74,8 +74,11 @@ storage and the Gin API.
   `render`, `render/fragments`, `import/xml`, `import/svg` (runs `slddoc.Extract`, returns `{diagram, report}`),
   `elements`, `custom-elements`, `config`, `user-guide` (`internal/api/user_guide.go`: the `user_guide` config file
   converted from Markdown to an HTML fragment with goldmark on every request, tables on, raw HTML off; `?lang=xx`
-  picks `USER_GUIDE.xx.md` next to it when present, the frontend sending `i18n`'s `locale`; shown by
-  `components/HelpDialog.tsx`, styled by `.guide-content` in `styles/index.css`). **A diagram name/dir is always a query parameter, never a path segment**, because Gin params
+  picks `USER_GUIDE.xx.md` next to it when present, the frontend sending `i18n`'s `locale`; heading ids come from explicit `{#id}` anchors,
+  identical in both languages, via goldmark's attribute parser; shown by `components/GuideWindow.tsx`, a draggable
+  non-modal window with a filterable table of contents, styled by `.guide-content` in `styles/index.css`; dialogs and
+  panels link to a topic with `components/GuideButton.tsx` → `lib/guide.ts`'s `openGuide(topic)`, so keep those
+  anchor ids stable when editing the guides). **A diagram name/dir is always a query parameter, never a path segment**, because Gin params
   can't carry `/`. Errors map as `ErrInvalidName`→400, `ErrNotFound`→404, `ErrExists`→409.
 - Custom elements: `custom_elements.dir` (`../custom-elements`, tracked in git; `CB.xsld` is the example) holds
   ordinary `.xsld` diagrams used as predefined fragments. `main.go` opens it as a second `storage.Store`, and

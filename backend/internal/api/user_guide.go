@@ -14,12 +14,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
 )
 
 // userGuideMarkdown converts the user guide: CommonMark plus GitHub-style
-// tables. Raw HTML inside the Markdown is not passed through (goldmark's
-// default), so the result is safe to inject into the page.
-var userGuideMarkdown = goldmark.New(goldmark.WithExtensions(extension.Table))
+// tables, with heading ids: explicit `{#id}` attributes (identical in every
+// translation, so a dialog's "?" topic link works in any language) and
+// automatic ones otherwise. Raw HTML inside the Markdown is not passed
+// through (goldmark's default), so the result is safe to inject into the page.
+var userGuideMarkdown = goldmark.New(
+	goldmark.WithExtensions(extension.Table),
+	goldmark.WithParserOptions(parser.WithAttribute(), parser.WithAutoHeadingID()),
+)
 
 // guideLang is what the lang query parameter must look like (a two-letter
 // locale code); anything else is ignored, so it can never name another file.

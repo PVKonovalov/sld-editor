@@ -83,7 +83,12 @@ export function ConnectionsSection({ element, connector }: { element?: DiagramEl
 
   return (
     <section>
-      <GroupHeader label={t('properties.connections')} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
+      <GroupHeader
+        label={t('properties.connections')}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(c => !c)}
+        topic="connections"
+      />
       {!collapsed && (
         <div className="space-y-2 text-xs">
           {rows.map(row => {

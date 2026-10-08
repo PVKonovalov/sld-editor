@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import { t } from '../i18n'
+import { GuideButton } from './GuideButton'
 
 /** Offers the recovery drafts (lib/drafts.ts) of diagrams whose edits never
  * reached the server: on startup, or when such a diagram is opened again.
@@ -30,7 +31,10 @@ export function DraftRecoveryDialog() {
       <div className="fixed inset-0 z-50 bg-black/50" />
       <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
         <div className="pointer-events-auto w-[28rem] max-h-[80vh] overflow-y-auto rounded border border-surface-600 bg-surface-700 p-4 shadow-lg space-y-3 text-xs">
-          <h2 className="text-sm font-semibold text-gray-100">{t('drafts.title')}</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-100">
+            {t('drafts.title')}
+            <GuideButton topic="unsaved" />
+          </h2>
           <p className="text-gray-300">{t('drafts.message')}</p>
           <ul className="space-y-2">
             {recoverableDrafts.map(d => (
