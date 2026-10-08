@@ -5176,3 +5176,24 @@ xsde2svg's absolute `rotate(a,cx,cy)` form. `Extract` already read a `<g>`-wrapp
 round-trip; older flat xsde2svg files import as before. xsde2svg 1.4.21 (`internal/modus/element_28.go`) writes the
 same group. slddoc tests: the Static format test now expects the group, and `TestRender_ObjectLinkIsOneGroup` checks
 the Interactive group, the single id, `data-layer` on the group and an Extract round-trip.
+
+2026-10-08: Snap to grid. Diagrams imported from xsde2svg often lie between grid points (39 of 436 in `diagrams/`
+have off-grid busbars, such as `PS_110kV_Demyansk`'s at y = 691), and moving never fixed that, because a move only
+rounded the distance moved. Two changes:
+- A **Snap to grid** button (`components/panels/SnapToGridSection.tsx`) in the diagram Properties runs
+  `diagramOps.snapDiagramToGrid`. Every Node and wire vertex snaps on its own, x and y separately, so shared points
+  stay shared and straight wires stay straight. Each device moves by the offset of its `gridReferencePoint` (its
+  first connected terminal, else its first terminal or anchor), and its port Nodes on its terminals move with it.
+  Wire ends follow their Nodes (`rerouteConnectorEnd`). Points-based elements snap every vertex. Labels and digital
+  devices stay put. The topology is kept exactly: only zero-length wires are joined (`removeDegenerateConnectors`).
+  The joins a move runs were dropped after they split about 80 wires in Demyansk where unrelated items happened to
+  land on each other. The command is one undo step and reports how many items moved. Checked on Demyansk, Bayari and
+  CUS_Novgorodenergo: all busbar points and device reference points end up on the grid, connection and wire counts
+  are unchanged apart from zero-length wires, it takes 20 ms on the largest, and a second run moves nothing.
+- With Settings' Snap to grid on, a Ctrl/Cmd-drag or Alt-drag now puts the dragged item's `gridReferencePoint` (a
+  wire's first point) on the grid instead of rounding the offset (`Canvas.tsx`'s `moveGridAnchor`/`moveDelta`). The
+  rest of the group keeps its layout relative to it, and labels and digital devices still move by whole steps. An
+  Alt-click with no real drag no longer places a copy.
+
+User guides: a "Snapping to the grid" section (`#snap-to-grid`, the button's "?" target) and the updated
+moving-with-snap paragraph.

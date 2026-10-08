@@ -1,6 +1,7 @@
 import { Captions, Trash2 } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
+import { SnapToGridSection } from './SnapToGridSection'
 import { PanelShell } from './PanelShell'
 import { LayersSection, VoltageClassesSection } from './DiagramSections'
 import { DiagramFileSection } from './DiagramFileSection'
@@ -550,6 +551,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               className="w-full h-8 bg-surface-800 border border-surface-600 rounded"
             />
           </label>
+          <SnapToGridSection />
           <DiagramFileSection />
           <LayersSection />
           <VoltageClassesSection />

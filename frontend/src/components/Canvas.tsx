@@ -613,8 +613,39 @@ export function Canvas() {
   // own drag state is a single id, not an array) — both are purely visual
   // simplifications; the final committed position via moveSelection is
   // correct regardless.
+  // The point of the clicked item a move puts on the grid while Snap to
+  // grid is on: an element's gridReferencePoint (its connected terminal,
+  // else its anchor or first vertex) or a wire's first point. null, so the
+  // move snaps only the distance moved, for labels and digital devices
+  // (often deliberately placed between grid points) or with snapping off.
+  function moveGridAnchor(id: number, kind: SelectionKind): Point | null {
+    if (!snapEnabled) return null
+    if (kind === 'element') {
+      const el = diagram!.elements.find(e => e.id === id)
+      return el ? diagramOps.gridReferencePoint(diagram!, el, elements) : null
+    }
+    if (kind === 'connector') return diagram!.connectors.find(c => c.id === id)?.points[0] ?? null
+    return null
+  }
+
+  // A move's offset from the mousedown point to p: with a grid anchor, the
+  // offset that lands that anchor on the nearest grid point (so an item
+  // imported off the grid lines up the first time it is moved, and a group
+  // keeps its relative layout around it); otherwise the distance moved,
+  // rounded to the grid when snapping is on.
+  function moveDelta(point: Point, p: Point, anchor: Point | null): { dx: number; dy: number } {
+    if (!anchor) {
+      return { dx: snapValue(p.x - point.x, gridSpacing, snapEnabled), dy: snapValue(p.y - point.y, gridSpacing, snapEnabled) }
+    }
+    return {
+      dx: snapValue(anchor.x + p.x - point.x, gridSpacing, true) - anchor.x,
+      dy: snapValue(anchor.y + p.y - point.y, gridSpacing, true) - anchor.y,
+    }
+  }
+
   function startGroupDrag(point: Point, clickedId: number, clickedKind: SelectionKind) {
     const moving = movingGroup(clickedId, clickedKind)
+    const anchor = moveGridAnchor(clickedId, clickedKind)
     const totalCount =
       moving.elementIds.size + moving.connectorIds.size + moving.labelIds.size + moving.digitalDeviceIds.size
     if (totalCount <= 1) {
@@ -635,9 +666,7 @@ export function Canvas() {
     }
 
     const onMove = (ev: MouseEvent) => {
-      const p = toPoint(ev.clientX, ev.clientY)
-      const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
-      const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
+      const { dx, dy } = moveDelta(point, toPoint(ev.clientX, ev.clientY), anchor)
       if (elementIds.length > 0) setGhost({ ids: elementIds, dx, dy })
       if (previewLabelId !== null) setLabelDrag({ id: previewLabelId, dx, dy })
       if (previewDigitalDeviceId !== null) setDigitalDeviceDrag({ id: previewDigitalDeviceId, dx, dy })
@@ -646,9 +675,7 @@ export function Canvas() {
     const onUp = (ev: MouseEvent) => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
-      const p = toPoint(ev.clientX, ev.clientY)
-      const dx = snapValue(p.x - point.x, gridSpacing, snapEnabled)
-      const dy = snapValue(p.y - point.y, gridSpacing, snapEnabled)
+      const { dx, dy } = moveDelta(point, toPoint(ev.clientX, ev.clientY), anchor)
       setGhost(null)
       setLabelDrag(null)
       setDigitalDeviceDrag(null)
@@ -876,7 +903,12 @@ export function Canvas() {
   // rendered nodes, with their ids/data-editor-kind stripped so they can't
   // be hit-tested) follows the cursor while the originals stay put; on
   // release the real copy is placed there. No movement leaves no copy.
-  function startDuplicateDrag(point: Point, clickedId: number, clickedKind: SelectionKind) {
+  function startDuplicateDrag(
+    point: Point,
+    startClient: { x: number; y: number },
+    clickedId: number,
+    clickedKind: SelectionKind,
+  ) {
     const moving = movingGroup(clickedId, clickedKind)
     const group = new Map<number, SelectionKind>([
       ...[...moving.elementIds].map(id => [id, 'element'] as const),
@@ -903,11 +935,13 @@ export function Canvas() {
     }
     root.appendChild(preview)
 
-    const delta = (ev: MouseEvent) => {
-      const p = toPoint(ev.clientX, ev.clientY)
-      return { dx: snapValue(p.x - point.x, gridSpacing, snapEnabled), dy: snapValue(p.y - point.y, gridSpacing, snapEnabled) }
-    }
+    const anchor = moveGridAnchor(clickedId, clickedKind)
+    const delta = (ev: MouseEvent) => moveDelta(point, toPoint(ev.clientX, ev.clientY), anchor)
+    // An Alt-click without a real drag places nothing, even though aligning
+    // an off-grid item to the grid gives a non-zero offset on its own.
+    let dragged = false
     const onMove = (ev: MouseEvent) => {
+      if (Math.hypot(ev.clientX - startClient.x, ev.clientY - startClient.y) >= MARQUEE_MIN_DRAG) dragged = true
       const { dx, dy } = delta(ev)
       preview.setAttribute('transform', `translate(${dx},${dy})`)
     }
@@ -916,7 +950,7 @@ export function Canvas() {
       window.removeEventListener('mouseup', onUp)
       preview.remove()
       const { dx, dy } = delta(ev)
-      if (dx === 0 && dy === 0) return
+      if (!dragged || (dx === 0 && dy === 0)) return
       placeCopy(template, { x: centroid.x + dx, y: centroid.y + dy }, p => p)
     }
     window.addEventListener('mousemove', onMove)
@@ -2133,7 +2167,7 @@ export function Canvas() {
     // Alt/Option-drag duplicates: the whole selection when the item is part
     // of it, otherwise just this item.
     if (e.altKey) {
-      startDuplicateDrag(point, hitId, kind)
+      startDuplicateDrag(point, { x: e.clientX, y: e.clientY }, hitId, kind)
       return
     }
 
@@ -2344,9 +2378,12 @@ export function Canvas() {
     setContextMenu({ x: e.clientX, y: e.clientY, diagramPoint, elementId, connectorId })
   }
 
-  // The context menu's "Topology" submenu: both items start a pick of the
-  // second terminal from the first, the one nearest the right-click.
+  // The context menu's "Topology" submenu: Connect to… and Create wire to…
+  // start a pick of the second terminal from the first, the one nearest the
+  // right-click; Disconnect detaches the item there at once (greyed out
+  // when nothing is attached at that point).
   function topologyMenu(first: () => ConnectTarget | null): ContextMenuItem {
+    const here = first()
     const start = (mode: 'join' | 'wire') => () => {
       const from = first()
       if (!from) return
@@ -2359,6 +2396,13 @@ export function Canvas() {
       children: [
         { label: t('contextMenu.connectTo'), onSelect: start('join') },
         { label: t('contextMenu.createWireTo'), onSelect: start('wire') },
+        {
+          label: t('contextMenu.disconnect'),
+          disabled: !here || !diagramOps.canDisconnect(diagram!, here),
+          onSelect: () => {
+            if (here) updateDiagram(d => diagramOps.disconnectTopologyTarget(d, here, gridSpacing, elements))
+          },
+        },
       ],
     }
   }

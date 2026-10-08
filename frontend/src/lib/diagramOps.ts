@@ -3766,3 +3766,366 @@ function joinNodesToBusbars(diagram: Diagram, nodeIds: Set<number>): Diagram {
   }
   return d
 }
+
+// ---------------------------------------------------------------------------
+// Snapping to the grid
+// ---------------------------------------------------------------------------
+
+const snapToGrid = (v: number, grid: number) => Math.round(v / grid) * grid
+
+/** The point of el that should sit on a grid point: its first connected
+ * terminal (a port whose node lies exactly on it and has something else
+ * attached), else its first terminal, else the first vertex of a
+ * points-based element, else its anchor. Snapping this point rather than
+ * the anchor keeps a device's connection on the grid even when its anchor
+ * sits off-grid relative to its terminals. Shared by snapDiagramToGrid and
+ * the canvas's absolute-snap moves. */
+export function gridReferencePoint(
+  diagram: Diagram,
+  el: DiagramElement,
+  symbols: ElementSymbol[],
+  connected: Set<number> = connectedNodeIds(diagram),
+  nodeIndex?: Map<number, DiagramNode>,
+): Point {
+  if (POINTS_BASED_CLASSES.has(el.class) && el.points && el.points.length > 0) return el.points[0]
+  const terminals = symbolTerminals(el, symbols)
+  if (!terminals || terminals.length === 0) return { x: el.x, y: el.y }
+  const ports = el.ports ?? []
+  for (let i = 0; i < terminals.length; i++) {
+    const port = ports[i]
+    if (!port || !connected.has(port.node)) continue
+    const node = nodeIndex ? nodeIndex.get(port.node) : diagram.nodes.find(n => n.id === port.node)
+    if (node && samePoint(node, terminals[i])) return terminals[i]
+  }
+  return terminals[0]
+}
+
+/** Moves every element, wire and connection point onto the nearest point of
+ * a grid of spacing grid, keeping everything connected (the diagram
+ * Properties' "Snap to grid" command). Text labels and digital devices are
+ * left where they are.
+ *
+ * Connection points come first: every Node and every wire vertex snaps on
+ * its own, x and y separately, so a point shared by a busbar, a wire end and
+ * a terminal lands on the same grid point from each side, and wires that
+ * were straight stay straight. A device then moves by the offset of its
+ * gridReferencePoint, and each of its port Nodes that sat on its terminal
+ * moves with it (the first device to claim a shared Node wins); a wire end
+ * on such a Node follows it, keeping its last segment orthogonal
+ * (rerouteConnectorEnd). A points-based element snaps each vertex; its
+ * anchor follows the vertex it coincides with, or else the first/last
+ * vertex midpoint. Finally a wire squeezed to zero length is removed, its
+ * two ends joined (they were connected through it anyway).
+ *
+ * The topology is otherwise left exactly as it was: unlike a move, nothing
+ * that merely lands on a busbar, wire or Node is connected to it, since
+ * snapping pulls nearby but unrelated items together and must never create
+ * a connection the diagram didn't have.
+ *
+ * Returns the diagram and how many elements and wires moved. */
+export function snapDiagramToGrid(
+  diagram: Diagram,
+  grid: number,
+  symbols: ElementSymbol[],
+): { diagram: Diagram; moved: number } {
+  if (!(grid > 0)) return { diagram, moved: 0 }
+  const snap = (p: Point): Point => ({ x: snapToGrid(p.x, grid), y: snapToGrid(p.y, grid) })
+  const nodeIndex = new Map(diagram.nodes.map(n => [n.id, n]))
+  const connected = connectedNodeIds(diagram)
+
+  const nodePos = new Map<number, Point>(diagram.nodes.map(n => [n.id, snap(n)]))
+  const claimed = new Set<number>()
+  let moved = 0
+
+  const elements = diagram.elements.map(el => {
+    if (POINTS_BASED_CLASSES.has(el.class) && el.points && el.points.length > 0) {
+      const old = el.points
+      const points = old.map(snap)
+      const i = old.findIndex(p => samePoint(p, el))
+      const last = old.length - 1
+      const anchor =
+        i >= 0
+          ? points[i]
+          : {
+              x: el.x + (points[0].x + points[last].x - old[0].x - old[last].x) / 2,
+              y: el.y + (points[0].y + points[last].y - old[0].y - old[last].y) / 2,
+            }
+      if (samePoint(anchor, el) && points.every((p, k) => samePoint(p, old[k]))) return el
+      moved++
+      return { ...el, x: anchor.x, y: anchor.y, points }
+    }
+    const ref = gridReferencePoint(diagram, el, symbols, connected, nodeIndex)
+    const target = snap(ref)
+    const dx = target.x - ref.x
+    const dy = target.y - ref.y
+    // Ports on this device's own terminals move with it, even with no
+    // offset: that overrides their own independent snap, so a terminal
+    // never parts from its node.
+    const terminals = symbolTerminals(el, symbols)
+    if (terminals) {
+      ;(el.ports ?? []).forEach((port, k) => {
+        const node = nodeIndex.get(port.node)
+        const t = terminals[k]
+        if (!node || !t || !samePoint(node, t) || claimed.has(port.node)) return
+        claimed.add(port.node)
+        nodePos.set(port.node, { x: t.x + dx, y: t.y + dy })
+      })
+    }
+    if (dx === 0 && dy === 0) return el
+    moved++
+    return { ...el, x: el.x + dx, y: el.y + dy }
+  })
+
+  const connectors = diagram.connectors.map(c => {
+    if (c.points.length === 0) return c
+    let points = c.points.map(snap)
+    const from = nodePos.get(c.from)
+    const to = nodePos.get(c.to)
+    if (from && !samePoint(points[0], from)) points = rerouteConnectorEnd(points, 'from', from)
+    if (to && !samePoint(points[points.length - 1], to)) points = rerouteConnectorEnd(points, 'to', to)
+    points = simplifyOrthogonalPath(points)
+    if (points.length === c.points.length && points.every((p, k) => samePoint(p, c.points[k]))) return c
+    moved++
+    return { ...c, points }
+  })
+
+  const nodes = diagram.nodes.map(n => {
+    const p = nodePos.get(n.id)!
+    return samePoint(p, n) ? n : { ...n, x: p.x, y: p.y }
+  })
+
+  if (moved === 0 && nodes.every((n, k) => n === diagram.nodes[k])) return { diagram, moved: 0 }
+
+  return { diagram: removeDegenerateConnectors({ ...diagram, elements, connectors, nodes }), moved }
+}
+
+// ---------------------------------------------------------------------------
+// Topology → Disconnect
+// ---------------------------------------------------------------------------
+
+/** What "Topology → Disconnect" acts on at target: the Node at the
+ * connection point nearest target.point (a device's terminal, a busbar's
+ * Port, or a wire's nearer end) and what else is attached to that Node.
+ * null when target has no such Node. */
+function disconnectSubject(
+  diagram: Diagram,
+  target: TopologyTarget,
+): { node: DiagramNode; wires: Connector[]; ports: { elementId: number; index: number }[] } | null {
+  let nodeId: number | undefined
+  let selfWire: { id: number; end: 'from' | 'to' } | null = null
+  if (target.kind === 'element') {
+    const el = diagram.elements.find(e => e.id === target.elementId)
+    let best = Infinity
+    for (const p of el?.ports ?? []) {
+      const n = diagram.nodes.find(x => x.id === p.node)
+      const dist = n ? Math.hypot(n.x - target.point.x, n.y - target.point.y) : Infinity
+      if (dist < best) {
+        best = dist
+        nodeId = p.node
+      }
+    }
+  } else {
+    const c = diagram.connectors.find(x => x.id === target.connectorId)
+    if (!c || c.points.length < 2 || c.from === c.to) return null
+    const first = c.points[0]
+    const last = c.points[c.points.length - 1]
+    const end =
+      Math.hypot(first.x - target.point.x, first.y - target.point.y) <=
+      Math.hypot(last.x - target.point.x, last.y - target.point.y)
+        ? 'from'
+        : 'to'
+    nodeId = c[end]
+    selfWire = { id: c.id, end }
+  }
+  const node = diagram.nodes.find(n => n.id === nodeId)
+  if (!node) return null
+  const wires = diagram.connectors.filter(
+    c => (c.from === node.id || c.to === node.id) && !(selfWire && c.id === selfWire.id),
+  )
+  const ports: { elementId: number; index: number }[] = []
+  for (const el of diagram.elements) {
+    if (target.kind === 'element' && el.id === target.elementId) continue
+    ;(el.ports ?? []).forEach((p, index) => {
+      if (p.node === node.id) ports.push({ elementId: el.id, index })
+    })
+  }
+  return { node, wires, ports }
+}
+
+/** Whether "Topology → Disconnect" has anything to detach at target. */
+export function canDisconnect(diagram: Diagram, target: TopologyTarget): boolean {
+  const s = disconnectSubject(diagram, target)
+  return !!s && (s.wires.length > 0 || s.ports.length > 0)
+}
+
+/** A unit vector along the dominant axis of v ((0,0) for a zero v). */
+function axisUnit(v: Point): Point {
+  if (v.x === 0 && v.y === 0) return { x: 0, y: 0 }
+  return Math.abs(v.x) >= Math.abs(v.y) ? { x: Math.sign(v.x), y: 0 } : { x: 0, y: Math.sign(v.y) }
+}
+
+/** Moves Node nodeId by v, every wire end on it following with its last
+ * segment kept orthogonal (rerouteConnectorEnd). */
+function moveNodeBy(diagram: Diagram, nodeId: number, v: Point): Diagram {
+  const node = diagram.nodes.find(n => n.id === nodeId)
+  if (!node || (v.x === 0 && v.y === 0)) return diagram
+  const to = { x: node.x + v.x, y: node.y + v.y }
+  return {
+    ...diagram,
+    nodes: diagram.nodes.map(n => (n.id === nodeId ? { ...n, ...to } : n)),
+    connectors: diagram.connectors.map(c => {
+      let points = c.points
+      if (c.from === nodeId) points = rerouteConnectorEnd(points, 'from', to)
+      if (c.to === nodeId) points = rerouteConnectorEnd(points, 'to', to)
+      return points === c.points ? c : { ...c, points }
+    }),
+  }
+}
+
+/** The step that pulls a wire's end at Node nodeId back along its own last
+ * segment: grid long, or half the segment when that is shorter. */
+function pullBackStep(c: Connector, nodeId: number, grid: number): Point {
+  const pts = c.points
+  const [end, prev] = c.from === nodeId ? [pts[0], pts[1]] : [pts[pts.length - 1], pts[pts.length - 2]]
+  const len = Math.hypot(prev.x - end.x, prev.y - end.y)
+  if (len === 0) return { x: 0, y: 0 }
+  const step = Math.min(grid, len / 2)
+  return { x: ((prev.x - end.x) / len) * step, y: ((prev.y - end.y) / len) * step }
+}
+
+/** "Topology → Disconnect": detaches the item at target from everything
+ * else at its connection point nearest target.point, and pulls the two
+ * apart, since the editor rejoins whatever lies exactly on a connection
+ * point (on open: fitElementPorts/joinBusbar/mergeNodesOntoPorts; on a
+ * move: joinPortNodes), so a topology-only split would not last.
+ *
+ * - A device terminal gets a fresh Node of its own. What stays on the old
+ *   Node remains connected to each other. With only wires there, that Node
+ *   moves off the terminal: along the single wire (pulled back one grid
+ *   step, or half its last segment), or outward from the device for
+ *   several. With another element's Port there (a direct contact) the
+ *   device itself moves one grid step away from the contact.
+ * - A busbar drops that Port. Devices sitting on it there move one grid
+ *   step away from the busbar; otherwise the Node with its wires moves one
+ *   grid step off the busbar line, toward where the first wire goes.
+ * - A wire's nearer end gets a fresh Node, pulled back along the wire.
+ *
+ * Returns diagram itself when nothing is attached there. */
+export function disconnectTopologyTarget(
+  diagram: Diagram,
+  target: TopologyTarget,
+  grid: number,
+  symbols: ElementSymbol[],
+): Diagram {
+  const s = disconnectSubject(diagram, target)
+  if (!s || (s.wires.length === 0 && s.ports.length === 0)) return diagram
+  const step = grid > 0 ? grid : 10
+  const ids = new IdSequence(diagram)
+  const { node } = s
+  let d = diagram
+
+  if (target.kind === 'connector') {
+    const c = d.connectors.find(x => x.id === target.connectorId)!
+    const end: 'from' | 'to' = c.from === node.id ? 'from' : 'to'
+    // At the wire's drawn end, which an imported diagram may keep away
+    // from the Node it shares.
+    const at = end === 'from' ? c.points[0] : c.points[c.points.length - 1]
+    const fresh: DiagramNode = { id: ids.take(), x: at.x, y: at.y }
+    const detached = { ...c, [end]: fresh.id }
+    d = {
+      ...d,
+      lastId: ids.lastId,
+      nodes: [...d.nodes, fresh],
+      connectors: d.connectors.map(x => (x.id === c.id ? detached : x)),
+    }
+    return moveNodeBy(d, fresh.id, pullBackStep(detached, fresh.id, step))
+  }
+
+  const el = d.elements.find(e => e.id === target.elementId)!
+  if (el.class === 'BusBarSection') {
+    d = {
+      ...d,
+      elements: d.elements.map(e => (e.id === el.id ? { ...e, ports: (e.ports ?? []).filter(p => p.node !== node.id) } : e)),
+    }
+    const perp = busbarNormal(el, node)
+    const side = (p: Point) => (p.x - node.x) * perp.x + (p.y - node.y) * perp.y
+    const devices = [...new Set(s.ports.map(p => p.elementId))]
+    if (devices.length > 0) {
+      for (const id of devices) {
+        const dev = d.elements.find(e => e.id === id)
+        if (!dev) continue
+        const sign = side(dev) < 0 ? -1 : 1
+        d = moveSelection(
+          d,
+          { elementIds: new Set([id]), connectorIds: new Set(), labelIds: new Set(), digitalDeviceIds: new Set() },
+          perp.x * step * sign,
+          perp.y * step * sign,
+        )
+      }
+      return d
+    }
+    const w = s.wires[0]
+    const next = w.from === node.id ? w.points[1] : w.points[w.points.length - 2]
+    const sign = next && side(next) < 0 ? -1 : 1
+    return moveNodeBy(d, node.id, { x: perp.x * step * sign, y: perp.y * step * sign })
+  }
+
+  // A device terminal. The fresh Node goes on the terminal itself, not at
+  // the old Node: an imported diagram may keep one Node for a whole busbar,
+  // far from the terminals sharing it.
+  const portIndex = (el.ports ?? []).findIndex(p => p.node === node.id)
+  const terminal = symbolTerminals(el, symbols)?.[portIndex] ?? node
+  const fresh: DiagramNode = { id: ids.take(), x: terminal.x, y: terminal.y }
+  d = {
+    ...d,
+    lastId: ids.lastId,
+    nodes: [...d.nodes, fresh],
+    elements: d.elements.map(e =>
+      e.id === el.id ? { ...e, ports: (e.ports ?? []).map(p => (p.node === node.id ? { ...p, node: fresh.id } : p)) } : e,
+    ),
+  }
+  const outward = axisUnit({ x: terminal.x - el.x, y: terminal.y - el.y })
+  if (s.ports.length > 0) {
+    // A direct contact: the device steps back from it, or off the line of
+    // a busbar it touches (sliding along the busbar would stay on it).
+    const bus = s.ports.map(p => d.elements.find(e => e.id === p.elementId)).find(e => e?.class === 'BusBarSection')
+    let away = outward.x === 0 && outward.y === 0 ? { x: 0, y: -1 } : { x: -outward.x, y: -outward.y }
+    if (bus) {
+      const n = busbarNormal(bus, terminal)
+      away = away.x * n.x + away.y * n.y < 0 ? { x: -n.x, y: -n.y } : n
+    }
+    return moveSelection(
+      d,
+      { elementIds: new Set([el.id]), connectorIds: new Set(), labelIds: new Set(), digitalDeviceIds: new Set() },
+      away.x * step,
+      away.y * step,
+    )
+  }
+  if (s.wires.length === 1) return moveNodeBy(d, node.id, pullBackStep(s.wires[0], node.id, step))
+  const out = outward.x === 0 && outward.y === 0 ? { x: 0, y: 1 } : outward
+  return moveNodeBy(d, node.id, { x: out.x * step, y: out.y * step })
+}
+
+/** A unit normal (dominant axis) of busbar bus's segment nearest p. */
+function busbarNormal(bus: DiagramElement, p: Point): Point {
+  const pts = bus.points ?? []
+  if (pts.length < 2) return { x: 0, y: 1 }
+  const { index } = nearestSegmentOnPolylinePoints(pts, p)
+  const along = axisUnit({ x: pts[index + 1].x - pts[index].x, y: pts[index + 1].y - pts[index].y })
+  return along.x === 0 && along.y === 0 ? { x: 0, y: 1 } : { x: -along.y, y: along.x }
+}
+
+/** The segment of pts nearest p (its index, as nearestSegmentOnPolyline). */
+function nearestSegmentOnPolylinePoints(pts: Point[], p: Point): { index: number } {
+  let index = 0
+  let best = Infinity
+  for (let i = 0; i < pts.length - 1; i++) {
+    const q = nearestPointOnSegment(pts[i], pts[i + 1], p)
+    const dist = Math.hypot(q.x - p.x, q.y - p.y)
+    if (dist < best) {
+      best = dist
+      index = i
+    }
+  }
+  return { index }
+}

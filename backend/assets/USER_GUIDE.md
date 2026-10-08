@@ -235,7 +235,25 @@ dashed box is drawn around the whole group, and Properties shows how many items 
 A pasted or duplicated copy becomes the new selection. Copies keep their wires and connections, and get new names
 (`Breaker-12`). The copy buffer lasts while the browser tab is open and can be pasted into another diagram.
 
-Moving respects **Snap to grid** (Settings). Wires attached to a moved device follow it.
+Moving respects **Snap to grid** (Settings): the item you drag lands on a grid point (a device by its connected
+terminal), even if it was off the grid before, and the rest of a moved group keeps its place relative to it. Text
+labels and digital devices move in whole grid steps instead. Wires attached to a moved device follow it.
+
+### Snapping to the grid {#snap-to-grid}
+
+Diagrams imported from xsde2svg often lie between grid points (a busbar at y = 691 on a grid of 10). With nothing
+selected, **Snap to grid** in Properties moves the whole diagram onto the grid in one step:
+
+- Busbar ends, wire bends, junctions and wire ends go to the nearest grid point. Points that were in line stay in
+  line, so straight wires stay straight.
+- Each device moves so that its connected terminal sits on its snapped connection point; a device with nothing
+  connected snaps by its anchor. Lines, roads, polygons, rectangles and other drawn shapes snap every point.
+- Connections are kept exactly as they were: nothing gets connected just because it now touches something. A wire
+  squeezed to zero length is removed and its two ends joined.
+- Text labels and digital devices stay where they are.
+
+It uses the grid step from Settings, even when **Snap to grid** is off there. A note under the button tells how many
+items moved; **Ctrl+Z** undoes the whole snap.
 
 ### Undo and redo {#undo}
 
