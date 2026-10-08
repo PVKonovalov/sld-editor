@@ -5154,3 +5154,25 @@ Connections groups (`GroupHeader`'s `topic`). Backend: `GET /api/user-guide` now
 `{#id}` anchors, identical in both languages. Cross-references in the guide are now links. The guide opens with a new
 "How to: draw a diagram step by step" section: eleven steps from creating the diagram through busbar, devices,
 wiring, a ground-switch tap, an outgoing line, names and labels, checking connections, repeating bays, and saving.
+
+2026-10-08: Undo/redo. Ctrl/Cmd+Z undoes the last diagram change, Ctrl/Cmd+Shift+Z or Ctrl+Y redoes it, and new Undo/
+Redo buttons sit above the canvas zoom buttons (disabled when there is nothing to step to). `DiagramContext` keeps up
+to 100 whole-`Diagram` snapshots (cheap, since diagramOps edits are immutable and share untouched entries).
+`updateDiagram` now applies its updater against a synchronously kept `diagramRef`, outside a setState callback, and
+records the diagram it replaced. Every diagram write goes through `commitDiagram`. Several updates made in one task
+are one step, and so are quick successive edits (under 1 s apart) while the same form field has focus, so typing a
+name undoes in one go. The history restarts on open/new/import/draft restore, and saving keeps it. Undoing or redoing
+back to the last opened/saved version clears the dirty flag and deletes the recovery draft. The Canvas ignores the
+shortcuts while typing in a field and while a gesture is in progress (drag, marquee, wire, busbar or polygon drawing,
+topology pick), and clears a selected wire bend or polyline point first. User guides: an "Undo and redo" section
+(`#undo`) and the shortcut table.
+
+2026-10-08: Object link (28) is one item. slddoc's `writeObjectLink` used to draw the line and its arrowhead as two
+flat siblings, with the id, `data-type` and `data-editor-kind` on the polyline only. So the arrowhead couldn't be
+clicked, a fragment patch or delete swapped only the polyline (leaving a stale arrowhead), and `data-layer` didn't
+hide it. Both modes now draw one `<g id data-type="28" [data-name] data-voltage [data-editor-kind] [data-layer]>`
+wrapping a bare polyline and the arrowhead, like overhead and cable lines. In Static, the arrowhead is still
+xsde2svg's absolute `rotate(a,cx,cy)` form. `Extract` already read a `<g>`-wrapped connector, so saved files
+round-trip; older flat xsde2svg files import as before. xsde2svg 1.4.21 (`internal/modus/element_28.go`) writes the
+same group. slddoc tests: the Static format test now expects the group, and `TestRender_ObjectLinkIsOneGroup` checks
+the Interactive group, the single id, `data-layer` on the group and an Extract round-trip.

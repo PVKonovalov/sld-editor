@@ -397,6 +397,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.transformerVectorGroupPlaceholder': 'напр. Yn/Δ-11',
 
   'canvas.noDiagram': 'Создайте или откройте схему на панели «Файл», чтобы начать.',
+  'canvas.undo': 'Отменить (Ctrl+Z / Cmd+Z)',
+  'canvas.redo': 'Повторить (Ctrl+Shift+Z / Cmd+Shift+Z)',
   'canvas.zoomIn': 'Увеличить',
   'canvas.zoomOut': 'Уменьшить',
   'canvas.resetView': 'Сбросить вид',

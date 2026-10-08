@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { TransformWrapper, TransformComponent, useControls, type ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react'
+import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2 } from 'lucide-react'
 import { useDiagramContext, type SelectionKind } from '../state/useDiagramContext'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
@@ -369,8 +369,19 @@ function hiddenLayerCss(hidden: ReadonlySet<number>): string {
 // itself is needed. animationTime is always 0 — react-zoom-pan-pinch's
 // default rAF-driven animation never completes in a backgrounded tab,
 // which would otherwise leave the transform stuck mid-animation.
-function ZoomControls({ width, height }: { width: number; height: number }) {
+function ZoomControls({
+  width,
+  height,
+  onUndo,
+  onRedo,
+}: {
+  width: number
+  height: number
+  onUndo: () => void
+  onRedo: () => void
+}) {
   const { zoomIn, zoomOut, setTransform, instance } = useControls()
+  const { canUndo, canRedo } = useDiagramContext()
 
   const fitToView = useCallback(() => {
     const wrapper = instance.wrapperComponent
@@ -382,6 +393,8 @@ function ZoomControls({ width, height }: { width: number; height: number }) {
   }, [instance, setTransform, width, height])
 
   const buttons = [
+    { icon: Undo2, onClick: onUndo, title: t('canvas.undo'), disabled: !canUndo, gapAfter: false },
+    { icon: Redo2, onClick: onRedo, title: t('canvas.redo'), disabled: !canRedo, gapAfter: true },
     { icon: ZoomIn, onClick: () => zoomIn(), title: t('canvas.zoomIn') },
     { icon: ZoomOut, onClick: () => zoomOut(), title: t('canvas.zoomOut') },
     { icon: Maximize2, onClick: fitToView, title: t('canvas.resetView') },
@@ -389,14 +402,17 @@ function ZoomControls({ width, height }: { width: number; height: number }) {
 
   return (
     <div className="absolute bottom-4 right-4 flex flex-col gap-1 z-10">
-      {buttons.map(({ icon: Icon, onClick, title }) => (
+      {buttons.map(({ icon: Icon, onClick, title, disabled, gapAfter }) => (
         <button
           key={title}
           type="button"
           title={title}
           aria-label={title}
           onClick={onClick}
-          className="flex items-center justify-center w-8 h-8 rounded bg-surface-700 border border-surface-500 text-gray-300 hover:text-white hover:bg-surface-600 shadow transition-colors"
+          disabled={disabled}
+          className={`flex items-center justify-center w-8 h-8 rounded bg-surface-700 border border-surface-500 text-gray-300 hover:text-white hover:bg-surface-600 shadow transition-colors disabled:opacity-40 disabled:pointer-events-none ${
+            gapAfter ? 'mb-2' : ''
+          }`}
         >
           <Icon size={15} />
         </button>
@@ -454,6 +470,8 @@ export function Canvas() {
     armCustomElement,
     deleteSelected,
     updateDiagram,
+    undo,
+    redo,
     hiddenLayers,
   } = useDiagramContext()
   // An item on a layer hidden in the Layers section is neither drawn
@@ -1253,10 +1271,50 @@ export function Canvas() {
     polygonDraft,
   ])
 
+  // A mouse button held anywhere: an element/group drag in progress keeps
+  // its state in refs and the DOM, so undo checks this instead.
+  const pointerHeldRef = useRef(false)
+  useEffect(() => {
+    const down = () => (pointerHeldRef.current = true)
+    const up = () => (pointerHeldRef.current = false)
+    window.addEventListener('mousedown', down, true)
+    window.addEventListener('mouseup', up, true)
+    window.addEventListener('blur', up)
+    return () => {
+      window.removeEventListener('mousedown', down, true)
+      window.removeEventListener('mouseup', up, true)
+      window.removeEventListener('blur', up)
+    }
+  }, [])
+
+  // Undo/redo only between gestures: a drag, frame, wire, busbar or polygon
+  // still being drawn would otherwise commit onto a diagram it no longer
+  // matches. Bend/point handles may point at entries undo removes, so
+  // their selection is dropped.
+  const gestureInProgress =
+    routing !== null ||
+    polygonDraft !== null ||
+    newBusbar !== null ||
+    marquee !== null ||
+    topologyPick !== null ||
+    pointDrag !== null ||
+    labelDrag !== null ||
+    digitalDeviceDrag !== null ||
+    vertexDrag !== null
+  function stepHistory(step: () => void) {
+    if (pointerHeldRef.current || gestureInProgress) return
+    setSelectedVertex(null)
+    setSelectedPoint(null)
+    setContextMenu(null)
+    step()
+  }
+
   // Ctrl/Cmd+C copies the selection, Ctrl/Cmd+V pastes it offset from the
-  // original; Space held turns left-drag into panning. Ignored while typing
-  // in a field. Re-subscribed on every render (no dependency list) so the
-  // handlers always see the current selection and clipboard.
+  // original, Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z and Ctrl+Y redo; Space
+  // held turns left-drag into panning. Ignored while typing in a field
+  // (the field's own undo applies there). Re-subscribed on every render (no
+  // dependency list) so the handlers always see the current selection and
+  // clipboard.
   useEffect(() => {
     const typing = () => {
       const tag = (document.activeElement?.tagName ?? '').toLowerCase()
@@ -1269,8 +1327,14 @@ export function Canvas() {
         if (!e.repeat) setSpaceHeld(true)
         return
       }
-      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return
       const key = e.key.toLowerCase()
+      if (key === 'z' || key === 'y') {
+        e.preventDefault()
+        stepHistory(key === 'z' && !e.shiftKey ? undo : redo)
+        return
+      }
+      if (e.shiftKey) return
       if (key === 'c' && selection.size > 0) {
         e.preventDefault()
         copySelectionToClipboard()
@@ -2452,7 +2516,12 @@ export function Canvas() {
         }
         doubleClick={{ disabled: true }}
       >
-        <ZoomControls width={diagram.width} height={diagram.height} />
+        <ZoomControls
+          width={diagram.width}
+          height={diagram.height}
+          onUndo={() => stepHistory(undo)}
+          onRedo={() => stepHistory(redo)}
+        />
         <TransformComponent wrapperStyle={{ width: '100%', height: '100%' }}>
           <div
             ref={wrapperRef}

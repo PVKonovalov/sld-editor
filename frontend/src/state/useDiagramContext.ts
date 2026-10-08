@@ -207,6 +207,13 @@ export interface DiagramContextValue {
   saveDiagramAs: (name: string) => Promise<void>
   updateDiagram: (updater: (d: Diagram) => Diagram) => void
   updateEditorSettings: (patch: Partial<EditorSettings>) => void
+  // Undo/redo of diagram edits (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl+Y,
+  // the canvas buttons). The history restarts whenever another diagram is
+  // opened, created, imported or restored; saving keeps it.
+  undo: () => void
+  redo: () => void
+  canUndo: boolean
+  canRedo: boolean
   // Layers hidden on the canvas (Layers section checkboxes): not drawn and
   // not pickable while editing; session-only, never saved or exported.
   hiddenLayers: ReadonlySet<number>

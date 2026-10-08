@@ -35,6 +35,20 @@ function importTargetName(dir: string, fileName: string): string {
   return joinDiagramPath(dir, stripDiagramExtension(fileName))
 }
 
+// How many undo steps are kept.
+const UNDO_LIMIT = 100
+// Edits in the same form field less than this apart are one undo step.
+const FIELD_COALESCE_MS = 1000
+
+// The form field being edited (focused), whose successive changes coalesce
+// into one undo step; null for anything else (canvas, buttons, checkboxes).
+function editingField(): Element | null {
+  const el = document.activeElement
+  if (el instanceof HTMLTextAreaElement) return el
+  if (el instanceof HTMLInputElement && el.type !== 'checkbox' && el.type !== 'radio') return el
+  return null
+}
+
 export function DiagramProvider({ children }: { children: ReactNode }) {
   const [diagramName, setDiagramName] = useState<string | null>(null)
   const [diagram, setDiagram] = useState<Diagram | null>(null)
@@ -78,6 +92,50 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // differs from this one counts as having unsaved edits. null after an
   // import, whose whole content is unsaved.
   const openedRef = useRef<Diagram | null>(null)
+  // Undo/redo history: whole Diagram snapshots, cheap because every edit is
+  // an immutable diagramOps function that keeps untouched entries' object
+  // references. diagramRef mirrors the diagram state synchronously (set
+  // only through commitDiagram), so updateDiagram can apply its updater
+  // outside a setState callback, where StrictMode would run it twice, and
+  // record the diagram it replaced. cleanRef is the diagram as last
+  // opened or saved: undoing or redoing back to it clears the dirty flag.
+  const diagramRef = useRef<Diagram | null>(null)
+  const cleanRef = useRef<Diagram | null>(null)
+  const historyRef = useRef<{
+    undo: Diagram[]
+    redo: Diagram[]
+    // Coalescing: edits made in the same task (one user action calling
+    // updateDiagram more than once) are one step, and so are edits made
+    // in quick succession while the same form field has focus (typing a
+    // name, dragging a colour picker).
+    sameTask: boolean
+    field: Element | null
+    fieldTime: number
+  }>({ undo: [], redo: [], sameTask: false, field: null, fieldTime: 0 })
+  const [canUndo, setCanUndo] = useState(false)
+  const [canRedo, setCanRedo] = useState(false)
+
+  const syncHistoryFlags = useCallback(() => {
+    setCanUndo(historyRef.current.undo.length > 0)
+    setCanRedo(historyRef.current.redo.length > 0)
+  }, [])
+
+  // Every write of the diagram state goes through here. reset starts a new
+  // history (another diagram replaced this one), clean marks d as the
+  // version on disk (or null when nothing on disk matches it).
+  const commitDiagram = useCallback(
+    (d: Diagram | null, opts?: { reset?: boolean; clean?: Diagram | null }) => {
+      diagramRef.current = d
+      setDiagram(d)
+      if (opts?.clean !== undefined) cleanRef.current = opts.clean
+      if (opts?.reset) {
+        historyRef.current = { undo: [], redo: [], sameTask: false, field: null, fieldTime: 0 }
+        syncHistoryFlags()
+      }
+    },
+    [syncHistoryFlags],
+  )
+
   const latestRef = useRef({ diagramName, diagram, dirty })
   latestRef.current = { diagramName, diagram, dirty }
   const hasUnsavedEdits = useCallback(() => {
@@ -428,7 +486,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       void deleteDraft(name)
       openedRef.current = d
       setDiagramName(name)
-      setDiagram(d)
+      commitDiagram(d, { reset: true, clean: preset ? null : d })
       setDirty(false)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
@@ -439,11 +497,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       await browseDir(parentDir(name))
       if (preset) {
         const saved = await api.saveDiagram(name, d)
-        setDiagram(saved.diagram)
+        commitDiagram(saved.diagram, { reset: true, clean: saved.diagram })
         setError(saved.warning ?? null)
       }
     },
-    [browseDir, clearSelection, config],
+    [browseDir, clearSelection, config, commitDiagram],
   )
 
   const openDiagramNow = useCallback(
@@ -457,7 +515,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       )
       openedRef.current = d
       setDiagramName(name)
-      setDiagram(d)
+      commitDiagram(d, { reset: true, clean: d === raw ? d : null })
       // ensureLastId returns the same object reference when it found
       // nothing to backfill (see its own doc comment) — a genuine
       // backfill (a missing lastId, or a legacy label still sharing id 0
@@ -516,7 +574,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       const log: ImportLog | null = report ? { fileName, report } : null
       openedRef.current = null
       setDiagramName(name)
-      setDiagram(d)
+      commitDiagram(d, { reset: true, clean: null })
       setDirty(true)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
@@ -626,11 +684,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     if (!diagramName || !diagram) return
     const { diagram: d, warning } = await api.saveDiagram(diagramName, diagram)
     void deleteDraft(diagramName)
-    setDiagram(d)
+    commitDiagram(d, { clean: d })
     setDirty(false)
     setError(warning ?? null)
     await browseDir(currentDir)
-  }, [diagramName, diagram, browseDir, currentDir])
+  }, [diagramName, diagram, browseDir, currentDir, commitDiagram])
 
   const saveDiagramAs = useCallback(
     async (name: string) => {
@@ -639,18 +697,64 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       if (diagramName) void deleteDraft(diagramName)
       void deleteDraft(name)
       setDiagramName(name)
-      setDiagram(d)
+      commitDiagram(d, { clean: d })
       setDirty(false)
       setError(warning ?? null)
       await browseDir(parentDir(name))
     },
-    [diagram, diagramName, browseDir],
+    [diagram, diagramName, browseDir, commitDiagram],
   )
 
-  const updateDiagram = useCallback((updater: (d: Diagram) => Diagram) => {
-    setDiagram(d => (d ? updater(d) : d))
-    setDirty(true)
-  }, [])
+  const updateDiagram = useCallback(
+    (updater: (d: Diagram) => Diagram) => {
+      const prev = diagramRef.current
+      if (!prev) return
+      const next = updater(prev)
+      if (next === prev) return
+      const h = historyRef.current
+      const field = editingField()
+      const now = Date.now()
+      const coalesce = h.sameTask || (field !== null && field === h.field && now - h.fieldTime < FIELD_COALESCE_MS)
+      if (!coalesce) {
+        h.undo.push(prev)
+        if (h.undo.length > UNDO_LIMIT) h.undo.shift()
+      }
+      h.redo = []
+      h.field = field
+      h.fieldTime = now
+      if (!h.sameTask) {
+        h.sameTask = true
+        setTimeout(() => (historyRef.current.sameTask = false), 0)
+      }
+      commitDiagram(next)
+      setDirty(true)
+      syncHistoryFlags()
+    },
+    [commitDiagram, syncHistoryFlags],
+  )
+
+  // Steps the history one way: the current diagram goes onto the other
+  // stack. A diagram that is the last opened/saved one is clean again.
+  const stepHistory = useCallback(
+    (from: 'undo' | 'redo') => {
+      const cur = diagramRef.current
+      const h = historyRef.current
+      const target = h[from].pop()
+      if (!cur || !target) return
+      h[from === 'undo' ? 'redo' : 'undo'].push(cur)
+      h.field = null
+      commitDiagram(target)
+      const clean = target === cleanRef.current
+      setDirty(!clean)
+      // Back to what is on disk: the recovery draft holds edits no longer wanted.
+      const name = latestRef.current.diagramName
+      if (clean && name) void deleteDraft(name)
+      syncHistoryFlags()
+    },
+    [commitDiagram, syncHistoryFlags],
+  )
+  const undo = useCallback(() => stepHistory('undo'), [stepHistory])
+  const redo = useCallback(() => stepHistory('redo'), [stepHistory])
 
   const updateEditorSettings = useCallback(
     (patch: Partial<EditorSettings>) => {
@@ -709,7 +813,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       if (name !== latestRef.current.diagramName && !(await confirmLeave())) return
       openedRef.current = null
       setDiagramName(name)
-      setDiagram(draft.diagram)
+      commitDiagram(draft.diagram, { reset: true, clean: null })
       setDirty(true)
       setDefaultVoltage(draft.diagram.editor?.defaultVoltage)
       clearSelection()
@@ -797,6 +901,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       saveDiagramAs,
       updateDiagram,
       updateEditorSettings,
+      undo,
+      redo,
+      canUndo,
+      canRedo,
       hiddenLayers,
       setLayerHidden,
       unsavedPrompt,
@@ -863,6 +971,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       saveDiagramAs,
       updateDiagram,
       updateEditorSettings,
+      undo,
+      redo,
+      canUndo,
+      canRedo,
       hiddenLayers,
       setLayerHidden,
       unsavedPrompt,

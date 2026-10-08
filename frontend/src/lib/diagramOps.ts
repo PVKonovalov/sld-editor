@@ -1777,13 +1777,10 @@ function nextPortName(e: DiagramElement): string {
 // it's also what actually makes writeNamedLine's own data-name attribute
 // non-empty (confirmed against a real xsde2svg-exported line's own
 // data-name, e.g. sld-viewer/assets/sld/IEEE9bus.svg's "Line2" — see
-// backend/internal/slddoc/render.go); LinkToObject's own real xsde2svg
-// rendering (writeObjectLink) never carries a data-name at all — a real
-// instance's own element_28.go emits its polyline with no <g> wrapper and
-// no data-name, unlike element_22/23's own writeNamedLine treatment — so
-// there this Name is editor-only bookkeeping (Properties/XML), not
-// anything Render reads back out. Every other kind returns undefined,
-// same as never setting Name at all.
+// backend/internal/slddoc/render.go). LinkToObject renders as one
+// <g id data-type="28"> wrapping its line and arrowhead (slddoc's
+// writeObjectLink, xsde2svg 1.4.21+), which carries this Name as data-name.
+// Every other kind returns undefined, same as never setting Name at all.
 const NAMED_CONNECTOR_KIND_LABEL: Partial<Record<ConnectorKind, string>> = {
   OverheadLine: 'Overhead line',
   CableLine: 'Cable line',

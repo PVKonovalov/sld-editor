@@ -401,6 +401,8 @@ export const dictionary = {
   'properties.transformerVectorGroupPlaceholder': 'e.g. Yn/Δ-11',
 
   'canvas.noDiagram': 'Create or open a diagram from the File panel to get started.',
+  'canvas.undo': 'Undo (Ctrl+Z / Cmd+Z)',
+  'canvas.redo': 'Redo (Ctrl+Shift+Z / Cmd+Shift+Z)',
   'canvas.zoomIn': 'Zoom in',
   'canvas.zoomOut': 'Zoom out',
   'canvas.resetView': 'Reset view',

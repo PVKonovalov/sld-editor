@@ -118,7 +118,10 @@ storage and the Gin API.
   prompt. Anything that replaces the open diagram (`openDiagram`, `newDiagram`, `importDiagramFile`, `restoreDraft`)
   goes through `confirmLeave`, which asks Save / Don't save / Cancel when there are unsaved edits; a repair made on
   open doesn't count (`openedRef`). Unsaved edits are also copied to an IndexedDB recovery draft (`lib/drafts.ts`),
-  offered back on startup and on open. Split into two files to keep Vite Fast Refresh working.
+  offered back on startup and on open. Undo/redo (`undo`/`redo`/`canUndo`/`canRedo`) keeps whole-`Diagram`
+  snapshots: `updateDiagram` applies its updater to `diagramRef` (not inside `setDiagram`) and pushes the old one, and
+  every other diagram write must go through `commitDiagram` (`reset` on open/new/import/restore, `clean` = what is on
+  disk). Split into two files to keep Vite Fast Refresh working.
 - `lib/api.ts`: the only backend caller. It normalizes Go `null` slices to arrays.
 - `lib/diagramOps.ts`: pure, immutable `Diagram → Diagram` editing functions (place/move/connect/route/splice/
   reshape/delete/copy-paste/voltage classes/layers). Every edit goes through these via `updateDiagram`. Untouched

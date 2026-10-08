@@ -237,6 +237,17 @@ A pasted or duplicated copy becomes the new selection. Copies keep their wires a
 
 Moving respects **Snap to grid** (Settings). Wires attached to a moved device follow it.
 
+### Undo and redo {#undo}
+
+- **Ctrl+Z** (**Cmd+Z** on a Mac) undoes the last change to the diagram; **Ctrl+Shift+Z** (**Cmd+Shift+Z**) or
+  **Ctrl+Y** redoes it. The **Undo** and **Redo** buttons above the zoom buttons do the same.
+- Every change counts: placing, moving, wiring, deleting, pasting, Properties edits, layers, voltage classes and the
+  diagram's Settings. Typing in one Properties field counts as a single change.
+- Up to 100 steps are kept. The history starts afresh when you open, create or import a diagram or restore a
+  recovery copy; saving keeps it, and undoing back to the saved version clears the unsaved-changes mark.
+- While a wire, line, polygon or selection frame is being drawn, or an item dragged, finish or cancel it (**Esc**)
+  first. In a text field, Ctrl/Cmd+Z undoes the typing in that field instead.
+
 ## Wiring {#wiring}
 
 Drawing a wire always starts by choosing its kind in the Elements panel's **Wires** group: **Buswork** (plain
@@ -371,6 +382,8 @@ the diagram.
 | --- | --- |
 | **Ctrl+C** / **Cmd+C** | Copy the selection |
 | **Ctrl+V** / **Cmd+V** | Paste, offset from the original |
+| **Ctrl+Z** / **Cmd+Z** | Undo the last change |
+| **Ctrl+Shift+Z** / **Cmd+Shift+Z**, **Ctrl+Y** | Redo |
 | **Delete** / **Backspace** | Delete the selection (or the selected bend of a wire, or point of a line or road) |
 | **Esc** | Cancel the current tool or wire; otherwise clear the selection |
 | **Space** (hold) | Pan by dragging, even while a tool is armed |
