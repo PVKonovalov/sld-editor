@@ -230,6 +230,17 @@ While the frame is being dragged, the items it would pick are highlighted. The f
 selection (click empty canvas first to start over). When more than one item is selected, a
 dashed box is drawn around the whole group, and Properties shows how many items are selected.
 
+### Finding items {#find}
+
+With nothing selected, the **Find** section in Properties searches the diagram (**Ctrl+F** / **Cmd+F** opens it):
+
+- Type part of a name (`СВ-35`), a label's text, an id (`2138` or `#2138`) or a type (`breaker`, `capacitor`). The
+  list updates as you type; an exact id comes first, then names starting with what you typed.
+- The type list narrows the search to one kind of item (with how many the diagram has), or lists them all.
+- Click a result, or move through the list with **↑**/**↓** and press **Enter**, to select it and center the canvas
+  on it. The search stays in place: clear the selection (**Esc**, or click empty canvas) to get back to it. Items on
+  a hidden layer are shown dimmed.
+
 ## Moving, copying and deleting {#moving}
 
 | Action | How |
@@ -332,8 +343,11 @@ exactly onto a device terminal, another wire's end or a busbar.
   over. A wire that only crosses a busbar is not connected. (A topology processor treats all of a busbar's terminals
   as one electrical node.)
 - Rotating, mirroring or moving a device in Properties takes its connections along.
+- Dropping a two-terminal device (a breaker, a wire jump…) onto a wire so that both its terminals lie on it puts it
+  into the wire: the wire is cut out between the terminals and each piece ends on one of them.
 - Deleting a wire leaves the devices' terminals as they are. Deleting a device also deletes the wires attached to
-  it.
+  it, except a device sitting in a wire (one wire on each terminal, continuing each other through it): deleting it
+  joins the two wires back into one.
 - **Settings → Show nodes** marks every electrical connection point on the canvas with a small cross, green when
   something is connected there and red when it is free, which is useful for checking that things are really connected.
 - The **Connections** section in Properties lists, for a selected device or busbar, each of its ports with the node
@@ -415,6 +429,7 @@ the diagram.
 | --- | --- |
 | **Ctrl+C** / **Cmd+C** | Copy the selection |
 | **Ctrl+V** / **Cmd+V** | Paste, offset from the original |
+| **Ctrl+F** / **Cmd+F** | Find items (Properties → Find) |
 | **Ctrl+Z** / **Cmd+Z** | Undo the last change |
 | **Ctrl+Shift+Z** / **Cmd+Shift+Z**, **Ctrl+Y** | Redo |
 | **Delete** / **Backspace** | Delete the selection (or the selected bend of a wire, or point of a line or road) |

@@ -1,6 +1,7 @@
 import { Captions, Trash2 } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
+import { FindSection } from './FindSection'
 import { SnapToGridSection } from './SnapToGridSection'
 import { PanelShell } from './PanelShell'
 import { LayersSection, VoltageClassesSection } from './DiagramSections'
@@ -553,6 +554,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
           <SnapToGridSection />
           <DiagramFileSection />
+          <FindSection />
           <LayersSection />
           <VoltageClassesSection />
         </div>

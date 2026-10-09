@@ -473,6 +473,8 @@ export function Canvas() {
     undo,
     redo,
     hiddenLayers,
+    focusRequest,
+    requestFind,
   } = useDiagramContext()
   // An item on a layer hidden in the Layers section is neither drawn
   // (hiddenLayerCss) nor picked by any diagram-state hit test below.
@@ -622,7 +624,7 @@ export function Canvas() {
     if (!snapEnabled) return null
     if (kind === 'element') {
       const el = diagram!.elements.find(e => e.id === id)
-      return el ? diagramOps.gridReferencePoint(diagram!, el, elements) : null
+      return el ? diagramOps.gridReferencePoint(diagram!, el, elements, gridSpacing) : null
     }
     if (kind === 'connector') return diagram!.connectors.find(c => c.id === id)?.points[0] ?? null
     return null
@@ -687,6 +689,23 @@ export function Canvas() {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }
+
+  // Find's focusItem: centres the view on the requested item, zooming in to
+  // at least 100%. A frame later, so a just-selected item's box is measured.
+  useEffect(() => {
+    if (!focusRequest) return
+    const handle = requestAnimationFrame(() => {
+      const zoom = transformRef.current
+      const wrapper = zoom?.instance.wrapperComponent
+      const box = itemBox(focusRequest.id, focusRequest.kind)
+      if (!zoom || !wrapper || !box) return
+      const scale = Math.max(zoom.instance.state.scale, 1)
+      const cx = box.x + box.width / 2
+      const cy = box.y + box.height / 2
+      zoom.setTransform(wrapper.clientWidth / 2 - cx * scale, wrapper.clientHeight / 2 - cy * scale, scale, 0)
+    })
+    return () => cancelAnimationFrame(handle)
+  }, [focusRequest])
 
   // A selectable item's own bounding box in diagram units: an element's
   // measured box (elementBoxes), a connector's points, a label's/digital
@@ -1363,6 +1382,14 @@ export function Canvas() {
       }
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return
       const key = e.key.toLowerCase()
+      if (key === 'f' && !e.shiftKey) {
+        // Find (Properties → Find) instead of the browser's page search,
+        // which can't see into the diagram.
+        e.preventDefault()
+        selectElement(null)
+        requestFind()
+        return
+      }
       if (key === 'z' || key === 'y') {
         e.preventDefault()
         stepHistory(key === 'z' && !e.shiftKey ? undo : redo)

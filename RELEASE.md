@@ -5339,3 +5339,61 @@ unconnected.
 - **Tests:** `TestTapPortsOntoWires_RealCorpus` (the Molvotitsy ground switch) and
   `TestTapPortsOntoWires_LineEntrance` (a tap at an overhead line's entrance; none mid-span).
 - **Saved diagrams** imported before T-taps existed keep their free ports until their .svg is imported again.
+
+2026-10-09: Find. A collapsible Find section (`components/panels/FindSection.tsx`) in the diagram Properties (nothing
+selected) searches the open diagram in memory (`lib/find.ts`).
+- **Matches:** name (elements, wires, digital devices), label text, a substation's overlay text, id (`2138` or
+  `#2138`) and type: the translated type name, base.xml's English name, the class or the shape code. There's also a
+  type filter listing every type present, with counts.
+- **Order:** an exact id first, then names starting with the query, then the rest by name. Up to 200 are listed and
+  the rest counted. Items on a hidden layer are dimmed.
+- **Opening a result:** clicking it (or ↑/↓ and Enter) selects it and centres the canvas on it at no less than 100%
+  zoom, through a new `DiagramContext.focusItem` request that Canvas carries out from the item's measured box.
+- **State:** the query and filter live in `DiagramContext` (`findQuery`/`findType`, cleared when another diagram
+  opens), so the results are still there after a selected result's properties are closed.
+- **Shortcut:** Ctrl/Cmd+F (outside text fields) clears the selection, opens Properties and focuses Find
+  (`requestFind`/`findFocusSeq`) instead of the browser's page search.
+User guides: "Finding items" (`#find`, the section's "?" target) and the shortcut table.
+
+2026-10-09: No lonely nodes after deleting a device; devices dropped into a wire. Reported: adding and then deleting
+a Wire jump (14) in `PS_110kV_Krestsci` left a red cross that can't be selected.
+- **Leftover node:** deleting a device deletes the wires on its terminals, but `removeElement` dropped only the
+  device's own nodes, not those wires' far ends. A far end nothing else used stayed as a Node. Show nodes draws it
+  red, and nothing can select it. `removeElement` now ends with `dropUnusedNodes`, which removes every Node no port
+  or wire end uses, and the on-open repair (`normalizeTopology`) runs it too, so a node an older delete left
+  (such as the Krestsci one) goes when the diagram is opened and saved.
+- **Dropping a device onto a wire:** `joinPortNodes` split the wire at the first terminal only. The remaining piece
+  ran on through the device and touched its own port, so the second terminal was never joined and the wire shorted
+  the device. A new first step, `cutWireThroughDevice`, cuts the wire out between the two terminals of a two-port
+  device lying on one stretch of it (no bend in between): the wire keeps its id up to the nearer terminal, and a
+  fresh piece runs from the other terminal on. It applies to placing and moving a device onto a wire.
+- **Deleting a device in a wire** (`healInlineDevice`): one wire on each of its two terminals, nothing else there,
+  same kind and voltage, both continuing in line through it. The two wires now join back into the first one instead
+  of being deleted. Any other device still deletes its wires.
+- **Checked on Krestsci** by placing and deleting a wire jump on each of its 41 straight wires:
+  - lonely nodes 10 → 0;
+  - of 15 horizontal wires, deleting restores 14 to their original ends (the other lies on a busbar, where the
+    terminals are busbar ports, so it isn't healed);
+  - opening all 148 diagrams changes no wire count.
+User guides: Connections describes dropping a device into a wire and deleting it.
+
+2026-10-09: No empty busbar connection points. The red cross that remained in `PS_110kV_Krestsci` after opening
+and saving wasn't an unused node. It was busbar #3314's port at (1670,440): the Wire jump had a terminal there, so
+the busbar got a connection point for it, and deleting the jump kept that node because the busbar still used it.
+`dropUnusedNodes` now first drops every busbar Port with nothing else on its Node (a busbar has one Port per
+connection point; device Ports are fixed and stay), renumbering the rest. `removeConnector` runs it too, since deleting
+a wire attached to a busbar left the same leftover. The on-open repair goes through it as well, so opening and saving
+Krestsci removes the cross. Across the 148 diagrams it drops 2 such ports (in 2 files) and disconnects nothing. The 14
+red crosses left in Krestsci are real free device terminals (grounds, cable connectors, spare transformer windings).
+
+2026-10-09: Snap to grid keeps a scaled device's center on the grid. Reported in `PS_110kV_Krestsci`: Wire jump 3854,
+crossing a busbar at (2490,420) at size step 1, moved off the busbar on Snap to grid. Its terminals are 10·√2 ≈ 14.14
+from its center, so it can't have both a terminal and its center on grid points, and `gridReferencePoint` always
+aligned its first connected terminal (405.86 → 410), pushing the center to about 424.14.
+`gridReferencePoint(diagram, el, symbols, grid, …)` now tries the anchor and each terminal and picks the one whose
+snapping puts the most of those points on grid points, preferring the anchor on a tie, then a connected terminal. An
+imported device whose terminals are on the grid and its anchor isn't still snaps by a terminal; a size-scaled one keeps
+its center. The canvas's absolute-snap moves use the same choice. Re-checked: 3854 stays at (2490,420) with its ports at
+y 406/434. Demyansk, Bayari and CUS_Novgorodenergo still end with every busbar point and device reference point on
+the grid, the same connections, and nothing left to move on a second pass; CUS_Novgorodenergo now moves 1343 items
+instead of 1964, since a device with its center already on the grid is no longer pushed off it to align a terminal.

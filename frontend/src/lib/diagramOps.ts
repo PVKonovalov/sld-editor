@@ -2621,10 +2621,18 @@ export function drawDanglingConnectorPathFromPoint(
 
 /** Removes an element, and any connector left dangling because it was the
  * element's own node's only remaining user (a node still ported into by
- * another element is left alone, along with any connector touching it). */
+ * another element is left alone, along with any connector touching it).
+ * Every Node nothing uses any more goes too, the far ends of those
+ * connectors included, so no lonely node is left behind.
+ *
+ * An in-line device (healInlineDevice: one wire on each of its two
+ * terminals, continuing each other through it, as when it was dropped onto a
+ * wire) is instead taken out of the wire: the two wires join back into one. */
 export function removeElement(diagram: Diagram, id: number): Diagram {
   const removed = diagram.elements.find(e => e.id === id)
   if (!removed) return diagram
+  const healed = healInlineDevice(diagram, removed)
+  if (healed) return healed
 
   const remainingElements = diagram.elements.filter(e => e.id !== id)
   const removedNodes = new Set((removed.ports ?? []).map(p => p.node))
@@ -2636,13 +2644,86 @@ export function removeElement(diagram: Diagram, id: number): Diagram {
 
   const orphaned = (nodeId: number) => removedNodes.has(nodeId) && !stillUsed.has(nodeId)
 
-  return {
+  return dropUnusedNodes({
     ...diagram,
     elements: remainingElements,
     connectors: diagram.connectors.filter(c => !orphaned(c.from) && !orphaned(c.to)),
-    nodes: diagram.nodes.filter(n => !orphaned(n.id)),
     labels: diagram.labels.filter(l => l.for !== id),
+  })
+}
+
+/** Removes every Node that no element Port and no connector end uses (a
+ * leftover a Show nodes cross would mark, but nothing can select), after
+ * dropping each busbar Port with nothing else on its Node: a busbar has one
+ * Port per connection point, so once the device or wire there is deleted the
+ * Port means nothing (a device's Ports are fixed, so those stay). Returns
+ * diagram itself when there's none. */
+export function dropUnusedNodes(diagram: Diagram): Diagram {
+  const uses = new Map<number, number>()
+  const use = (id: number) => uses.set(id, (uses.get(id) ?? 0) + 1)
+  for (const e of diagram.elements) for (const p of e.ports ?? []) use(p.node)
+  for (const c of diagram.connectors) {
+    use(c.from)
+    use(c.to)
   }
+  let d = diagram
+  const emptyBusPort = (e: DiagramElement) =>
+    e.class === 'BusBarSection' && (e.ports ?? []).some(p => uses.get(p.node) === 1)
+  if (diagram.elements.some(emptyBusPort)) {
+    d = {
+      ...d,
+      elements: d.elements.map(e => {
+        if (!emptyBusPort(e)) return e
+        const kept = (e.ports ?? []).filter(p => uses.get(p.node) !== 1)
+        for (const p of e.ports ?? []) if (uses.get(p.node) === 1) uses.delete(p.node)
+        return { ...e, ports: kept.map((p, i) => ({ ...p, name: String(i + 1) })) }
+      }),
+    }
+  }
+  if (d.nodes.every(n => uses.has(n.id))) return d
+  return { ...d, nodes: d.nodes.filter(n => uses.has(n.id)) }
+}
+
+/** Deleting el when it sits in a wire: el has exactly two ports, on two
+ * Nodes that nothing else uses but one wire each, and those two wires (of
+ * the same kind and voltage) continue each other straight through el, their
+ * segments at el lying on the line between its two terminals. Returns the
+ * diagram without el and with the two wires joined into the first one
+ * (keeping its id, name and the rest; the second is removed), or null when
+ * el isn't such a device. */
+function healInlineDevice(diagram: Diagram, el: DiagramElement): Diagram | null {
+  const ports = el.ports ?? []
+  if (ports.length !== 2 || ports[0].node === ports[1].node) return null
+  const [n1, n2] = ports.map(p => diagram.nodes.find(n => n.id === p.node))
+  if (!n1 || !n2) return null
+  const otherPorts = diagram.elements.some(e => e.id !== el.id && (e.ports ?? []).some(p => p.node === n1.id || p.node === n2.id))
+  if (otherPorts) return null
+  const on = (nodeId: number) => diagram.connectors.filter(c => c.from === nodeId || c.to === nodeId)
+  const w1s = on(n1.id)
+  const w2s = on(n2.id)
+  if (w1s.length !== 1 || w2s.length !== 1) return null
+  const [w1, w2] = [w1s[0], w2s[0]]
+  if (w1.id === w2.id || w1.kind !== w2.kind || w1.voltage !== w2.voltage || w1.points.length < 2 || w2.points.length < 2) return null
+  // w1's path ending on n1, then w2's starting on n2.
+  const into = w1.to === n1.id ? w1.points : [...w1.points].reverse()
+  const out = w2.from === n2.id ? w2.points : [...w2.points].reverse()
+  const horizontal = n1.y === n2.y
+  const vertical = n1.x === n2.x
+  if (!horizontal && !vertical) return null
+  const inLine = (a: Point, b: Point) => (horizontal ? a.y === n1.y && b.y === n1.y : a.x === n1.x && b.x === n1.x)
+  if (!inLine(into[into.length - 2], into[into.length - 1]) || !inLine(out[0], out[1])) return null
+  const joined: Connector = {
+    ...w1,
+    from: w1.to === n1.id ? w1.from : w1.to,
+    to: w2.from === n2.id ? w2.to : w2.from,
+    points: simplifyOrthogonalPath([...into, ...out]),
+  }
+  return dropUnusedNodes({
+    ...diagram,
+    elements: diagram.elements.filter(e => e.id !== el.id),
+    connectors: diagram.connectors.filter(c => c.id !== w2.id).map(c => (c.id === w1.id ? joined : c)),
+    labels: diagram.labels.filter(l => l.for !== el.id),
+  })
 }
 
 /** Places a new standalone (unlinked) text label at point. for, when given,
@@ -2788,11 +2869,12 @@ export function removeConnector(diagram: Diagram, id: number): Diagram {
 
   const orphaned = (nodeId: number) => candidateNodes.has(nodeId) && !stillUsed.has(nodeId)
 
-  return {
+  // A busbar Port the wire was the only thing on goes too (dropUnusedNodes).
+  return dropUnusedNodes({
     ...diagram,
     connectors: remainingConnectors,
     nodes: diagram.nodes.filter(n => !orphaned(n.id)),
-  }
+  })
 }
 
 /** Removes just one segment of a connector — points[segmentIndex] to
@@ -3283,8 +3365,9 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
   const el = diagram.elements.find(e => e.id === elementId)
   if (!el || !el.ports || el.ports.length === 0) return diagram
   const ownNodes = new Set(el.ports.map(p => p.node))
-  let d = diagram
   let ids: IdSequence | null = null
+  let d = cutWireThroughDevice(diagram, el)
+  if (d !== diagram) ids = new IdSequence(d)
 
   for (const port of el.ports) {
     const node = d.nodes.find(n => n.id === port.node)
@@ -3336,6 +3419,57 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
     }
   }
   return ids ? { ...d, lastId: ids.lastId } : d
+}
+
+/** A two-port element dropped onto a wire, both terminals on the same
+ * stretch of it (one segment, or two in line): the wire is cut there, its
+ * piece under the element removed, so it runs from its start to the nearer
+ * terminal and from the other terminal on, each piece ending on that
+ * terminal's Port Node. The first piece keeps the wire's id, the second
+ * gets a fresh one. Without this, splitting at one terminal left the rest
+ * of the wire running through the element to the far side, touching its
+ * own Port, so the other terminal was never joined and the wire shorted it.
+ * Returns diagram itself when el isn't lying in a wire. */
+function cutWireThroughDevice(diagram: Diagram, el: DiagramElement): Diagram {
+  const ports = el.ports ?? []
+  if (ports.length !== 2 || ports[0].node === ports[1].node) return diagram
+  const [n1, n2] = ports.map(p => diagram.nodes.find(n => n.id === p.node))
+  if (!n1 || !n2) return diagram
+  const own = new Set([n1.id, n2.id])
+  // Where along c's path a point lies (segment index plus fraction), or null.
+  const at = (pts: Point[], p: Point) => {
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (isOnSegment(p, pts[i], pts[i + 1])) {
+        const len = Math.hypot(pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y)
+        return i + (len ? Math.hypot(p.x - pts[i].x, p.y - pts[i].y) / len : 0)
+      }
+    }
+    return null
+  }
+  for (const c of diagram.connectors) {
+    if (own.has(c.from) || own.has(c.to) || c.kind === 'OverheadLine' || c.points.length < 2) continue
+    const pts = c.points
+    if (pts.some((p, i) => (i === 0 || i === pts.length - 1) && (samePoint(p, n1) || samePoint(p, n2)))) continue
+    const s1 = at(pts, n1)
+    const s2 = at(pts, n2)
+    if (s1 === null || s2 === null || s1 === s2) continue
+    const [first, second, a, b] = s1 < s2 ? [n1, n2, s1, s2] : [n2, n1, s2, s1]
+    // Only a stretch of the wire with no bend between the terminals.
+    if (Math.floor(b) - Math.floor(a) > 1 || (Math.floor(b) !== Math.floor(a) && b % 1 !== 0)) continue
+    const head = simplifyOrthogonalPath([...pts.slice(0, Math.floor(a) + 1), { x: first.x, y: first.y }])
+    const tail = simplifyOrthogonalPath([{ x: second.x, y: second.y }, ...pts.slice(Math.floor(b) + 1)])
+    const ids = new IdSequence(diagram)
+    const tailId = ids.take()
+    return {
+      ...diagram,
+      lastId: ids.lastId,
+      connectors: [
+        ...diagram.connectors.map(x => (x.id === c.id ? { ...c, to: first.id, points: head } : x)),
+        { ...c, id: tailId, name: defaultConnectorName(c.kind, tailId) ?? c.name, from: second.id, points: tail },
+      ],
+    }
+  }
+  return diagram
 }
 
 /** Gives an element exactly its shape's fixed Ports (see this section's
@@ -3490,7 +3624,10 @@ export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], on
   }
   // After fitElementPorts has matched each Port to its nearest terminal, so
   // only Nodes still stray are moved, onto the terminal their Port now has.
-  return mergeNodesOntoPorts(moveStrayPortNodes(removeDegenerateConnectors(d), symbols, onlyIds), onlyIds)
+  // Nodes nothing uses (left by an older delete) are dropped.
+  return dropUnusedNodes(
+    mergeNodesOntoPorts(moveStrayPortNodes(removeDegenerateConnectors(d), symbols, onlyIds), onlyIds),
+  )
 }
 
 /** Moves each port Node that nothing else uses (no wire, no other Port) and
@@ -3704,31 +3841,56 @@ function joinNodesToBusbars(diagram: Diagram, nodeIds: Set<number>): Diagram {
 
 const snapToGrid = (v: number, grid: number) => Math.round(v / grid) * grid
 
-/** The point of el that should sit on a grid point: its first connected
- * terminal (a port whose node lies exactly on it and has something else
- * attached), else its first terminal, else the first vertex of a
- * points-based element, else its anchor. Snapping this point rather than
- * the anchor keeps a device's connection on the grid even when its anchor
- * sits off-grid relative to its terminals. Shared by snapDiagramToGrid and
- * the canvas's absolute-snap moves. */
+/** The point of el that should sit on a grid point of spacing grid: of its
+ * anchor and its terminals, the one whose snapping puts the most of those
+ * points on grid points, preferring, on a tie, the anchor, then a
+ * connected terminal (a port whose node lies exactly on it and has
+ * something else attached), then the rest in order. So an imported device
+ * whose anchor sits off-grid relative to its on-grid terminals snaps by a
+ * terminal, keeping its connection on the grid, while a device whose
+ * terminals can't share the grid with its anchor (a size step's √2
+ * lengths: a Wire jump one step up has terminals 14.14 from its center)
+ * keeps its center on the grid. A points-based element's reference is its
+ * first vertex. Shared by snapDiagramToGrid and the canvas's absolute-snap
+ * moves. */
 export function gridReferencePoint(
   diagram: Diagram,
   el: DiagramElement,
   symbols: ElementSymbol[],
+  grid: number,
   connected: Set<number> = connectedNodeIds(diagram),
   nodeIndex?: Map<number, DiagramNode>,
 ): Point {
   if (POINTS_BASED_CLASSES.has(el.class) && el.points && el.points.length > 0) return el.points[0]
+  const anchor = { x: el.x, y: el.y }
   const terminals = symbolTerminals(el, symbols)
-  if (!terminals || terminals.length === 0) return { x: el.x, y: el.y }
+  if (!terminals || terminals.length === 0 || !(grid > 0)) return terminals?.[0] ?? anchor
   const ports = el.ports ?? []
-  for (let i = 0; i < terminals.length; i++) {
+  const isConnected = (i: number) => {
     const port = ports[i]
-    if (!port || !connected.has(port.node)) continue
+    if (!port || !connected.has(port.node)) return false
     const node = nodeIndex ? nodeIndex.get(port.node) : diagram.nodes.find(n => n.id === port.node)
-    if (node && samePoint(node, terminals[i])) return terminals[i]
+    return !!node && samePoint(node, terminals[i])
   }
-  return terminals[0]
+  const candidates = [
+    anchor,
+    ...terminals.filter((_, i) => isConnected(i)),
+    ...terminals.filter((_, i) => !isConnected(i)),
+  ]
+  const all = [anchor, ...terminals]
+  const onGrid = (v: number) => Math.abs(v - snapToGrid(v, grid)) < 1e-6
+  let best = candidates[0]
+  let bestScore = -1
+  for (const c of candidates) {
+    const dx = snapToGrid(c.x, grid) - c.x
+    const dy = snapToGrid(c.y, grid) - c.y
+    const score = all.filter(p => onGrid(p.x + dx) && onGrid(p.y + dy)).length
+    if (score > bestScore) {
+      best = c
+      bestScore = score
+    }
+  }
+  return best
 }
 
 /** Moves every element, wire and connection point onto the nearest point of
@@ -3785,7 +3947,7 @@ export function snapDiagramToGrid(
       moved++
       return { ...el, x: anchor.x, y: anchor.y, points }
     }
-    const ref = gridReferencePoint(diagram, el, symbols, connected, nodeIndex)
+    const ref = gridReferencePoint(diagram, el, symbols, grid, connected, nodeIndex)
     const target = snap(ref)
     const dx = target.x - ref.x
     const dy = target.y - ref.y

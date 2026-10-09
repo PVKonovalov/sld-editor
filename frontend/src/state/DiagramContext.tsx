@@ -263,6 +263,21 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // Every diagram starts with all of its layers shown.
   useEffect(() => setHiddenLayers(new Set()), [diagramName])
 
+  const [findQuery, setFindQuery] = useState('')
+  const [findType, setFindType] = useState('')
+  const setFind = useCallback((query: string, type: string) => {
+    setFindQuery(query)
+    setFindType(type)
+  }, [])
+  useEffect(() => setFind('', ''), [diagramName, setFind])
+  const [findFocusSeq, setFindFocusSeq] = useState(0)
+  const requestFind = useCallback(() => setFindFocusSeq(n => n + 1), [])
+  const [focusRequest, setFocusRequest] = useState<{ id: number; kind: SelectionKind; seq: number } | null>(null)
+  const focusItem = useCallback(
+    (id: number, kind: SelectionKind) => setFocusRequest(prev => ({ id, kind, seq: (prev?.seq ?? 0) + 1 })),
+    [],
+  )
+
   // Drops selected ids an edit removed (or a newly opened diagram doesn't
   // have), so the selection never points at an item that isn't there.
   useEffect(() => {
@@ -908,6 +923,13 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       canRedo,
       hiddenLayers,
       setLayerHidden,
+      findQuery,
+      findType,
+      setFind,
+      findFocusSeq,
+      requestFind,
+      focusRequest,
+      focusItem,
       unsavedPrompt,
       resolveUnsavedPrompt,
       recoverableDrafts,
@@ -978,6 +1000,13 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       canRedo,
       hiddenLayers,
       setLayerHidden,
+      findQuery,
+      findType,
+      setFind,
+      findFocusSeq,
+      requestFind,
+      focusRequest,
+      focusItem,
       unsavedPrompt,
       resolveUnsavedPrompt,
       recoverableDrafts,

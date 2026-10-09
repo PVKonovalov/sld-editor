@@ -49,6 +49,7 @@ function Shell() {
     importLogOpen,
     defaultVoltagePromptOpen,
     setImportLogOpen,
+    findFocusSeq,
   } = useDiagramContext()
   const hadSelection = useRef(false)
   const hadDiagram = useRef(false)
@@ -136,6 +137,11 @@ function Shell() {
     }
     hadDiagram.current = hasDiagram
   }, [diagramName])
+
+  // Ctrl/Cmd+F (requestFind) shows Properties, where Find lives.
+  useEffect(() => {
+    if (findFocusSeq > 0) setPropertiesOpen(true)
+  }, [findFocusSeq])
 
   function togglePanel(id: PanelId) {
     if (id === 'properties') {
