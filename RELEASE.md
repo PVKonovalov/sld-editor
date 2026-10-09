@@ -5397,3 +5397,35 @@ its center. The canvas's absolute-snap moves use the same choice. Re-checked: 38
 y 406/434. Demyansk, Bayari and CUS_Novgorodenergo still end with every busbar point and device reference point on
 the grid, the same connections, and nothing left to move on a second pass; CUS_Novgorodenergo now moves 1343 items
 instead of 1964, since a device with its center already on the grid is no longer pushed off it to align a terminal.
+
+2026-10-09: Find → "Not connected only". A checkbox in the Find section (`findFree` in `DiagramContext`) keeps only
+the items with a connection point nothing else is attached to (`FindResult.free`, from how many ports and wire ends use
+each Node): a device port alone on its Node, or a wire end alone on its Node. Busbars never count, since their ports
+exist only where something is attached, and object links neither, since their arrow end points off the diagram by
+design. On its own it lists every such item, with a count. It combines with the search and the type filter (for
+example, every unconnected ground switch), and each row says which ports or ends are free. Clicking selects and
+centres, as Find does, and the Connections section then shows the free port. In `PS_110kV_Krestsci` it lists 38:
+9 devices (14 free terminals) and 29 buswork wires with a dangling end. User guides: Finding items.
+
+2026-10-09: A Find result click only selects. Clicking a result (or ↑/↓ and Enter) now selects the item and centres
+the canvas on it, but Properties stays on the diagram view with Find, so the results can be walked through. The
+item's properties open when it's clicked on the canvas. `DiagramContext.selectFromFind` selects and sets `findPinned`,
+which every other select function (`selectElement`/`Connector`/`Label`/`DigitalDevice`, `selectMany`,
+`toggleSelection`, `clearSelection`) clears. While it's set, `PropertiesPanel` shows the diagram view. A plain canvas
+click on the item, even when it's already selected, goes through `selectElement` and so opens its properties. User
+guides: Finding items.
+
+2026-10-09: Cursor coordinates, free wire ends drawn red, and jumping to a node.
+- **Cursor readout:** the canvas's bottom-left corner shows the cursor's position in diagram units (`x 1563  y
+  638`), with Snap to grid on also the grid point a click would snap to (`→ 1560, 640`), and hides off the diagram.
+  It's written straight into its DOM node from `handleWrapperMouseMove` (`showCursor`), not React state, so moving
+  the mouse doesn't re-render the canvas.
+- **Free wire ends are red:** `diagramOps.connectedNodeIds` counted every wire end as connected, so a wire end with
+  nothing on it was drawn green in Show nodes while Connections and Find called it free. A node is now connected
+  only when two or more things use it (ports and wire ends). A port with a wire on it still counts, so Snap to grid's
+  reference terminals are unchanged. In `PS_110kV_Krestsci` this shows 78 red nodes of 372: the 14 free terminals and
+  the dangling wire ends.
+- **Jumping to a node:** in Properties → Connections, a port's or wire end's node line ("→ node … (x, y)") is a link.
+  It centres the canvas on that point through a new `DiagramContext.focusPoint` (`focusRequest` now also carries a
+  point) and flashes a ring there (`.canvas-point-flash`, 1.6 s).
+User guides: moving around the canvas (the readout), Connections (Show nodes colours, the node link).

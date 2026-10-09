@@ -16,7 +16,7 @@ import type { Connector, DiagramElement } from '../../types'
 type Row = { key: string; heading: string; node: number; self: diagramOps.NodeAttachment }
 
 export function ConnectionsSection({ element, connector }: { element?: DiagramElement; connector?: Connector }) {
-  const { diagram, elements, config, selectElement, selectConnector, updateDiagram } = useDiagramContext()
+  const { diagram, elements, config, selectElement, selectConnector, updateDiagram, focusPoint } = useDiagramContext()
   const [collapsed, setCollapsed] = useState(false)
   if (!diagram) return null
 
@@ -111,9 +111,18 @@ export function ConnectionsSection({ element, connector }: { element?: DiagramEl
               <div key={row.key}>
                 <div className="text-gray-300">
                   {row.heading} →{' '}
-                  {node
-                    ? t('properties.connectionNode', { node: node.id, x: node.x, y: node.y })
-                    : t('properties.connectionNodeMissing', { node: row.node })}
+                  {node ? (
+                    <button
+                      type="button"
+                      title={t('properties.connectionNodeShow')}
+                      className="text-left hover:underline hover:text-white"
+                      onClick={() => focusPoint({ x: node.x, y: node.y })}
+                    >
+                      {t('properties.connectionNode', { node: node.id, x: node.x, y: node.y })}
+                    </button>
+                  ) : (
+                    t('properties.connectionNodeMissing', { node: row.node })
+                  )}
                 </div>
                 {others.length > 0 ? (
                   <ul className="pl-3 space-y-0.5">{others.map(a => attachmentLink(row.node, a))}</ul>

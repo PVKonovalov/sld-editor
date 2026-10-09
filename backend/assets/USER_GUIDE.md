@@ -187,6 +187,10 @@ marked as changed. Save it to keep the repair.
 
 A plain left-drag never moves an item: hold **Ctrl** (**Cmd** on a Mac) to move it (see [Moving, copying and deleting](#moving)).
 
+The bottom-left corner shows the cursor's position in diagram units (`x 1563  y 638`), the same coordinates
+Properties and the Connections section use; with **Snap to grid** on it adds the grid point a click there would snap
+to (`→ 1560, 640`). Move the mouse until it reads a point you're looking for.
+
 ## Placing elements {#placing}
 
 1. Open the **Elements** panel and expand a group.
@@ -237,9 +241,15 @@ With nothing selected, the **Find** section in Properties searches the diagram (
 - Type part of a name (`СВ-35`), a label's text, an id (`2138` or `#2138`) or a type (`breaker`, `capacitor`). The
   list updates as you type; an exact id comes first, then names starting with what you typed.
 - The type list narrows the search to one kind of item (with how many the diagram has), or lists them all.
+- **Not connected only** lists just the items with a connection point nothing else is attached to: a device
+  terminal with no wire or other device on it ("Port 1 free"), or a wire end left in mid-air ("Free end: To"),
+  with their count. On its own it lists all of them; combined with a type (say, Ground switch) or a search, only
+  those. Object links are left out: their arrow end points off the diagram by design. Busbars never count, as
+  their connection points only exist where something is attached.
 - Click a result, or move through the list with **↑**/**↓** and press **Enter**, to select it and center the canvas
-  on it. The search stays in place: clear the selection (**Esc**, or click empty canvas) to get back to it. Items on
-  a hidden layer are shown dimmed.
+  on it. Properties stays on Find, so you can go on through the results; click the item on the canvas to open its
+  properties (clear the selection with **Esc**, or click empty canvas, to get back to Find). Items on a hidden layer
+  are shown dimmed.
 
 ## Moving, copying and deleting {#moving}
 
@@ -349,10 +359,12 @@ exactly onto a device terminal, another wire's end or a busbar.
   it, except a device sitting in a wire (one wire on each terminal, continuing each other through it): deleting it
   joins the two wires back into one.
 - **Settings → Show nodes** marks every electrical connection point on the canvas with a small cross, green when
-  something is connected there and red when it is free, which is useful for checking that things are really connected.
+  something is connected there and red when it is free (a terminal with nothing on it, or a wire end left in
+  mid-air), which is useful for checking that things are really connected.
 - The **Connections** section in Properties lists, for a selected device or busbar, each of its ports with the node
   it sits on (id and coordinates) and everything else attached there; for a selected wire, the same for its two ends.
-  A port with nothing attached shows *not connected*, a wire end *free end*. Click a listed item to select it.
+  A port with nothing attached shows *not connected*, a wire end *free end*. Click a listed item to select it,
+  or the node's coordinates to center the canvas on that point (a ring flashes there).
 - The scissors icon after a listed item disconnects just that item from this connection point; everything else
   there stays connected. So that the editor does not reconnect them (it joins anything lying exactly on a
   connection point when a diagram is opened), the two are also pulled apart: a detached wire end is drawn back one

@@ -93,6 +93,10 @@ const GRID_TILE_DOTS: [number, number][] = Array.from({ length: GRID_TILE_FACTOR
 ).flat()
 // Half-length of a terminal marker's "X", in diagram units.
 const TERMINAL_MARK_SIZE = 4 / 3
+
+// How long the ring focusPoint flashes stays (styles/index.css's
+// .canvas-point-flash animation runs as long).
+const FLASH_MS = 1600
 // A terminal/node mark's color: connected (a wire or another port on its
 // node) vs free.
 const TERMINAL_CONNECTED_COLOR = '#22c55e'
@@ -690,14 +694,23 @@ export function Canvas() {
     window.addEventListener('mouseup', onUp)
   }
 
-  // Find's focusItem: centres the view on the requested item, zooming in to
-  // at least 100%. A frame later, so a just-selected item's box is measured.
+  // A ring flashed at a point focusPoint asked for; seq restarts the flash.
+  const [flash, setFlash] = useState<{ point: Point; seq: number } | null>(null)
+
+  // Find's focusItem / Connections' focusPoint: centres the view on the
+  // requested item or point, zooming in to at least 100%, and flashes a
+  // ring at a point. A frame later, so a just-selected item's box is
+  // measured.
   useEffect(() => {
     if (!focusRequest) return
+    const isPoint = 'point' in focusRequest
+    if (isPoint) setFlash({ point: focusRequest.point, seq: focusRequest.seq })
     const handle = requestAnimationFrame(() => {
       const zoom = transformRef.current
       const wrapper = zoom?.instance.wrapperComponent
-      const box = itemBox(focusRequest.id, focusRequest.kind)
+      const box = isPoint
+        ? { x: focusRequest.point.x, y: focusRequest.point.y, width: 0, height: 0 }
+        : itemBox(focusRequest.id, focusRequest.kind)
       if (!zoom || !wrapper || !box) return
       const scale = Math.max(zoom.instance.state.scale, 1)
       const cx = box.x + box.width / 2
@@ -706,6 +719,35 @@ export function Canvas() {
     })
     return () => cancelAnimationFrame(handle)
   }, [focusRequest])
+
+  useEffect(() => {
+    if (!flash) return
+    const handle = setTimeout(() => setFlash(null), FLASH_MS)
+    return () => clearTimeout(handle)
+  }, [flash])
+
+  // The cursor's diagram coordinates in the canvas corner. Written straight
+  // into the DOM: as React state, every mouse move would re-render the whole
+  // canvas.
+  const cursorReadoutRef = useRef<HTMLDivElement>(null)
+  function showCursor(p: Point | null) {
+    const el = cursorReadoutRef.current
+    if (!el) return
+    if (!p) {
+      el.textContent = ''
+      el.style.visibility = 'hidden'
+      return
+    }
+    const x = Math.round(p.x)
+    const y = Math.round(p.y)
+    let text = `x ${x}  y ${y}`
+    if (snapEnabled) {
+      const s = snapPoint(p)
+      if (s.x !== x || s.y !== y) text += `  →  ${s.x}, ${s.y}`
+    }
+    el.textContent = text
+    el.style.visibility = 'visible'
+  }
 
   // A selectable item's own bounding box in diagram units: an element's
   // measured box (elementBoxes), a connector's points, a label's/digital
@@ -1594,6 +1636,7 @@ export function Canvas() {
   // select/drag, so highlighting a "connect here" target with no way to
   // act on it would be misleading.
   function handleWrapperMouseMove(e: React.MouseEvent) {
+    showCursor(toPoint(e.clientX, e.clientY))
     if (polygonDraft) {
       setPolygonCursor(snapPoint(toPoint(e.clientX, e.clientY)))
       return
@@ -2578,6 +2621,11 @@ export function Canvas() {
         }
         doubleClick={{ disabled: true }}
       >
+        <div
+          ref={cursorReadoutRef}
+          className="absolute bottom-4 left-4 z-10 rounded bg-surface-700/90 border border-surface-500 px-2 py-0.5 text-[11px] tabular-nums text-gray-300 pointer-events-none whitespace-pre"
+          style={{ visibility: 'hidden' }}
+        />
         <ZoomControls
           width={diagram.width}
           height={diagram.height}
@@ -2589,6 +2637,7 @@ export function Canvas() {
             ref={wrapperRef}
             onMouseDown={handleMouseDown}
             onMouseMove={handleWrapperMouseMove}
+            onMouseLeave={() => showCursor(null)}
             onDoubleClick={handleWrapperDoubleClick}
             onContextMenu={handleContextMenu}
             style={{
@@ -2751,6 +2800,18 @@ export function Canvas() {
                   shows the real electrical graph (wherever a connector end
                   or an element's Port actually lands), whether or not a
                   symbol happens to draw anything there. */}
+              {flash && (
+                <circle
+                  key={flash.seq}
+                  cx={flash.point.x}
+                  cy={flash.point.y}
+                  r={8}
+                  fill="none"
+                  stroke={HIGHLIGHT}
+                  strokeWidth={1.5}
+                  className="canvas-point-flash"
+                />
+              )}
               {showNodes &&
                 diagram.nodes.map(n => (
                   <path

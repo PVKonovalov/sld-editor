@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Search } from 'lucide-react'
-import { useDiagramContext, type SelectionKind } from '../../state/useDiagramContext'
+import { useDiagramContext } from '../../state/useDiagramContext'
 import { findMatches, findTypes, type FindResult } from '../../lib/find'
 import { GroupHeader } from './GroupHeader'
 import { t } from '../../i18n'
@@ -16,10 +16,23 @@ let handledFocusSeq = 0
 /** The diagram Properties' Find section: finds elements, wires, text labels
  * and digital devices of the open diagram by name, label text, id or type
  * (lib/find.ts), with a type filter. Clicking a result (or ↑/↓ and Enter)
- * selects it and asks the canvas to centre on it (focusItem). The query and
+ * selects it and asks the canvas to centre on it (focusItem), keeping
+ * Properties on this view (selectFromFind); clicking the item on the canvas
+ * then opens its properties. The query and
  * filter live in DiagramContext, so they are still there after selecting a
  * result switches the panel to its properties and back. Ctrl/Cmd+F
  * (requestFind) expands and focuses it. */
+// Which of a result's connection points are free: "Port 1, 3 free" or
+// "Free end: start".
+function freeLabel(r: FindResult): string {
+  if (r.kind === 'connector') {
+    return t('find.freeEnds', {
+      ends: r.free.map(e => t(e === 'from' ? 'properties.connectionFrom' : 'properties.connectionTo')).join(', '),
+    })
+  }
+  return t('find.freePorts', { ports: r.free.join(', ') })
+}
+
 export function FindSection() {
   const {
     diagram,
@@ -28,26 +41,25 @@ export function FindSection() {
     findQuery,
     findType,
     setFind,
+    findFree,
+    setFindFree,
     findFocusSeq,
     focusItem,
-    selectElement,
-    selectConnector,
-    selectLabel,
-    selectDigitalDevice,
+    selectFromFind,
   } = useDiagramContext()
-  const [collapsed, setCollapsed] = useState(() => !findQuery && !findType)
+  const [collapsed, setCollapsed] = useState(() => !findQuery && !findType && !findFree)
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
 
   const types = useMemo(() => (diagram ? findTypes(diagram, elements) : []), [diagram, elements])
   const results = useMemo(
-    () => (diagram ? findMatches(diagram, elements, findQuery, findType) : []),
-    [diagram, elements, findQuery, findType],
+    () => (diagram ? findMatches(diagram, elements, findQuery, findType, findFree) : []),
+    [diagram, elements, findQuery, findType, findFree],
   )
   const shown = results.slice(0, MAX_RESULTS)
 
-  useEffect(() => setActive(0), [findQuery, findType])
+  useEffect(() => setActive(0), [findQuery, findType, findFree])
 
   // Ctrl/Cmd+F: expand and focus, also when this section mounts because of it.
   useEffect(() => {
@@ -66,14 +78,10 @@ export function FindSection() {
 
   if (!diagram) return null
 
+  // Selects r and centres the canvas on it; Properties stays here (its own
+  // properties open when it's clicked on the canvas).
   function open(r: FindResult) {
-    const select: Record<SelectionKind, (id: number) => void> = {
-      element: selectElement,
-      connector: selectConnector,
-      label: selectLabel,
-      digitaldevice: selectDigitalDevice,
-    }
-    select[r.kind](r.id)
+    selectFromFind(r.id, r.kind)
     focusItem(r.id, r.kind)
   }
 
@@ -122,7 +130,12 @@ export function FindSection() {
               </option>
             ))}
           </select>
-          {(findQuery.trim() || findType) &&
+          <label className="flex items-center gap-1.5 text-gray-300 cursor-pointer">
+            <input type="checkbox" checked={findFree} onChange={e => setFindFree(e.target.checked)} />
+            {t('find.unconnectedOnly')}
+            {findFree && <span className="ml-auto tabular-nums text-gray-500">{results.length}</span>}
+          </label>
+          {(findQuery.trim() || findType || findFree) &&
             (shown.length === 0 ? (
               <p className="text-gray-500">{t('find.noResults')}</p>
             ) : (
@@ -145,6 +158,9 @@ export function FindSection() {
                           <span className="shrink-0 tabular-nums text-gray-500">#{r.id}</span>
                         </div>
                         {r.name && <div className="truncate text-[10px] text-gray-400">{r.typeLabel}</div>}
+                        {findFree && r.free.length > 0 && (
+                          <div className="truncate text-[10px] text-red-400">{freeLabel(r)}</div>
+                        )}
                       </button>
                     </li>
                   )

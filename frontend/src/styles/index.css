@@ -92,3 +92,22 @@ body {
   @apply rounded;
   animation: guide-topic-flash 1.6s ease-out;
 }
+
+/* The ring Canvas flashes at a point it was asked to show (Connections'
+   node coordinates): pulses, then fades within FLASH_MS. */
+@keyframes canvas-point-flash {
+  0% {
+    opacity: 1;
+    stroke-width: 3;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    stroke-width: 1;
+  }
+}
+.canvas-point-flash {
+  animation: canvas-point-flash 1.6s ease-out forwards;
+}

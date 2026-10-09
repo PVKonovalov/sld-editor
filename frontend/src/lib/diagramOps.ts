@@ -1964,25 +1964,22 @@ export function nodeAttachments(diagram: Diagram): Map<number, NodeAttachment[]>
   return byNode
 }
 
-/** The ids of every node something is attached to besides a single port:
- * a connector end, or two or more element ports sharing it (a terminal
- * sitting straight on a busbar or another device). Canvas draws such a
- * node's terminal mark green, an unattached one red. */
+/** The ids of every node two or more things use (element ports and wire
+ * ends): a wire on a terminal, two wires meeting, a terminal sitting straight
+ * on a busbar or another device. A node only one thing uses (a terminal with
+ * nothing on it, or a wire end left in mid-air) is free: Canvas draws its
+ * mark red, connected ones green, matching the Connections section's
+ * "not connected"/"free end". */
 export function connectedNodeIds(diagram: Diagram): Set<number> {
-  const connected = new Set<number>()
+  const uses = new Map<number, number>()
+  const use = (id: number) => uses.set(id, (uses.get(id) ?? 0) + 1)
   for (const c of diagram.connectors) {
-    connected.add(c.from)
-    connected.add(c.to)
+    use(c.from)
+    use(c.to)
   }
-  const portCount = new Map<number, number>()
-  for (const el of diagram.elements) {
-    for (const p of el.ports ?? []) {
-      const n = (portCount.get(p.node) ?? 0) + 1
-      portCount.set(p.node, n)
-      if (n >= 2) connected.add(p.node)
-    }
-  }
-  connected.delete(0)
+  for (const el of diagram.elements) for (const p of el.ports ?? []) use(p.node)
+  const connected = new Set<number>()
+  for (const [id, n] of uses) if (n >= 2 && id !== 0) connected.add(id)
   return connected
 }
 

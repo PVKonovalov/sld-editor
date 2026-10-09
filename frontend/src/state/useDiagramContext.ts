@@ -7,6 +7,7 @@ import type {
   EditorConfig,
   EditorSettings,
   ConnectorKind,
+  Point,
   ImportReport,
 } from '../types'
 
@@ -224,14 +225,24 @@ export interface DiagramContextValue {
   findQuery: string
   findType: string
   setFind: (query: string, type: string) => void
+  // Find's "Not connected only" filter.
+  findFree: boolean
+  setFindFree: (free: boolean) => void
   // Ctrl/Cmd+F: findFocusSeq counts requests to show and focus Find (App
   // opens Properties, FindSection expands and focuses its box).
   findFocusSeq: number
   requestFind: () => void
   // Asks the canvas to centre (and zoom in) on one item; seq changes on
   // every request so the same item can be asked for again.
-  focusRequest: { id: number; kind: SelectionKind; seq: number } | null
+  focusRequest: { id: number; kind: SelectionKind; seq: number } | { point: Point; seq: number } | null
   focusItem: (id: number, kind: SelectionKind) => void
+  // Centres the canvas on a diagram point and flashes a ring there (the
+  // Connections section's node coordinates).
+  focusPoint: (point: Point) => void
+  // A click in Find's results selects the item but keeps Properties on the
+  // diagram view and Find (findPinned) until it's selected another way.
+  findPinned: boolean
+  selectFromFind: (id: number, kind: SelectionKind) => void
   // Set while UnsavedChangesDialog asks whether to save the open diagram's
   // edits before it is replaced; resolveUnsavedPrompt answers it.
   unsavedPrompt: { diagramName: string } | null

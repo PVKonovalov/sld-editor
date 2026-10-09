@@ -14,6 +14,7 @@ import type {
   EditorConfig,
   EditorSettings,
   ConnectorKind,
+  Point,
 } from '../types'
 import {
   DiagramContext,
@@ -59,6 +60,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<EditorConfig | null>(null)
   const [selectedElementId, setSelectedElementIdState] = useState<number | null>(null)
   const [selection, setSelection] = useState<Map<number, SelectionKind>>(new Map())
+  // Set when the selection came from a click in Find's result list: the item
+  // is selected and shown on the canvas, but Properties stays on the diagram
+  // view (and Find) until the item is selected some other way, such as by
+  // clicking it on the canvas. Every other select* clears it.
+  const [findPinned, setFindPinned] = useState(false)
   const [selectedConnectorId, setSelectedConnectorIdState] = useState<number | null>(null)
   const [selectedLabelId, setSelectedLabelIdState] = useState<number | null>(null)
   const [selectedDigitalDeviceId, setSelectedDigitalDeviceIdState] = useState<number | null>(null)
@@ -234,6 +240,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   }, [diagramName, dirty])
 
   const clearSelection = useCallback(() => {
+    setFindPinned(false)
     setSelectedElementIdState(null)
     setSelection(new Map())
     setSelectedConnectorIdState(null)
@@ -269,12 +276,22 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setFindQuery(query)
     setFindType(type)
   }, [])
-  useEffect(() => setFind('', ''), [diagramName, setFind])
+  const [findFree, setFindFree] = useState(false)
+  useEffect(() => {
+    setFind('', '')
+    setFindFree(false)
+  }, [diagramName, setFind])
   const [findFocusSeq, setFindFocusSeq] = useState(0)
   const requestFind = useCallback(() => setFindFocusSeq(n => n + 1), [])
-  const [focusRequest, setFocusRequest] = useState<{ id: number; kind: SelectionKind; seq: number } | null>(null)
+  const [focusRequest, setFocusRequest] = useState<
+    { id: number; kind: SelectionKind; seq: number } | { point: Point; seq: number } | null
+  >(null)
   const focusItem = useCallback(
     (id: number, kind: SelectionKind) => setFocusRequest(prev => ({ id, kind, seq: (prev?.seq ?? 0) + 1 })),
+    [],
+  )
+  const focusPoint = useCallback(
+    (point: Point) => setFocusRequest(prev => ({ point, seq: (prev?.seq ?? 0) + 1 })),
     [],
   )
 
@@ -306,6 +323,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // armWireKind themselves, Canvas's own Esc handler, or a route actually
   // completing (Canvas, once it does).
   const selectElement = useCallback((id: number | null) => {
+    setFindPinned(false)
     setSelectedElementIdState(id)
     setSelection(id === null ? new Map() : new Map([[id, 'element']]))
     setSelectedConnectorIdState(null)
@@ -316,6 +334,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const selectConnector = useCallback((id: number | null) => {
+    setFindPinned(false)
     setSelectedConnectorIdState(id)
     setSelection(id === null ? new Map() : new Map([[id, 'connector']]))
     setSelectedElementIdState(null)
@@ -326,6 +345,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const selectLabel = useCallback((id: number | null) => {
+    setFindPinned(false)
     setSelectedLabelIdState(id)
     setSelection(id === null ? new Map() : new Map([[id, 'label']]))
     setSelectedElementIdState(null)
@@ -336,6 +356,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const selectDigitalDevice = useCallback((id: number | null) => {
+    setFindPinned(false)
     setSelectedDigitalDeviceIdState(id)
     setSelection(id === null ? new Map() : new Map([[id, 'digitaldevice']]))
     setSelectedElementIdState(null)
@@ -344,6 +365,16 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedSymbolState(null)
     setArmedCustomElementState(null)
   }, [])
+
+  // Find's result click: select (id, kind) and keep Properties on Find.
+  const selectFromFind = useCallback(
+    (id: number, kind: SelectionKind) => {
+      const select = { element: selectElement, connector: selectConnector, label: selectLabel, digitaldevice: selectDigitalDevice }
+      select[kind](id)
+      setFindPinned(true)
+    },
+    [selectElement, selectConnector, selectLabel, selectDigitalDevice],
+  )
 
   const armSymbol = useCallback((symbol: ElementSymbol | null) => {
     setArmedSymbolState(symbol)
@@ -426,6 +457,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const selectMany = useCallback((entries: Map<number, SelectionKind>) => {
+    setFindPinned(false)
     const only = entries.size === 1 ? [...entries][0] : null
     setSelection(new Map(entries))
     setSelectedElementIdState(only && only[1] === 'element' ? only[0] : null)
@@ -447,6 +479,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // matter — see selection's own doc comment.
   const toggleSelection = useCallback(
     (id: number, kind: SelectionKind) => {
+      setFindPinned(false)
       const next = new Map(selection)
       if (next.has(id)) {
         next.delete(id)
@@ -926,10 +959,15 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       findQuery,
       findType,
       setFind,
+      findFree,
+      setFindFree,
       findFocusSeq,
       requestFind,
       focusRequest,
       focusItem,
+      focusPoint,
+      findPinned,
+      selectFromFind,
       unsavedPrompt,
       resolveUnsavedPrompt,
       recoverableDrafts,
@@ -1003,10 +1041,15 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       findQuery,
       findType,
       setFind,
+      findFree,
+      setFindFree,
       findFocusSeq,
       requestFind,
       focusRequest,
       focusItem,
+      focusPoint,
+      findPinned,
+      selectFromFind,
       unsavedPrompt,
       resolveUnsavedPrompt,
       recoverableDrafts,

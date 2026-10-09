@@ -471,6 +471,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     deleteSelected,
     setDefaultVoltage,
     updateEditorSettings,
+    findPinned,
   } = useDiagramContext()
   const element = diagram?.elements.find(e => e.id === selectedElementId) ?? null
   const connector = diagram?.connectors.find(c => c.id === selectedConnectorId) ?? null
@@ -508,7 +509,9 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // that sets them, and only at creation time).
   // A single selected id that matches nothing (a stale selection, pruned
   // by DiagramContext right after this render) also shows the diagram.
-  if (!element && !connector && !label && !digitalDevice && selection.size <= 1) {
+  // A result picked in Find is selected on the canvas but keeps this view
+  // (and Find) until the item is clicked on the canvas.
+  if (findPinned || (!element && !connector && !label && !digitalDevice && selection.size <= 1)) {
     return (
       <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="save-export">
         <div className="space-y-3">
