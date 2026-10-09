@@ -433,6 +433,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'contextMenu.clearTrace': 'Сбросить трассировку',
   'trace.summary': 'Трассировка: объектов {{count}}',
   'trace.stops': 'остановлена на {{count}}',
+  'trace.sources': 'от источников: {{count}}',
+  'trace.dim': 'Приглушить остальное',
   'trace.respectStates': 'Учитывать положение аппаратов',
   'trace.throughTransformers': 'Через трансформаторы',
   'contextMenu.paste': 'Вставить',

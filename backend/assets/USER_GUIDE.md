@@ -388,7 +388,14 @@ reaches are drawn orange; a device it can't pass is drawn red.
 - Wires and busbars always pass, and so do devices with no state (fuses, current transformers, wire jumps…); a
   single-terminal device (a ground switch, a ground) is reached but leads nowhere.
 
-A bar at the top of the canvas shows how many items the trace reached and has both switches and a close button. The
+- **Several sources:** while a trace is shown, **Trace** on another wire, busbar or device adds it as one more
+  starting point (say, the second line feeding a substation); the trace then shows everything reachable from any of
+  them. **Clear trace** removes the whole trace, all its starting points.
+- **Dim the rest** fades everything the trace didn't reach, so with switch states respected and transformers passed
+  the parts with no supply stand out.
+
+A bar at the top of the canvas shows how many items the trace reached (and from how many sources) and has the switches
+and a close button. The
 trace follows your edits (opening a breaker in Properties cuts it at once). Right-click → **Clear trace**, the bar's
 close button or **Esc** (with nothing selected) removes it. It is only a view: it isn't saved or undone.
 

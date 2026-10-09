@@ -33,9 +33,6 @@ Open tasks only. Finished work is recorded in RELEASE.md.
       terminals and dangling wire ends (Find's "Not connected only" already has these), devices without a voltage
       class or with one differing from their wires, wires crossing a busbar or another wire without a junction,
       duplicate names, unnamed switching devices, zero-length or diagonal wires, labels linked to deleted elements.
-- [ ] Energization preview: pick a source (busbar or line) and colour everything reachable through closed switching
-      devices, greying out the rest, to check the topology matches the drawing (nodes, ports and switch states are
-      all in the model).
 
 ## Custom elements
 
@@ -104,7 +101,7 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 - [!] 320 Custom element - it's a common group name for elements started from type id 320XXX
 - [+] 360 Substation (pictogram)
 - [+] 389 Blocking filter
-- [ ] 391 RTF text
+- [+] 391 RTF text (imported as a plain Text label (5); not drawn or saved as 391)
 - [ ] 3206 Customer connection, disconnector, arc-extinguishing contacts
 - [+] 320002 Lamp on pole
 
@@ -119,4 +116,3 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
       modeled (no corpus instance found to confirm them).
 - [ ] Junction point (7): its extracted label is a standalone Label (`For` = junction id) and doesn't move when the
       junction is dragged.
-- [ ] Add mirror property for 157 Thyristor

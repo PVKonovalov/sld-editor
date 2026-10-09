@@ -437,6 +437,8 @@ export const dictionary = {
   'contextMenu.clearTrace': 'Clear trace',
   'trace.summary': 'Trace: {{count}} items',
   'trace.stops': 'stopped at {{count}}',
+  'trace.sources': 'from {{count}} sources',
+  'trace.dim': 'Dim the rest',
   'trace.respectStates': 'Respect switch states',
   'trace.throughTransformers': 'Through transformers',
   'contextMenu.paste': 'Paste',

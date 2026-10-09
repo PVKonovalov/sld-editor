@@ -7,7 +7,7 @@ import * as diagramOps from '../lib/diagramOps'
 import { arcBounds, arcMidpoint, arcPathD, circularArcThrough, defaultArcBulge, type ArcParams } from '../lib/arc'
 import { clientToDiagramPoint, nearestSegmentOnPolyline, snapPointOnSegment, snapValue } from '../lib/geometry'
 import { fillPictureHrefs, readImageFile } from '../lib/picture'
-import { traceNetwork, type TraceOptions } from '../lib/trace'
+import { traceNetwork, type TraceOptions, type TraceStart } from '../lib/trace'
 import { t } from '../i18n'
 import { ContextMenu, withSeparators, type ContextMenuEntry, type ContextMenuItem } from './ContextMenu'
 import { SaveCustomElementDialog } from './SaveCustomElementDialog'
@@ -350,6 +350,17 @@ function patchFragmentsInDom(
     if (!replacement) continue
     node.replaceWith(replacement)
   }
+}
+
+// Trace's "Dim the rest": fades every rendered element and wire the trace
+// didn't reach (or stop at), so the de-energized parts stand out. Labels and
+// digital devices keep their look.
+function traceDimCss(traced: { elements: Set<number>; connectors: Set<number>; stops: Set<number> }): string {
+  const keep = [
+    ...[...traced.elements, ...traced.stops].map(id => `:not([data-editor-kind="element"][id="${id}"])`),
+    ...[...traced.connectors].map(id => `:not([data-editor-kind="connector"][id="${id}"])`),
+  ].join('')
+  return `.sld-rendered svg > :is([data-editor-kind="element"], [data-editor-kind="connector"])${keep} { opacity: 0.2; }`
 }
 
 // Hides the rendered items of the given layers. Every item is a top-level
@@ -701,15 +712,19 @@ export function Canvas() {
     window.addEventListener('mouseup', onUp)
   }
 
-  // Context menu → Trace: where it starts and its options. A view only:
-  // never saved, not undoable, cleared with another diagram.
-  const [trace, setTrace] = useState<{ node?: number; element?: number; opts: TraceOptions } | null>(null)
+  // Context menu → Trace: where it starts (Trace again adds another start,
+  // say a second feeding line; Clear trace removes them all), its options,
+  // and whether everything it didn't reach is dimmed. A view only: never
+  // saved, not undoable, cleared with another diagram.
+  const [trace, setTrace] = useState<{ sources: TraceStart[]; opts: TraceOptions; dim: boolean } | null>(null)
   useEffect(() => setTrace(null), [diagramName])
   const traced = useMemo(() => {
     if (!trace || !diagram) return null
-    // The start may be gone after an edit (deleted, merged).
-    if (trace.node !== undefined && !diagram.nodes.some(n => n.id === trace.node)) return null
-    return traceNetwork(diagram, trace, trace.opts)
+    // A start may be gone after an edit (deleted, merged).
+    const nodes = new Set(diagram.nodes.map(n => n.id))
+    const sources = trace.sources.filter(src => src.node === undefined || nodes.has(src.node))
+    if (sources.length === 0) return null
+    return traceNetwork(diagram, sources, trace.opts)
   }, [trace, diagram])
 
   // A ring flashed at a point focusPoint asked for; seq restarts the flash.
@@ -2603,14 +2618,20 @@ export function Canvas() {
                 {
                   label: t('contextMenu.trace'),
                   onSelect: () => {
-                    const opts = trace?.opts ?? { respectStates: true, throughTransformers: false }
+                    // While a trace is shown, Trace adds another start to it.
+                    const add = (source: TraceStart) =>
+                      setTrace(prev =>
+                        prev
+                          ? { ...prev, sources: [...prev.sources, source] }
+                          : { sources: [source], opts: { respectStates: true, throughTransformers: false }, dim: false },
+                      )
                     const p = contextMenu.diagramPoint
                     const dist = (q: Point) => Math.hypot(q.x - p.x, q.y - p.y)
                     if (contextMenu.connectorId !== null) {
                       const c = diagram.connectors.find(x => x.id === contextMenu.connectorId)
                       if (!c || c.points.length < 2) return
                       const fromNearer = dist(c.points[0]) <= dist(c.points[c.points.length - 1])
-                      setTrace({ node: fromNearer ? c.from : c.to, opts })
+                      add({ node: fromNearer ? c.from : c.to })
                       return
                     }
                     const el = diagram.elements.find(x => x.id === contextMenu.elementId)
@@ -2624,7 +2645,7 @@ export function Canvas() {
                         node = n.id
                       }
                     }
-                    setTrace({ node, element: el.id, opts })
+                    add({ node, element: el.id })
                   },
                 },
               ]
@@ -2702,6 +2723,9 @@ export function Canvas() {
             <span className="font-medium" style={{ color: TRACE_COLOR }}>
               {t('trace.summary', { count: traced.elements.size + traced.connectors.size })}
             </span>
+            {trace.sources.length > 1 && (
+              <span className="text-gray-400">{t('trace.sources', { count: trace.sources.length })}</span>
+            )}
             {traced.stops.size > 0 && (
               <span style={{ color: TRACE_STOP_COLOR }}>{t('trace.stops', { count: traced.stops.size })}</span>
             )}
@@ -2720,6 +2744,10 @@ export function Canvas() {
                 onChange={e => setTrace({ ...trace, opts: { ...trace.opts, throughTransformers: e.target.checked } })}
               />
               {t('trace.throughTransformers')}
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input type="checkbox" checked={trace.dim} onChange={e => setTrace({ ...trace, dim: e.target.checked })} />
+              {t('trace.dim')}
             </label>
             <button
               type="button"
@@ -2765,6 +2793,7 @@ export function Canvas() {
             }}
           >
             {hiddenLayers.size > 0 && <style>{hiddenLayerCss(hiddenLayers)}</style>}
+            {traced && trace?.dim && <style>{traceDimCss(traced)}</style>}
             <div
               ref={renderedRef}
               className="sld-rendered"

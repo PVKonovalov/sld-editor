@@ -5485,3 +5485,21 @@ skipping empty ones, so a divider never leads, trails or doubles up. The submenu
 importing large diagrams with `413 Request Entity Too Large` (`CUS_Novgorodenergo.xsld` is 3.9 MB). The editor has no
 request size limit of its own. The new section shows the `client_max_body_size` / `proxy_read_timeout` settings for the
 proxying `server` block.
+
+2026-10-09: Trace from several sources, and dimming the rest; this replaces TODO's "Energization preview".
+- **Several sources:** while a trace is shown, Trace on another item adds it as one more starting point instead of
+  replacing the trace (`traceNetwork` now takes a list of `TraceStart`s). Clear trace still removes the whole trace.
+  The bar shows "from N sources" when there are several.
+- **Dim the rest:** a bar checkbox, off by default, adds a `<style>` (`traceDimCss`) that fades (opacity 0.2) every
+  rendered element and wire the trace didn't reach or stop at. Labels and digital devices keep their look. With
+  switch states respected and transformers passed, a trace from the feeding lines is the energization preview: the
+  sections without supply stand out.
+User guides: Tracing.
+
+2026-10-09: RTF text (391) is imported as a Text label. xsde2svg (`element_391.go`) strips the RTF formatting and draws
+the plain lines as one `<text data-type="391">` with a `<tspan>` per further line, with no id and no `data-name`, and
+`Extract` skipped it, leaving a placeholder label. It now reads it like a Text label's markup (`textToLabel`): every
+non-blank line as one multi-line text, with position, font size, colour, font, anchor and boldness. It gets a fresh
+id, is attached to no element, and isn't reported as skipped. Once imported it is an ordinary Text label (5), so the
+editor draws and saves it as one. Line spacing follows the label's own, not xsde2svg's fixed `dy`. Test:
+`TestExtract_RTFTextBecomesLabel` (the equipment list from sld-svg's `Test_391_text_RTF.svg`). TODO: 391 marked done.

@@ -42,16 +42,19 @@ function passes(el: DiagramElement, opts: TraceOptions): boolean {
   return true
 }
 
-/** Traces from Node start (or, with no Node, just element startElement, a
- * busbar with nothing on it): a breadth-first search where a wire joins its
- * two ends, a busbar all its connection points, and a device with two or
- * more ports its ports when it passes (see TraceOptions); a single-port
- * device is reached but leads nowhere. */
-export function traceNetwork(
-  diagram: Diagram,
-  start: { node?: number; element?: number },
-  opts: TraceOptions,
-): TraceResult {
+/** One place a trace starts: a Node, or (with none) just an element, a
+ * busbar with nothing on it. */
+export interface TraceStart {
+  node?: number
+  element?: number
+}
+
+/** Traces from every start at once (several sources, say two feeding
+ * lines): a breadth-first search where a wire joins its two ends, a busbar
+ * all its connection points, and a device with two or more ports its ports
+ * when it passes (see TraceOptions); a single-port device is reached but
+ * leads nowhere. */
+export function traceNetwork(diagram: Diagram, starts: TraceStart[], opts: TraceOptions): TraceResult {
   const result: TraceResult = { nodes: new Set(), connectors: new Set(), elements: new Set(), stops: new Set() }
   const wiresAt = new Map<number, { id: number; other: number }[]>()
   for (const c of diagram.connectors) {
@@ -73,12 +76,15 @@ export function traceNetwork(
     }
   }
 
-  if (start.node === undefined) {
-    if (start.element !== undefined) result.elements.add(start.element)
-    return result
+  const queue: number[] = []
+  for (const start of starts) {
+    if (start.node === undefined) {
+      if (start.element !== undefined) result.elements.add(start.element)
+    } else if (!result.nodes.has(start.node)) {
+      result.nodes.add(start.node)
+      queue.push(start.node)
+    }
   }
-  const queue: number[] = [start.node]
-  result.nodes.add(start.node)
   for (let head = 0; head < queue.length; head++) {
     const node = queue[head]
     const reach = (next: number) => {
