@@ -5480,3 +5480,8 @@ all three on one junction. User guides: Editing a wire.
 4. Trace, Clear trace.
 `ContextMenu` takes `ContextMenuEntry`s (an item or `SEPARATOR`), and `withSeparators(groups)` flattens the groups,
 skipping empty ones, so a divider never leads, trails or doubles up. The submenus are unchanged.
+
+2026-10-09: README: "Behind nginx". nginx's default `client_max_body_size` (1 MB) rejects saving, rendering and
+importing large diagrams with `413 Request Entity Too Large` (`CUS_Novgorodenergo.xsld` is 3.9 MB). The editor has no
+request size limit of its own. The new section shows the `client_max_body_size` / `proxy_read_timeout` settings for the
+proxying `server` block.

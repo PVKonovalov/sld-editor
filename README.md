@@ -114,3 +114,29 @@ uncommitted changes, `dev` without git). To release, tag first
 (`git tag v1.1.0`), then `make`. Override it with `make VERSION=v1.2.0`. It is
 shown in the UI's About dialog (sidebar, bottom) and printed by
 `./sld-editor-linux-en -version`.
+
+# Behind nginx
+
+The editor sends the whole diagram to the server on every save and full redraw
+(`/api/diagrams/save`, `/api/render`), and imports upload the file itself. Large
+diagrams (several MB, more with embedded pictures) exceed nginx's default
+`client_max_body_size` of 1 MB, and nginx answers `413 Request Entity Too Large`
+before the request reaches the editor. The editor itself has no request size
+limit. Raise nginx's limit in the `server` (or `location`) block that proxies the
+editor:
+
+```nginx
+server {
+    # ...
+    client_max_body_size 50m;    # default 1m; large diagrams and embedded pictures exceed it
+
+    location / {
+        proxy_pass http://127.0.0.1:8090;
+        proxy_read_timeout 120s; # rendering a large diagram can take a few seconds
+    }
+}
+```
+
+Then check and reload: `sudo nginx -t && sudo nginx -s reload`. Use
+`client_max_body_size 0;` to switch the check off when nginx serves only the
+editor.
