@@ -410,8 +410,9 @@ func TestListElementsAndConfig(t *testing.T) {
 		t.Fatalf("config: status = %d", rec.Code)
 	}
 	var cfgResp struct {
-		Editor        editorDefaults        `json:"editor"`
-		VoltageColors []config.VoltageColor `json:"voltageColors"`
+		Editor                editorDefaults        `json:"editor"`
+		VoltageColors         []config.VoltageColor `json:"voltageColors"`
+		VoltageColorTolerance float64               `json:"voltageColorTolerance"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &cfgResp); err != nil {
 		t.Fatal(err)
@@ -421,6 +422,9 @@ func TestListElementsAndConfig(t *testing.T) {
 	}
 	if len(cfgResp.VoltageColors) != 1 || cfgResp.VoltageColors[0].Color != "#962896" {
 		t.Errorf("voltage colors = %+v", cfgResp.VoltageColors)
+	}
+	if cfgResp.VoltageColorTolerance != config.DefaultVoltageColorTolerance {
+		t.Errorf("unset voltage color tolerance = %v, want the default %v", cfgResp.VoltageColorTolerance, config.DefaultVoltageColorTolerance)
 	}
 }
 

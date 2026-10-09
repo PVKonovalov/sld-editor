@@ -578,6 +578,10 @@ export interface PaletteGroup {
 export interface EditorConfig {
   editor: EditorDefaults
   voltageColors: VoltageColor[]
+  // Max Euclidean RGB distance at which a diagram's voltage class color is
+  // offered the nearest voltageColors preset (backend config
+  // voltage_color_tolerance; 0 = exact only). Optional for an older server.
+  voltageColorTolerance?: number
   stateColors: StateColor[]
   positionStates: PositionState[]
   fpiStateColors: StateColor[]

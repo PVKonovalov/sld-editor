@@ -33,11 +33,12 @@ func (s *Server) getConfig(c *gin.Context) {
 			ShowGrid:    s.cfg.Editor.ShowGrid,
 			Background:  s.cfg.Editor.Background,
 		},
-		"voltageColors":  s.cfg.VoltageColors,
-		"stateColors":    s.cfg.StateColors,
-		"positionStates": s.cfg.PositionStates,
-		"fpiStateColors": s.cfg.FPIStateColors,
-		"defaultFpiText": s.cfg.Indicators.DefaultFPIText,
-		"palette":        s.cfg.Palette,
+		"voltageColors":         s.cfg.VoltageColors,
+		"voltageColorTolerance": s.cfg.ColorTolerance(),
+		"stateColors":           s.cfg.StateColors,
+		"positionStates":        s.cfg.PositionStates,
+		"fpiStateColors":        s.cfg.FPIStateColors,
+		"defaultFpiText":        s.cfg.Indicators.DefaultFPIText,
+		"palette":               s.cfg.Palette,
 	})
 }

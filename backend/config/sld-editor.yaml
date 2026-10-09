@@ -53,6 +53,14 @@ voltage_colors:
   - name: "330 kV"
     color: "#d04040"
 
+# How close (Euclidean distance in RGB, 0..441) a diagram's voltage class
+# color must be to a voltage_colors preset for the editor to offer replacing
+# it with the preset (other systems draw the same level in slightly different
+# colors: "#d01025" is 16.8 from "220 kV" "#d02020"). Each color matches only
+# its nearest preset, so presets closer together than twice this (220/330 kV
+# are 45 apart) still never share a color. 0 = exact only.
+voltage_color_tolerance: 60
+
 # Global Open/Close/Intermediate legend a switching device's state-driven
 # fill is drawn from (internal/slddoc.Render's data-fill/data-state
 # attributes) and the Properties panel's State dropdown offers. Unlike

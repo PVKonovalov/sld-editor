@@ -175,7 +175,7 @@ function Shell() {
         )}
         {pendingImport && <ConfirmReloadDialog />}
         {importLogOpen && <ImportLogDialog onClose={() => setImportLogOpen(false)} />}
-        {defaultVoltagePromptOpen && !pendingImport && <DefaultVoltageDialog />}
+        {defaultVoltagePromptOpen && !pendingImport && !importLogOpen && <DefaultVoltageDialog />}
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
         {batchImport && <BatchImportDialog />}
         <DraftRecoveryDialog />

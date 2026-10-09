@@ -126,10 +126,12 @@ export function LayersSection() {
 }
 
 /** Edit the diagram's voltage classes (color, name, delete), with how many
- * elements/connectors use each (diagramOps.voltageUsage), and add one from
- * the server's voltage presets. */
+ * elements/connectors use each (diagramOps.voltageUsage), add one from the
+ * server's voltage presets, and "Match preset colors": reopens the voltage
+ * dialog (DefaultVoltageDialog) on the classes whose color is close to a
+ * preset (diagramOps.voltageColorMatches). */
 export function VoltageClassesSection() {
-  const { diagram, config, updateDiagram } = useDiagramContext()
+  const { diagram, config, updateDiagram, setDefaultVoltagePromptOpen } = useDiagramContext()
   const [collapsed, setCollapsed] = useState(true)
   const [presetName, setPresetName] = useState('')
   if (!diagram) return null
@@ -195,11 +197,13 @@ export function VoltageClassesSection() {
                 className="flex-1 min-w-0 bg-surface-800 border border-surface-600 rounded px-1.5 py-1 text-xs"
               >
                 <option value="">{t('diagram.pickVoltage')}</option>
-                {config.voltageColors.map(v => (
-                  <option key={v.name} value={v.name}>
-                    {v.name}
-                  </option>
-                ))}
+                {config.voltageColors
+                  .filter(v => !diagram.voltageClasses.some(vc => vc.name.trim().toLowerCase() === v.name.trim().toLowerCase()))
+                  .map(v => (
+                    <option key={v.name} value={v.name}>
+                      {v.name}
+                    </option>
+                  ))}
               </select>
               <button
                 type="button"
@@ -210,6 +214,18 @@ export function VoltageClassesSection() {
                 {t('diagram.addVoltageClass')}
               </button>
             </div>
+          )}
+
+          {config && config.voltageColors.length > 0 && (
+            <button
+              type="button"
+              disabled={diagramOps.voltageColorMatches(diagram, config).length === 0}
+              title={t('diagram.matchPresetColorsHint')}
+              onClick={() => setDefaultVoltagePromptOpen(true)}
+              className="mt-1 w-full px-2 py-1 text-xs rounded bg-surface-600 text-gray-200 hover:bg-surface-500 disabled:opacity-50"
+            >
+              {t('diagram.matchPresetColors')}
+            </button>
           )}
         </div>
       )}

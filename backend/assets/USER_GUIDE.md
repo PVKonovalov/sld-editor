@@ -129,6 +129,14 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 - **File → Open** is a folder browser: click a folder to enter it, `..` to go up, a diagram to open it.
 - When an opened diagram has no default voltage, the editor asks for one. It is used for newly placed elements and
   wires.
+- Other systems draw the same voltage level in slightly different colors. When a diagram's voltage class color is
+  close to one of the server's standard voltage colors (within the RGB distance set by `voltage_color_tolerance`, 60
+  in the bundled configuration), the same dialog lists it under **Match colors to presets**, for example `#d01025` → `#d02020` 220 kV.
+  Ticked classes take the standard color, and its name when they have no name of their own (only a color code).
+  If the diagram already has a class with that name, the two are merged (the row says "merge"): everything in the
+  color-code class moves to the named one and the duplicate is removed. A name you typed yourself is kept, and only
+  the color changes. Everything drawn in the class is recolored. Each color is matched to its nearest standard color only. **Properties
+  → Voltage classes → Match preset colors…** opens the list again later.
 
 ### Importing {#import}
 
@@ -292,6 +300,12 @@ from, choose an item, then click the terminal, busbar point or wire point to con
 - **Connect to…** joins the two into one electrical node without drawing anything. Use it where an imported drawing
   already touches but the connection is missing (the terminal cross stays red).
 - **Create wire to…** draws a Buswork wire between the two.
+- **Disconnect** detaches the right-clicked item at its connection point nearest the click: a device's terminal, a
+  busbar's connection point or a wire's end. Whatever else was attached there stays connected to each other. So that
+  the editor does not reconnect them (it joins anything lying exactly on a connection point when a diagram is opened),
+  the two are also pulled apart: a detached wire end is drawn back one grid step along the wire (and shows as a red
+  free end), a junction of several wires moves one step off the terminal or busbar, and a device touching a busbar or
+  another device directly steps one grid step away from it. The item is greyed out when nothing is attached there.
 
 Clicking the middle of a wire splits it there, as when a wire is drawn onto it.
 

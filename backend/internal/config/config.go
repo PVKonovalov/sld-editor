@@ -58,6 +58,14 @@ type Config struct {
 	// has no effect on a diagram's own already-saved VoltageClasses.
 	VoltageColors []VoltageColor `yaml:"voltage_colors"`
 
+	// VoltageColorTolerance is how far (Euclidean distance in RGB, 0..441)
+	// a diagram's voltage class color may be from a VoltageColors preset
+	// for the editor to offer replacing it with that preset's color: other
+	// systems draw the same voltage level in slightly different colors.
+	// Each color matches only its nearest preset. 0 means exact matches
+	// only; unset means DefaultVoltageColorTolerance.
+	VoltageColorTolerance *float64 `yaml:"voltage_color_tolerance"`
+
 	// StateColors is the install-wide Open/Close/Intermediate legend a
 	// switching device's state-driven fill (and its data-fill/data-state
 	// attributes — see internal/slddoc.Render) are drawn from. Unlike
@@ -106,6 +114,17 @@ type Config struct {
 	// the loaded element library at startup, the same "fail loud on
 	// misconfiguration" way Elements.Libraries itself is already checked.
 	Palette []PaletteGroup `yaml:"palette"`
+}
+
+// DefaultVoltageColorTolerance is VoltageColorTolerance when unset.
+const DefaultVoltageColorTolerance = 24
+
+// ColorTolerance is VoltageColorTolerance, or its default when unset.
+func (c *Config) ColorTolerance() float64 {
+	if c.VoltageColorTolerance == nil {
+		return DefaultVoltageColorTolerance
+	}
+	return *c.VoltageColorTolerance
 }
 
 // VoltageColor is one default palette entry.

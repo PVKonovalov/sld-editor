@@ -10,6 +10,7 @@ import type {
   Point,
   ElementSymbol,
   EditorConfig,
+  VoltageColor,
   Label,
   DigitalDevice,
   TerminalDirection,
@@ -79,7 +80,10 @@ export function voltageClassOptions(diagram: Diagram, config: EditorConfig | nul
 
 /** Resolves a voltageClassOptions <select>'s raw string value into a
  * voltage id to assign, creating the voltage class first if the user just
- * picked a preset that isn't on the diagram yet. Returns the (possibly
+ * picked a preset that isn't on the diagram yet. A preset whose name a
+ * class already carries (case-insensitively) resolves to that class: the
+ * options list may predate it, as when the voltage dialog renames a matched
+ * class to the very preset picked below it. Returns the (possibly
  * updated) diagram alongside the id so the caller can assign it to
  * whichever element/connector in one updateDiagram call. */
 export function resolveVoltageSelection(
@@ -93,6 +97,9 @@ export function resolveVoltageSelection(
   const name = rawValue.slice(PRESET_PREFIX.length)
   const preset = config?.voltageColors.find(v => v.name === name)
   if (!preset) return { diagram, voltage: undefined }
+  const key = preset.name.trim().toLowerCase()
+  const existing = diagram.voltageClasses.find(vc => vc.name.trim().toLowerCase() === key)
+  if (existing) return { diagram, voltage: existing.id }
 
   const withClass = addVoltageClass(diagram, preset.name, preset.color)
   const newClass = withClass.voltageClasses[withClass.voltageClasses.length - 1]
@@ -3219,12 +3226,17 @@ export function applyPresetVoltageNames(diagram: Diagram, config: EditorConfig |
   const presets = config?.voltageColors ?? []
   if (presets.length === 0) return diagram
   let changed = false
+  // A preset name another class already carries isn't given out again:
+  // the voltage dialog offers merging the two instead (applyVoltageColorMatches).
+  const taken = new Set(diagram.voltageClasses.map(vc => vc.name.trim().toLowerCase()))
   const voltageClasses = diagram.voltageClasses.map(vc => {
     const color = vc.color.trim().toLowerCase()
     const name = vc.name.trim().toLowerCase()
     if (name !== '' && name !== color) return vc
     const preset = presets.find(p => p.color.trim().toLowerCase() === color)
     if (!preset || preset.name === vc.name) return vc
+    if (taken.has(preset.name.trim().toLowerCase())) return vc
+    taken.add(preset.name.trim().toLowerCase())
     changed = true
     return { ...vc, name: preset.name }
   })
@@ -4055,12 +4067,7 @@ export function disconnectTopologyTarget(
         const dev = d.elements.find(e => e.id === id)
         if (!dev) continue
         const sign = side(dev) < 0 ? -1 : 1
-        d = moveSelection(
-          d,
-          { elementIds: new Set([id]), connectorIds: new Set(), labelIds: new Set(), digitalDeviceIds: new Set() },
-          perp.x * step * sign,
-          perp.y * step * sign,
-        )
+        d = stepElementApart(d, id, { x: perp.x * step * sign, y: perp.y * step * sign })
       }
       return d
     }
@@ -4094,16 +4101,23 @@ export function disconnectTopologyTarget(
       const n = busbarNormal(bus, terminal)
       away = away.x * n.x + away.y * n.y < 0 ? { x: -n.x, y: -n.y } : n
     }
-    return moveSelection(
-      d,
-      { elementIds: new Set([el.id]), connectorIds: new Set(), labelIds: new Set(), digitalDeviceIds: new Set() },
-      away.x * step,
-      away.y * step,
-    )
+    return stepElementApart(d, el.id, { x: away.x * step, y: away.y * step })
   }
   if (s.wires.length === 1) return moveNodeBy(d, node.id, pullBackStep(s.wires[0], node.id, step))
   const out = outward.x === 0 && outward.y === 0 ? { x: 0, y: 1 } : outward
   return moveNodeBy(d, node.id, { x: out.x * step, y: out.y * step })
+}
+
+/** Moves element id by v, its own Port Nodes and the wire ends on them
+ * following. Unlike moveSelection, nothing is joined where it lands: a
+ * disconnect must not reconnect the element to whatever it steps onto
+ * (such as a wire running straight through a junction point). */
+function stepElementApart(diagram: Diagram, id: number, v: Point): Diagram {
+  const el = diagram.elements.find(e => e.id === id)
+  if (!el) return diagram
+  let d = moveElement(diagram, id, v.x, v.y)
+  for (const nodeId of new Set((el.ports ?? []).map(p => p.node))) d = moveNodeBy(d, nodeId, v)
+  return d
 }
 
 /** A unit normal (dominant axis) of busbar bus's segment nearest p. */
@@ -4128,4 +4142,158 @@ function nearestSegmentOnPolylinePoints(pts: Point[], p: Point): { index: number
     }
   }
   return { index }
+}
+
+// ---------------------------------------------------------------------------
+// Matching voltage class colors to the server presets
+// ---------------------------------------------------------------------------
+
+/** voltageColorTolerance when the server doesn't send one. */
+export const DEFAULT_VOLTAGE_COLOR_TOLERANCE = 24
+
+/** A #rgb or #rrggbb color as [r, g, b]; null for anything else (a named
+ * color such as "gray"). */
+export function parseHexColor(color: string): [number, number, number] | null {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim())
+  if (!m) return null
+  const hex = m[1].length === 3 ? [...m[1]].map(c => c + c).join('') : m[1]
+  return [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number]
+}
+
+/** Euclidean distance between two colors in RGB (0..441); null when either
+ * isn't a hex color. */
+export function colorDistance(a: string, b: string): number | null {
+  const p = parseHexColor(a)
+  const q = parseHexColor(b)
+  if (!p || !q) return null
+  return Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2])
+}
+
+/** One voltage class whose color is close to, but not exactly, a preset. */
+export interface VoltageColorMatch {
+  classId: number
+  className: string
+  from: string
+  to: string
+  presetName: string
+  distance: number
+}
+
+/** What applying a VoltageColorMatch does (planVoltageColorMatches):
+ * - 'recolor': the class keeps its own name (one somebody typed) and takes
+ *   the preset color;
+ * - 'rename': a class with no name of its own (hasNoOwnName) also takes the
+ *   preset name;
+ * - 'merge': such a class whose preset name another class already carries
+ *   is merged into that one (mergeInto): everything using it moves there
+ *   and it is removed, so no two classes share a name. */
+export interface VoltageColorPlan extends VoltageColorMatch {
+  action: 'recolor' | 'rename' | 'merge'
+  mergeInto?: number
+}
+
+/** Whether a voltage class has no name of its own: empty, or just a color
+ * code (as slddoc.Extract names a color it had no hint for, which stays
+ * after the class is recolored). */
+function hasNoOwnName(name: string): boolean {
+  return name.trim() === '' || parseHexColor(name) !== null
+}
+
+/** Every voltage class whose color lies within tolerance (Euclidean RGB
+ * distance) of its nearest server preset: other systems draw the same
+ * voltage level in slightly different colors. Each class matches only its
+ * nearest preset. A class already exactly that color is listed only when
+ * it has no name of its own, so it still gets the preset name (or merges
+ * into the class carrying it). */
+export function voltageColorMatches(diagram: Diagram, config: EditorConfig | null): VoltageColorMatch[] {
+  const presets = config?.voltageColors ?? []
+  const tolerance = config?.voltageColorTolerance ?? DEFAULT_VOLTAGE_COLOR_TOLERANCE
+  if (presets.length === 0 || !(tolerance > 0)) return []
+  const matches: VoltageColorMatch[] = []
+  for (const vc of diagram.voltageClasses) {
+    let best: { preset: VoltageColor; distance: number } | null = null
+    for (const preset of presets) {
+      const distance = colorDistance(vc.color, preset.color)
+      if (distance !== null && (!best || distance < best.distance)) best = { preset, distance }
+    }
+    if (!best || best.distance > tolerance) continue
+    if (best.distance === 0 && (!hasNoOwnName(vc.name) || vc.name.trim() === best.preset.name.trim())) continue
+    matches.push({
+      classId: vc.id,
+      className: vc.name,
+      from: vc.color,
+      to: best.preset.color,
+      presetName: best.preset.name,
+      distance: best.distance,
+    })
+  }
+  return matches
+}
+
+/** Decides what applying matches (the ticked ones) does to each class, in
+ * diagram order: see VoltageColorPlan. A preset name is "taken" by any
+ * class already carrying it, or by an earlier match renamed to it. */
+export function planVoltageColorMatches(diagram: Diagram, matches: VoltageColorMatch[]): VoltageColorPlan[] {
+  const key = (name: string) => name.trim().toLowerCase()
+  const byName = new Map<string, number>()
+  for (const vc of diagram.voltageClasses) if (!byName.has(key(vc.name))) byName.set(key(vc.name), vc.id)
+  return matches.map(m => {
+    if (!hasNoOwnName(m.className)) return { ...m, action: 'recolor' as const }
+    const owner = byName.get(key(m.presetName))
+    if (owner !== undefined && owner !== m.classId) return { ...m, action: 'merge' as const, mergeInto: owner }
+    byName.set(key(m.presetName), m.classId)
+    return { ...m, action: 'rename' as const }
+  })
+}
+
+/** Applies matches (planVoltageColorMatches decides how): recolored and
+ * renamed classes take the preset color (and name); a merged class's
+ * users (elements, transformer windings, substation sectors, wires, the
+ * default voltage) move to the class it merges into, which takes the preset
+ * color too, and the merged class is removed. Returns diagram itself when
+ * matches is empty. */
+export function applyVoltageColorMatches(diagram: Diagram, matches: VoltageColorMatch[]): Diagram {
+  if (matches.length === 0) return diagram
+  const plans = planVoltageColorMatches(diagram, matches)
+  const recolor = new Map<number, { color: string; name?: string }>()
+  const remap = new Map<number, number>()
+  for (const p of plans) {
+    if (p.action === 'merge' && p.mergeInto !== undefined) {
+      remap.set(p.classId, p.mergeInto)
+      recolor.set(p.mergeInto, { ...recolor.get(p.mergeInto), color: p.to })
+    } else {
+      recolor.set(p.classId, { ...recolor.get(p.classId), color: p.to, ...(p.action === 'rename' ? { name: p.presetName } : {}) })
+    }
+  }
+  const voltageClasses = diagram.voltageClasses
+    .filter(vc => !remap.has(vc.id))
+    .map(vc => {
+      const r = recolor.get(vc.id)
+      return r ? { ...vc, color: r.color, ...(r.name !== undefined ? { name: r.name } : {}) } : vc
+    })
+  if (remap.size === 0) return { ...diagram, voltageClasses }
+  const to = (v: number | undefined) => (v !== undefined && remap.has(v) ? remap.get(v) : v)
+  const moved = <T extends { voltage?: number }>(x: T): T => (remap.has(x.voltage ?? 0) ? { ...x, voltage: to(x.voltage) } : x)
+  return {
+    ...diagram,
+    voltageClasses,
+    elements: diagram.elements.map(el => {
+      const windings = el.windings?.some(w => remap.has(w.voltage ?? 0)) ? el.windings.map(moved) : el.windings
+      const sectors = el.sectors?.some(sc => remap.has(sc.voltage ?? 0)) ? el.sectors.map(moved) : el.sectors
+      const next = moved(el)
+      return next === el && windings === el.windings && sectors === el.sectors ? el : { ...next, windings, sectors }
+    }),
+    connectors: diagram.connectors.map(moved),
+    editor:
+      diagram.editor && remap.has(diagram.editor.defaultVoltage ?? 0)
+        ? { ...diagram.editor, defaultVoltage: to(diagram.editor.defaultVoltage) }
+        : diagram.editor,
+  }
+}
+
+/** Whether opening or importing diagram asks the voltage dialog
+ * (DefaultVoltageDialog): it has no usable default voltage, or a voltage
+ * class color it could match to a preset. */
+export function needsVoltagePrompt(diagram: Diagram, config: EditorConfig | null): boolean {
+  return needsDefaultVoltage(diagram) || voltageColorMatches(diagram, config).length > 0
 }

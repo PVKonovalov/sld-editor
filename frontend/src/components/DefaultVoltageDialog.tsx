@@ -13,7 +13,25 @@ import { GuideButton } from './GuideButton'
  * Properties uses, so picking a preset not yet on the diagram adds it),
  * preselecting the most-used class. OK records the pick as
  * editor.defaultVoltage (the diagram becomes dirty, so the next Save
- * writes it); Skip leaves it unset until the diagram is opened again. */
+ * writes it); Skip leaves it unset until the diagram is opened again.
+ *
+ * Also lists every voltage class whose color is close to a server preset
+ * (diagramOps.voltageColorMatches, within config voltageColorTolerance),
+ * each with a checkbox, ticked by default: OK gives the ticked ones their
+ * preset's color, and its name when they have none of their own, merging
+ * one into the class already carrying that name
+ * (diagramOps.planVoltageColorMatches), in the same undo step. A diagram with a usable default voltage but such classes gets
+ * this dialog for the colors alone, without the voltage picker. */
+// A match row's target: the preset name it takes, "(merge)" when it joins
+// the class already named so, or the bare preset color when it keeps its
+// own name (or isn't ticked).
+function planLabel(plan: diagramOps.VoltageColorPlan | undefined, m: diagramOps.VoltageColorMatch): string {
+  if (!plan) return m.to
+  if (plan.action === 'merge') return t('defaultVoltage.mergeInto', { name: m.presetName })
+  if (plan.action === 'rename') return m.presetName
+  return m.to
+}
+
 export function DefaultVoltageDialog() {
   const { diagram, config, updateDiagram, setDefaultVoltage, setDefaultVoltagePromptOpen } = useDiagramContext()
   const [value, setValue] = useState(() => {
@@ -23,6 +41,7 @@ export function DefaultVoltageDialog() {
     return diagramOps.voltageClassOptions(diagram, config)[0]?.value ?? ''
   })
 
+  const [unticked, setUnticked] = useState<ReadonlySet<number>>(new Set())
   const close = () => setDefaultVoltagePromptOpen(false)
 
   useEffect(() => {
@@ -36,13 +55,37 @@ export function DefaultVoltageDialog() {
   if (!diagram) return null
   const usage = diagramOps.voltageUsage(diagram)
   const options = diagramOps.voltageClassOptions(diagram, config)
+  const askVoltage = diagramOps.needsDefaultVoltage(diagram)
+  const matches = diagramOps.voltageColorMatches(diagram, config)
+  const tolerance = config?.voltageColorTolerance ?? diagramOps.DEFAULT_VOLTAGE_COLOR_TOLERANCE
+  // What OK would do to each ticked class (rename, or merge into a class
+  // already carrying the preset name), shown on its row.
+  const plans = new Map(
+    diagramOps.planVoltageColorMatches(diagram, matches.filter(m => !unticked.has(m.classId))).map(p => [p.classId, p]),
+  )
+
+  function toggleMatch(id: number) {
+    setUnticked(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
 
   function confirm() {
-    if (!diagram || !value) return
-    const { diagram: withClass, voltage } = diagramOps.resolveVoltageSelection(diagram, config, value)
-    if (voltage === undefined) return
-    updateDiagram(() => ({ ...withClass, editor: { ...withClass.editor, defaultVoltage: voltage } }))
-    setDefaultVoltage(voltage)
+    if (!diagram || (askVoltage && !value)) return
+    let d = diagramOps.applyVoltageColorMatches(
+      diagram,
+      matches.filter(m => !unticked.has(m.classId)),
+    )
+    if (askVoltage) {
+      const { diagram: withClass, voltage } = diagramOps.resolveVoltageSelection(d, config, value)
+      if (voltage === undefined) return
+      d = { ...withClass, editor: { ...withClass.editor, defaultVoltage: voltage } }
+      setDefaultVoltage(voltage)
+    }
+    if (d !== diagram) updateDiagram(() => d)
     close()
   }
 
@@ -56,7 +99,9 @@ export function DefaultVoltageDialog() {
               {t('defaultVoltage.title')}
               <GuideButton topic="create-open" />
             </h2>
-            <p className="text-gray-400 mt-1">{t('defaultVoltage.message')}</p>
+            <p className="text-gray-400 mt-1">
+              {askVoltage ? t('defaultVoltage.message') : t('defaultVoltage.colorsOnlyMessage')}
+            </p>
           </div>
 
           {diagram.voltageClasses.length > 0 && (
@@ -77,21 +122,53 @@ export function DefaultVoltageDialog() {
             </section>
           )}
 
-          <label className="block">
-            <span className="block text-gray-400 mb-1">{t('defaultVoltage.voltage')}</span>
-            <select
-              autoFocus
-              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
-              value={value}
-              onChange={e => setValue(e.target.value)}
-            >
-              {options.map(o => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          {matches.length > 0 && (
+            <section>
+              <h3 className="uppercase tracking-wide text-gray-400 mb-1">{t('defaultVoltage.matchColors')}</h3>
+              <p className="text-gray-500 mb-1">{t('defaultVoltage.matchColorsHint', { tolerance })}</p>
+              <ul className="space-y-0.5">
+                {matches.map(m => (
+                  <li key={m.classId}>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="checkbox" checked={!unticked.has(m.classId)} onChange={() => toggleMatch(m.classId)} />
+                      <span
+                        className="inline-block w-3 h-3 rounded-sm border border-surface-600 shrink-0"
+                        style={{ background: m.from }}
+                      />
+                      <span className="text-gray-300 truncate">{m.className}</span>
+                      <span className="text-gray-500">→</span>
+                      <span
+                        className="inline-block w-3 h-3 rounded-sm border border-surface-600 shrink-0"
+                        style={{ background: m.to }}
+                      />
+                      <span className="flex-1 text-gray-100 truncate">{planLabel(plans.get(m.classId), m)}</span>
+                      <span className="text-gray-500 tabular-nums" title={t('defaultVoltage.colorDistance')}>
+                        Δ {Math.round(m.distance)}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {askVoltage && (
+            <label className="block">
+              <span className="block text-gray-400 mb-1">{t('defaultVoltage.voltage')}</span>
+              <select
+                autoFocus
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={value}
+                onChange={e => setValue(e.target.value)}
+              >
+                {options.map(o => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
 
           <div className="flex justify-end gap-2">
             <button
@@ -103,7 +180,7 @@ export function DefaultVoltageDialog() {
             </button>
             <button
               type="button"
-              disabled={!value}
+              disabled={askVoltage && !value}
               onClick={confirm}
               className="px-3 py-1 rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
             >

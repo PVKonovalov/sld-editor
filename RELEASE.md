@@ -5197,3 +5197,73 @@ rounded the distance moved. Two changes:
 
 User guides: a "Snapping to the grid" section (`#snap-to-grid`, the button's "?" target) and the updated
 moving-with-snap paragraph.
+
+2026-10-09: Topology → Disconnect. The canvas context menu's Topology submenu gains **Disconnect**
+(`diagramOps.disconnectTopologyTarget`, `canDisconnect`). It acts at the right-clicked item's connection point nearest
+the click, found the same way Connect to… picks its first point, and is greyed out when nothing else is attached there:
+- A device terminal gets a fresh Node on the terminal itself.
+- A busbar drops that Port.
+- A wire's nearer end gets a fresh Node at its drawn end.
+Everything else on the old Node stays connected to each other. A topology-only split would not last, because opening a
+diagram rejoins whatever lies exactly on a connection point (`fitElementPorts`/`joinBusbar`/`mergeNodesOntoPorts`). So
+the two are also pulled one grid step apart:
+- A detached wire end is pulled back along its wire (half the last segment when that is shorter).
+- A junction of wires moves outward from the device, or off the busbar line.
+- A device in direct contact steps back from it (`stepElementApart`), off the line when the contact is a busbar.
+  This is a plain move: no join where it lands.
+Fresh Nodes go on the terminal or drawn wire end rather than the old Node's position, because imported diagrams may
+use one Node for a whole busbar. Checked on `PS_110kV_Demyansk` by disconnecting every attached point of its first 400
+elements and 150 wires, then re-running the on-open repair (`normalizeTopology`): 6/6 busbar points, 257/257 device
+terminals and 236/236 wire ends stay detached. User guides: a Disconnect bullet in the Wiring section.
+
+2026-10-09: Matching voltage class colors to presets. Other systems draw the same voltage level in slightly different
+colors, and presets used to match only by exact color.
+- **Config:** a new `voltage_color_tolerance` (`config.Config.VoltageColorTolerance`, default
+  `DefaultVoltageColorTolerance` = 24 when unset; `ColorTolerance()`) is the maximum Euclidean RGB distance, served by
+  `/api/config` as `voltageColorTolerance`.
+- **Matching:** `diagramOps.voltageColorMatches` finds every voltage class whose color is within it of its nearest
+  `voltage_colors` preset without being that exact color. `applyVoltageColorMatches` gives a class the preset's color,
+  and its name when the class has none of its own (empty, or its color code as `slddoc.Extract` names it) and no
+  other class already uses it.
+- **Dialog:** the first-open voltage dialog (`DefaultVoltageDialog`) gains a "Match colors to presets" list with one
+  checkbox per class, ticked by default, applied with OK in one undo step. It now also opens for a diagram that has a
+  default voltage but such classes (`needsVoltagePrompt`), then without the voltage picker. After an .svg import it
+  waits until the import log is closed.
+- **Later use:** Properties → Voltage classes → "Match preset colors…" reopens it.
+- **Survey of `diagrams/`** (1098 classes in 436 files): at 24 only `#0099ff` (Δ 16.6 from 110 kV `#00a0f0`, 5 files)
+  matches. Common colors at 40-60 from a preset, such as `#ff5555` (330 kV, Δ 56), `#965000` (35 kV, Δ 53) and
+  `#aa0000` (220 kV, Δ 59), need a larger tolerance.
+- **Tests:** the config test checks the default tolerance is served.
+User guides: the Creating and opening section explains the list.
+
+2026-10-09: `voltage_color_tolerance` is 60 in the bundled `sld-editor.yaml` (24 remains the code default when the key
+is missing). In `diagrams/` this offers 10 colors in 148 files: `#ff5555` → 330 kV (Δ 56, 51 classes), `#965000` →
+35 kV (53, 38), `#aa0000` → 220 kV (59, 35), `#aa00aa` → 10 kV (49, 16), `#cc9900` → 35 kV (43, 8), `#0099ff` → 110 kV
+(17, 5), `#006600` → 6 kV (50, 4), `#aa9600` → 35 kV (44, 2), `#00b4c8` → 110 kV (45, 1) and `#c25a5a` → 330 kV (39, 1).
+None is within 60 of a second preset.
+
+2026-10-09: Matching preset colors merges into an existing preset-named class. Before, a color-code class (such as
+`#965000`) was only recolored and kept its color-code name when the diagram already had a "35 kV" class (for
+example one added by the default voltage picker), which left two 35 kV-looking classes.
+- **Planning:** `diagramOps.planVoltageColorMatches` decides per ticked match, in diagram order:
+  - `recolor`: a name somebody typed is kept;
+  - `rename`: no name of its own (`hasNoOwnName`: empty or a color code) takes the preset name;
+  - `merge`: no name of its own, but another class already carries the preset name.
+  It works on the ticked subset, so unticking a rename target turns the next one into a rename.
+- **Applying:** `applyVoltageColorMatches` moves a merged class's users (elements, transformer windings, substation
+  sectors, wires, `editor.defaultVoltage`) to the named class, gives that class the preset color, and removes the
+  duplicate.
+- **Exact-color classes:** a class that already has a preset's exact color but only a color-code name is now offered
+  too, so a diagram already in that state is repaired by "Match preset colors…".
+- **On open:** `applyPresetVoltageNames` no longer gives out a preset name that another class already carries.
+- **Dialog:** each row shows its outcome ("35 kV", "35 kV (merge)", or the new color).
+- **Checked with a script:** your case merges `#965000` into "35 kV" with all its users moved; two color-code classes
+  on one preset rename and merge; a second pass finds nothing.
+
+2026-10-09: No duplicate preset class from the voltage dialog. With a color match ticked (`#965000` → 35 kV) and
+"35 kV" picked as the default voltage, OK first renamed the matched class to "35 kV" and then added the picked
+preset as a second, empty "35 kV" class. The picker's options were built before the rename. Two changes:
+- `diagramOps.resolveVoltageSelection` resolves a preset to the existing class that carries its name
+  (case-insensitive) instead of adding another. This covers the dialog, Settings and every Properties voltage picker.
+- Properties → Voltage classes' Add list no longer offers presets the diagram already has.
+Replaying the reported case gives one "35 kV" class (the renamed one) as the default voltage.

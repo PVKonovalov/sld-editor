@@ -530,7 +530,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       clearSelection()
       setImportLog(null)
       setImportLogOpen(false)
-      setDefaultVoltagePromptOpen(diagramOps.needsDefaultVoltage(d))
+      setDefaultVoltagePromptOpen(diagramOps.needsVoltagePrompt(d, config))
       // Keeps the File panel's own browser showing wherever this diagram
       // actually lives — most often a no-op re-fetch of the folder it was
       // just opened from, but also correct if openDiagram is ever called
@@ -582,8 +582,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setImportLog(log)
       setImportLogOpen(log !== null)
       // An .svg import already gets a Default voltage picker in its own
-      // import log dialog; only a plain .xsld import asks separately.
-      setDefaultVoltagePromptOpen(log === null && diagramOps.needsDefaultVoltage(d))
+      // import log dialog, so after one this only asks about preset colors,
+      // once the import log is closed (App).
+      setDefaultVoltagePromptOpen(diagramOps.needsVoltagePrompt(d, config))
       await browseDir(parentDir(name))
     },
     [clearSelection, browseDir, config, elements],
