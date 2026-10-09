@@ -1211,13 +1211,14 @@
        arrow-chevron at its own free end, plus a second chevron floating
        disconnected further down (no drawn line reaches it) representing
        the other half of the coupling, now racked out. Anchor is the top
-       stem's own free end, matching parseOnePortDevice's own convention
-       (the combined path's own first point) — the same one-port
-       convention Capacitor bank's own terminal above uses; the floating
-       lower chevron has no wire-connection point of its own. -->
+       stem's own free end (the combined path's own first point). Two
+       terminals: that top end, and the lower chevron's tip 20 below it,
+       where the other half of the coupling meets the device below
+       (slddoc's parseHalfChassis). -->
   <symbol shape="52" class="HalfChassis" name="Half-chassis">
     <terminals>
       <terminal x="0" y="0"/>
+      <terminal x="0" y="20"/>
     </terminals>
     <template><![CDATA[
 <path d="M 0 0 v 12 l -4 -4 m 4 4 l 4 -4 m -4 12 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />

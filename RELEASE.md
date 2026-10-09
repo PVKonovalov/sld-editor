@@ -5429,3 +5429,17 @@ guides: Finding items.
   It centres the canvas on that point through a new `DiagramContext.focusPoint` (`focusRequest` now also carries a
   point) and flashes a ring there (`.canvas-point-flash`, 1.6 s).
 User guides: moving around the canvas (the readout), Connections (Show nodes colours, the node link).
+
+2026-10-09: Half-chassis (52) has two terminals. In xsde2svg (`element_52.go`) it is drawn as a stem with a chevron
+plus a detached lower chevron, the other half of the coupling. The stem's free end is 10 above its origin and the
+lower chevron's tip 10 below, and real drawings attach a device at both. Base.xml declared only the stem end, so the
+device on the chevron side was never connected.
+- **base.xml:** a second terminal at (0,20), the chevron tip. The anchor stays at the stem end, so placed
+  half-chassis keep their positions and look.
+- **slddoc:** `parseHalfChassis` replaces the generic one-port parser for 52. Its anchor and orient are as before,
+  plus a second port at the drawing's far end along its own axis (`leadTips`), rotated with it.
+- **Test:** `TestHalfChassisTwoPorts_RealCorpus` (KP_55 id 148688844, rotated 180°). The wire from above meets the
+  chevron tip and the one to the fuse below meets the stem end; both are now connected.
+- **Existing diagrams:** opening one gives each half-chassis its terminal 2 on a fresh node, joined to whatever lies
+  exactly there (`fitElementPorts`). Across `diagrams/` that's 59 half-chassis in 25 files: both ends connected for 57,
+  none before. One wire is split where a chevron tip lands mid-span. No other port loses its connection.
