@@ -10,10 +10,26 @@ export interface ContextMenuItem {
   children?: ContextMenuItem[]
 }
 
+// A divider between groups of items.
+export const SEPARATOR = 'separator' as const
+export type ContextMenuEntry = ContextMenuItem | typeof SEPARATOR
+
+/** Flattens groups of items into one list with a SEPARATOR between each two
+ * non-empty groups, so no divider ever leads, trails or doubles up. */
+export function withSeparators(groups: ContextMenuItem[][]): ContextMenuEntry[] {
+  const entries: ContextMenuEntry[] = []
+  for (const group of groups) {
+    if (group.length === 0) continue
+    if (entries.length > 0) entries.push(SEPARATOR)
+    entries.push(...group)
+  }
+  return entries
+}
+
 interface Props {
   x: number
   y: number
-  items: ContextMenuItem[]
+  items: ContextMenuEntry[]
   onClose: () => void
 }
 
@@ -36,11 +52,14 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
   )
 }
 
-function MenuItems({ items, onClose }: { items: ContextMenuItem[]; onClose: () => void }) {
+function MenuItems({ items, onClose }: { items: ContextMenuEntry[]; onClose: () => void }) {
   const [open, setOpen] = useState<string | null>(null)
   return (
     <>
-      {items.map(item => (
+      {items.map((item, i) =>
+        item === SEPARATOR ? (
+          <div key={`separator-${i}`} role="separator" className="my-1 border-t border-surface-600" />
+        ) : (
         <div
           key={item.label}
           className="relative"
@@ -69,7 +88,8 @@ function MenuItems({ items, onClose }: { items: ContextMenuItem[]; onClose: () =
             </div>
           )}
         </div>
-      ))}
+        ),
+      )}
     </>
   )
 }

@@ -433,6 +433,12 @@ export const dictionary = {
 
   'contextMenu.copy': 'Copy',
   'contextMenu.startBuswork': 'Start buswork',
+  'contextMenu.trace': 'Trace',
+  'contextMenu.clearTrace': 'Clear trace',
+  'trace.summary': 'Trace: {{count}} items',
+  'trace.stops': 'stopped at {{count}}',
+  'trace.respectStates': 'Respect switch states',
+  'trace.throughTransformers': 'Through transformers',
   'contextMenu.paste': 'Paste',
   'contextMenu.saveCustomElement': 'Save as custom element…',
   'customElement.saveTitle': 'Save as custom element',

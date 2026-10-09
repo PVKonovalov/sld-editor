@@ -7,7 +7,35 @@ Open tasks only. Finished work is recorded in RELEASE.md.
 - [ ] 45°/manual-bend-axis routing mode (the click-to-route tool is orthogonal-only today).
 - [ ] Re-route attached connectors when a BusBarSection's single-endpoint drag handle moves (today only a
       whole-element drag re-routes, via `diagramOps.moveElements`).
-- [ ] Undo/redo.
+- [ ] Placement hot keys from the YAML config: a single key arms a palette item, e.g. `t` a power transformer, `c` a
+      circuit breaker, `d` a disconnector, `b` a busbar, `w` buswork. Configured per palette item (say, a `key:` next
+      to it in `palette`, checked by `ValidatePalette` for duplicates and clashes with existing shortcuts such as
+      Ctrl/Cmd+C/V/Z/F, Space and Esc), served by `/api/config`, shown in the Elements panel's tooltips and the user
+      guide's shortcut table, and ignored while typing in a field.
+- [ ] Light theme: a light UI (panels, dialogs, canvas chrome, the user guide window) alongside today's dark one,
+      switched in Settings or following the OS (`prefers-color-scheme`). Needs the Tailwind `surface-*`/`gray-*`
+      colours turned into theme tokens, and a decision on the diagram itself: keep each diagram's own background, or
+      offer a light default for new ones.
+- [ ] Rotate and mirror shortcuts: `R` turns the selection 90°, `M` mirrors it (today only through Properties).
+- [ ] Align and distribute a multi-selection: left/centre/right, top/middle/bottom, equal spacing (rows of feeder
+      bays).
+- [ ] Bulk edit a multi-selection: voltage class, state, size step (today only the layer can be set for several
+      items at once).
+- [ ] Rename in series: number selected devices automatically ("QS-1, QS-2, …"), and find-and-replace in names.
+- [ ] Status bar: selection count, zoom %, the armed tool, next to the cursor coordinates readout.
+- [ ] Minimap in a canvas corner for large diagrams (e.g. CUS_Novgorodenergo), showing and moving the visible area.
+- [ ] Links between diagrams: Ctrl/Cmd-click on an Object link (28) or Connector arrow (83) opens the diagram it
+      points to.
+
+## Diagram checking
+
+- [ ] Check diagram: one command listing problems as Find-style results that select and centre each item: free
+      terminals and dangling wire ends (Find's "Not connected only" already has these), devices without a voltage
+      class or with one differing from their wires, wires crossing a busbar or another wire without a junction,
+      duplicate names, unnamed switching devices, zero-length or diagonal wires, labels linked to deleted elements.
+- [ ] Energization preview: pick a source (busbar or line) and colour everything reachable through closed switching
+      devices, greying out the rest, to check the topology matches the drawing (nodes, ports and switch states are
+      all in the model).
 
 ## Custom elements
 
@@ -35,6 +63,13 @@ Placing one from the palette works (see RELEASE.md, 2026-09-29). Still to do:
 - [ ] A Container (310) in an xsde2svg export made before the `element_310.go` grouping patch imports only when it has
       a caption (its outline is then the bare `<path>` right after the caption group); an uncaptioned one carries no
       `data-type` there and stays unimported until the diagram is re-exported.
+- [ ] PNG/PDF export of the page or the selection, for documentation.
+- [ ] Re-import keeping edits: re-run `Extract` on a diagram's source .svg and carry over names, layers and manual
+      changes, so diagrams imported before an import fix (T-taps, capacitor/starter/substation ports, half-chassis
+      terminals) pick it up without losing work.
+- [ ] Diagram compare: two versions of a diagram (or before/after a re-import) side by side, listing added, removed
+      and moved items.
+- [ ] Topology export (CIM/CGMES or JSON) for the downstream topology processor.
 
 ## Shapes not yet ported
 

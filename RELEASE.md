@@ -5443,3 +5443,40 @@ device on the chevron side was never connected.
 - **Existing diagrams:** opening one gives each half-chassis its terminal 2 on a fresh node, joined to whatever lies
   exactly there (`fitElementPorts`). Across `diagrams/` that's 59 half-chassis in 25 files: both ends connected for 57,
   none before. One wire is split where a chevron tip lands mid-span. No other port loses its connection.
+
+2026-10-09: Trace. Right-click a wire, busbar or device → Trace highlights everything electrically joined to it
+(`lib/trace.ts`, `traceNetwork`). It is a breadth-first search over the Nodes: a wire joins its ends, a busbar all its
+ports, a device with two or more ports its ports when it passes, and a single-port device is reached but leads
+nowhere. It starts at the connection point nearest the right-click: a wire's nearer end, or a device's nearest port,
+so on an open breaker the side clicked.
+- **Options**, in a bar at the top of the canvas (with the item count, how many devices stopped it, and a close
+  button):
+  - "Respect switch states", on by default: a device with a state passes only when Closed (1); Open, Intermediate
+    and a withdrawable device off Service stop it. Devices with no state always pass.
+  - "Through transformers", off by default: a PowerTransformer or Booster stops the trace unless it's on.
+- **Drawing:** reached wires, busbars and devices are drawn orange over the diagram; devices that stopped it red.
+- **Behaviour:** the trace is recomputed from the diagram on every edit, so opening a breaker cuts it at once. It is
+  cleared by Clear trace, the bar's button, Esc with nothing selected, or opening another diagram. It's view-only,
+  never saved or undone.
+- **Checked on `PS_110kV_Krestsci`**, from "2 сш 35 кВ": 27 wires and 27 devices, stopped at an open breaker and a
+  transformer. Ignoring switch states gives 44 and 47; also crossing transformers gives 183 and 204.
+User guides: "Tracing" (`#trace`). TODO's connected-network item is done.
+
+2026-10-09: Connecting a free wire end onto another wire. Reported in `PS_110kV_Lubnisa` at (590,740): wire 148704900
+ends on wire 1017's line, mid-span, and couldn't be connected. Two causes:
+- **Dragging the free end:** `moveConnectorEndpoint` joined a dropped free end only to a Node (a terminal or another
+  wire's end) or a busbar, and a wire's line has no Node mid-span. It now taps that wire (`tapWireAt`, never an
+  overhead line): the wire is split at the drop point into two pieces meeting the end on one Node.
+- **Right-click:** the context menu found a wire only when the click landed exactly on its thin drawn line, so
+  Topology (and Trace) were rarely offered for one. It now also accepts a wire within `CONNECTOR_HIT_PX` screen pixels
+  (`findConnectorNearHit`), as a left click already did, before the device-box fallback.
+Checked on Lubnisa: dropping 148704900's end on (590,740) splits 1017 into (450,740)–(590,740) and (590,740)–(840,720),
+all three on one junction. User guides: Editing a wire.
+
+2026-10-09: Context menu groups. The canvas right-click menu is now in groups with a divider between them:
+1. Copy, Paste, Delete, Delete segment (Paste moved up from the end, Delete segment next to Delete);
+2. Save as custom element…;
+3. Start buswork, Topology ▸;
+4. Trace, Clear trace.
+`ContextMenu` takes `ContextMenuEntry`s (an item or `SEPARATOR`), and `withSeparators(groups)` flattens the groups,
+skipping empty ones, so a divider never leads, trails or doubles up. The submenus are unchanged.

@@ -429,6 +429,12 @@ export const dictionary: Record<keyof Dictionary, string> = {
 
   'contextMenu.copy': 'Копировать',
   'contextMenu.startBuswork': 'Начать ошиновку',
+  'contextMenu.trace': 'Трассировка',
+  'contextMenu.clearTrace': 'Сбросить трассировку',
+  'trace.summary': 'Трассировка: объектов {{count}}',
+  'trace.stops': 'остановлена на {{count}}',
+  'trace.respectStates': 'Учитывать положение аппаратов',
+  'trace.throughTransformers': 'Через трансформаторы',
   'contextMenu.paste': 'Вставить',
   'contextMenu.saveCustomElement': 'Сохранить как пользовательский элемент…',
   'customElement.saveTitle': 'Сохранить как пользовательский элемент',

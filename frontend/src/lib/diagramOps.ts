@@ -3099,12 +3099,50 @@ export function moveConnectorEndpoint(diagram: Diagram, connectorId: number, end
     nodes: diagram.nodes.map(n => (n.id === nodeId ? { ...n, x: point.x, y: point.y } : n)),
   }
   // A wire end dropped exactly on another Node (a device terminal's, or
-  // another wire's end) joins it, keeping that Node; one dropped on a
-  // busbar connects to it. Never onto this wire's own other end.
+  // another wire's end) joins it, keeping that Node; one dropped on another
+  // wire's line taps it there (tapWireAt); one dropped on a busbar connects
+  // to it. Never onto this wire's own other end.
   const otherEnd = end === 'from' ? connector.to : connector.from
   const onto = diagram.nodes.find(n => n.id !== nodeId && n.id !== otherEnd && samePoint(n, point))
   if (onto) return mergeNode(moved, nodeId, onto.id)
+  const tapped = tapWireAt(moved, nodeId, connectorId)
+  if (tapped !== moved) return tapped
   return joinNodesToBusbars(moved, new Set([nodeId]))
+}
+
+/** Splits the first wire (other than exceptId, and not an overhead line,
+ * which is never tapped mid-span) whose line passes through Node nodeId's
+ * point, away from its ends, into two wires meeting on that Node: a T
+ * junction. The first piece keeps the wire's id, the second gets a fresh
+ * one. Returns diagram itself when no wire passes there. */
+function tapWireAt(diagram: Diagram, nodeId: number, exceptId: number): Diagram {
+  const node = diagram.nodes.find(n => n.id === nodeId)
+  if (!node) return diagram
+  for (const c of diagram.connectors) {
+    if (c.id === exceptId || c.kind === 'OverheadLine' || c.points.length < 2 || c.from === nodeId || c.to === nodeId) continue
+    const pts = c.points
+    if (samePoint(pts[0], node) || samePoint(pts[pts.length - 1], node)) continue
+    const k = pts.findIndex((a, i) => i < pts.length - 1 && isOnSegment(node, a, pts[i + 1]))
+    if (k < 0) continue
+    const at = { x: node.x, y: node.y }
+    const ids = new IdSequence(diagram)
+    const secondId = ids.take()
+    return {
+      ...diagram,
+      lastId: ids.lastId,
+      connectors: [
+        ...diagram.connectors.map(x => (x.id === c.id ? { ...c, to: nodeId, points: simplifyOrthogonalPath([...pts.slice(0, k + 1), at]) } : x)),
+        {
+          ...c,
+          id: secondId,
+          name: defaultConnectorName(c.kind, secondId) ?? c.name,
+          from: nodeId,
+          points: simplifyOrthogonalPath([at, ...pts.slice(k + 1)]),
+        },
+      ],
+    }
+  }
+  return diagram
 }
 
 /** Inserts a new vertex at point between an existing connector's

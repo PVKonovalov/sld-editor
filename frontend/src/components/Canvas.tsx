@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
 import { TransformWrapper, TransformComponent, useControls, type ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
-import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2 } from 'lucide-react'
+import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, X as XIcon } from 'lucide-react'
 import { useDiagramContext, type SelectionKind } from '../state/useDiagramContext'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
 import { arcBounds, arcMidpoint, arcPathD, circularArcThrough, defaultArcBulge, type ArcParams } from '../lib/arc'
 import { clientToDiagramPoint, nearestSegmentOnPolyline, snapPointOnSegment, snapValue } from '../lib/geometry'
 import { fillPictureHrefs, readImageFile } from '../lib/picture'
+import { traceNetwork, type TraceOptions } from '../lib/trace'
 import { t } from '../i18n'
-import { ContextMenu, type ContextMenuItem } from './ContextMenu'
+import { ContextMenu, withSeparators, type ContextMenuEntry, type ContextMenuItem } from './ContextMenu'
 import { SaveCustomElementDialog } from './SaveCustomElementDialog'
 import type { Diagram, DiagramElement, Connector, ConnectorKind, Label, DigitalDevice, Point } from '../types'
 
@@ -93,6 +94,11 @@ const GRID_TILE_DOTS: [number, number][] = Array.from({ length: GRID_TILE_FACTOR
 ).flat()
 // Half-length of a terminal marker's "X", in diagram units.
 const TERMINAL_MARK_SIZE = 4 / 3
+
+// Trace highlight colours: what the trace reached, and where it stopped (an
+// open switch, a transformer it may not cross).
+const TRACE_COLOR = '#f59e0b'
+const TRACE_STOP_COLOR = '#ef4444'
 
 // How long the ring focusPoint flashes stays (styles/index.css's
 // .canvas-point-flash animation runs as long).
@@ -479,6 +485,7 @@ export function Canvas() {
     hiddenLayers,
     focusRequest,
     requestFind,
+    diagramName,
   } = useDiagramContext()
   // An item on a layer hidden in the Layers section is neither drawn
   // (hiddenLayerCss) nor picked by any diagram-state hit test below.
@@ -693,6 +700,17 @@ export function Canvas() {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }
+
+  // Context menu → Trace: where it starts and its options. A view only:
+  // never saved, not undoable, cleared with another diagram.
+  const [trace, setTrace] = useState<{ node?: number; element?: number; opts: TraceOptions } | null>(null)
+  useEffect(() => setTrace(null), [diagramName])
+  const traced = useMemo(() => {
+    if (!trace || !diagram) return null
+    // The start may be gone after an edit (deleted, merged).
+    if (trace.node !== undefined && !diagram.nodes.some(n => n.id === trace.node)) return null
+    return traceNetwork(diagram, trace, trace.opts)
+  }, [trace, diagram])
 
   // A ring flashed at a point focusPoint asked for; seq restarts the flash.
   const [flash, setFlash] = useState<{ point: Point; seq: number } | null>(null)
@@ -1336,6 +1354,7 @@ export function Canvas() {
         else if (armedLabel) armLabel(false)
         else if (armedDigitalDevice) armDigitalDevice(false)
         else if (armedCustomElement) armCustomElement(null)
+        else if (selection.size === 0 && trace) setTrace(null)
         else selectElement(null)
       }
     }
@@ -1364,6 +1383,8 @@ export function Canvas() {
     selectedPoint,
     updateDiagram,
     polygonDraft,
+    selection,
+    trace,
   ])
 
   // A mouse button held anywhere: an element/group drag in progress keeps
@@ -2439,8 +2460,15 @@ export function Canvas() {
       // Same real-bounding-box fallback handleMouseDown's own plain click
       // uses — a right-click that misses the real drawn geometry but still
       // lands within the element's own computed footprint still selects it.
-      const boxHit = findElementBoxHit(point)
-      if (boxHit !== null) {
+      // A wire within CONNECTOR_HIT_PX screen pixels counts, as for a left
+      // click: a thin wire is otherwise almost impossible to right-click,
+      // and its Topology/Trace items would never be offered.
+      const connectorHit = findConnectorNearHit(point)
+      const boxHit = connectorHit === null ? findElementBoxHit(point) : null
+      if (connectorHit !== null) {
+        connectorId = connectorHit
+        if (!keepsSelection(connectorHit, 'connector')) selectConnector(connectorHit)
+      } else if (boxHit !== null) {
         elementId = boxHit
         if (!keepsSelection(boxHit, 'element')) selectElement(boxHit)
       }
@@ -2468,17 +2496,54 @@ export function Canvas() {
     }
   }
 
-  const contextMenuItems: ContextMenuItem[] = contextMenu
-    ? [
-        ...(selection.size > 0
-          ? [
-              {
-                label: t('contextMenu.copy'),
-                onSelect: () => {
-                  copySelectionToClipboard()
+  // The right-click menu, in groups that ContextMenu separates with a
+  // divider (empty groups are skipped): clipboard and delete, saving as a
+  // custom element, wiring, tracing.
+  const contextMenuItems: ContextMenuEntry[] = contextMenu
+    ? withSeparators([
+        [
+          ...(selection.size > 0
+            ? [
+                {
+                  label: t('contextMenu.copy'),
+                  onSelect: () => {
+                    copySelectionToClipboard()
+                  },
                 },
-              },
-              { label: t('contextMenu.delete'), onSelect: deleteSelected },
+              ]
+            : []),
+          {
+            label: t('contextMenu.paste'),
+            disabled: clipboard === null,
+            onSelect: () => {
+              if (clipboard) placeCopy(clipboard.template, contextMenu.diagramPoint, snapPoint)
+            },
+          },
+          ...(selection.size > 0 ? [{ label: t('contextMenu.delete'), onSelect: deleteSelected }] : []),
+          // "Delete segment" removes just the segment right-clicked
+          // (diagramOps.deleteConnectorSegment splits the rest into up to
+          // two independent, possibly-dangling connectors) — always acts on
+          // this one connector regardless of the rest of the selection,
+          // unlike the generic Delete above (which already covers "delete
+          // the whole wire" whenever this connector is part of the current
+          // selection, so there's no separate "Delete wire" item any more).
+          ...(contextMenu.connectorId !== null &&
+          (diagram.connectors.find(c => c.id === contextMenu.connectorId)?.points.length ?? 0) >= 2
+            ? [
+                {
+                  label: t('contextMenu.deleteSegment'),
+                  onSelect: () => {
+                    const connector = diagram.connectors.find(c => c.id === contextMenu.connectorId)
+                    if (!connector) return
+                    const { index } = nearestSegmentOnPolyline(connector.points, contextMenu.diagramPoint)
+                    updateDiagram(d => diagramOps.deleteConnectorSegment(d, contextMenu.connectorId!, index))
+                  },
+                },
+              ]
+            : []),
+        ],
+        selection.size > 0
+          ? [
               {
                 label: t('contextMenu.saveCustomElement'),
                 onSelect: () =>
@@ -2487,75 +2552,86 @@ export function Canvas() {
                   ),
               },
             ]
-          : []),
-        // Starts the click-to-route tool right from this element/connector
-        // without needing a wire kind armed from the palette first — always
-        // BusWork (see startBusworkFrom's own doc comment). Only offered
-        // for an element that's actually a valid wire endpoint (same
-        // exclusion findConnectionTarget's own search already applies).
-        ...(contextMenu.elementId !== null &&
-        !NON_ROUTABLE_ELEMENT_CLASSES.has(diagram.elements.find(e => e.id === contextMenu.elementId)?.class ?? '')
-          ? [
-              {
-                label: t('contextMenu.startBuswork'),
-                onSelect: () => {
+          : [],
+        [
+          // Starts the click-to-route tool right from this element/connector
+          // without needing a wire kind armed from the palette first — always
+          // BusWork (see startBusworkFrom's own doc comment). Only offered
+          // for an element that's actually a valid wire endpoint (same
+          // exclusion findConnectionTarget's own search already applies).
+          ...(contextMenu.elementId !== null &&
+          !NON_ROUTABLE_ELEMENT_CLASSES.has(diagram.elements.find(e => e.id === contextMenu.elementId)?.class ?? '')
+            ? [
+                {
+                  label: t('contextMenu.startBuswork'),
+                  onSelect: () => {
+                    const el = diagram.elements.find(e => e.id === contextMenu.elementId)
+                    if (!el) return
+                    startBusworkFrom(nearestTargetOnElement(el, contextMenu.diagramPoint))
+                  },
+                },
+                topologyMenu(() => {
                   const el = diagram.elements.find(e => e.id === contextMenu.elementId)
-                  if (!el) return
-                  startBusworkFrom(nearestTargetOnElement(el, contextMenu.diagramPoint))
+                  return el ? nearestTargetOnElement(el, contextMenu.diagramPoint) : null
+                }),
+              ]
+            : []),
+          ...(contextMenu.connectorId !== null &&
+          (diagram.connectors.find(c => c.id === contextMenu.connectorId)?.points.length ?? 0) >= 2
+            ? [
+                {
+                  label: t('contextMenu.startBuswork'),
+                  onSelect: () => {
+                    const connector = diagram.connectors.find(c => c.id === contextMenu.connectorId)
+                    if (!connector) return
+                    startBusworkFrom(nearestTargetOnConnector(connector, contextMenu.diagramPoint))
+                  },
                 },
-              },
-              topologyMenu(() => {
-                const el = diagram.elements.find(e => e.id === contextMenu.elementId)
-                return el ? nearestTargetOnElement(el, contextMenu.diagramPoint) : null
-              }),
-            ]
-          : []),
-        ...(contextMenu.connectorId !== null &&
-        (diagram.connectors.find(c => c.id === contextMenu.connectorId)?.points.length ?? 0) >= 2
-          ? [
-              {
-                label: t('contextMenu.startBuswork'),
-                onSelect: () => {
+                topologyMenu(() => {
                   const connector = diagram.connectors.find(c => c.id === contextMenu.connectorId)
-                  if (!connector) return
-                  startBusworkFrom(nearestTargetOnConnector(connector, contextMenu.diagramPoint))
+                  return connector ? nearestTargetOnConnector(connector, contextMenu.diagramPoint) : null
+                }),
+              ]
+            : []),
+        ],
+        [
+          // Trace from the connection point nearest the right-click: a wire's
+          // nearer end, a device's nearest port (on an open breaker, the side
+          // clicked), any of a busbar's.
+          ...(contextMenu.elementId !== null || contextMenu.connectorId !== null
+            ? [
+                {
+                  label: t('contextMenu.trace'),
+                  onSelect: () => {
+                    const opts = trace?.opts ?? { respectStates: true, throughTransformers: false }
+                    const p = contextMenu.diagramPoint
+                    const dist = (q: Point) => Math.hypot(q.x - p.x, q.y - p.y)
+                    if (contextMenu.connectorId !== null) {
+                      const c = diagram.connectors.find(x => x.id === contextMenu.connectorId)
+                      if (!c || c.points.length < 2) return
+                      const fromNearer = dist(c.points[0]) <= dist(c.points[c.points.length - 1])
+                      setTrace({ node: fromNearer ? c.from : c.to, opts })
+                      return
+                    }
+                    const el = diagram.elements.find(x => x.id === contextMenu.elementId)
+                    if (!el) return
+                    let node: number | undefined
+                    let best = Infinity
+                    for (const port of el.ports ?? []) {
+                      const n = diagram.nodes.find(x => x.id === port.node)
+                      if (n && dist(n) < best) {
+                        best = dist(n)
+                        node = n.id
+                      }
+                    }
+                    setTrace({ node, element: el.id, opts })
+                  },
                 },
-              },
-              topologyMenu(() => {
-                const connector = diagram.connectors.find(c => c.id === contextMenu.connectorId)
-                return connector ? nearestTargetOnConnector(connector, contextMenu.diagramPoint) : null
-              }),
-            ]
-          : []),
-        // "Delete segment" removes just the segment right-clicked
-        // (diagramOps.deleteConnectorSegment splits the rest into up to
-        // two independent, possibly-dangling connectors) — always acts on
-        // this one connector regardless of the rest of the selection,
-        // unlike the generic Delete above (which already covers "delete
-        // the whole wire" whenever this connector is part of the current
-        // selection, so there's no separate "Delete wire" item any more).
-        ...(contextMenu.connectorId !== null &&
-        (diagram.connectors.find(c => c.id === contextMenu.connectorId)?.points.length ?? 0) >= 2
-          ? [
-              {
-                label: t('contextMenu.deleteSegment'),
-                onSelect: () => {
-                  const connector = diagram.connectors.find(c => c.id === contextMenu.connectorId)
-                  if (!connector) return
-                  const { index } = nearestSegmentOnPolyline(connector.points, contextMenu.diagramPoint)
-                  updateDiagram(d => diagramOps.deleteConnectorSegment(d, contextMenu.connectorId!, index))
-                },
-              },
-            ]
-          : []),
-        {
-          label: t('contextMenu.paste'),
-          disabled: clipboard === null,
-          onSelect: () => {
-            if (clipboard) placeCopy(clipboard.template, contextMenu.diagramPoint, snapPoint)
-          },
-        },
-      ]
+              ]
+            : []),
+          ...(trace ? [{ label: t('contextMenu.clearTrace'), onSelect: () => setTrace(null) }] : []),
+        ],
+      ])
     : []
 
   // Only meaningful for a single selection — a multi-selection (size > 1,
@@ -2621,6 +2697,41 @@ export function Canvas() {
         }
         doubleClick={{ disabled: true }}
       >
+        {traced && trace && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 rounded border border-surface-500 bg-surface-700/95 px-3 py-1.5 text-xs text-gray-200 shadow">
+            <span className="font-medium" style={{ color: TRACE_COLOR }}>
+              {t('trace.summary', { count: traced.elements.size + traced.connectors.size })}
+            </span>
+            {traced.stops.size > 0 && (
+              <span style={{ color: TRACE_STOP_COLOR }}>{t('trace.stops', { count: traced.stops.size })}</span>
+            )}
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={trace.opts.respectStates}
+                onChange={e => setTrace({ ...trace, opts: { ...trace.opts, respectStates: e.target.checked } })}
+              />
+              {t('trace.respectStates')}
+            </label>
+            <label className="flex items-center gap-1 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={trace.opts.throughTransformers}
+                onChange={e => setTrace({ ...trace, opts: { ...trace.opts, throughTransformers: e.target.checked } })}
+              />
+              {t('trace.throughTransformers')}
+            </label>
+            <button
+              type="button"
+              onClick={() => setTrace(null)}
+              title={t('contextMenu.clearTrace')}
+              aria-label={t('contextMenu.clearTrace')}
+              className="p-0.5 rounded text-gray-400 hover:text-white hover:bg-surface-600"
+            >
+              <XIcon size={14} />
+            </button>
+          </div>
+        )}
         <div
           ref={cursorReadoutRef}
           className="absolute bottom-4 left-4 z-10 rounded bg-surface-700/90 border border-surface-500 px-2 py-0.5 text-[11px] tabular-nums text-gray-300 pointer-events-none whitespace-pre"
@@ -2800,6 +2911,57 @@ export function Canvas() {
                   shows the real electrical graph (wherever a connector end
                   or an element's Port actually lands), whether or not a
                   symbol happens to draw anything there. */}
+              {traced && (
+                <g pointerEvents="none">
+                  {diagram.connectors
+                    .filter(c => traced.connectors.has(c.id))
+                    .map(c => (
+                      <polyline
+                        key={`trace-c-${c.id}`}
+                        points={c.points.map(p => `${p.x},${p.y}`).join(' ')}
+                        fill="none"
+                        stroke={TRACE_COLOR}
+                        strokeWidth={5}
+                        strokeOpacity={0.45}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    ))}
+                  {diagram.elements
+                    .filter(el => traced.elements.has(el.id) || traced.stops.has(el.id))
+                    .map(el => {
+                      const color = traced.stops.has(el.id) ? TRACE_STOP_COLOR : TRACE_COLOR
+                      if (el.class === 'BusBarSection' && el.points) {
+                        return (
+                          <polyline
+                            key={`trace-e-${el.id}`}
+                            points={el.points.map(p => `${p.x},${p.y}`).join(' ')}
+                            fill="none"
+                            stroke={color}
+                            strokeWidth={9}
+                            strokeOpacity={0.45}
+                          />
+                        )
+                      }
+                      const box = itemBox(el.id, 'element')
+                      if (!box) return null
+                      return (
+                        <rect
+                          key={`trace-e-${el.id}`}
+                          x={box.x - 2}
+                          y={box.y - 2}
+                          width={box.width + 4}
+                          height={box.height + 4}
+                          rx={2}
+                          fill={color}
+                          fillOpacity={0.2}
+                          stroke={color}
+                          strokeWidth={1}
+                        />
+                      )
+                    })}
+                </g>
+              )}
               {flash && (
                 <circle
                   key={flash.seq}

@@ -337,7 +337,8 @@ Select a wire to show its handles (a click within a few pixels of a wire counts 
 - Right-click a wire → **Delete segment** removes only the segment under the cursor.
 
 A wire end that is not attached to anything is allowed; you can connect it later by dragging its hollow square end handle
-exactly onto a device terminal, another wire's end or a busbar.
+exactly onto a device terminal, another wire's end, a busbar or another wire's line (that wire is split there into a
+T junction; an overhead line is never tapped mid-span).
 
 ## Connections {#connections}
 
@@ -371,6 +372,25 @@ exactly onto a device terminal, another wire's end or a busbar.
   grid step along its wire (and shows as a red free end), a device touching another device or a busbar directly
   steps one grid step away from it, and a busbar point is dropped with the rest moved one step off the busbar.
   **Ctrl+Z** undoes it.
+
+### Tracing {#trace}
+
+Right-click a wire, busbar or device → **Trace** to highlight everything electrically joined to it, starting at the
+connection point nearest the click (on an open breaker, the side you clicked). Wires, busbars and devices the trace
+reaches are drawn orange; a device it can't pass is drawn red.
+
+- **Respect switch states** (on by default): a breaker, disconnector or other switching device passes only when
+  **Close**; **Open** and **Intermediate** stop the trace, and so does a withdrawable device not racked in (any
+  position but Service). It then shows what's energized from that point. Turn it off to see the whole network as
+  drawn.
+- **Through transformers** (off by default): a power transformer stops the trace, so it stays on one voltage level.
+  Turn it on to continue through its windings to the other levels.
+- Wires and busbars always pass, and so do devices with no state (fuses, current transformers, wire jumps…); a
+  single-terminal device (a ground switch, a ground) is reached but leads nowhere.
+
+A bar at the top of the canvas shows how many items the trace reached and has both switches and a close button. The
+trace follows your edits (opening a breaker in Properties cuts it at once). Right-click → **Clear trace**, the bar's
+close button or **Esc** (with nothing selected) removes it. It is only a view: it isn't saved or undone.
 
 ## Custom elements {#custom-elements}
 
