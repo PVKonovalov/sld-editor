@@ -5317,3 +5317,25 @@ Checked on `PS_35kV_Nevskaya` 2138, in both directions: unlinking wire 2179 from
 (1150,300), and unlinking the capacitor from the wire's end does the same. Each time port 1 is left free, port 2
 keeps wire 2178, and the result survives the on-open repair. User guides: the Disconnect bullet moved from Wiring to
 Connections.
+
+2026-10-09: T-taps are joined by slddoc's Extract. A ground switch (or any device) drawn as a T-tap, its terminal on a
+wire's line mid-span, or a unit or two beside it, while the wire runs on unbroken, came out connected to nothing (a
+red cross on every such ground switch, e.g. `PS_35kV_Molvotitsy` 2066 on wire 2332). Only an .svg import through
+this editor fixed it afterwards (`diagramOps.tapFreePortsOntoWires`); any other user of `slddoc.Extract` got it
+unconnected.
+- **slddoc:** a new pass, `tapPortsOntoWires` (`slddoc/tap.go`), runs just before `buildTopology`. It ports the
+  frontend's rules. A free port (no other port, wire end or busbar within `snapTolerance`) moves onto the nearest
+  wire or busbar within `snapTolerance`, skipping wires that touch the element's own other ports. A wire is split
+  there into two connectors (the second gets a fresh id and keeps kind, name, voltage, layer and style). An overhead
+  line is tapped only by a grounding device within `lineEntranceReach` (50) of its nearer end, the piece from that end
+  becoming BusWork while the line keeps its id and name. Unlike the frontend version, only the nearest wire is split,
+  never every wire passing through the point. The free-port check uses a grid of `snapTolerance` cells, and lines are
+  skipped by bounding box, so the corpus test stays at about 1 s.
+- **Frontend:** `tapFreePortsOntoWires` and its helpers (`tapLineEntrance` and its constants) are removed from
+  `diagramOps.ts`; `prepareImport` only recovers size steps after Extract now.
+- **Compared on the 144 ctrlroom corpus SVGs** (after the editor's import steps): the new Extract connects every port
+  the old Extract plus frontend tap did, and 10 more (6 disconnectors, 2 enclosed substations, 1 each of 34 and 47).
+  It makes 74 fewer wire pieces: the old tap also split wires that merely crossed the point.
+- **Tests:** `TestTapPortsOntoWires_RealCorpus` (the Molvotitsy ground switch) and
+  `TestTapPortsOntoWires_LineEntrance` (a tap at an overhead line's entrance; none mid-span).
+- **Saved diagrams** imported before T-taps existed keep their free ports until their .svg is imported again.
