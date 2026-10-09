@@ -45,7 +45,7 @@ voltage_colors:
   - name: "10 kV"
     color: "#962896"
   - name: "35 kV"
-    color: "#c07000"
+    color: "#965000"
   - name: "110 kV"
     color: "#00a0f0"
   - name: "220 kV"

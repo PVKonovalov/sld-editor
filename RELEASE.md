@@ -5267,3 +5267,53 @@ preset as a second, empty "35 kV" class. The picker's options were built before 
   (case-insensitive) instead of adding another. This covers the dialog, Settings and every Properties voltage picker.
 - Properties → Voltage classes' Add list no longer offers presets the diagram already has.
 Replaying the reported case gives one "35 kV" class (the renamed one) as the default voltage.
+
+2026-10-09: Device ports on their real terminals. Reported: Capacitor 2138 in `PS_35kV_Nevskaya.xsld` showed 4
+marks, its 2 terminals plus 2 port nodes beside them at (1135,288)/(1135,312), and wasn't connected to the wires
+ending on its terminals. Causes and fixes:
+- **slddoc `parseTwoPortDevice`:** ports were the outermost points along the drawing's longest extent, which for a
+  Capacitor (388), whose 24-wide plates exceed its 20-unit span, are plate corners. A Starter's (76) ends are 10-wide
+  bars, so a bar end was taken instead of its middle. Ports are now the lead tips along the shape's own axis
+  (`leadTips`): vertical, or horizontal for `horizontalTwoPortShapes`; under a rotate() always that axis, unrotated
+  the longer extent, except `wideBodyTwoPortShapes` (388) which is always vertical. Across the axis, each tip takes
+  the middle of a shared range (the Starter's bars), else a coordinate drawn at both ends (a Thyristor's gate lead
+  sits beside its right tip). Wire jump (14) joins `horizontalTwoPortShapes`: its terminals are on y = 0, and an
+  unrotated one now gets Orient 0 instead of 90.
+- **slddoc `parsePackageSubstation`:** the 385's one port is its lead tip, 22 above its center
+  (`packageSubstationLead`, base.xml's terminal), rotated with it, not its center. Real drawings connect there, often
+  straight onto a disconnector's terminal 2 units away, within `snapTolerance`.
+- **Repair on open (and on import), `diagramOps.moveStrayPortNodes`:** run inside `normalizeTopology` after
+  `fitElementPorts` has matched each port to its nearest terminal. A port Node that nothing else uses (no wire, no
+  other port, no other Node on it) and lies off its terminal moves onto it, and `mergeNodesOntoPorts` then joins the
+  wire end lying there. A Node shared with anything is never moved, so the "one Node for a whole busbar" layout of
+  imported diagrams stays.
+- **Measured on the 144 ctrlroom corpus SVGs**, after the editor's import steps:
+  - 388 52/52 and 76 45/45 ports off their terminals → 0;
+  - 14: 190 (81 before the axis change) → 7;
+  - 385: 9 of 3182 connected → about 2777.
+- **Measured on the 148 diagrams in `diagrams/`**, the on-open repair alone:
+  - connects 181 more ports in 41 files (388 100, 386 31, 76 23, 47 20, 14 5, 43 2) and disconnects none;
+  - Nevskaya 2138 comes out with its ports at (1140,300)/(1120,300) on wires 2179/2178.
+  - A saved 385 stays unconnected (its wire ends lie 2 units off the lead tip): re-import its .svg to connect it.
+- **Tests:** `TestTwoPortLeadTips_RealCorpus` (388, 76, 14 with their wires) and
+  `TestPackageSubstationPortAtLeadTip_RealCorpus` in slddoc.
+- **Enclosed substation (386) gets four terminals,** one at the middle of each side of its box, 20 from its center:
+  top, right, bottom, left. It draws no lead, and real drawings feed it from any side; with one top terminal, 173 of
+  221 corpus instances stayed unconnected. In base.xml, and in slddoc `parseEnclosedSubstation`
+  (`enclosedSubstationPorts`, rotated with it); whichever side a wire reaches binds there and the others stay free.
+  A fresh import now connects 209 of 221 (12 have no wire at any side). Opening existing diagrams adds the three new
+  ports (`fitElementPorts`): 129 of 177 substations in 16 files end up connected, up from 32, and no other port
+  loses its connection. One substation (in the two Valday-Vypolzovo-Novaya diagrams), with a wire drawn straight
+  through its box, gets tapped into that wire. Test: `TestEnclosedSubstationFourSides_RealCorpus` (fed from below,
+  and rotated 180° fed from above).
+
+2026-10-09: Disconnect moved to Properties → Connections. The canvas context menu's Topology → Disconnect is gone.
+Instead every item listed in the Connections section (under a port of the selected device or busbar, or an end of
+the selected wire) has a disconnect button (`ScissorsLineDashed` icon, tooltip "Disconnect … here") that removes just that item from
+that connection point, leaving everything else attached (`diagramOps.disconnectAttachment`). It reuses
+`disconnectTopologyTarget`, aimed at exactly that port or wire end rather than the one nearest a right-click, so the
+pulling apart that keeps it disconnected after reopening is unchanged. `canDisconnect` went with the menu item.
+Checked on `PS_35kV_Nevskaya` 2138, in both directions: unlinking wire 2179 from the capacitor pulls its end to
+(1150,300), and unlinking the capacitor from the wire's end does the same. Each time port 1 is left free, port 2
+keeps wire 2178, and the result survives the on-open repair. User guides: the Disconnect bullet moved from Wiring to
+Connections.

@@ -300,12 +300,6 @@ from, choose an item, then click the terminal, busbar point or wire point to con
 - **Connect to…** joins the two into one electrical node without drawing anything. Use it where an imported drawing
   already touches but the connection is missing (the terminal cross stays red).
 - **Create wire to…** draws a Buswork wire between the two.
-- **Disconnect** detaches the right-clicked item at its connection point nearest the click: a device's terminal, a
-  busbar's connection point or a wire's end. Whatever else was attached there stays connected to each other. So that
-  the editor does not reconnect them (it joins anything lying exactly on a connection point when a diagram is opened),
-  the two are also pulled apart: a detached wire end is drawn back one grid step along the wire (and shows as a red
-  free end), a junction of several wires moves one step off the terminal or busbar, and a device touching a busbar or
-  another device directly steps one grid step away from it. The item is greyed out when nothing is attached there.
 
 Clicking the middle of a wire splits it there, as when a wire is drawn onto it.
 
@@ -327,8 +321,9 @@ exactly onto a device terminal, another wire's end or a busbar.
 ## Connections {#connections}
 
 - Every device has a fixed number of connection points, defined by its shape: for example a breaker or a
-  disconnector has two, a ground switch has one. They exist as soon as the device is placed and cannot be added or
-  removed by the user.
+  disconnector has two, a ground switch has one, and an enclosed substation has four, one in the middle of each
+  side of its box (it is fed from whichever side the line arrives). They exist as soon as the device is placed and
+  cannot be added or removed by the user.
 - Several wires attached to the same terminal share it.
 - Dropping a device so that one of its terminals lands exactly on a wire, a wire end or a busbar connects it there.
   A terminal that is only close to a wire still needs a wire drawn to it.
@@ -344,6 +339,12 @@ exactly onto a device terminal, another wire's end or a busbar.
 - The **Connections** section in Properties lists, for a selected device or busbar, each of its ports with the node
   it sits on (id and coordinates) and everything else attached there; for a selected wire, the same for its two ends.
   A port with nothing attached shows *not connected*, a wire end *free end*. Click a listed item to select it.
+- The scissors icon after a listed item disconnects just that item from this connection point; everything else
+  there stays connected. So that the editor does not reconnect them (it joins anything lying exactly on a
+  connection point when a diagram is opened), the two are also pulled apart: a detached wire end is drawn back one
+  grid step along its wire (and shows as a red free end), a device touching another device or a busbar directly
+  steps one grid step away from it, and a busbar point is dropped with the rest moved one step off the busbar.
+  **Ctrl+Z** undoes it.
 
 ## Custom elements {#custom-elements}
 

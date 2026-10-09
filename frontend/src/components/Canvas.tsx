@@ -2378,12 +2378,10 @@ export function Canvas() {
     setContextMenu({ x: e.clientX, y: e.clientY, diagramPoint, elementId, connectorId })
   }
 
-  // The context menu's "Topology" submenu: Connect to… and Create wire to…
-  // start a pick of the second terminal from the first, the one nearest the
-  // right-click; Disconnect detaches the item there at once (greyed out
-  // when nothing is attached at that point).
+  // The context menu's "Topology" submenu: both items start a pick of the
+  // second terminal from the first, the one nearest the right-click.
+  // (Disconnecting is in Properties → Connections.)
   function topologyMenu(first: () => ConnectTarget | null): ContextMenuItem {
-    const here = first()
     const start = (mode: 'join' | 'wire') => () => {
       const from = first()
       if (!from) return
@@ -2396,13 +2394,6 @@ export function Canvas() {
       children: [
         { label: t('contextMenu.connectTo'), onSelect: start('join') },
         { label: t('contextMenu.createWireTo'), onSelect: start('wire') },
-        {
-          label: t('contextMenu.disconnect'),
-          disabled: !here || !diagramOps.canDisconnect(diagram!, here),
-          onSelect: () => {
-            if (here) updateDiagram(d => diagramOps.disconnectTopologyTarget(d, here, gridSpacing, elements))
-          },
-        },
       ],
     }
   }

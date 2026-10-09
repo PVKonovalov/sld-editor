@@ -3614,7 +3614,52 @@ export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], on
       for (const e of d.elements) elementsById.set(e.id, e)
     }
   }
-  return mergeNodesOntoPorts(removeDegenerateConnectors(d), onlyIds)
+  // After fitElementPorts has matched each Port to its nearest terminal, so
+  // only Nodes still stray are moved, onto the terminal their Port now has.
+  return mergeNodesOntoPorts(moveStrayPortNodes(removeDegenerateConnectors(d), symbols, onlyIds), onlyIds)
+}
+
+/** Moves each port Node that nothing else uses (no wire, no other Port) and
+ * that lies away from its element's terminal onto that terminal: port i on
+ * terminal i, when no other Port of the element is already there. An older
+ * .svg import put some ports beside their device (a Capacitor's plate
+ * corners, a Starter's bar ends, a Package substation's center), so the
+ * wires drawn to the real terminals never reached them; once the Node is on
+ * the terminal, mergeNodesOntoPorts joins the wire end lying there. A Node
+ * shared with anything, or with another Node lying on it, is never moved, so an imported diagram that uses one
+ * Node for a whole busbar stays as drawn. Returns diagram itself when
+ * nothing moved. */
+function moveStrayPortNodes(diagram: Diagram, symbols: ElementSymbol[], onlyIds?: Set<number>): Diagram {
+  const uses = new Map<number, number>()
+  const use = (id: number) => uses.set(id, (uses.get(id) ?? 0) + 1)
+  for (const c of diagram.connectors) {
+    use(c.from)
+    use(c.to)
+  }
+  for (const el of diagram.elements) for (const p of el.ports ?? []) use(p.node)
+  // Another Node at exactly the same point (a wire end lying on the port)
+  // is joined to it by mergeNodesOntoPorts, so it counts as in use too.
+  const atPoint = new Map<string, number>()
+  for (const n of diagram.nodes) atPoint.set(`${n.x},${n.y}`, (atPoint.get(`${n.x},${n.y}`) ?? 0) + 1)
+  const nodeIndex = new Map(diagram.nodes.map(n => [n.id, n]))
+  const moved = new Map<number, Point>()
+  for (const el of diagram.elements) {
+    if (onlyIds && !onlyIds.has(el.id)) continue
+    const terminals = fixedTerminals(el, symbols)
+    if (!terminals || !el.ports) continue
+    const nodes = el.ports.map(p => moved.get(p.node) ?? nodeIndex.get(p.node))
+    el.ports.forEach((port, i) => {
+      const node = nodes[i]
+      const t = terminals[i]
+      if (!node || !t || uses.get(port.node) !== 1 || (atPoint.get(`${node.x},${node.y}`) ?? 0) > 1) return
+      const at = (p: Point) => Math.hypot(p.x - t.x, p.y - t.y) <= PORT_MATCH_TOLERANCE
+      if (at(node) || nodes.some((n, k) => k !== i && n && at(n))) return
+      moved.set(port.node, t)
+      nodes[i] = { ...node, ...t }
+    })
+  }
+  if (moved.size === 0) return diagram
+  return { ...diagram, nodes: diagram.nodes.map(n => (moved.has(n.id) ? { ...n, ...moved.get(n.id)! } : n)) }
 }
 
 /** Merges every Node that isn't any element's Port but sits exactly on a
@@ -3915,7 +3960,7 @@ export function snapDiagramToGrid(
 // Topology → Disconnect
 // ---------------------------------------------------------------------------
 
-/** What "Topology → Disconnect" acts on at target: the Node at the
+/** What disconnectTopologyTarget acts on at target: the Node at the
  * connection point nearest target.point (a device's terminal, a busbar's
  * Port, or a wire's nearer end) and what else is attached to that Node.
  * null when target has no such Node. */
@@ -3964,10 +4009,30 @@ function disconnectSubject(
   return { node, wires, ports }
 }
 
-/** Whether "Topology → Disconnect" has anything to detach at target. */
-export function canDisconnect(diagram: Diagram, target: TopologyTarget): boolean {
-  const s = disconnectSubject(diagram, target)
-  return !!s && (s.wires.length > 0 || s.ports.length > 0)
+/** The Properties Connections section's Disconnect: removes attachment a
+ * (an element's Port, or a wire's end) from Node node, through
+ * disconnectTopologyTarget aimed at exactly that Port or end. Everything
+ * else on the Node stays attached. Returns diagram itself when a isn't on
+ * node or nothing else is. */
+export function disconnectAttachment(
+  diagram: Diagram,
+  node: number,
+  a: NodeAttachment,
+  grid: number,
+  symbols: ElementSymbol[],
+): Diagram {
+  const n = diagram.nodes.find(x => x.id === node)
+  if (!n) return diagram
+  if (a.kind === 'element') {
+    const el = diagram.elements.find(e => e.id === a.id)
+    if (!el?.ports?.some(p => p.name === a.port && p.node === node)) return diagram
+    // The Port on node is the one nearest node's own position.
+    return disconnectTopologyTarget(diagram, { kind: 'element', elementId: a.id, point: { x: n.x, y: n.y } }, grid, symbols)
+  }
+  const c = diagram.connectors.find(x => x.id === a.id)
+  if (!c || c[a.end] !== node || c.points.length < 2) return diagram
+  const point = a.end === 'from' ? c.points[0] : c.points[c.points.length - 1]
+  return disconnectTopologyTarget(diagram, { kind: 'connector', connectorId: a.id, segmentIndex: 0, point }, grid, symbols)
 }
 
 /** A unit vector along the dominant axis of v ((0,0) for a zero v). */
@@ -4005,8 +4070,9 @@ function pullBackStep(c: Connector, nodeId: number, grid: number): Point {
   return { x: ((prev.x - end.x) / len) * step, y: ((prev.y - end.y) / len) * step }
 }
 
-/** "Topology → Disconnect": detaches the item at target from everything
- * else at its connection point nearest target.point, and pulls the two
+/** Disconnect (Properties → Connections, via disconnectAttachment):
+ * detaches the item at target from everything else at its connection point
+ * nearest target.point, and pulls the two
  * apart, since the editor rejoins whatever lies exactly on a connection
  * point (on open: fitElementPorts/joinBusbar/mergeNodesOntoPorts; on a
  * move: joinPortNodes), so a topology-only split would not last.

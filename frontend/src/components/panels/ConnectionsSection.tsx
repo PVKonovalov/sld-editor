@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ScissorsLineDashed } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
@@ -6,14 +7,16 @@ import { GroupHeader } from './GroupHeader'
 import { t, type TranslationKey } from '../../i18n'
 import type { Connector, DiagramElement } from '../../types'
 
-// The Properties panel's read-only topology view of one element (each of
-// its Ports) or wire (its two ends): the Node each sits on, and everything
-// else attached to that Node, each a link that selects it.
+// The Properties panel's topology view of one element (each of its Ports)
+// or wire (its two ends): the Node each sits on, and everything else
+// attached to that Node, each a link that selects it, with a scissors button
+// that disconnects just that item from the Node
+// (diagramOps.disconnectAttachment), in one undo step.
 
 type Row = { key: string; heading: string; node: number; self: diagramOps.NodeAttachment }
 
 export function ConnectionsSection({ element, connector }: { element?: DiagramElement; connector?: Connector }) {
-  const { diagram, elements, selectElement, selectConnector } = useDiagramContext()
+  const { diagram, elements, config, selectElement, selectConnector, updateDiagram } = useDiagramContext()
   const [collapsed, setCollapsed] = useState(false)
   if (!diagram) return null
 
@@ -38,6 +41,7 @@ export function ConnectionsSection({ element, connector }: { element?: DiagramEl
     }
   }
   if (rows.length === 0) return null
+  const grid = diagram.editor?.gridSpacing ?? config?.editor.gridSpacing ?? 10
 
   const attachments = diagramOps.nodeAttachments(diagram)
   const nodesById = new Map(diagram.nodes.map(n => [n.id, n]))
@@ -58,7 +62,7 @@ export function ConnectionsSection({ element, connector }: { element?: DiagramEl
     return c.name || `${t(`connectorKind.${c.kind}` as TranslationKey)} #${c.id}`
   }
 
-  function attachmentLink(a: diagramOps.NodeAttachment) {
+  function attachmentLink(node: number, a: diagramOps.NodeAttachment) {
     let label: string
     let onClick: () => void
     if (a.kind === 'element') {
@@ -73,9 +77,18 @@ export function ConnectionsSection({ element, connector }: { element?: DiagramEl
       onClick = () => selectConnector(a.id)
     }
     return (
-      <li key={`${a.kind}-${a.id}-${a.kind === 'element' ? a.port : a.end}`}>
-        <button type="button" className="text-left text-sky-300 hover:underline" onClick={onClick}>
+      <li key={`${a.kind}-${a.id}-${a.kind === 'element' ? a.port : a.end}`} className="flex items-start gap-1">
+        <button type="button" className="flex-1 min-w-0 text-left text-sky-300 hover:underline" onClick={onClick}>
           {label}
+        </button>
+        <button
+          type="button"
+          title={t('properties.disconnect', { name: label })}
+          aria-label={t('properties.disconnect', { name: label })}
+          onClick={() => updateDiagram(d => diagramOps.disconnectAttachment(d, node, a, grid, elements))}
+          className="shrink-0 p-0.5 rounded text-gray-500 hover:text-red-400 hover:bg-surface-600"
+        >
+          <ScissorsLineDashed size={12} />
         </button>
       </li>
     )
@@ -103,7 +116,7 @@ export function ConnectionsSection({ element, connector }: { element?: DiagramEl
                     : t('properties.connectionNodeMissing', { node: row.node })}
                 </div>
                 {others.length > 0 ? (
-                  <ul className="pl-3 space-y-0.5">{others.map(attachmentLink)}</ul>
+                  <ul className="pl-3 space-y-0.5">{others.map(a => attachmentLink(row.node, a))}</ul>
                 ) : (
                   <div className="pl-3 text-red-400">
                     {t(connector ? 'properties.connectionFreeEnd' : 'properties.connectionNotConnected')}

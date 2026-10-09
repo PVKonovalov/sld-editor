@@ -1308,17 +1308,21 @@
        internal/slddoc.writeEnclosedSubstation), so it bypasses this
        file's own template substitution the same way that shape does —
        this entry exists only so the palette can offer it and declare its
-       own terminal. Confirmed to have exactly one real electrical
-       terminal the same way Package substation does, at the user's own
-       explicit confirmation; grid-aligned to y=-20 (the real source
-       draws no separate lead stub for it the way 385 does, unlike that
-       shape's own drawn 4-unit stub). Fill/State reuse the same
+       own terminals. It has four, one at the middle of each side of the
+       box, grid-aligned at 20 from the center: the real source draws no
+       lead stub for it (unlike 385's 4-unit stub), and real drawings feed
+       it from the top, the bottom or a side (of 221 corpus instances only
+       48 from the top), so a single top terminal left most unconnected.
+       Order: top, right, bottom, left. Fill/State reuse the same
        free-choice/dashed-outline fields 385's own template does, for the
        same reasons (Abonent/Tech.Closed), neither recoverable on
        Extract. -->
   <symbol shape="386" class="EnclosedSubstation" name="Enclosed substation">
     <terminals>
       <terminal x="0" y="-20"/>
+      <terminal x="20" y="0"/>
+      <terminal x="0" y="20"/>
+      <terminal x="-20" y="0"/>
     </terminals>
     <template></template>
   </symbol>
