@@ -595,4 +595,7 @@ export interface EditorConfig {
   // The Elements panel's own layout — see backend/internal/config.Config's
   // own Palette doc comment.
   palette: PaletteGroup[]
+  // Placement hot keys (config hot_keys, lower-cased): key → palette item
+  // code. Absent from an older server, or when none are configured.
+  hotKeys?: Record<string, string>
 }

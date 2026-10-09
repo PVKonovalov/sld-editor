@@ -62,7 +62,7 @@ storage and the Gin API.
 
 - `internal/config`: the `Config` struct (`config/sld-editor.yaml`), read by `pkg/configuration` (YAML plus `env:"true"`
   env-var overrides). It holds editor defaults, `voltage_colors` presets, `state_colors`/FPI/position/indicator legends,
-  and `palette`.
+  `palette`, and `hot_keys` (placement keys: key → palette item, checked by `elements.ValidateHotKeys`).
 - `internal/elements`: merges the XML symbol libraries listed in `elements.libraries` (later files override shapes)
   into the palette catalog and a `slddoc.SymbolLibrary`. `backend/assets/elements/base.xml` is the bundled one. A
   symbol may declare `<terminals>`, real connection points in local coordinates, drawn by the canvas.

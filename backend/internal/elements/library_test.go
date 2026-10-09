@@ -150,3 +150,36 @@ func TestValidatePalette(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateHotKeys(t *testing.T) {
+	palette := []config.PaletteGroup{
+		{Name: "Wires", Items: []string{"21", "22"}},
+		{Name: "Switching devices", Items: []string{"41", "162"}},
+	}
+	got, err := ValidateHotKeys(map[string]string{"C": "41", "w": "21", "7": "162"}, palette)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 3 || got["c"] != "41" || got["w"] != "21" || got["7"] != "162" {
+		t.Errorf("hot keys = %v, want lower-cased c/w/7", got)
+	}
+	if got, err := ValidateHotKeys(nil, palette); err != nil || len(got) != 0 {
+		t.Errorf("no hot keys: %v, %v", got, err)
+	}
+	for _, c := range []struct {
+		name string
+		keys map[string]string
+		want string
+	}{
+		{"two characters", map[string]string{"ww": "21"}, "single letter or digit"},
+		{"not a letter or digit", map[string]string{"-": "21"}, "single letter or digit"},
+		{"reserved rotate", map[string]string{"r": "41"}, "reserved (rotate)"},
+		{"reserved mirror", map[string]string{"M": "41"}, "reserved (mirror)"},
+		{"same key in two cases", map[string]string{"c": "41", "C": "162"}, "given twice"},
+		{"not in the palette", map[string]string{"x": "999"}, "not a palette item"},
+	} {
+		if _, err := ValidateHotKeys(c.keys, palette); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v, want %q", c.name, err, c.want)
+		}
+	}
+}

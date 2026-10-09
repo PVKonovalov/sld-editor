@@ -5503,3 +5503,24 @@ non-blank line as one multi-line text, with position, font size, colour, font, a
 id, is attached to no element, and isn't reported as skipped. Once imported it is an ordinary Text label (5), so the
 editor draws and saves it as one. Line spacing follows the label's own, not xsde2svg's fixed `dy`. Test:
 `TestExtract_RTFTextBecomesLabel` (the equipment list from sld-svg's `Test_391_text_RTF.svg`). TODO: 391 marked done.
+
+2026-10-09: Placement hot keys. A new `hot_keys:` section in `sld-editor.yaml` maps a key to a palette item code
+(`t: "47"`); pressing the key without Ctrl/Cmd/Alt arms that item the same as clicking its palette button, and
+pressing it again disarms it. The bundled config: t power transformer (47), c breaker (41), d disconnector (162),
+b busbar (24), w buswork (21).
+- **Backend:** `config.Config.HotKeys`, checked at startup by `elements.ValidateHotKeys`, which fails loudly. A key
+  must be one letter or digit, case-insensitive and lower-cased; `r`/`m` are reserved for rotate/mirror; the same key
+  may not appear in two cases; and the item must be in the palette. It's served by `/api/config` as `hotKeys`
+  (`types/index.ts`). Tests: `TestValidateHotKeys`, and `hotKeys` in the config endpoint test.
+- **Frontend:** the arming logic moved from the Elements panel into a shared `usePaletteToggle`, used by the panel's
+  buttons and by Canvas's key handler. The handler ignores keys while typing in a field, with no diagram open, on key
+  repeat, and during a drag or drawing, and works with the Elements panel closed. Palette buttons with a key show it
+  as a badge in their top-right corner and in their tooltip ("Breaker (C)").
+User guides: placing elements and the shortcut table. CLAUDE.md: the config summary. TODO: done.
+
+2026-10-09: A visible cursor while a tool is armed. The canvas used the system `crosshair` cursor while a palette
+item, a wire route or a Topology pick was active. That's thin and black, and on the dark canvas background it all but
+vanished, most noticeably right after a placement hot key armed a tool with the mouse already over the canvas.
+`ARMED_CURSOR` is now a 24×24 SVG crosshair, white with a dark outline (hot spot at its centre, falling back to
+`crosshair`), so it shows on any background. macOS also hides the pointer on any key press until the mouse moves,
+which a page can't change.

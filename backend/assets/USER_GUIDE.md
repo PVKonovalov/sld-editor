@@ -197,6 +197,12 @@ to (`→ 1560, 640`). Move the mouse until it reads a point you're looking for.
 2. Click an element to arm it (the button stays highlighted), then click the canvas to place it. Placing is
    single-shot: the element is disarmed afterwards. Click the button again or press **Esc** to cancel.
 
+**Placement keys:** some palette buttons show a letter in their top-right corner. Pressing that key (without
+Ctrl/Cmd/Alt) arms the item the same as clicking the button, even with the Elements panel closed; pressing it again
+disarms it. The bundled configuration uses **T** power transformer, **C** breaker, **D** disconnector, **B** busbar
+and **W** buswork; an administrator sets them in the server configuration (`hot_keys`). They do nothing while you're
+typing in a field or in the middle of a drag or drawing.
+
 Some elements are drawn instead of clicked:
 
 - **Busbar**, **Arrow**, **Rectangle**, **Small window**, **Circle**, **Button**, **Window icon**, **Table**, **Arc**:
@@ -469,6 +475,7 @@ the diagram.
 | **Ctrl+C** / **Cmd+C** | Copy the selection |
 | **Ctrl+V** / **Cmd+V** | Paste, offset from the original |
 | **Ctrl+F** / **Cmd+F** | Find items (Properties → Find) |
+| A letter shown on a palette button (**T**, **C**, **D**, **B**, **W**…) | Arm that palette item; press again to disarm |
 | **Ctrl+Z** / **Cmd+Z** | Undo the last change |
 | **Ctrl+Shift+Z** / **Cmd+Shift+Z**, **Ctrl+Y** | Redo |
 | **Delete** / **Backspace** | Delete the selection (or the selected bend of a wire, or point of a line or road) |

@@ -150,3 +150,16 @@ palette:
     items: [ "35", "29", "168", "203", "154", "166" ]
   - name: "Indicators"
     items: [ "106", "320002", "134", "320003", "320001", "103" ]
+
+# Placement hot keys: pressing the key (without Ctrl/Cmd/Alt) arms that
+# palette item, the same as clicking its button; pressing it again disarms it.
+# Key: one letter or digit (case doesn't matter; r and m are reserved for
+# rotate/mirror). Item: a code that's in the palette above. Mistakes stop the
+# server at startup. Leave the section out for no hot keys.
+hot_keys:
+  t: "47"    # Power transformer
+  c: "41"    # Breaker
+  d: "162"   # Disconnector
+  b: "24"    # Busbar section
+  w: "21"    # Buswork
+  g: "54"    # Grounder

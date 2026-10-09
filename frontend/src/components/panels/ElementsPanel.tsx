@@ -1,6 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { Type, Gauge } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
+import { hotKeyByItem, usePaletteToggle } from '../../state/usePaletteToggle'
 import { PanelShell } from './PanelShell'
 import { GroupHeader } from './GroupHeader'
 import { t, type TranslationKey } from '../../i18n'
@@ -34,6 +35,7 @@ function PaletteButton({
   active,
   disabled,
   onClick,
+  hotKey,
 }: {
   title: string
   label: string
@@ -41,19 +43,27 @@ function PaletteButton({
   active: boolean
   disabled: boolean
   onClick: () => void
+  // Its placement hot key (config hot_keys), shown in the tooltip and as a
+  // badge in the corner.
+  hotKey?: string
 }) {
   return (
     <button
       type="button"
-      title={title}
+      title={hotKey ? `${title} (${hotKey.toUpperCase()})` : title}
       disabled={disabled}
       onClick={onClick}
-      className={`flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
+      className={`relative flex flex-col items-center justify-center gap-1 aspect-square rounded border p-[3.6px] text-[10px] disabled:opacity-40 disabled:cursor-not-allowed ${
         active
           ? 'border-accent bg-accent/20 text-white'
           : 'border-surface-600 bg-surface-800 text-gray-300 hover:border-surface-500'
       }`}
     >
+      {hotKey && (
+        <kbd className="absolute top-0.5 right-0.5 rounded bg-surface-600 px-1 text-[9px] leading-tight text-gray-300 font-sans">
+          {hotKey.toUpperCase()}
+        </kbd>
+      )}
       {icon}
       <span className="line-clamp-2 text-center leading-tight">{label}</span>
     </button>
@@ -78,13 +88,9 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
     config,
     diagram,
     armedSymbol,
-    armSymbol,
     armedWireKind,
-    armWireKind,
     armedLabel,
-    armLabel,
     armedDigitalDevice,
-    armDigitalDevice,
     customElements,
     armedCustomElement,
     armCustomElement,
@@ -97,6 +103,8 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
   }, [elements])
 
   const groups = config?.palette ?? []
+  const togglePaletteItem = usePaletteToggle()
+  const hotKeys = useMemo(() => hotKeyByItem(config?.hotKeys), [config])
 
   // Keyed by each PaletteGroup's own name — tracks which groups are
   // expanded rather than which are collapsed, so every group defaults to
@@ -159,7 +167,8 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
                         icon={wireKindIcon(kind)}
                         active={active}
                         disabled={!diagram}
-                        onClick={() => armWireKind(active ? null : kind)}
+                        onClick={() => togglePaletteItem(item)}
+                        hotKey={hotKeys.get(item)}
                       />
                     )
                   }
@@ -174,7 +183,8 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
                           icon={<Type size={20} className="shrink-0" />}
                           active={armedLabel}
                           disabled={!diagram}
-                          onClick={() => armLabel(!armedLabel)}
+                          onClick={() => togglePaletteItem(item)}
+                          hotKey={hotKeys.get(item)}
                         />
                       )
                     }
@@ -186,7 +196,8 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
                         icon={<Gauge size={20} className="shrink-0" />}
                         active={armedDigitalDevice}
                         disabled={!diagram}
-                        onClick={() => armDigitalDevice(!armedDigitalDevice)}
+                        onClick={() => togglePaletteItem(item)}
+                        hotKey={hotKeys.get(item)}
                       />
                     )
                   }
@@ -209,7 +220,8 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
                       icon={elementIcon(el)}
                       active={active}
                       disabled={!diagram}
-                      onClick={() => armSymbol(active ? null : el)}
+                      onClick={() => togglePaletteItem(item)}
+                      hotKey={hotKeys.get(item)}
                     />
                   )
                 })}

@@ -114,6 +114,12 @@ type Config struct {
 	// the loaded element library at startup, the same "fail loud on
 	// misconfiguration" way Elements.Libraries itself is already checked.
 	Palette []PaletteGroup `yaml:"palette"`
+
+	// HotKeys maps a placement hot key to a palette item code: pressing the
+	// key (with no Ctrl/Cmd/Alt) arms that item, the same as clicking its
+	// palette button. A key is one letter or digit, case-insensitive; r and m
+	// are reserved. elements.ValidateHotKeys checks it at startup.
+	HotKeys map[string]string `yaml:"hot_keys"`
 }
 
 // DefaultVoltageColorTolerance is VoltageColorTolerance when unset.

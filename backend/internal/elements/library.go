@@ -181,6 +181,42 @@ func (l *Library) ValidatePalette(groups []config.PaletteGroup) error {
 	return nil
 }
 
+// ReservedHotKeys are keys config.Config.HotKeys may not use: kept for the
+// editor's own planned single-key shortcuts.
+var ReservedHotKeys = map[string]string{"r": "rotate", "m": "mirror"}
+
+// ValidateHotKeys checks config.Config.HotKeys against the palette and
+// returns them with every key lower-cased: each key is one letter or digit,
+// not reserved (ReservedHotKeys) and not repeated in another case ("C" and
+// "c"), and each item a code that is in the palette. Called at startup next
+// to ValidatePalette, so a mistake fails loudly.
+func ValidateHotKeys(keys map[string]string, groups []config.PaletteGroup) (map[string]string, error) {
+	inPalette := map[string]bool{}
+	for _, g := range groups {
+		for _, it := range g.Items {
+			inPalette[it] = true
+		}
+	}
+	out := make(map[string]string, len(keys))
+	for key, item := range keys {
+		k := strings.ToLower(strings.TrimSpace(key))
+		if len(k) != 1 || !(k[0] >= 'a' && k[0] <= 'z' || k[0] >= '0' && k[0] <= '9') {
+			return nil, fmt.Errorf("elements: hot_keys: %q must be a single letter or digit", key)
+		}
+		if what, ok := ReservedHotKeys[k]; ok {
+			return nil, fmt.Errorf("elements: hot_keys: %q is reserved (%s)", key, what)
+		}
+		if _, dup := out[k]; dup {
+			return nil, fmt.Errorf("elements: hot_keys: %q is given twice (keys are case-insensitive)", key)
+		}
+		if !inPalette[item] {
+			return nil, fmt.Errorf("elements: hot_keys: %q → %q: not a palette item", key, item)
+		}
+		out[k] = item
+	}
+	return out, nil
+}
+
 // SymbolLibrary builds an internal/slddoc.SymbolLibrary from this Library's
 // templates, for rendering.
 func (l *Library) SymbolLibrary() *slddoc.SymbolLibrary {

@@ -59,6 +59,11 @@ func main() {
 	if err := lib.ValidatePalette(cfg.Palette); err != nil {
 		llog.Logger.Fatalf("validating palette configuration: %v", err)
 	}
+	hotKeys, err := elements.ValidateHotKeys(cfg.HotKeys, cfg.Palette)
+	if err != nil {
+		llog.Logger.Fatalf("validating hot_keys configuration: %v", err)
+	}
+	cfg.HotKeys = hotKeys
 
 	stateColors := make([]slddoc.StateColor, len(cfg.StateColors))
 	for i, sc := range cfg.StateColors {

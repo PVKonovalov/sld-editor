@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } fr
 import { TransformWrapper, TransformComponent, useControls, type ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, X as XIcon } from 'lucide-react'
 import { useDiagramContext, type SelectionKind } from '../state/useDiagramContext'
+import { usePaletteToggle } from '../state/usePaletteToggle'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
 import { arcBounds, arcMidpoint, arcPathD, circularArcThrough, defaultArcBulge, type ArcParams } from '../lib/arc'
@@ -99,6 +100,14 @@ const TERMINAL_MARK_SIZE = 4 / 3
 // open switch, a transformer it may not cross).
 const TRACE_COLOR = '#f59e0b'
 const TRACE_STOP_COLOR = '#ef4444'
+
+// The crosshair shown while a tool is armed (a palette item, a wire being
+// routed, a Topology pick): white with a dark outline, visible on the dark
+// canvas. It's drawn by the canvas itself at the mouse position (see
+// armedCursorRef), with the system pointer turned off: macOS hides the
+// system pointer on every key press until the mouse moves, so after a
+// placement hot key it would vanish, while a drawn one stays put.
+const ARMED_CURSOR_SIZE = 24
 
 // How long the ring focusPoint flashes stays (styles/index.css's
 // .canvas-point-flash animation runs as long).
@@ -727,6 +736,10 @@ export function Canvas() {
     return traceNetwork(diagram, sources, trace.opts)
   }, [trace, diagram])
 
+  // Placement hot keys (config hot_keys) arm palette items through the same
+  // toggle the Elements panel's buttons use.
+  const togglePaletteItem = usePaletteToggle()
+
   // A ring flashed at a point focusPoint asked for; seq restarts the flash.
   const [flash, setFlash] = useState<{ point: Point; seq: number } | null>(null)
 
@@ -758,6 +771,23 @@ export function Canvas() {
     const handle = setTimeout(() => setFlash(null), FLASH_MS)
     return () => clearTimeout(handle)
   }, [flash])
+
+  // The drawn crosshair (ARMED_CURSOR_SIZE) and where the mouse last was over
+  // the canvas, relative to it: kept up to date on every move, so the
+  // crosshair appears in the right place the moment a tool is armed.
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const armedCursorRef = useRef<HTMLDivElement>(null)
+  function trackPointer(e: React.MouseEvent) {
+    const box = viewportRef.current?.getBoundingClientRect()
+    const el = armedCursorRef.current
+    if (!box || !el) return
+    const half = ARMED_CURSOR_SIZE / 2
+    el.style.transform = `translate(${e.clientX - box.left - half}px, ${e.clientY - box.top - half}px)`
+    el.style.visibility = 'visible'
+  }
+  function leavePointer() {
+    if (armedCursorRef.current) armedCursorRef.current.style.visibility = 'hidden'
+  }
 
   // The cursor's diagram coordinates in the canvas corner. Written straight
   // into the DOM: as React state, every mouse move would re-render the whole
@@ -1440,8 +1470,9 @@ export function Canvas() {
     step()
   }
 
-  // Ctrl/Cmd+C copies the selection, Ctrl/Cmd+V pastes it offset from the
-  // original, Ctrl/Cmd+Z undoes, Ctrl/Cmd+Shift+Z and Ctrl+Y redo; Space
+  // A placement hot key arms its palette item; Ctrl/Cmd+C copies the
+  // selection, Ctrl/Cmd+V pastes it offset from the original, Ctrl/Cmd+Z
+  // undoes, Ctrl/Cmd+Shift+Z and Ctrl+Y redo; Space
   // held turns left-drag into panning. Ignored while typing in a field
   // (the field's own undo applies there). Re-subscribed on every render (no
   // dependency list) so the handlers always see the current selection and
@@ -1457,6 +1488,17 @@ export function Canvas() {
         e.preventDefault()
         if (!e.repeat) setSpaceHeld(true)
         return
+      }
+      // A placement hot key (config hot_keys): a plain letter or digit, no
+      // Ctrl/Cmd/Alt, arms (or disarms) its palette item, though not in the
+      // middle of a drag or a drawing.
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat && e.key.length === 1) {
+        const item = config?.hotKeys?.[e.key.toLowerCase()]
+        if (item && !pointerHeldRef.current && !gestureInProgress) {
+          e.preventDefault()
+          togglePaletteItem(item)
+          return
+        }
       }
       if (!(e.ctrlKey || e.metaKey) || e.altKey) return
       const key = e.key.toLowerCase()
@@ -2655,6 +2697,17 @@ export function Canvas() {
       ])
     : []
 
+  // A tool is armed: the canvas draws its own crosshair (ARMED_CURSOR_SIZE).
+  const toolArmed = !!(
+    armedSymbol ||
+    armedWireKind ||
+    armedLabel ||
+    armedDigitalDevice ||
+    armedCustomElement ||
+    routing ||
+    topologyPick
+  )
+
   // Only meaningful for a single selection — a multi-selection (size > 1,
   // of any mix of kinds) has no one busbar to show draggable endpoint
   // handles for, so this collapses to null the moment a second item joins
@@ -2689,7 +2742,24 @@ export function Canvas() {
   const groupBox = !marquee && !ghost && selection.size > 1 ? selectionBox() : null
 
   return (
-    <div className="flex-1 relative overflow-hidden bg-surface-900">
+    <div
+      ref={viewportRef}
+      className="flex-1 relative overflow-hidden bg-surface-900"
+      onMouseMove={trackPointer}
+      onMouseLeave={leavePointer}
+      style={{ cursor: toolArmed ? 'none' : undefined }}
+    >
+      <div
+        ref={armedCursorRef}
+        aria-hidden
+        className="absolute left-0 top-0 z-30 pointer-events-none"
+        style={{ display: toolArmed ? 'block' : 'none', visibility: 'hidden' }}
+      >
+        <svg width={ARMED_CURSOR_SIZE} height={ARMED_CURSOR_SIZE} viewBox="0 0 24 24">
+          <path d="M12 2v8M12 14v8M2 12h8M14 12h8" stroke="#000" strokeWidth={3.5} strokeLinecap="round" />
+          <path d="M12 2v8M12 14v8M2 12h8M14 12h8" stroke="#fff" strokeWidth={1.5} strokeLinecap="round" />
+        </svg>
+      </div>
       {warning && (
         <div className="absolute top-2 left-2 z-10 max-w-md rounded bg-state-warning/90 text-black text-xs px-2 py-1">
           {warning}
@@ -2787,8 +2857,8 @@ export function Canvas() {
                 ? 'grabbing'
                 : spaceHeld
                 ? 'grab'
-                : armedSymbol || armedWireKind || armedLabel || armedDigitalDevice || armedCustomElement || routing || topologyPick
-                  ? 'crosshair'
+                : toolArmed
+                  ? 'none'
                   : 'default',
             }}
           >

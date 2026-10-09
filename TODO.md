@@ -7,11 +7,6 @@ Open tasks only. Finished work is recorded in RELEASE.md.
 - [ ] 45°/manual-bend-axis routing mode (the click-to-route tool is orthogonal-only today).
 - [ ] Re-route attached connectors when a BusBarSection's single-endpoint drag handle moves (today only a
       whole-element drag re-routes, via `diagramOps.moveElements`).
-- [ ] Placement hot keys from the YAML config: a single key arms a palette item, e.g. `t` a power transformer, `c` a
-      circuit breaker, `d` a disconnector, `b` a busbar, `w` buswork. Configured per palette item (say, a `key:` next
-      to it in `palette`, checked by `ValidatePalette` for duplicates and clashes with existing shortcuts such as
-      Ctrl/Cmd+C/V/Z/F, Space and Esc), served by `/api/config`, shown in the Elements panel's tooltips and the user
-      guide's shortcut table, and ignored while typing in a field.
 - [ ] Light theme: a light UI (panels, dialogs, canvas chrome, the user guide window) alongside today's dark one,
       switched in Settings or following the OS (`prefers-color-scheme`). Needs the Tailwind `surface-*`/`gray-*`
       colours turned into theme tokens, and a decision on the diagram itself: keep each diagram's own background, or
