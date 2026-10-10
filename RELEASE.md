@@ -5537,3 +5537,9 @@ drew a chevron with the stem running on into its left arm while the right arm wa
 miter corner on one side only. `base.xml` now breaks the stroke at the tip (`v 12 m 0 0 l -4 -4 m 4 4 l 4 -4`), so
 every chevron of the withdrawable family (43, 49, 50, 51, 52, 154) is drawn the same way: two separate arms meeting at
 the tip, top and bottom alike. Coordinates, terminals and Extract are unchanged.
+
+2026-10-10: Palette tiles fit their content. A long one-word label (e.g. "Короткозамыкатель") ran out of its square:
+the label is now full width, hyphenated by the build's `locale` (`lang`, `hyphens: auto`), and an unbreakable word
+still wraps (`overflow-wrap: anywhere`). Element and wire icons drawn beyond the ±32 icon frame (e.g. the power
+transformer, 106 units wide) were clipped: `FittedIcon` (`ElementsPanel.tsx`) measures the drawing with `getBBox()`
+and widens its square viewBox to fit, leaving icons that already fit at their usual size.

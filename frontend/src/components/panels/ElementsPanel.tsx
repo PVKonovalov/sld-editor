@@ -1,10 +1,10 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Type, Gauge } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import { hotKeyByItem, usePaletteToggle } from '../../state/usePaletteToggle'
 import { PanelShell } from './PanelShell'
 import { GroupHeader } from './GroupHeader'
-import { t, type TranslationKey } from '../../i18n'
+import { locale, t, type TranslationKey } from '../../i18n'
 import { elementIconMarkup } from '../../lib/elementIcon'
 import { WIRE_KIND_ICONS } from '../../lib/wireKindIcon'
 import { classifyPaletteItem } from '../../lib/paletteItem'
@@ -65,7 +65,9 @@ function PaletteButton({
         </kbd>
       )}
       {icon}
-      <span className="line-clamp-2 text-center leading-tight">{label}</span>
+      <span lang={locale} className="w-full line-clamp-2 text-center leading-tight hyphens-auto [overflow-wrap:anywhere]">
+        {label}
+      </span>
     </button>
   )
 }
@@ -74,12 +76,43 @@ function customElementIcon(custom: CustomElement) {
   return <span className="shrink-0" dangerouslySetInnerHTML={{ __html: customElementIconMarkup(custom, 28) }} />
 }
 
+const ICON_HALF = 32
+const ICON_PADDING = 2
+
+/** A 28px palette icon drawing markup in a ±ICON_HALF frame, widened
+ * (keeping it square and centred) to fit a drawing that reaches beyond it. */
+function FittedIcon({ markup }: { markup: string }) {
+  const ref = useRef<SVGSVGElement>(null)
+  const [half, setHalf] = useState(ICON_HALF)
+  useLayoutEffect(() => {
+    const svg = ref.current
+    if (!svg) return
+    try {
+      const b = svg.getBBox()
+      const reach = Math.max(-b.x, -b.y, b.x + b.width, b.y + b.height) + ICON_PADDING
+      setHalf(Math.max(ICON_HALF, Math.ceil(reach)))
+    } catch {
+      setHalf(ICON_HALF)
+    }
+  }, [markup])
+  return (
+    <svg
+      ref={ref}
+      viewBox={`${-half} ${-half} ${2 * half} ${2 * half}`}
+      width={28}
+      height={28}
+      className="shrink-0"
+      dangerouslySetInnerHTML={{ __html: markup }}
+    />
+  )
+}
+
 function wireKindIcon(kind: keyof typeof WIRE_KIND_ICONS) {
-  return <svg viewBox="-32 -32 64 64" width={28} height={28} className="shrink-0" dangerouslySetInnerHTML={{ __html: WIRE_KIND_ICONS[kind] }} />
+  return <FittedIcon markup={WIRE_KIND_ICONS[kind]} />
 }
 
 function elementIcon(el: ElementSymbol) {
-  return <svg viewBox="-32 -32 64 64" width={28} height={28} className="shrink-0" dangerouslySetInnerHTML={{ __html: elementIconMarkup(el) }} />
+  return <FittedIcon markup={elementIconMarkup(el)} />
 }
 
 export function ElementsPanel({ onClose }: { onClose: () => void }) {
