@@ -20,6 +20,7 @@ import (
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
 	"sld-editor/internal/storage"
+	"xsde2svg/pkg/xsde2svg"
 )
 
 func newTestServer(t *testing.T) *Server {
@@ -328,6 +329,91 @@ func TestImportDiagramSVG(t *testing.T) {
 	s.Handler().ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("import non-svg: status = %d, want 400, body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+// testXsde is a two-page .xsde: page 1 holds a busbar, page 2 a busbar and an object type xsde2svg doesn't draw.
+const testXsde = `<?xml version="1.0" encoding="Windows-1251"?>
+<SDEDocument Version="520">
+  <Counters lastSTag="20"/>
+  <DetailLevels><Level value="0" name="0" comment="main"/></DetailLevels>
+  <Custom/>
+  <Pages>
+    <Page title="First" color="white">
+      <SDEObjects count="1">
+        <Type ObjectType="bus" typ="24">
+          <SDE tag="1" sTag="11" nodes="0" points="16.750 9.250,25.750 9.250" width="6">
+            <Tech DispName="Bus A" className="BusBarSection" RTID="1" voltage="10kV"/>
+            <LineStyle type="on" width="6"/>
+          </SDE>
+        </Type>
+      </SDEObjects>
+    </Page>
+    <Page title="Second" color="white">
+      <SDEObjects count="2">
+        <Type ObjectType="bus" typ="24">
+          <SDE tag="2" sTag="12" nodes="0" points="16.750 19.250,25.750 19.250" width="6">
+            <Tech DispName="Bus B" className="BusBarSection" RTID="2" voltage="10kV"/>
+            <LineStyle type="on" width="6"/>
+          </SDE>
+        </Type>
+        <Type ObjectType="gauge" typ="135">
+          <SDE tag="3" sTag="13" origin="5.000 5.000"/>
+        </Type>
+      </SDEObjects>
+    </Page>
+  </Pages>
+  <Styles>
+    <Colors>
+      <Color name="10kV" IsUsed="1" value="$962896"/>
+    </Colors>
+  </Styles>
+</SDEDocument>`
+
+func TestImportDiagramXSDE(t *testing.T) {
+	s := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/import/xsde", strings.NewReader(testXsde))
+	req.Header.Set("Content-Type", "application/octet-stream")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("import xsde: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Pages []struct {
+			Page    int            `json:"page"`
+			Title   string         `json:"title"`
+			Diagram slddoc.Diagram `json:"diagram"`
+		} `json:"pages"`
+		Messages []xsde2svg.Message `json:"messages"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Pages) != 2 || resp.Pages[0].Title != "First" || resp.Pages[1].Page != 2 {
+		t.Fatalf("pages = %+v, want First and page 2", resp.Pages)
+	}
+	for i, p := range resp.Pages {
+		if len(p.Diagram.Elements) != 1 || p.Diagram.Elements[0].Shape != "24" {
+			t.Errorf("page %d elements = %+v, want one busbar", i+1, p.Diagram.Elements)
+		}
+	}
+	found := false
+	for _, m := range resp.Messages {
+		if m.Page == 2 && m.Level == "INFO" && strings.Contains(m.Text, "135") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("messages = %+v, want the converter's INFO about type 135 on page 2", resp.Messages)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/import/xsde", strings.NewReader("not xml"))
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("import non-xsde: status = %d, want 400, body = %s", rec.Code, rec.Body.String())
 	}
 }
 

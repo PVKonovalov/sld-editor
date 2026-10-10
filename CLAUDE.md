@@ -73,7 +73,9 @@ storage and the Gin API.
   rendered `.svg`. A missing symbol is a non-fatal render warning. Names are `/`-separated paths (subfolders), and
   every segment is validated (`ErrInvalidName`). `List(dir)` returns one folder level only.
 - `internal/api`: routes under `/api` — `diagrams` (list/create), `diagrams/open`, `diagrams/save`, `diagrams/svg`,
-  `render`, `render/fragments`, `import/xml`, `import/svg` (runs `slddoc.Extract`, returns `{diagram, report}`),
+  `render`, `render/fragments`, `import/xml`, `import/svg` (runs `slddoc.Extract`, returns `{diagram, report}`), `import/xsde`
+  (raw `.xsde` bytes → `xsde2svg.Convert` → `Extract` per page, returns `{pages: [{page, title, diagram, report}],
+  messages}`; `messages` are the converter's INFO/WARN/ERROR diagnostics, shown in the import log),
   `elements`, `custom-elements`, `config`, `user-guide` (`internal/api/user_guide.go`: the `user_guide` config file
   converted from Markdown to an HTML fragment with goldmark on every request, tables on, raw HTML off; `?lang=xx`
   picks `USER_GUIDE.xx.md` next to it when present, the frontend sending `i18n`'s `locale`; heading ids come from explicit `{#id}` anchors,
@@ -187,6 +189,12 @@ storage and the Gin API.
 ## Reference repos (siblings on disk)
 
 - `slddoc`: the diagram model this backend depends on.
+- `../../EMA/xsde2svg` (module `xsde2svg`, `replace` → `../../../EMA/xsde2svg` in `backend/go.mod`): the Modus `.xsde`
+  → SVG converter, used in-process through its `pkg/xsde2svg` `Convert`. Config section `xsde:` (`config`,
+  `workplace`; empty = its built-in `xsde2svg.yml`) points at `backend/assets/xsde2svg.yml` and `workplace.xml`,
+  copies of that repo's files that `make package` ships; both are read on every import. `make docker-build` mounts
+  it from `XSDE2SVG_DIR`. Every `sld-editor.yaml` key and both converter files are documented for users in the
+  guides' "Configuration" section (`#configuration`): keep it in step when adding a config key.
 - `sld-svg`: the canonical slddoc format and its `svg-sld` CLI.
 - `sld-viewer`: the UI/UX and backend-stack reference (a heavier, DB-backed SCADA viewer), plus real xsde2svg corpus
   SVGs under `assets/sld/`.

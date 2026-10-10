@@ -21,7 +21,8 @@
 # repo, not vendored into this one) via a replace directive — every
 # target below assumes that sibling directory already exists next to
 # this repo's own checkout, the same way `go run`/`go build` already
-# require for ordinary development.
+# require for ordinary development. Likewise its "xsde2svg" dependency (the
+# .xsde converter) is the ../../../EMA/xsde2svg checkout, XSDE2SVG_DIR.
 #
 # Each locale/OS/arch target's own recipe re-invokes `$(MAKE) frontend-*`
 # as its own first step, rather than listing frontend-en/frontend-ru as an
@@ -73,6 +74,7 @@ FRONTEND_DIR := frontend
 BACKEND_DIR  := backend
 WEBUI_DIST   := $(BACKEND_DIR)/internal/webui/dist
 DOCKER_IMAGE := sld-editor-build
+XSDE2SVG_DIR := $(abspath ../../EMA/xsde2svg)
 PACKAGE_NAME := sld-editor-$(VERSION)
 PACKAGE_DIR  := $(BUILD_DIR)/.package
 
@@ -140,16 +142,19 @@ frontend-ru:
 # just this repo, so the sibling ../../slddoc checkout backend/go.mod's
 # own replace directive needs is visible inside the container at the same
 # relative path — the build artifacts land in this repo's own build/
-# directly via that mount, no extraction step needed afterward.
+# directly via that mount, no extraction step needed afterward. XSDE2SVG_DIR
+# is mounted at /EMA/xsde2svg, where the xsde2svg replace directive resolves
+# from /workspace/sld-editor/backend.
 docker-build:
 	docker build -t $(DOCKER_IMAGE) -f Dockerfile.build .
-	docker run --rm -v "$(abspath ..)":/workspace -w /workspace/sld-editor $(DOCKER_IMAGE) make linux windows VERSION=$(VERSION)
+	docker run --rm -v "$(abspath ..)":/workspace -v "$(XSDE2SVG_DIR)":/EMA/xsde2svg -w /workspace/sld-editor $(DOCKER_IMAGE) make linux windows VERSION=$(VERSION)
 
 # Packs whatever binaries are in build/ (every OS/arch x locale built so
 # far; older archives and stray *.gz files are left out) into
 # build/sld-editor-<VERSION>.tar.gz, under one top-level
 # sld-editor-<VERSION>/ folder, together with what they need at runtime:
-# config/sld-editor.yaml, assets/elements/ and the assets/USER_GUIDE*.md guides fresh from backend/ (the
+# config/sld-editor.yaml, assets/elements/, the assets/USER_GUIDE*.md guides and the .xsde converter's
+# assets/xsde2svg.yml + assets/workplace.xml fresh from backend/ (the
 # config's diagrams dir rewritten from "../diagrams" — relative to
 # backend/ during development — to "diagrams", next to the binaries) and
 # an empty diagrams/ folder, plus custom-elements/ (the repo's own .xsld
@@ -167,6 +172,7 @@ package:
 	cp $(BACKEND_DIR)/assets/USER_GUIDE*.md $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets/
 	mkdir -p $(PACKAGE_DIR)/$(PACKAGE_NAME)/custom-elements
 	cp custom-elements/*.xsld $(PACKAGE_DIR)/$(PACKAGE_NAME)/custom-elements/ 2>/dev/null || true
+	cp $(BACKEND_DIR)/assets/xsde2svg.yml $(BACKEND_DIR)/assets/workplace.xml $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets/
 	sed -e 's|dir: "\.\./diagrams"|dir: "diagrams"|' -e 's|dir: "\.\./custom-elements"|dir: "custom-elements"|' $(BACKEND_DIR)/config/sld-editor.yaml > $(PACKAGE_DIR)/$(PACKAGE_NAME)/config/sld-editor.yaml
 	COPYFILE_DISABLE=1 tar -czf $(BUILD_DIR)/$(PACKAGE_NAME).tar.gz -C $(PACKAGE_DIR) $(PACKAGE_NAME)
 	rm -rf $(PACKAGE_DIR)

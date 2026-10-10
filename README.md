@@ -30,7 +30,10 @@ go test ./...
 
 The backend depends on the sibling `slddoc` module (`../../slddoc` relative to this
 repo, via a `replace` directive in `backend/go.mod`) — check that repo out next to
-this one before building.
+this one before building. It also depends on the `xsde2svg` converter (the `.xsde` import), resolved the same way
+from `../../../EMA/xsde2svg` (i.e. `EMA/xsde2svg` next to the folder holding this repo). Its `xsde:` config section
+points at `assets/xsde2svg.yml` and `assets/workplace.xml`, bundled copies of that repo's files (empty values use the
+converter's built-in settings). Every configuration key is described in the user guide's "Configuration" section.
 
 Run the frontend from `frontend/` (Vite dev server on `:5173`, proxying `/api` to
 `:8090` — the backend must already be running):
@@ -68,8 +71,8 @@ to deploy it. This doesn't change day-to-day development at all: keep using
 
 Requires a Go toolchain able to cross-compile linux/windows/darwin (amd64 and
 arm64 — sld-editor has no cgo dependencies, so no C toolchain is needed) and Node
-for the frontend build, plus the sibling `slddoc` checkout next to this repo (same
-requirement as plain `go build`). If you'd rather not install those locally,
+for the frontend build, plus the sibling `slddoc` and `EMA/xsde2svg` checkouts (same
+requirement as plain `go build`; `make docker-build` mounts the latter from `XSDE2SVG_DIR`). If you'd rather not install those locally,
 `make docker-build` runs the same build inside a pinned container (Linux/Windows
 targets only — a Linux container can't produce a codesigned macOS binary).
 

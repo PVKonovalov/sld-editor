@@ -18,20 +18,22 @@ export function downloadText(filename: string, content: string, mimeType: string
 
 /** Which importable format a picked/dropped file is, by extension: a
  * diagram's own source .xsld, or an xsde2svg-style rendered .svg to
- * reconstruct a diagram from (see the backend's POST /api/import/svg).
+ * reconstruct a diagram from (see the backend's POST /api/import/svg), or a
+ * Modus .xsde converted by xsde2svg first (POST /api/import/xsde).
  * null for anything else. */
-export type DiagramFileKind = 'xsld' | 'svg'
+export type DiagramFileKind = 'xsld' | 'svg' | 'xsde'
 
 export function diagramFileKind(filename: string): DiagramFileKind | null {
   if (/\.xsld$/i.test(filename)) return 'xsld'
   if (/\.svg$/i.test(filename)) return 'svg'
+  if (/\.xsde$/i.test(filename)) return 'xsde'
   return null
 }
 
-/** Strips a trailing ".xsld"/".svg" (case-insensitive) from a picked/dropped
+/** Strips a trailing ".xsld"/".svg"/".xsde" (case-insensitive) from a picked/dropped
  * file's own name, for use as the diagram's own name. */
 export function stripDiagramExtension(filename: string): string {
-  return filename.replace(/\.(xsld|svg)$/i, '')
+  return filename.replace(/\.(xsld|svg|xsde)$/i, '')
 }
 
 export function readFileAsText(file: File): Promise<string> {
@@ -43,8 +45,4 @@ export function readFileAsText(file: File): Promise<string> {
   })
 }
 
-/** Reads every picked/dropped file as text, in order — for a multi-file
- * import (DiagramContext.importDiagramFiles). */
-export function readFilesAsText(files: File[]): Promise<{ text: string; fileName: string }[]> {
-  return Promise.all(files.map(async file => ({ text: await readFileAsText(file), fileName: file.name })))
-}
+

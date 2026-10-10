@@ -5543,3 +5543,36 @@ the label is now full width, hyphenated by the build's `locale` (`lang`, `hyphen
 still wraps (`overflow-wrap: anywhere`). Element and wire icons drawn beyond the ±32 icon frame (e.g. the power
 transformer, 106 units wide) were clipped: `FittedIcon` (`ElementsPanel.tsx`) measures the drawing with `getBBox()`
 and widens its square viewBox to fit, leaving icons that already fit at their usual size.
+
+2026-10-10: Import Modus `.xsde` diagrams. File → Load from file… and drag-and-drop accept `.xsde`. The backend runs
+xsde2svg in-process (the `xsde2svg` module from `../../EMA/xsde2svg`, its new `pkg/xsde2svg.Convert`, no executable or
+temp files), then `slddoc.Extract` on each page: `POST /api/import/xsde` takes the raw file bytes (it is Windows-1251)
+and returns `{pages, messages}`. A single-page file opens like an `.svg` import; each page of a multi-page one is saved
+into the current folder as `<name>`, `<name>_1`, … (xsde2svg's naming) through the batch import summary. The
+converter's INFO/WARN/ERROR messages are shown: a "Converter messages" section in the import log, and a per-page
+count (click to expand) in the batch summary (`components/ConverterMessages.tsx`); a file that can't be converted
+reports why (with every page's error when none extracts). Import now passes the picked `File` through
+(`prepareImport(file, …)` returns one `PreparedImport` per page), so `.xsde` is read as bytes. New optional
+`xsde:` config (`config`, `workplace`). `make docker-build` mounts the xsde2svg checkout (`XSDE2SVG_DIR`).
+
+2026-10-10: Mislabeled `.xsde` encoding. Some Modus exports declare `encoding="UTF-8"` but are Windows-1251, which used
+to fail with "invalid UTF-8". xsde2svg 1.4.23 now repairs them while reading (`fixEncoding`, folded in from the separate
+`xsde_fix` tool, but triggered only by a UTF-8 declaration plus invalid UTF-8 bytes rather than by any parse error),
+both in its program and in `Convert`. The editor's import shows it as a WARN converter message. Every one of the 706
+sample `.xsde` files now imports.
+
+2026-10-10: Bundled converter configuration and a Configuration guide. `backend/assets/` now holds `xsde2svg.yml` and
+`workplace.xml` (copies from the xsde2svg project), and `sld-editor.yaml`'s `xsde.config`/`xsde.workplace` point at
+them, so `.xsde` imports use the Modus workplace palette by default; `make package` ships both. The user guides (en/ru)
+have a new "Configuration" section (`#configuration`): every `sld-editor.yaml` key with its environment-variable
+override, every `xsde2svg.yml` key (incl. the unused `page.default.width/high` and why `element_id_prefix` must stay
+empty), and how `workplace.xml` colors combine with a file's own and drive voltage classes on import. The import
+section links to it.
+
+2026-10-11: Safer `scripts/deploy.sh`. It now uploads the binary, `base.xml` and the user guides under temporary
+`*.new` names while the service keeps running, then stops it, moves them into place and starts it again, so the
+service is down only for the moves. A failed build or upload leaves the service untouched, and a failure after the stop
+still tries to start it again (`trap`). Remote folders are created first. The `.xsde` converter's `assets/xsde2svg.yml`
+and `assets/workplace.xml` are copied only when the server has none, so a site's own workplace is kept. Since the
+server's own `config/sld-editor.yaml` is never deployed, the script warns, and prints the lines to add, when it has no
+`xsde:` section.

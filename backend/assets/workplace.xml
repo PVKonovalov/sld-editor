@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- created with GraphEditor version = 5.20.282.2587 by Modus (http://www.swman.ru) -->
+<Styles noVersion="520" noFullVersion="5.20.1.29">
+    <Colors>
+        <Color name="КЛАСС_НАПР" value="#КЛАСС_НАПР"/>
+        <Color parentName="КЛАСС_НАПР" name="Неопр" value="черный"/>
+        <Color parentName="КЛАСС_НАПР" name="0,1кВ" value="$555555"/>
+        <Color parentName="КЛАСС_НАПР" name="0,23кВ" value="темно_зеленый"/>
+        <Color parentName="КЛАСС_НАПР" name="0,4кВ" value="$555555"/>
+        <Color parentName="КЛАСС_НАПР" name="0,67кВ" value="черный"/>
+        <Color parentName="КЛАСС_НАПР" name="3,5кВ" value="бирюзовый"/>
+        <Color parentName="КЛАСС_НАПР" name="3кВ" value="бирюзовый"/>
+        <Color parentName="КЛАСС_НАПР" name="6кВ" value="изумрудный"/>
+        <Color parentName="КЛАСС_НАПР" name="10кВ" value="индиго"/>
+        <Color parentName="КЛАСС_НАПР" name="14кВ" value="$FF5533"/>
+        <Color parentName="КЛАСС_НАПР" name="Uген" value="$FF5555"/>
+        <Color parentName="КЛАСС_НАПР" name="Uген 15,75кВ" value="$FF5555"/>
+        <Color parentName="КЛАСС_НАПР" name="20кВ" value="черный"/>
+        <Color parentName="КЛАСС_НАПР" name="27,5кВ" value="черный"/>
+        <Color parentName="КЛАСС_НАПР" name="35кВ" value="$AA00AA"/>
+        <Color parentName="КЛАСС_НАПР" name="110кВ" value="$5555FF"/>
+        <Color parentName="КЛАСС_НАПР" name="150кВ" value="$00AA00"/>
+        <Color parentName="КЛАСС_НАПР" name="220кВ" value="$55C0FF"/>
+        <Color parentName="КЛАСС_НАПР" name="330кВ" value="$FF5555"/>
+        <Color parentName="КЛАСС_НАПР" name="500кВ" value="черный"/>
+        <Color parentName="КЛАСС_НАПР" name="750кВ" value="$0000AA"/>
+        <Color parentName="КЛАСС_НАПР" name="1150кВ" value="$AA00AA"/>
+        <Color parentName="КЛАСС_НАПР" name="0,4кВ_пост" value="$555555"/>
+        <Color parentName="КЛАСС_НАПР" name="0,825кВ_пост" value="черный"/>
+        <Color parentName="КЛАСС_НАПР" name="1,650кВ_пост" value="черный"/>
+        <Color parentName="КЛАСС_НАПР" name="400кВ_пост" value="$205588"/>
+        <Color parentName="КЛАСС_НАПР" name="800кВ_пост" value="$555555"/>
+        <Color parentName="КЛАСС_НАПР" name="1500кВ_пост" value="$55FF55"/>
+        <Color parentName="КЛАСС_НАПР" name="Польз1" value="черный"/>
+        <Color parentName="КЛАСС_НАПР" name="Польз2" value="черный"/>
+        <Color parentName="КЛАСС_НАПР" name="Польз3" value="черный"/>
+        <Color parentName="КЛАСС_НАПР" name="Польз4" value="черный"/>
+        <Color name="СОСТОЯНИЕ" value="серый_50%"/>
+        <Color parentName="СОСТОЯНИЕ" name="ВКЛЮЧЕНО" value="ярко_зеленый"/>
+        <Color parentName="СОСТОЯНИЕ" name="ОТКЛЮЧЕНО" value="красный"/>
+        <Color parentName="СОСТОЯНИЕ" name="РЕМОНТ" value="желтый"/>
+        <Color parentName="СОСТОЯНИЕ" name="ИЗМЕНИЛОСЬ" value="с_фиолетовый"/>
+        <Color parentName="СОСТОЯНИЕ" name="УСТАВКА_АВАР_МАКС" value="красный"/>
+        <Color parentName="СОСТОЯНИЕ" name="УСТАВКА_ПРЕД_МАКС" value="желтый"/>
+        <Color parentName="СОСТОЯНИЕ" name="УСТАВКА_АВАР_МИН" value="индиго"/>
+        <Color parentName="СОСТОЯНИЕ" name="УСТАВКА_ПРЕД_МИН" value="синий"/>
+        <Color parentName="СОСТОЯНИЕ" name="ПРИБОР_НОРМА" value="серый_25%"/>
+        <Color parentName="СОСТОЯНИЕ" name="НАПРАВЛЕНИЕ_ПЕРЕТОКА" value="красный"/>
+        <Color parentName="СОСТОЯНИЕ" name="НУЛЕВОЕ_ЗНАЧЕНИЕ" value="травяной"/>
+        <Color parentName="СОСТОЯНИЕ" name="КВИТИРОВАНО" value="серый_50%"/>
+        <Color parentName="СОСТОЯНИЕ" name="ЗАЗЕМЛЕНО" value="красный"/>
+        <Color parentName="СОСТОЯНИЕ" name="ЗАЗЕМЛЕНИЕ_МЕТКА" value="желтый"/>
+        <Color name="РЕЖИМ" value="серый_50%"/>
+        <Color parentName="РЕЖИМ" name="МОЩНОСТЬ" value="темно_бирюзовый"/>
+        <Color parentName="РЕЖИМ" name="МОЩНОСТЬ_РЕАКТ" value="сиреневый"/>
+        <Color parentName="РЕЖИМ" name="НАГРУЗКА" value="вишневый"/>
+        <Color parentName="РЕЖИМ" name="НАПРЯЖЕНИЕ" value="зеленый"/>
+        <Color parentName="РЕЖИМ" name="ЧАСТОТА" value="черный"/>
+        <Color parentName="РЕЖИМ" name="СОПРОТИВЛЕНИЕ" value="черный"/>
+        <Color parentName="РЕЖИМ" name="ПРОВОДИМОСТЬ" value="черный"/>
+        <Color parentName="РЕЖИМ" name="МЕТРЫ" value="черный"/>
+        <Color parentName="РЕЖИМ" name="ЭНЕРГИЯ" value="светло_оранжевый"/>
+        <Color parentName="РЕЖИМ" name="ТЕМПЕРАТУРА" value="красный"/>
+        <Color name="ЭЛЕМЕНТЫ" value="серый_50%"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="КАБЕЛЬНАЯ_ЛИНИЯ" value="синий"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="ОТКЛЮЧЕННЫЙ_КА" value="черный"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="СОЕДИНЕНИЕ_ОБМОТОК" value="черный"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="ПОДСТРОЙКА_ТРАНСФОРМАТОРА" value="черный"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="НЕЙТРАЛЬ" value="#СОЕДИНЕНИЕ_ОБМОТОК"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="ФАЗА_А" value="желтый"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="ФАЗА_В" value="ярко_зеленый"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="ФАЗА_С" value="красный"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="ФАЗА_НЕОПР" value="прозрачный"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="НОРМАЛЬНЫЙ_ТОКОРАЗДЕЛ" value="черный"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="ВЛАДЕЛЕЦ" value="$CCFFFF"/>
+        <Color parentName="ВЛАДЕЛЕЦ" name="СОБСТВЕННЫЙ" value="$CCFFFF"/>
+        <Color parentName="ВЛАДЕЛЕЦ" name="АБОНЕНТ" value="розовый"/>
+        <Color parentName="ВЛАДЕЛЕЦ" name="СТАНЦИЯ" value="светло_желтый"/>
+        <Color parentName="ВЛАДЕЛЕЦ" name="ЦЕНТР_ПИТАНИЯ" value="голубой"/>
+        <Color parentName="ВЛАДЕЛЕЦ" name="АБОНЕНТ_ЖД" value="серый_25%"/>
+        <Color parentName="ЭЛЕМЕНТЫ" name="ЕДИНИЦА_ИЗМЕРЕНИЯ" value="синий"/>
+        <Color name="СЛУЖЕБНЫЕ" value="серый_50%"/>
+        <Color parentName="СЛУЖЕБНЫЕ" name="КОННЕКТОР" value="лиловый"/>
+        <Color name="ТИП_СВЯЗИ" value="#%тип_связи%"/>
+        <Color parentName="ТИП_СВЯЗИ" name="СИСТЕМА" value="красный"/>
+        <Color parentName="ТИП_СВЯЗИ" name="ИСТОЧНИК" value="ярко_зеленый"/>
+        <Color parentName="ТИП_СВЯЗИ" name="ПОТРЕБИТЕЛЬ" value="синий"/>
+        <Color parentName="ТИП_СВЯЗИ" name="СОБСТВ_НУЖДЫ" value="черный"/>
+        <Color parentName="ТИП_СВЯЗИ" name="ВТОРИЧНАЯ_ЦЕПЬ" value="серый_50%"/>
+        <Color parentName="ТИП_СВЯЗИ" name="НЕ_ОПРЕД" value="белый"/>
+    </Colors>
+</Styles>

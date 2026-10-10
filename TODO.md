@@ -62,6 +62,7 @@ Placing one from the palette works (see RELEASE.md, 2026-09-29). Still to do:
 - [ ] Diagram compare: two versions of a diagram (or before/after a re-import) side by side, listing added, removed
       and moved items.
 - [ ] Topology export (CIM/CGMES or JSON) for the downstream topology processor.
+- [x] Import xsde diagrams
 
 ## Shapes not yet ported
 

@@ -1,0 +1,228 @@
+page:
+  default:
+    width: 4000
+    high: 2000
+    background: "#f5ebeb"     #"#12161d" #"#f5ebeb" 
+    stroke: coral
+  grid:
+    show: false
+    size: 10
+element_id_prefix:
+colors:
+  aliceblue: aliceblue
+  antiquewhite: antiquewhite
+  "бирюзовый": aqua
+  "lilac": "#C8A2C8"
+  aquamarine: aquamarine
+  azure: azure
+  beige: beige
+  bisque: bisque
+  "черный": "#12161d"
+  black: "#12161d"
+  blanchedalmond: blanchedalmond
+  "синий": blue
+  blueviolet: blueviolet
+  "коричневый": brown
+  brown: brown
+  burlywood: burlywood
+  cadetblue: cadetblue
+  chartreuse: chartreuse
+  chocolate: chocolate
+  coral: coral
+  "бледно_голубой": cornflowerblue
+  cornsilk: cornsilk
+  crimson: crimson
+  cyan: cyan
+  darkblue: darkblue
+  darkcyan: darkcyan
+  darkgoldenrod: darkgoldenrod
+  "серый_25%": darkgray
+  "темно_зеленый": darkgreen
+  darkkhaki: darkkhaki
+  darkmagenta: darkmagenta
+  darkolivegreen: darkolivegreen
+  darkorange: darkorange
+  darkorchid: darkorchid
+  darkred: darkred
+  darksalmon: darksalmon
+  darkseagreen: darkseagreen
+  "сизый": darkslateblue
+  darkslategray: darkslategray
+  "темно_бирюзовый": darkturquoise
+  darkviolet: darkviolet
+  deeppink: deeppink
+  "голубой": deepskyblue
+  "серый_50%": dimgray
+  dodgerblue: dodgerblue
+  firebrick: firebrick
+  floralwhite: floralwhite
+  forestgreen: forestgreen
+  fuchsia: fuchsia
+  gainsboro: gainsboro
+  ghostwhite: ghostwhite
+  "золотистый": gold
+  goldenrod: goldenrod
+  "серый_40%": gray
+  "зеленый": green
+  greenyellow: greenyellow
+  honeydew: honeydew
+  hotpink: hotpink
+  indianred: indianred
+  "индиго": indigo
+  ivory: ivory
+  khaki: khaki
+  lavender: lavender
+  lavenderblush: lavenderblush
+  "ярко_зеленый": lawngreen
+  lemonchiffon: lemonchiffon
+  lightblue: lightblue
+  lightcoral: lightcoral
+  "светло_бирюзовый": lightcyan
+  lightgoldenrodyellow: lightgoldenrodyellow
+  lightgray: lightgray
+  lightgreen: lightgreen
+  lightpink: lightpink
+  lightsalmon: lightsalmon
+  lightseagreen: lightseagreen
+  lightskyblue: lightskyblue
+  lightslategray: lightslategray
+  lightsteelblue: lightsteelblue
+  lightyellow: lightyellow
+  light_yellow: lightyellow
+  lime: lime
+  limegreen: limegreen
+  linen: linen
+  "лиловый": magenta
+  "темно_красный": maroon
+  # "": mediumaquamarine
+  # "": mediumblue
+  # "": mediumorchid
+  # "": mediumpurple
+  # "": mediumseagreen
+  # "": mediumslateblue
+  # "": mediumspringgreen
+  # "": mediumturquoise
+  # "": mediumvioletred
+  "темно_сизый": midnightblue
+  # "": mintcream
+  # "": mistyrose
+  # "": moccasin
+  #"светло_оранжевый": navajowhite
+  "темно_синий": navy
+  # "": oldlace
+  "коричнево_зеленый": olive
+  # "": olivedrab
+  "светло_оранжевый": orange
+  light_orange: orange
+  "оранжевый": orangered
+  # "": orchid
+  # "": palegoldenrod
+  "бледно_зеленый": palegreen
+  # "": paleturquoise
+  # "": palevioletred
+  # "": papayawhip
+  "светло_коричневый": peachpuff
+  "розовый": pink
+  # "": plum
+  # "": powderblue
+  "фиолетовый": purple
+  "красный": red
+  red: red
+  # "": rosybrown
+  "темно_голубой": royalblue
+  # "": saddlebrown
+  # "": salmon
+  #"светло_коричневый" sandybrown
+  "изумрудный": seagreen
+  # "": seashell
+  # "": sienna
+  #"серый_50%": silver
+  "sky_blue": skyblue
+  # "": slateblue
+  # "": slategray
+  # "": snow
+  # "": springgreen
+  # "": steelblue
+  # "": tan
+  "сине_зеленый": teal
+  # "": thistle
+  # "": tomato
+  # "": turquoise
+  # "": violet
+  # "": wheat
+  "белый": white
+  white: white
+  # "": whitesmoke
+  "желтый": yellow
+  yellow: yellow
+  "травяной": yellowgreen
+  "светло_желтый": "#FBEC5D"
+  "прозрачный": none
+  "серый_80%": "#333333"
+  "вишневый": "#990066"
+  "сиреневый": "#C9A0DC"
+  "оливковый": "#4B5320"
+  "CB_OPEN": "red"
+  "CB_CLOSE": "lawngreen"
+  "невидимая": none
+  "@TRANSP": none
+  "typ113_default": "white"
+  "typ103_default": "black"
+  navy: navy
+  indigo: indigo
+  dark_red: darkred
+  pink: pink
+  green: green
+  blue: blue
+  light_green: lightgreen
+  light_brown: "#fd9841"
+  turquoise: "#30d5c8"
+  light_turquoise: lightcyan
+  light_sky_blue: lightskyblue
+  emerald: "#009B77"
+  lawngreen: lawngreen
+  "35кВ": purple
+  "6кВ": "#339966"
+  "Uген": "#5555ff"
+  "3,5кВ": aqua
+  "220кВ": "#ffc055"
+  "750кВ": "#aa0000"
+  "0,4кВ": "#555555"
+  "0,1кВ": "#555555"
+  "dark_gray": "#5A5A5A"
+  "light_gray": gray
+  "silver": gray
+  "gray": gray
+  "@AUTO": gray
+fonts:
+  "@Arial Unicode MS": Arial
+  "Arial Unicode MS": Arial
+units:
+  МОЩНОСТЬ:
+    - кВт
+    - МВт
+    - Вт
+    - ГВт
+    - ВА
+    - кВА
+    - МВА
+    - ГВА
+  НАГРУЗКА:
+    - А
+    - кА
+    - мА
+  НАПРЯЖЕНИЕ:
+    - В
+    - кВ
+  МОЩНОСТЬ_РЕАКТ:
+    - ВАР
+    - МВАР
+    - ГВАР
+    - кВАР
+  ЧАСТОТА:
+    - Гц
+
+
+
+
+

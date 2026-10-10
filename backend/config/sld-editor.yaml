@@ -19,6 +19,14 @@ custom_elements:
 # every request, so edits show without a restart). Empty disables it.
 user_guide: "assets/USER_GUIDE.md"
 
+xsde:
+  # Converter settings for importing Modus .xsde diagrams (File → Load from file…), read on every import. Empty uses
+  # xsde2svg's built-in xsde2svg.yml. Both are copies of the files in the xsde2svg repository.
+  config: "assets/xsde2svg.yml"
+  # A Modus workplace.xml whose color palette the import uses (a document's own colors override it). Empty = each
+  # document's own colors only.
+  workplace: "assets/workplace.xml"
+
 elements:
   # Element-library XML files, merged in order (a later file's definition of
   # a shape overrides an earlier one's). Add your own library file and list

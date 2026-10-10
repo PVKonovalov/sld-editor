@@ -3,8 +3,10 @@ package api
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -13,6 +15,7 @@ import (
 
 	"github.com/PVKonovalov/slddoc"
 	"sld-editor/internal/storage"
+	"xsde2svg/pkg/xsde2svg"
 )
 
 // listDiagrams implements the File panel's folder browser: dir (query
@@ -326,11 +329,7 @@ func (s *Server) importDiagramSVG(c *gin.Context) {
 		errJSON(c, http.StatusBadRequest, err)
 		return
 	}
-	hints := make(map[string]string, len(s.cfg.VoltageColors))
-	for _, vc := range s.cfg.VoltageColors {
-		hints[strings.ToLower(strings.TrimSpace(vc.Color))] = vc.Name
-	}
-	d, report, err := slddoc.Extract(body, "", hints)
+	d, report, err := slddoc.Extract(body, "", s.voltageHints())
 	if err != nil {
 		errJSON(c, http.StatusBadRequest, err)
 		return
@@ -339,6 +338,83 @@ func (s *Server) importDiagramSVG(c *gin.Context) {
 		"diagram": d,
 		"report":  newImportReport(report),
 	})
+}
+
+// voltageHints maps each configured voltage color (lowercase) to its class name, for slddoc.Extract.
+func (s *Server) voltageHints() map[string]string {
+	hints := make(map[string]string, len(s.cfg.VoltageColors))
+	for _, vc := range s.cfg.VoltageColors {
+		hints[strings.ToLower(strings.TrimSpace(vc.Color))] = vc.Name
+	}
+	return hints
+}
+
+type importedPage struct {
+	Page    int             `json:"page"`
+	Title   string          `json:"title"`
+	Diagram *slddoc.Diagram `json:"diagram"`
+	Report  importReport    `json:"report"`
+}
+
+// importDiagramXSDE converts a raw .xsde (Modus) body with xsde2svg and extracts a diagram from every page.
+// Responds {pages, messages}: messages are the converter's diagnostics plus pages that failed to extract.
+func (s *Server) importDiagramXSDE(c *gin.Context) {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+	opt, err := s.xsdeOptions()
+	if err != nil {
+		errJSON(c, http.StatusInternalServerError, err)
+		return
+	}
+	pages, messages, err := xsde2svg.Convert(body, opt)
+	if err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+	hints := s.voltageHints()
+	out := make([]importedPage, 0, len(pages))
+	for i, p := range pages {
+		d, report, err := slddoc.Extract(p.SVG, "", hints)
+		if err != nil {
+			messages = append(messages, xsde2svg.Message{Level: "ERROR", Page: i + 1, Text: err.Error()})
+			continue
+		}
+		out = append(out, importedPage{Page: i + 1, Title: p.Title, Diagram: d, Report: newImportReport(report)})
+	}
+	if messages == nil {
+		messages = []xsde2svg.Message{}
+	}
+	if len(out) == 0 {
+		reasons := []string{"no page of the .xsde could be imported"}
+		for _, m := range messages {
+			if m.Level == "ERROR" {
+				reasons = append(reasons, fmt.Sprintf("page %d: %s", m.Page, m.Text))
+			}
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": strings.Join(reasons, "; "), "messages": messages})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"pages": out, "messages": messages})
+}
+
+// xsdeOptions reads the converter files named in the xsde config section.
+func (s *Server) xsdeOptions() (xsde2svg.Options, error) {
+	var opt xsde2svg.Options
+	var err error
+	if s.cfg.Xsde.Config != "" {
+		if opt.Config, err = os.ReadFile(s.cfg.Xsde.Config); err != nil {
+			return opt, err
+		}
+	}
+	if s.cfg.Xsde.Workplace != "" {
+		if opt.Workplace, err = os.ReadFile(s.cfg.Xsde.Workplace); err != nil {
+			return opt, err
+		}
+	}
+	return opt, nil
 }
 
 func diagramResponse(d *slddoc.Diagram, renderWarning error) gin.H {

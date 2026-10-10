@@ -140,13 +140,22 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 
 ### Importing {#import}
 
-- Drop `.xsld` or `.svg` files anywhere on the window, or use **File → Load from file…**.
+- Drop `.xsld`, `.svg` or `.xsde` files anywhere on the window, or use **File → Load from file…**.
+- A Modus `.xsde` diagram is converted with xsde2svg first, then imported like its `.svg`. A single-page `.xsde`
+  opens in the editor; each page of a multi-page one is saved into the current folder as `<name>`, `<name>_1`,
+  `<name>_2`…, like several files at once.
 - One file opens in the editor as an unsaved diagram. If a diagram of that name already exists in the current
   folder, the editor asks before loading it (saving would overwrite it).
 - Several files at once are saved straight into the current folder; existing names are skipped, and the summary
   dialog can overwrite them.
 - An `.svg` import (an xsde2svg drawing) shows an **import log**: what was recognised, the voltage classes found and
   what was skipped. **File → Show import log** reopens it.
+- An `.xsde` import's log also lists the **converter messages**: errors, warnings and notes from xsde2svg (an object
+  type it can't draw, a custom element that wasn't found…). For several pages or files, the summary shows how many
+  messages each page has; click the count to see them. A file that can't be converted at all (e.g. damaged XML) is
+  reported with the reason. The converter's colors and settings come from `xsde2svg.yml` and `workplace.xml`; see
+  [Configuration](#configuration-xsde). A file whose header says UTF-8 but whose text is really Windows-1251 (as some Modus
+  exports are) is read as Windows-1251, with a warning in the converter messages.
 - xsde2svg draws each device at its own size step (each step √2 larger). An `.svg` import recovers the step from where
   the device's connection points lie, so the symbol fills the gap between its wires. Devices whose leads also stretch
   per instance (breakers, disconnectors and similar) get their size from their drawn body and their **Leads** from
@@ -467,6 +476,74 @@ layers; a layer number the file uses without naming it is added as "Layer N".
 
 Grid spacing, **Snap to grid**, **Show grid**, **Show nodes** and the diagram's default voltage. These are saved with
 the diagram.
+
+## Configuration {#configuration}
+
+These files are for whoever installs and runs the editor. `sld-editor.yaml` lives in the `config/` folder, the
+converter's `xsde2svg.yml` and `workplace.xml` in `assets/` (`backend/config/` and `backend/assets/` in the source
+tree). Relative paths inside them are resolved from the folder the editor is started in.
+
+### sld-editor.yaml {#configuration-editor}
+
+The editor's own settings, read once at startup: restart the editor, then reload the page, after changing them. The
+exceptions are `user_guide` and the two `xsde` files, which are read again on every use. A mistake in `palette` or
+`hot_keys` stops the editor at startup with a message naming it.
+
+| Key | What it sets |
+|---|---|
+| `server.bind` | Address and port the editor listens on, e.g. `0.0.0.0:8090`. |
+| `logging.level` | Server log detail: `trace`, `debug`, `info`, `warn` or `error`. |
+| `diagrams.dir` | Folder where diagrams are stored (the File panel's root). |
+| `custom_elements.dir` | Folder whose `.xsld` files make the palette's **Custom elements** group. |
+| `user_guide` | This guide's Markdown file; the Russian build shows `USER_GUIDE.ru.md` next to it. Empty hides **Help**. |
+| `xsde.config` | `xsde2svg.yml` used by `.xsde` import (see below). Empty uses the converter's built-in copy. |
+| `xsde.workplace` | `workplace.xml` used by `.xsde` import (see below). Empty: each file's own colors only. |
+| `elements.libraries` | Element-library XML files (shapes, terminals), merged in order; a later file overrides a shape of an earlier one. |
+| `editor.grid_spacing`, `snap`, `show_grid`, `background` | Defaults for a diagram that hasn't saved its own (see [Settings](#settings)). |
+| `voltage_colors` | Standard voltage classes (`name`, `color`) offered for new classes and by **Match preset colors…**. |
+| `voltage_color_tolerance` | How close (RGB distance, 0–441) a color must be to a standard one to be offered for replacement; 0 = exact only. |
+| `state_colors`, `fpi_state_colors` | Open / Close / Intermediate fill colors of switching devices and fault passage indicators. |
+| `position_states` | Labels of a withdrawable device's racking positions (Service / Normal / Test). |
+| `indicators.default_fpi_text` | Text a fault passage indicator shows when it has none of its own. |
+| `palette` | The Elements panel: groups (`name`, in display order) and their `items`, each an xsde2svg object type code. |
+| `hot_keys` | Placement keys: a letter or digit → a palette item code (`r` and `m` are taken by rotate and mirror). |
+
+Most single values can also be set by an environment variable named after the key path in capitals, e.g.
+`SERVER_BIND`, `DIAGRAMS_DIR`, `XSDE_CONFIG`, `XSDE_WORKPLACE`, `EDITOR_GRID_SPACING` (lists comma-separated, e.g.
+`ELEMENTS_LIBRARIES`). An environment variable wins over the file.
+
+### xsde2svg.yml {#configuration-xsde}
+
+Settings of the xsde2svg converter that `.xsde` import runs first (see [Importing](#import)). The bundled copy is the
+one from the xsde2svg project; keep them in step when that project changes it.
+
+| Key | What it sets |
+|---|---|
+| `colors` | The main table: a Modus color name (`черный`, `темно_голубой`, `10кВ`…) → an SVG color (`#962896`, `gray`). A color a diagram names but this table and the workplace don't know falls back to the default stroke. |
+| `page.default.stroke` | Default line color when an object's own color can't be resolved. |
+| `page.default.background` | Page background used when a page doesn't set its own color. |
+| `page.default.width`, `high` | Not used: the page size comes from the objects themselves. |
+| `page.grid.show`, `size` | Draws a grid into the converted page. Keep `show: false` for import. |
+| `element_id_prefix` | Text put before every object id. **Keep it empty**: the import needs plain numeric ids. |
+| `fonts` | Font substitution: a Modus font name → the font written into the SVG. |
+| `units` | Measurement units grouped by quantity (`МОЩНОСТЬ`, `НАПРЯЖЕНИЕ`…), used by digital instruments (134). |
+
+Besides these, a `.xsde` file brings its own color table (`<Styles>`): a color given there as `$BBGGRR` is used
+directly, and a name it maps to another name is looked up in `colors`.
+
+### workplace.xml {#configuration-workplace}
+
+A Modus workplace style file (as saved by Modus GraphEditor), here only for its color palette: the `<Colors>` list of
+`<Color name="…" value="…"/>`, e.g. the voltage classes under `КЛАСС_НАПР` (`0,4кВ`, `10кВ`, `110кВ`…). A `value` is
+either `$BBGGRR` or a color name looked up in `xsde2svg.yml`'s `colors`. Other tables in the file are ignored.
+
+When a diagram names a color that `colors` doesn't know, the converter looks it up here. A color the `.xsde` defines
+itself replaces the workplace color of the same name. Without a workplace, diagrams that rely on the shared Modus
+palette lose those colors (they fall back to the default stroke).
+
+Colours matter to the editor: the import groups objects into **voltage classes** by color and names a class after the
+`voltage_colors` entry of the same color. Wrong or missing colors show up as merged or unnamed voltage classes in the
+import log. To match your Modus installation, replace `workplace.xml` with your own workplace file.
 
 ## Keyboard shortcuts {#shortcuts}
 

@@ -3,7 +3,7 @@ import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
 import { baseName, joinDiagramPath, parentDir } from '../lib/diagramPath'
 import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
-import { prepareImport } from '../lib/importDiagram'
+import { prepareImport, type PreparedImport } from '../lib/importDiagram'
 import { deleteDraft, getDraft, listDrafts, putDraft, type Draft } from '../lib/drafts'
 import { t } from '../i18n'
 import type {
@@ -22,7 +22,6 @@ import {
   type BatchImportItem,
   type DiagramContextValue,
   type DraftInfo,
-  type ImportFile,
   type ImportLog,
   type PendingImport,
   type SelectionKind,
@@ -31,9 +30,9 @@ import {
 
 // importTargetName is the server path a dropped/picked file is imported
 // under: the File panel's current folder joined with the file's own name
-// minus its .xsld/.svg extension.
-function importTargetName(dir: string, fileName: string): string {
-  return joinDiagramPath(dir, stripDiagramExtension(fileName))
+// minus its extension, plus suffix (an .xsde page's "_N").
+function importTargetName(dir: string, fileName: string, suffix = ''): string {
+  return joinDiagramPath(dir, stripDiagramExtension(fileName) + suffix)
 }
 
 // How many undo steps are kept.
@@ -609,17 +608,16 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [confirmLeave, openDiagramNow],
   )
 
-  // Loads a dropped/picked file (see lib/importDiagram's prepareImport for
-  // the .xsld/.svg paths) and makes it the working diagram under name — the
-  // server path the next Save writes, i.e. the File panel's own current
-  // folder joined with the file's name minus its extension (see
-  // importTargetName) — marked dirty rather than saved, the same upsert
-  // semantics saveDiagramAs already has. An .svg import also records its own
-  // report as importLog (and opens the import log dialog).
+  // Makes a prepared import (lib/importDiagram's prepareImport) the working
+  // diagram under name — the server path the next Save writes, i.e. the File
+  // panel's own current folder joined with the file's name minus its
+  // extension (see importTargetName) — marked dirty rather than saved, the
+  // same upsert semantics saveDiagramAs already has. An .svg/.xsde import
+  // also records its own report as importLog (and opens the import log dialog).
   const loadDiagramFromFile = useCallback(
-    async (text: string, fileName: string, name: string) => {
-      const { diagram: d, report } = await prepareImport(text, fileName, config, elements)
-      const log: ImportLog | null = report ? { fileName, report } : null
+    async (prepared: PreparedImport, fileName: string, name: string) => {
+      const { diagram: d, report, messages } = prepared
+      const log: ImportLog | null = report ? { fileName, report, messages } : null
       openedRef.current = null
       setDiagramName(name)
       commitDiagram(d, { reset: true, clean: null })
@@ -635,77 +633,117 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setDefaultVoltagePromptOpen(diagramOps.needsVoltagePrompt(d, config))
       await browseDir(parentDir(name))
     },
-    [clearSelection, browseDir, config, elements],
+    [clearSelection, browseDir, config],
   )
 
-  // importDiagramFile is what a single-file drop/pick calls: it checks
-  // whether a diagram already exists on the server under the name the
-  // import would take (importTargetName — inside the File panel's current
-  // folder) and, if so, parks the file as pendingImport, with that name
-  // fixed, for ConfirmReloadDialog to ask "Reload or not"; otherwise it
-  // loads immediately.
+  // Saves each prepared page of file into dir as importTargetName(dir, file, page suffix), skipping a name in
+  // existing (which collects every name saved) and, when only is set, any name not in it.
+  // Returns one BatchImportItem per page, in order.
+  const saveImportedPages = useCallback(
+    async (
+      file: File,
+      pages: PreparedImport[],
+      dir: string,
+      existing: Set<string>,
+      only?: Set<string>,
+    ): Promise<BatchImportItem[]> => {
+      const items: BatchImportItem[] = []
+      for (const page of pages) {
+        const name = importTargetName(dir, file.name, page.nameSuffix)
+        if (only && !only.has(name)) continue
+        const base = { fileName: file.name, name, messages: page.messages ?? undefined }
+        if (existing.has(baseName(name))) {
+          items.push({ ...base, status: 'skipped' })
+          continue
+        }
+        try {
+          const { warning } = await api.saveDiagram(name, page.diagram)
+          existing.add(baseName(name))
+          items.push({ ...base, status: 'saved', message: warning })
+        } catch (e) {
+          items.push({ ...base, status: 'failed', message: (e as Error).message })
+        }
+      }
+      return items
+    },
+    [],
+  )
+
+  // Imports several files at once straight to the server, into dir (the
+  // File panel's current folder), without opening any of them — the open
+  // diagram stays untouched. Each file is prepared (prepareImport) and each of
+  // its pages saved as dir/<file name>[_N]; one that fails doesn't stop the
+  // rest. A name that already exists on the server (or was already taken by
+  // an earlier file in this same batch) is skipped unless overwrite is set;
+  // only, when set, limits the run to those names. Returns one
+  // BatchImportItem per page, in order.
+  const runBatchImport = useCallback(
+    async (files: File[], dir: string, overwrite: boolean, only?: Set<string>): Promise<BatchImportItem[]> => {
+      const existing = new Set(
+        overwrite ? [] : (await api.listDiagrams(dir)).filter(e => !e.isDir).map(e => e.name),
+      )
+      const items: BatchImportItem[] = []
+      for (const file of files) {
+        const name = importTargetName(dir, file.name)
+        if (!diagramFileKind(file.name)) {
+          items.push({ fileName: file.name, name, status: 'failed', message: t('file.invalidDiagramFile', { name: file.name }) })
+          continue
+        }
+        let pages: PreparedImport[]
+        try {
+          pages = await prepareImport(file, config, elements)
+        } catch (e) {
+          items.push({ fileName: file.name, name, status: 'failed', message: (e as Error).message })
+          continue
+        }
+        items.push(...(await saveImportedPages(file, pages, dir, existing, only)))
+      }
+      return items
+    },
+    [config, elements, saveImportedPages],
+  )
+
+  // importDiagramFile is what a single-file drop/pick calls. A multi-page
+  // .xsde is saved page by page into the current folder, like
+  // importDiagramFiles. Otherwise it checks whether a diagram already exists
+  // on the server under the name the import would take (importTargetName —
+  // inside the File panel's current folder) and, if so, parks the prepared
+  // file as pendingImport, with that name fixed, for ConfirmReloadDialog to
+  // ask "Reload or not"; otherwise it loads immediately.
   const importDiagramFile = useCallback(
-    async (text: string, fileName: string) => {
-      if (!diagramFileKind(fileName)) throw new Error(t('file.invalidDiagramFile', { name: fileName }))
-      if (!(await confirmLeave())) return
-      const name = importTargetName(currentDir, fileName)
-      const siblings = await api.listDiagrams(parentDir(name))
-      if (siblings.some(e => !e.isDir && e.name === baseName(name))) {
-        setPendingImport({ text, fileName, name })
+    async (file: File) => {
+      if (!diagramFileKind(file.name)) throw new Error(t('file.invalidDiagramFile', { name: file.name }))
+      const pages = await prepareImport(file, config, elements)
+      if (pages.length > 1) {
+        const dir = currentDir
+        const existing = new Set((await api.listDiagrams(dir)).filter(e => !e.isDir).map(e => e.name))
+        const items = await saveImportedPages(file, pages, dir, existing)
+        setBatchImport({ dir, files: [file], items })
+        await browseDir(dir)
         return
       }
-      await loadDiagramFromFile(text, fileName, name)
+      if (!(await confirmLeave())) return
+      const name = importTargetName(currentDir, file.name)
+      const siblings = await api.listDiagrams(parentDir(name))
+      if (siblings.some(e => !e.isDir && e.name === baseName(name))) {
+        setPendingImport({ prepared: pages[0], fileName: file.name, name })
+        return
+      }
+      await loadDiagramFromFile(pages[0], file.name, name)
     },
-    [loadDiagramFromFile, currentDir, confirmLeave],
+    [loadDiagramFromFile, saveImportedPages, browseDir, currentDir, confirmLeave, config, elements],
   )
 
   // Loads the parked pendingImport ("Reload") — cleared only once that
   // succeeds, so a failure leaves ConfirmReloadDialog open to show it.
   const confirmPendingImport = useCallback(async () => {
     if (!pendingImport) return
-    await loadDiagramFromFile(pendingImport.text, pendingImport.fileName, pendingImport.name)
+    await loadDiagramFromFile(pendingImport.prepared, pendingImport.fileName, pendingImport.name)
     setPendingImport(null)
   }, [pendingImport, loadDiagramFromFile])
 
-  // Imports several files at once straight to the server, into dir (the
-  // File panel's current folder), without opening any of them — the open
-  // diagram stays untouched. Each file is prepared (prepareImport) and saved
-  // as dir/<file name>; one that fails doesn't stop the rest. A name that
-  // already exists on the server (or was already taken by an earlier file
-  // in this same batch) is skipped unless overwrite is set. Returns one
-  // BatchImportItem per file, in order.
-  const runBatchImport = useCallback(
-    async (files: ImportFile[], dir: string, overwrite: boolean): Promise<BatchImportItem[]> => {
-      const existing = new Set(
-        overwrite ? [] : (await api.listDiagrams(dir)).filter(e => !e.isDir).map(e => e.name),
-      )
-      const items: BatchImportItem[] = []
-      for (const file of files) {
-        const name = importTargetName(dir, file.fileName)
-        if (!diagramFileKind(file.fileName)) {
-          items.push({ fileName: file.fileName, name, status: 'failed', message: t('file.invalidDiagramFile', { name: file.fileName }) })
-          continue
-        }
-        if (existing.has(baseName(name))) {
-          items.push({ fileName: file.fileName, name, status: 'skipped' })
-          continue
-        }
-        try {
-          const { diagram: d } = await prepareImport(file.text, file.fileName, config, elements)
-          const { warning } = await api.saveDiagram(name, d)
-          existing.add(baseName(name))
-          items.push({ fileName: file.fileName, name, status: 'saved', message: warning })
-        } catch (e) {
-          items.push({ fileName: file.fileName, name, status: 'failed', message: (e as Error).message })
-        }
-      }
-      return items
-    },
-    [config, elements],
-  )
-
   const importDiagramFiles = useCallback(
-    async (files: ImportFile[]) => {
+    async (files: File[]) => {
       const dir = currentDir
       const items = await runBatchImport(files, dir, false)
       setBatchImport({ dir, files, items })
@@ -714,15 +752,16 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [currentDir, runBatchImport, browseDir],
   )
 
-  // Re-runs just the skipped files of the last batch, overwriting the
+  // Re-runs just the skipped diagrams of the last batch, overwriting the
   // server's own copies.
   const overwriteBatchSkipped = useCallback(async () => {
     if (!batchImport) return
-    const skipped = batchImport.items.filter(i => i.status === 'skipped').map(i => i.fileName)
-    const files = batchImport.files.filter(f => skipped.includes(f.fileName))
-    const redone = await runBatchImport(files, batchImport.dir, true)
-    const byFile = new Map(redone.map(i => [i.fileName, i]))
-    setBatchImport({ ...batchImport, items: batchImport.items.map(i => byFile.get(i.fileName) ?? i) })
+    const skipped = batchImport.items.filter(i => i.status === 'skipped')
+    const names = new Set(skipped.map(i => i.name))
+    const files = batchImport.files.filter(f => skipped.some(i => i.fileName === f.name))
+    const redone = await runBatchImport(files, batchImport.dir, true, names)
+    const byName = new Map(redone.map(i => [i.name, i]))
+    setBatchImport({ ...batchImport, items: batchImport.items.map(i => byName.get(i.name) ?? i) })
     await browseDir(batchImport.dir)
   }, [batchImport, runBatchImport, browseDir])
 

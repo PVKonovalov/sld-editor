@@ -15,7 +15,7 @@ import { BatchImportDialog } from './components/BatchImportDialog'
 import { DefaultVoltageDialog } from './components/DefaultVoltageDialog'
 import { DraftRecoveryDialog } from './components/DraftRecoveryDialog'
 import { UnsavedChangesDialog } from './components/UnsavedChangesDialog'
-import { diagramFileKind, readFileAsText, readFilesAsText } from './lib/fileTransfer'
+import { diagramFileKind } from './lib/fileTransfer'
 import { t } from './i18n'
 import { GuideContext, type GuideApi } from './lib/guide'
 
@@ -95,9 +95,7 @@ function Shell() {
     // folder (importDiagramFiles, which reports an unsupported file in its
     // own result dialog); a single one opens in the editor as before.
     if (files.length > 1) {
-      readFilesAsText(files)
-        .then(importDiagramFiles)
-        .catch(err => setDropError((err as Error).message))
+      importDiagramFiles(files).catch(err => setDropError((err as Error).message))
       return
     }
     const file = files[0]
@@ -105,9 +103,7 @@ function Shell() {
       setDropError(t('file.invalidDiagramFile', { name: file.name }))
       return
     }
-    readFileAsText(file)
-      .then(text => importDiagramFile(text, file.name))
-      .catch(err => setDropError((err as Error).message))
+    importDiagramFile(file).catch(err => setDropError((err as Error).message))
   }
 
   // Selecting something on the canvas brings the Properties panel forward

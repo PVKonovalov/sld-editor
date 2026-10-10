@@ -423,6 +423,13 @@ export interface ImportSkippedEntry {
 // what slddoc.Extract captured from a dropped .svg, plus what it couldn't —
 // skipped lists unsupported data-type codes (code-sorted), failed lists
 // element ids whose geometry didn't parse.
+// One xsde2svg diagnostic from POST /api/import/xsde: page is 1-based, 0 for the whole document.
+export interface ConverterMessage {
+  level: 'INFO' | 'WARN' | 'ERROR'
+  page: number
+  text: string
+}
+
 export interface ImportReport {
   elements: number
   connectors: number

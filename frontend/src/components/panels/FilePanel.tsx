@@ -4,7 +4,6 @@ import { useDiagramContext } from '../../state/useDiagramContext'
 import { PanelShell } from './PanelShell'
 import { NewDiagramDialog } from '../NewDiagramDialog'
 import { t } from '../../i18n'
-import { readFileAsText, readFilesAsText } from '../../lib/fileTransfer'
 import { joinDiagramPath, parentDir } from '../../lib/diagramPath'
 
 export function FilePanel({ onClose }: { onClose: () => void }) {
@@ -111,7 +110,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xsld,.svg,image/svg+xml"
+            accept=".xsld,.svg,.xsde,image/svg+xml"
             multiple
             className="hidden"
             onChange={e => {
@@ -122,9 +121,9 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
                 // One file opens in the editor; several are saved straight
                 // into the current folder (importDiagramFiles).
                 if (files.length === 1) {
-                  await importDiagramFile(await readFileAsText(files[0]), files[0].name)
+                  await importDiagramFile(files[0])
                 } else {
-                  await importDiagramFiles(await readFilesAsText(files))
+                  await importDiagramFiles(files)
                 }
               })
             }}

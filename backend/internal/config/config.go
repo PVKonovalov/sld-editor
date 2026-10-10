@@ -29,6 +29,13 @@ type Config struct {
 		Dir string `yaml:"dir" env:"true"`
 	} `yaml:"custom_elements"`
 
+	Xsde struct {
+		// Config is the xsde2svg.yml used to convert .xsde imports; empty = the converter's built-in one.
+		Config string `yaml:"config" env:"true"`
+		// Workplace is a workplace.xml whose colors .xsde imports use; empty = each document's own colors.
+		Workplace string `yaml:"workplace" env:"true"`
+	} `yaml:"xsde"`
+
 	// UserGuide is the Markdown file the sidebar's Help button shows,
 	// converted to HTML on every request (GET /api/user-guide). Empty
 	// disables it.

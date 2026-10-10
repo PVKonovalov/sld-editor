@@ -9,31 +9,28 @@ import type {
   ConnectorKind,
   Point,
   ImportReport,
+  ConverterMessage,
 } from '../types'
+import type { PreparedImport } from '../lib/importDiagram'
 
 // A dropped/picked file whose target name (fileName minus extension)
 // already exists on the server — parked until ConfirmReloadDialog's
 // Reload/Cancel decides whether it replaces the open diagram.
 export interface PendingImport {
-  text: string
+  prepared: PreparedImport
   fileName: string
   name: string
 }
 
-// One locally dropped/picked file, already read as text.
-export interface ImportFile {
-  text: string
-  fileName: string
-}
-
-// One file's outcome in a multi-file import: saved to the server as name
+// One diagram's outcome in a multi-file (or multi-page .xsde) import: saved to the server as name
 // (message: a non-fatal render warning, if any), skipped because name
-// already exists there, or failed (message: why).
+// already exists there, or failed (message: why). messages: an .xsde page's converter diagnostics.
 export interface BatchImportItem {
   fileName: string
   name: string
   status: 'saved' | 'skipped' | 'failed'
   message?: string
+  messages?: ConverterMessage[]
 }
 
 // The last multi-file import, for BatchImportDialog: the folder it
@@ -41,14 +38,15 @@ export interface BatchImportItem {
 // overwrite) and each one's outcome.
 export interface BatchImport {
   dir: string
-  files: ImportFile[]
+  files: File[]
   items: BatchImportItem[]
 }
 
-// One .svg import's own record, for the import log dialog.
+// One .svg/.xsde import's own record, for the import log dialog (messages: .xsde only).
 export interface ImportLog {
   fileName: string
   report: ImportReport
+  messages: ConverterMessage[] | null
 }
 
 // A recovery draft (lib/drafts.ts) offered by DraftRecoveryDialog.
@@ -172,12 +170,12 @@ export interface DiagramContextValue {
   // the working diagram under name (the server path the next Save writes),
   // marked dirty. An .svg import also sets importLog and opens the import
   // log dialog. Rejects for an unsupported extension.
-  loadDiagramFromFile: (text: string, fileName: string, name: string) => Promise<void>
+  loadDiagramFromFile: (prepared: PreparedImport, fileName: string, name: string) => Promise<void>
   // What a single-file drop/pick calls: loads it as currentDir/<file name
   // minus extension> straight away, unless a diagram of that name already
   // exists on the server — then it sets pendingImport instead, for
-  // ConfirmReloadDialog to ask first.
-  importDiagramFile: (text: string, fileName: string) => Promise<void>
+  // ConfirmReloadDialog to ask first. A multi-page .xsde is saved page by page like importDiagramFiles instead.
+  importDiagramFile: (file: File) => Promise<void>
   pendingImport: PendingImport | null
   // Reload: load pendingImport (the next Save overwrites the server copy).
   confirmPendingImport: () => Promise<void>
@@ -199,7 +197,7 @@ export interface DiagramContextValue {
   // server into currentDir (skipping names that already exist), opening
   // none of them, and records the outcome as batchImport for
   // BatchImportDialog.
-  importDiagramFiles: (files: ImportFile[]) => Promise<void>
+  importDiagramFiles: (files: File[]) => Promise<void>
   batchImport: BatchImport | null
   // Re-runs the last batch's skipped files, overwriting the server copies.
   overwriteBatchSkipped: () => Promise<void>

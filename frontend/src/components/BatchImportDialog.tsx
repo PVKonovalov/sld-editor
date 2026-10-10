@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import { t } from '../i18n'
 import { GuideButton } from './GuideButton'
+import { ConverterMessages } from './ConverterMessages'
+import { stripDiagramExtension } from '../lib/fileTransfer'
+import { baseName } from '../lib/diagramPath'
 
 const STATUS_CLASS = {
   saved: 'text-green-400',
@@ -20,6 +23,7 @@ export function BatchImportDialog() {
   const { batchImport, overwriteBatchSkipped, closeBatchImport } = useDiagramContext()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [openMessages, setOpenMessages] = useState<string | null>(null)
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -63,15 +67,36 @@ export function BatchImportDialog() {
           </div>
 
           <ul className="flex-1 overflow-y-auto space-y-1">
-            {items.map(item => (
-              <li key={item.fileName} className="flex gap-2">
-                <span className={`w-20 shrink-0 ${STATUS_CLASS[item.status]}`}>{t(`batchImport.${item.status}`)}</span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-gray-100 break-all">{item.fileName}</span>
-                  {item.message && <span className="block text-gray-500 break-words">{item.message}</span>}
-                </span>
-              </li>
-            ))}
+            {items.map(item => {
+              const target = baseName(item.name)
+              const problems = item.messages?.filter(m => m.level !== 'INFO').length ?? 0
+              return (
+                <li key={item.name} className="flex gap-2">
+                  <span className={`w-20 shrink-0 ${STATUS_CLASS[item.status]}`}>{t(`batchImport.${item.status}`)}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block text-gray-100 break-all">
+                      {item.fileName}
+                      {target !== stripDiagramExtension(item.fileName) && <span className="text-gray-400"> → {target}</span>}
+                    </span>
+                    {item.message && <span className="block text-gray-500 break-words">{item.message}</span>}
+                    {item.messages && item.messages.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setOpenMessages(openMessages === item.name ? null : item.name)}
+                        className={`block hover:underline ${problems > 0 ? 'text-yellow-300' : 'text-gray-400'}`}
+                      >
+                        {t('batchImport.messages', { count: item.messages.length })}
+                      </button>
+                    )}
+                    {openMessages === item.name && item.messages && (
+                      <div className="mt-1 pl-2 border-l border-surface-600">
+                        <ConverterMessages messages={item.messages} />
+                      </div>
+                    )}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
 
           {error && <p className="text-red-400">{error}</p>}

@@ -3,9 +3,11 @@ import { useDiagramContext } from '../state/useDiagramContext'
 import * as diagramOps from '../lib/diagramOps'
 import { t } from '../i18n'
 import { GuideButton } from './GuideButton'
+import { ConverterMessages } from './ConverterMessages'
 
 /** A centered modal (backdrop click or Esc dismisses, same as
- * NewDiagramDialog) showing the last .svg import's own log — what
+ * NewDiagramDialog) showing the last .svg/.xsde import's own log — xsde2svg's
+ * messages for an .xsde, then what
  * slddoc.Extract captured (counts, extracted voltage classes with how many
  * elements/connectors use each), what it skipped (unsupported data-type
  * codes with their readable names) and which element ids failed to parse
@@ -24,7 +26,7 @@ export function ImportLogDialog({ onClose }: { onClose: () => void }) {
   }, [onClose])
 
   if (!importLog) return null
-  const { report, fileName } = importLog
+  const { report, fileName, messages } = importLog
   const usage = diagram ? diagramOps.voltageUsage(diagram) : new Map<number, number>()
   const voltageClasses = diagram?.voltageClasses ?? []
 
@@ -54,6 +56,13 @@ export function ImportLogDialog({ onClose }: { onClose: () => void }) {
             </h2>
             <p className="text-[11px] text-gray-500 break-all">{fileName}</p>
           </div>
+
+          {messages && (
+            <section>
+              <h3 className="uppercase tracking-wide text-gray-400 mb-1">{t('importLog.converterMessages')}</h3>
+              <ConverterMessages messages={messages} />
+            </section>
+          )}
 
           <section>
             <h3 className="uppercase tracking-wide text-gray-400 mb-1">{t('importLog.summary')}</h3>

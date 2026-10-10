@@ -6,6 +6,7 @@ import type {
   ElementSymbol,
   EditorConfig,
   ImportReport,
+  ConverterMessage,
 } from '../types'
 import { stripPictureHrefs } from './picture'
 
@@ -178,6 +179,27 @@ export async function importDiagramSVG(svgText: string): Promise<{ diagram: Diag
   })
   const data = await asJSON<{ diagram: DiagramWire; report: ImportReport }>(res)
   return { diagram: normalizeDiagram(data.diagram), report: data.report }
+}
+
+/** Converts a raw .xsde (Modus) file with xsde2svg and extracts every page (POST /api/import/xsde).
+ * Returns the pages that extracted, each with its 1-based number, and the converter's messages. */
+export async function importDiagramXSDE(bytes: ArrayBuffer): Promise<{
+  pages: { page: number; title: string; diagram: Diagram; report: ImportReport }[]
+  messages: ConverterMessage[]
+}> {
+  const res = await fetch(`${BASE}/import/xsde`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: bytes,
+  })
+  const data = await asJSON<{
+    pages: { page: number; title: string; diagram: DiagramWire; report: ImportReport }[]
+    messages: ConverterMessage[] | null
+  }>(res)
+  return {
+    pages: data.pages.map(p => ({ ...p, diagram: normalizeDiagram(p.diagram) })),
+    messages: data.messages ?? [],
+  }
 }
 
 export async function listElements(): Promise<ElementSymbol[]> {

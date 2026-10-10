@@ -9,9 +9,12 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/yuin/goldmark v1.8.6
 	gopkg.in/yaml.v3 v3.0.1
+	xsde2svg v0.0.0-00010101000000-000000000000
 )
 
 replace github.com/PVKonovalov/slddoc => ../../slddoc
+
+replace xsde2svg => ../../../EMA/xsde2svg
 
 require (
 	github.com/bytedance/sonic v1.11.6 // indirect
@@ -39,4 +42,5 @@ require (
 	golang.org/x/sys v0.46.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
+	gopkg.in/typ.v4 v4.4.0 // indirect
 )
