@@ -5524,3 +5524,16 @@ vanished, most noticeably right after a placement hot key armed a tool with the 
 `ARMED_CURSOR` is now a 24×24 SVG crosshair, white with a dark outline (hot spot at its centre, falling back to
 `crosshair`), so it shows on any background. macOS also hides the pointer on any key press until the mouse moves,
 which a page can't change.
+
+2026-10-10: Terminals on the 10-grid. Every `<terminal>` in `base.xml` now sits on a multiple of 10. Cable joint (32)
+moved from (0,-12)/(0,14) to (0,±10) with shorter stems, Fuse (withdrawable) (154) from ±31 to ±30, and Package
+substation (385) from (0,-22) to (0,-20) with a 2-unit lead (slddoc's `writePackageSubstation`; Extract's
+`packageSubstationLead` is now 20). On open/import, `normalizeTopology` runs `moveLegacyTerminalNodes`
+(`diagramOps.ts`), which moves a port Node lying on an old terminal position onto the new terminal and reroutes its
+wire ends. A Node shared with another element's Port is left in place.
+
+2026-10-10: Symmetric chevrons. Half-chassis (52), Disconnector (withdrawable) (49) and Sectionalizer (withdrawable) (50)
+drew a chevron with the stem running on into its left arm while the right arm was a separate stroke, so the tip had a
+miter corner on one side only. `base.xml` now breaks the stroke at the tip (`v 12 m 0 0 l -4 -4 m 4 4 l 4 -4`), so
+every chevron of the withdrawable family (43, 49, 50, 51, 52, 154) is drawn the same way: two separate arms meeting at
+the tip, top and bottom alike. Coordinates, terminals and Extract are unchanged.

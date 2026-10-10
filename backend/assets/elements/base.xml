@@ -338,14 +338,10 @@
        spliced, a real two-terminal electrical device drawn as a plain
        fixed local-coordinate template the same way Cable connector (56)
        above is: a vertical stem split by a gap, with an unfilled triangle
-       mark in the gap. Terminals sit at (0,-12)/(0,14) — asymmetric
-       around the anchor by design, not a transcription slip: the real
-       source's own default branch shifts its drawn geometry one unit
-       below the element's true anchor before drawing (`y += 1`),
-       confirmed against every one of 500+ real corpus instances found
-       (17 files, sld-svg's own examples/sld) — matching that offset here
-       keeps a real xsde2svg export's own rotate()-based anchor (unaffected
-       by the shift) lining up with this template's own geometry exactly.
+       mark in the gap. Terminals sit on the 10-grid at (0,±10); the real
+       source's stems reach (0,-12)/(0,14) (its `y += 1` shift), so they
+       are shortened here and older diagrams' ports are moved onto the
+       new terminals on open (diagramOps' LEGACY_TERMINALS).
        The real source's own alternate CustomView appearance (a single
        line plus a differently-shaped triangle) and its own optional
        phase-color fill (yellow/green/red) on the triangle have no real
@@ -354,11 +350,11 @@
        State of its own. -->
   <symbol shape="32" class="CableJoint" name="Cable joint">
     <terminals>
-      <terminal x="0" y="-12"/>
-      <terminal x="0" y="14"/>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
     </terminals>
     <template><![CDATA[
-<path d="M 0 -3 v -9 M 0 5 v 9" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -3 v -7 M 0 5 v 5" style="fill:none;stroke:{color};stroke-width:1" />
 <path d="M 0 -3 l 8 8 h -16 z" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
@@ -660,7 +656,7 @@
     </terminals>
     <template><![CDATA[
 <g transform="translate({positionOffset},0)"{positionAttr}>
-<path d="M 0 -22 l -4 4 m 4 -4 l 4 4 m -4 -4 v 12 m -4 0 h 8 {state:m -4 2 v 16 m -4 2|m -12 10 h 16 m -12 10|m -8.6 5.4 l 9.2 9.2 m -8.6 5.4} h 8 m -4 0 v 12 l -4 -4 m 4 4 l 4 -4"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -22 l -4 4 m 4 -4 l 4 4 m -4 -4 v 12 m -4 0 h 8 {state:m -4 2 v 16 m -4 2|m -12 10 h 16 m -12 10|m -8.6 5.4 l 9.2 9.2 m -8.6 5.4} h 8 m -4 0 v 12 m 0 0 l -4 -4 m 4 4 l 4 -4"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
 </g>
 <path d="M 0 30 l -4 -4 m 4 4 l 4 -4 M 0 -30 l -4 4 m 4 -4 l 4 4" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
@@ -691,7 +687,7 @@
 <g transform="translate({positionOffset},0)"{positionAttr}>
 <path d="{state:M 0 6 v -12|M -6 0 h 12|M 0 6 v -12}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
 <path d="{state:M 0 -2 h 2 v 2 h -2 z|M 2 0 h 2 v 2 h -2 z|M 0 -2 h 2 v 2 h -2 z}" style="fill:{color};stroke:{color};stroke-width:1" />
-<path d="M 0 -22 l -4 4 m 4 -4 l 4 4 m -4 -4 v 12 m -4 0 h 8 M -4 12 h 8 m -4 0 v 12 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -22 l -4 4 m 4 -4 l 4 4 m -4 -4 v 12 m -4 0 h 8 M -4 12 h 8 m -4 0 v 12 m 0 0 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
 </g>
 <path d="M 0 30 l -4 -4 m 4 4 l 4 -4 M 0 -30 l -4 4 m 4 -4 l 4 4" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
@@ -1122,20 +1118,21 @@
        made for Breaker (43)/Disconnector (49), so there's no separate
        geometry to pick for Service specifically). Same withdrawable
        convention as those two: the two real terminals sit at the far
-       chevron tips (y=±31, fixed, outside the position-shifted group), not
+       chevron tips (y=±30 on the 10-grid, the source's ±31 snapped; fixed,
+       outside the position-shifted group), not
        the fuse body itself (y=±22, inside the movable <g
        data-trolley="{Position}">, translated by {positionOffset}). -->
   <symbol shape="154" class="Fuse" name="Fuse (withdrawable)">
     <terminals>
-      <terminal x="0" y="-31"/>
-      <terminal x="0" y="31"/>
+      <terminal x="0" y="-30"/>
+      <terminal x="0" y="30"/>
     </terminals>
     <template><![CDATA[
 <g transform="translate({positionOffset},0)"{positionAttr}>
 <path d="M 0 -22 v 12 h 5 v 20 h -5 v -20 h -5 v 20 h 5 v 12" style="fill:none;stroke:{color};stroke-width:1" />
 <path d="M 0 -22 l -4 4 m 4 -4 l 4 4 M 0 22 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
 </g>
-<path d="M 0 -31 l -4 4 m 4 -4 l 4 4 M 0 31 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -30 l -4 4 m 4 -4 l 4 4 M 0 30 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
@@ -1221,7 +1218,7 @@
       <terminal x="0" y="20"/>
     </terminals>
     <template><![CDATA[
-<path d="M 0 0 v 12 l -4 -4 m 4 4 l 4 -4 m -4 12 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 0 v 12 m 0 0 l -4 -4 m 4 4 l 4 -4 M 0 20 l -4 -4 m 4 4 l 4 -4" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
@@ -1273,8 +1270,8 @@
        facility-level pictogram (Package transformer substation, KTP), not
        switchgear in the usual sense, but still given a genuine
        voltage-driven color and exactly one real electrical terminal
-       (grid-aligned to y=-22, the real source's own lead stub, 4 units
-       above the box's own top edge). Its geometry varies per instance
+       (y=-20 on the 10-grid, the tip of a 2-unit lead stub above the
+       box's top edge; the real source's stub is 4 units). Its geometry varies per instance
        (two structurally different real appearance variants, not just a
        {state:...}-style tweak within one static shape — see
        internal/slddoc.writePackageSubstation) so, like Rectangle/Circle/
@@ -1296,7 +1293,7 @@
        Arrow's own DoubleHeaded isn't either. -->
   <symbol shape="385" class="PackageSubstation" name="Package substation">
     <terminals>
-      <terminal x="0" y="-22"/>
+      <terminal x="0" y="-20"/>
     </terminals>
     <template></template>
   </symbol>

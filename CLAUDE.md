@@ -11,6 +11,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - When changing an API (a REST endpoint's path/params, or a request/response shape), find and check every caller of it —
   both backend (other handlers/services) and frontend — and update them too.
 - Use Go 1.26
+- Don't use a lot of code comments. For function describe arguments and results. The best comments is a code.
+- use go fix ./...
 
 ## What this is
 

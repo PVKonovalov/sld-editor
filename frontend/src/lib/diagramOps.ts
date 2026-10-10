@@ -3640,7 +3640,7 @@ export function fitElementPorts(
  * can tell whether to mark it dirty. */
 export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], onlyIds?: Set<number>): Diagram {
   if (symbols.length === 0) return diagram
-  let d = removeDegenerateConnectors(diagram)
+  let d = moveLegacyTerminalNodes(removeDegenerateConnectors(diagram), symbols, onlyIds)
   // One shared node index (rebuilt only after a fit actually changed
   // something) keeps this linear on a large diagram rather than
   // re-indexing every node for every element.
@@ -3663,6 +3663,55 @@ export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], on
   return dropUnusedNodes(
     mergeNodesOntoPorts(moveStrayPortNodes(removeDegenerateConnectors(d), symbols, onlyIds), onlyIds),
   )
+}
+
+/** Local terminal positions base.xml used before they were snapped to the
+ * 10-grid, by shape, in terminal order. */
+const LEGACY_TERMINALS: Record<string, Point[]> = {
+  '32': [{ x: 0, y: -12 }, { x: 0, y: 14 }],
+  '154': [{ x: 0, y: -31 }, { x: 0, y: 31 }],
+  '385': [{ x: 0, y: -22 }],
+}
+
+/** Moves each port Node lying on one of LEGACY_TERMINALS (placed on
+ * diagram's element) onto the matching current terminal, rerouting the wire
+ * ends on it. A Node another element's Port also uses stays put. Only
+ * elements in onlyIds when given. Returns diagram itself when nothing moved. */
+function moveLegacyTerminalNodes(diagram: Diagram, symbols: ElementSymbol[], onlyIds?: Set<number>): Diagram {
+  const portUsers = new Map<number, number>()
+  for (const el of diagram.elements) {
+    for (const p of el.ports ?? []) portUsers.set(p.node, (portUsers.get(p.node) ?? 0) + 1)
+  }
+  const nodeIndex = new Map(diagram.nodes.map(n => [n.id, n]))
+  const target = new Map<number, Point>()
+  for (const el of diagram.elements) {
+    const legacy = LEGACY_TERMINALS[el.shape]
+    if (!legacy || !el.ports || (onlyIds && !onlyIds.has(el.id))) continue
+    const symbol = symbols.find(s => s.shape === el.shape)
+    const current = fixedTerminals(el, symbols)
+    if (!symbol || !current) continue
+    const old = symbolTerminals(el, [{ ...symbol, terminals: legacy }])?.map(roundPoint) ?? []
+    for (const port of el.ports) {
+      const node = nodeIndex.get(port.node)
+      if (!node || portUsers.get(port.node) !== 1) continue
+      const i = old.findIndex(t => Math.hypot(t.x - node.x, t.y - node.y) <= PORT_MATCH_TOLERANCE)
+      if (i >= 0 && current[i] && !samePoint(node, current[i])) target.set(port.node, current[i])
+    }
+  }
+  if (target.size === 0) return diagram
+  return {
+    ...diagram,
+    nodes: diagram.nodes.map(n => (target.has(n.id) ? { ...n, ...target.get(n.id)! } : n)),
+    connectors: diagram.connectors.map(c => {
+      const from = target.get(c.from)
+      const to = target.get(c.to)
+      if (!from && !to) return c
+      let points = c.points
+      if (from && points.length > 0) points = rerouteConnectorEnd(points, 'from', from)
+      if (to && points.length > 0) points = rerouteConnectorEnd(points, 'to', to)
+      return { ...c, points }
+    }),
+  }
 }
 
 /** Moves each port Node that nothing else uses (no wire, no other Port) and
