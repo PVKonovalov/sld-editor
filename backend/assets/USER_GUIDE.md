@@ -240,8 +240,12 @@ typing in a field or in the middle of a drag or drawing.
 
 Some elements are drawn instead of clicked:
 
-- **Busbar**, **Arrow**, **Rectangle**, **Small window**, **Circle**, **Button**, **Window icon**, **Table**, **Arc**:
+- **Busbar**, **Arrow**, **Rectangle**, **Small window**, **Button**, **Window icon**, **Table**, **Arc**:
   press on the canvas and drag from one corner or end to the other.
+- **Circle**: press where the center goes (on the grid when snapping) and drag outward to set the radius, in steps of
+  0.5; a plain click places a circle of radius 20. Ctrl/Cmd-drag from anywhere inside it to move it (the center stays
+  on the grid); drag the square handle on its rim to change the radius. Properties has its center X/Y and radius,
+  which may be any positive value, such as 0.5.
 - **Line**, **Road**: click once per point. Double-click (or press **Enter**) to finish, once there are at least two
   points; **Backspace** removes the last point, **Esc** cancels. Afterwards, double-click the line to add a bend there,
   drag a point's square handle to move it, or click the handle (it fills in) and press **Delete** to remove that point
@@ -296,7 +300,7 @@ With nothing selected, the **Find** section in Properties searches the diagram (
 
 | Action | How |
 | --- | --- |
-| Move | Hold **Ctrl** (**Cmd** on a Mac) and drag an item. Ctrl/Cmd-dragging any item of a multi-selection, or empty space inside its dashed box, moves the whole group. Without the key a drag pans the canvas |
+| Move | Hold **Ctrl** (**Cmd** on a Mac) and drag an item. Ctrl/Cmd-dragging any item of a multi-selection, or empty space inside its dashed box, moves the whole group. Without the key a drag pans the canvas. With the key held, a selected item's handles (corners, ends, bends, a circle's radius) move the item too instead of reshaping it |
 | Duplicate by dragging | Hold **Alt** (**Option** on a Mac) and drag an item: a copy follows the cursor and the original stays. With a multi-selection, the whole group is copied |
 | Copy | **Ctrl+C** (**Cmd+C**), or right-click → **Copy** |
 | Paste | **Ctrl+V** (**Cmd+V**) pastes the copy two grid steps down and to the right of the original, a step further with each paste. Right-click → **Paste** pastes it where you clicked |

@@ -908,7 +908,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       if (name !== latestRef.current.diagramName && !(await confirmLeave())) return
       openedRef.current = null
       setDiagramName(name)
-      commitDiagram(draft.diagram, { reset: true, clean: null })
+      commitDiagram(diagramOps.migrateCircles(draft.diagram), { reset: true, clean: null })
       setDirty(true)
       setDefaultVoltage(draft.diagram.editor?.defaultVoltage)
       clearSelection()

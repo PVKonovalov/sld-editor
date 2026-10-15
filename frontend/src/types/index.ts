@@ -197,6 +197,7 @@ export interface DiagramElement {
   // Also a PostPole's (shape 292) own drawn circle radius, doubling as its
   // Square variant's own half-width — see square below, and slddoc's own
   // Element.Radius doc comment for why one field covers both.
+  // Also a Circle's (shape 4) radius, its center being x/y.
   radius?: number
   // Rectangle (shape 3) or Circle (shape 4) only — its own interior
   // color, matching backend/internal/slddoc's own Element.Fill. Not a

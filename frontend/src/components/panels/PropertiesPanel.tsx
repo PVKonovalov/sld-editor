@@ -1173,6 +1173,40 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
 
         {isCircle && (
           <>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.circleCenterX')}</span>
+                <input
+                  type="number"
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.x}
+                  onChange={e => patch({ x: Number(e.target.value) })}
+                />
+              </label>
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.circleCenterY')}</span>
+                <input
+                  type="number"
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.y}
+                  onChange={e => patch({ y: Number(e.target.value) })}
+                />
+              </label>
+            </div>
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.circleRadius')}</span>
+              <input
+                type="number"
+                min={diagramOps.CIRCLE_RADIUS_STEP}
+                step="any"
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={diagramOps.circleRadius(el)}
+                onChange={e => {
+                  const radius = Number(e.target.value)
+                  if (radius > 0) patch({ radius })
+                }}
+              />
+            </label>
             {/* Reuses Rectangle's own property labels/i18n keys rather than
                 duplicating "circleFill" etc. — a Circle's Fill/Stroke/
                 StrokeWidth model is identical to Rectangle's, unlike
@@ -2536,7 +2570,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
-        {(el.class === 'BusBarSection' || isRectangle || isSmallWindow || isPicture || isCircle || isArrow || isButton || isWindowIcon || isAutomationDevice || isRoad || isLine || isPolygon || isContainer || isArc || isTable) &&
+        {(el.class === 'BusBarSection' || isRectangle || isSmallWindow || isPicture || isArrow || isButton || isWindowIcon || isAutomationDevice || isRoad || isLine || isPolygon || isContainer || isArc || isTable) &&
         el.points ? (
           <div>
             <span className="block text-xs text-gray-400 mb-1">{t('properties.points')}</span>

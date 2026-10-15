@@ -519,6 +519,8 @@ export function Canvas() {
   const [ghost, setGhost] = useState<Ghost | null>(null)
   const [newBusbar, setNewBusbar] = useState<NewBusbar | null>(null)
   const [pointDrag, setPointDrag] = useState<PointDrag | null>(null)
+  // A selected Circle's radius while its rim handle is dragged (handleRadiusMouseDown).
+  const [radiusDrag, setRadiusDrag] = useState<{ elementId: number; radius: number } | null>(null)
   const [labelDrag, setLabelDrag] = useState<LabelDrag | null>(null)
   const [digitalDeviceDrag, setDigitalDeviceDrag] = useState<DigitalDeviceDrag | null>(null)
   // What Copy captured: the selection as a standalone diagram
@@ -1207,8 +1209,14 @@ export function Canvas() {
         boxes.set(el.id, { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y })
         continue
       }
+      if (el.class === 'Circle') {
+        // Its whole disc, so an unfilled circle is grabbed from anywhere inside it.
+        const r = diagramOps.circleRadius(el)
+        boxes.set(el.id, { x: el.x - r, y: el.y - r, width: r * 2, height: r * 2 })
+        continue
+      }
       if (
-        (el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Circle' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'Table') &&
+        (el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'Table') &&
         el.points
       ) {
         const [p0, p1] = el.points
@@ -1961,7 +1969,7 @@ export function Canvas() {
   // the actual placed element follow the cursor while dragging, not just
   // an abstract highlight. Reads each element's own current x/y/points from
   // diagram state (unchanged until mouseup) and offsets from there; a
-  // BusBarSection/Rectangle/Circle/Button/Road/Line/Table (see
+  // BusBarSection/Rectangle/Button/Road/Line/Table (see
   // diagramOps.POINTS_BASED_CLASSES) has no single anchor to translate via
   // a transform, so its own points-derived attributes are set directly
   // instead — a busbar's, road's, or line's <polyline points>, a
@@ -1971,7 +1979,7 @@ export function Canvas() {
   // <text x y> pair. PostPole and PowerflowIndicator, though each a single
   // anchor (not Points-based), get the identical bare-tag treatment for
   // the identical reason — no wrapping <g> a translate() could shift (see
-  // writePole/writePowerflowIndicator). Table2 is the one exception that
+  // writePole/writePowerflowIndicator), and so does a Circle's bare <ellipse>, by its cx/cy. Table2 is the one exception that
   // *does* get a translate(): its own wrapping <g> normally carries no
   // transform of its own either, but with potentially many per-cell
   // children, adding one temporarily during the drag is simpler than
@@ -2004,9 +2012,9 @@ export function Canvas() {
       } else if ((el.class === 'Rectangle' || el.class === 'SmallWindow') && el.points) {
         node.setAttribute('x', String(Math.min(el.points[0].x, el.points[1].x) + dx))
         node.setAttribute('y', String(Math.min(el.points[0].y, el.points[1].y) + dy))
-      } else if (el.class === 'Circle' && el.points) {
-        node.setAttribute('cx', String((el.points[0].x + el.points[1].x) / 2 + dx))
-        node.setAttribute('cy', String((el.points[0].y + el.points[1].y) / 2 + dy))
+      } else if (el.class === 'Circle') {
+        node.setAttribute('cx', String(el.x + dx))
+        node.setAttribute('cy', String(el.y + dy))
       } else if (el.class === 'Arrow' && el.points) {
         // writeArrow's own <path> d is in local coordinates relative to
         // Points[0] (unaffected by a plain whole-shape translate), so only
@@ -2174,6 +2182,14 @@ export function Canvas() {
           setNewBusbar(null)
           const start = snapPoint(point)
           const snappedEnd = snapPoint(end)
+          if (shape === CIRCLE_SHAPE) {
+            // Centered on the press (on the grid when snapping); the drag sets the radius, a plain click the default.
+            const r = Math.hypot(end.x - start.x, end.y - start.y)
+            const radius = r > 1 ? diagramOps.roundCircleRadius(r) : diagramOps.CIRCLE_DEFAULT_RADIUS
+            updateDiagram(d => diagramOps.placeCircle(d, start, radius))
+            armSymbol(null)
+            return
+          }
           if (shape === PICTURE_SHAPE && Math.hypot(snappedEnd.x - start.x, snappedEnd.y - start.y) > 1) {
             // Placed, selected, and the file picker opened right away
             // (still within this mouseup's user activation).
@@ -2192,9 +2208,7 @@ export function Canvas() {
                 ? diagramOps.placeRectangle(d, start, snappedEnd)
                 : shape === SMALL_WINDOW_SHAPE
                   ? diagramOps.placeSmallWindow(d, start, snappedEnd)
-                : shape === CIRCLE_SHAPE
-                  ? diagramOps.placeCircle(d, start, snappedEnd)
-                  : shape === ARROW_SHAPE
+                : shape === ARROW_SHAPE
                     ? diagramOps.placeArrow(d, start, snappedEnd)
                     : shape === BUTTON_SHAPE
                       ? diagramOps.placeButton(d, start, snappedEnd)
@@ -2336,8 +2350,38 @@ export function Canvas() {
   // whole-element drag in handleMouseDown: this moves only one point,
   // recomputing the element's anchor as the new midpoint (see
   // diagramOps.updateBusbarPoint).
+  // Drags a Circle's radius handle: the radius is the distance from the center to the cursor, rounded to
+  // CIRCLE_RADIUS_STEP; the center stays put.
+  function handleRadiusMouseDown(e: React.MouseEvent, el: DiagramElement) {
+    e.stopPropagation()
+    // With the move key a handle moves its whole item (or selection), as a press on the item itself does.
+    if (hasMoveModifier(e)) {
+      startModifierDrag(toPoint(e.clientX, e.clientY), e.clientX, e.clientY, el.id, 'element')
+      return
+    }
+    const radiusAt = (ev: MouseEvent) => {
+      const p = toPoint(ev.clientX, ev.clientY)
+      return diagramOps.roundCircleRadius(Math.hypot(p.x - el.x, p.y - el.y))
+    }
+    const onMove = (ev: MouseEvent) => setRadiusDrag({ elementId: el.id, radius: radiusAt(ev) })
+    const onUp = (ev: MouseEvent) => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      setRadiusDrag(null)
+      const radius = radiusAt(ev)
+      updateDiagram(d => ({ ...d, elements: d.elements.map(x => (x.id === el.id ? { ...x, radius } : x)) }))
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   function handlePointMouseDown(e: React.MouseEvent, elementId: number, pointIndex: number) {
     e.stopPropagation()
+    // With the move key a handle moves its whole item (or selection), as a press on the item itself does.
+    if (hasMoveModifier(e)) {
+      startModifierDrag(toPoint(e.clientX, e.clientY), e.clientX, e.clientY, elementId, 'element')
+      return
+    }
     const start = toPoint(e.clientX, e.clientY)
     let moved = false
     const onMove = (ev: MouseEvent) => {
@@ -2376,6 +2420,11 @@ export function Canvas() {
   // handler above).
   function handleVertexMouseDown(e: React.MouseEvent, connectorId: number, index: number) {
     e.stopPropagation()
+    // With the move key a handle moves its whole item (or selection), as a press on the item itself does.
+    if (hasMoveModifier(e)) {
+      startModifierDrag(toPoint(e.clientX, e.clientY), e.clientX, e.clientY, connectorId, 'connector')
+      return
+    }
     const start = toPoint(e.clientX, e.clientY)
     let moved = false
     const onMove = (ev: MouseEvent) => {
@@ -2408,6 +2457,11 @@ export function Canvas() {
   // handle does.
   function handleMidpointMouseDown(e: React.MouseEvent, connectorId: number, segmentIndex: number) {
     e.stopPropagation()
+    // With the move key a handle moves its whole item (or selection), as a press on the item itself does.
+    if (hasMoveModifier(e)) {
+      startModifierDrag(toPoint(e.clientX, e.clientY), e.clientX, e.clientY, connectorId, 'connector')
+      return
+    }
     const onMove = (ev: MouseEvent) => {
       setVertexDrag({ connectorId, kind: 'midpoint', segmentIndex, point: snapPoint(toPoint(ev.clientX, ev.clientY)) })
     }
@@ -2432,6 +2486,11 @@ export function Canvas() {
   // segment orthogonal the same projection-lock way a vertex drag does.
   function handleEndpointMouseDown(e: React.MouseEvent, connectorId: number, end: 'from' | 'to') {
     e.stopPropagation()
+    // With the move key a handle moves its whole item (or selection), as a press on the item itself does.
+    if (hasMoveModifier(e)) {
+      startModifierDrag(toPoint(e.clientX, e.clientY), e.clientX, e.clientY, connectorId, 'connector')
+      return
+    }
     const onMove = (ev: MouseEvent) => {
       setVertexDrag({ connectorId, kind: 'endpoint', end, point: snapPoint(toPoint(ev.clientX, ev.clientY)) })
     }
@@ -3142,15 +3201,13 @@ export function Canvas() {
                       />
                     )
                   }
-                  if (el.class === 'Circle' && el.points) {
-                    const [p0, p1] = el.points
+                  if (el.class === 'Circle') {
                     return (
-                      <ellipse
+                      <circle
                         key={el.id}
-                        cx={(p0.x + p1.x) / 2}
-                        cy={(p0.y + p1.y) / 2}
-                        rx={Math.abs(p1.x - p0.x) / 2 + BOX_HIGHLIGHT_PAD}
-                        ry={Math.abs(p1.y - p0.y) / 2 + BOX_HIGHLIGHT_PAD}
+                        cx={el.x}
+                        cy={el.y}
+                        r={diagramOps.circleRadius(el) + BOX_HIGHLIGHT_PAD}
                         fill="none"
                         stroke={HIGHLIGHT}
                         strokeWidth={2}
@@ -3392,16 +3449,21 @@ export function Canvas() {
                   )
                 })()
               ) : newBusbar && armedSymbol?.shape === CIRCLE_SHAPE ? (
-                <ellipse
-                  cx={(newBusbar.start.x + newBusbar.current.x) / 2}
-                  cy={(newBusbar.start.y + newBusbar.current.y) / 2}
-                  rx={Math.abs(newBusbar.current.x - newBusbar.start.x) / 2}
-                  ry={Math.abs(newBusbar.current.y - newBusbar.start.y) / 2}
-                  fill="none"
-                  stroke={HIGHLIGHT}
-                  strokeWidth={2}
-                  strokeDasharray="6 4"
-                />
+                (() => {
+                  const c = snapPoint(newBusbar.start)
+                  const r = Math.hypot(newBusbar.current.x - c.x, newBusbar.current.y - c.y)
+                  return (
+                    <circle
+                      cx={c.x}
+                      cy={c.y}
+                      r={r > 1 ? diagramOps.roundCircleRadius(r) : diagramOps.CIRCLE_DEFAULT_RADIUS}
+                      fill="none"
+                      stroke={HIGHLIGHT}
+                      strokeWidth={2}
+                      strokeDasharray="6 4"
+                    />
+                  )
+                })()
               ) : (
                 newBusbar && (
                   <line
@@ -3420,7 +3482,6 @@ export function Canvas() {
                   selectedElement.class === 'Rectangle' ||
                   selectedElement.class === 'SmallWindow' ||
                   selectedElement.class === 'Picture' ||
-                  selectedElement.class === 'Circle' ||
                   selectedElement.class === 'Arrow' ||
                   selectedElement.class === 'Button' ||
                   selectedElement.class === 'WindowIcon' ||
@@ -3451,21 +3512,6 @@ export function Canvas() {
                             y={Math.min(p0.y, p1.y)}
                             width={Math.abs(p1.x - p0.x)}
                             height={Math.abs(p1.y - p0.y)}
-                            fill="none"
-                            stroke={HIGHLIGHT}
-                            strokeWidth={2}
-                            strokeDasharray="6 4"
-                          />
-                        )
-                      }
-                      if (selectedElement.class === 'Circle') {
-                        const [p0, p1] = pts
-                        return (
-                          <ellipse
-                            cx={(p0.x + p1.x) / 2}
-                            cy={(p0.y + p1.y) / 2}
-                            rx={Math.abs(p1.x - p0.x) / 2}
-                            ry={Math.abs(p1.y - p0.y) / 2}
                             fill="none"
                             stroke={HIGHLIGHT}
                             strokeWidth={2}
@@ -3553,6 +3599,37 @@ export function Canvas() {
                     })()}
                 </>
               )}
+              {/* A selected Circle's radius handle, on its rim to the right of the center: dragging it sets the radius
+                  (in CIRCLE_RADIUS_STEP steps), previewed dashed until the release. */}
+              {selectedElement?.class === 'Circle' &&
+                (() => {
+                  const dragging = radiusDrag?.elementId === selectedElement.id
+                  const r = dragging ? radiusDrag!.radius : diagramOps.circleRadius(selectedElement)
+                  const h = { x: selectedElement.x + r, y: selectedElement.y }
+                  return (
+                    <>
+                      {dragging && (
+                        <circle
+                          cx={selectedElement.x}
+                          cy={selectedElement.y}
+                          r={r}
+                          fill="none"
+                          stroke={HIGHLIGHT}
+                          strokeWidth={2}
+                          strokeDasharray="6 4"
+                        />
+                      )}
+                      <g
+                        style={{ pointerEvents: 'auto', cursor: 'ew-resize' }}
+                        onMouseDown={e => handleRadiusMouseDown(e, selectedElement)}
+                      >
+                        <title>{t('canvas.circleRadius', { radius: r })}</title>
+                        <circle cx={h.x} cy={h.y} r={10} fill="transparent" />
+                        <rect x={h.x - 5} y={h.y - 5} width={10} height={10} fill="none" stroke="red" strokeWidth={1} />
+                      </g>
+                    </>
+                  )
+                })()}
               {/* An in-progress pen-tool Polygon: the vertices placed so
                   far drawn solid, the rubber-band segment to the cursor
                   dashed, and a circle on the first vertex that grows and

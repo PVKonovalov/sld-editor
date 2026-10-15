@@ -40,7 +40,6 @@ const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'Rectangle',
   'SmallWindow',
   'Picture',
-  'Circle',
   'Arrow',
   'Button',
   'WindowIcon',
@@ -547,6 +546,7 @@ const NO_VOLTAGE_CLASSES: ReadonlySet<ElementClass> = new Set<ElementClass>([
   'PostPole',
   'PowerflowIndicator',
   'Table2',
+  'Circle',
   ...[...POINTS_BASED_CLASSES].filter(c => c !== 'BusBarSection'),
 ])
 
@@ -663,12 +663,25 @@ export function placeRectangle(diagram: Diagram, start: Point, end: Point): Diag
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
 
-/** Places a new Circle spanning start..end (its own bounding-box corners,
- * order-independent) — same "purely decorative, not real electrical
- * equipment, drawn from its own Points" reasoning as placeRectangle,
- * which it otherwise mirrors exactly (same RECTANGLE_DEFAULTS — a
- * Circle's own Fill/Stroke/StrokeWidth model is identical). */
-export function placeCircle(diagram: Diagram, start: Point, end: Point): Diagram {
+/** A Circle's radius when it has none: a plain click places one this size. */
+export const CIRCLE_DEFAULT_RADIUS = 20
+
+/** The step and minimum of a Circle's radius when drawn or resized on the canvas. */
+export const CIRCLE_RADIUS_STEP = 0.5
+
+/** A Circle's radius (CIRCLE_DEFAULT_RADIUS when unset). */
+export function circleRadius(el: DiagramElement): number {
+  return el.radius && el.radius > 0 ? el.radius : CIRCLE_DEFAULT_RADIUS
+}
+
+/** Rounds a radius dragged on the canvas to CIRCLE_RADIUS_STEP, never below it. */
+export function roundCircleRadius(r: number): number {
+  return Math.max(CIRCLE_RADIUS_STEP, Math.round(r / CIRCLE_RADIUS_STEP) * CIRCLE_RADIUS_STEP)
+}
+
+/** Places a new Circle (a decorative annotation, like placeRectangle's box) with its center at center and the given
+ * radius; same RECTANGLE_DEFAULTS fill/stroke. */
+export function placeCircle(diagram: Diagram, center: Point, radius: number): Diagram {
   const ids = new IdSequence(diagram)
   const id = ids.take()
   const element: DiagramElement = {
@@ -677,12 +690,33 @@ export function placeCircle(diagram: Diagram, start: Point, end: Point): Diagram
     shape: '4',
     name: `Circle-${id}`,
     layer: defaultLayer(diagram),
-    x: (start.x + end.x) / 2,
-    y: (start.y + end.y) / 2,
-    points: [start, end],
+    x: center.x,
+    y: center.y,
+    radius,
     ...RECTANGLE_DEFAULTS,
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
+}
+
+/** Converts each Circle still stored the old way (two bounding-box corners, as slddoc.Load also converts on the
+ * server) to center + radius: the box's center, and half its larger side; one with neither gets
+ * CIRCLE_DEFAULT_RADIUS. For a diagram that didn't come through the server, such as a recovery draft. Returns
+ * diagram itself when there is none. */
+export function migrateCircles(diagram: Diagram): Diagram {
+  if (!diagram.elements.some(e => e.class === 'Circle' && (e.points || !(e.radius && e.radius > 0)))) return diagram
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => {
+      if (e.class !== 'Circle') return e
+      const { points, ...rest } = e
+      if (points && points.length >= 2) {
+        const [p0, p1] = points
+        const radius = Math.max(Math.abs(p1.x - p0.x), Math.abs(p1.y - p0.y)) / 2
+        return { ...rest, x: (p0.x + p1.x) / 2, y: (p0.y + p1.y) / 2, radius: radius > 0 ? radius : CIRCLE_DEFAULT_RADIUS }
+      }
+      return e.radius && e.radius > 0 && !points ? e : { ...rest, radius: CIRCLE_DEFAULT_RADIUS }
+    }),
+  }
 }
 
 // A freshly placed Arrow's own color/width — same reasoning as

@@ -5674,3 +5674,23 @@ same point, joined to the shared one by a zero-length BusWork wire (the moved de
 Node stays with the unmoved device and the move stretches the wire to the moved terminal, so the connection is kept.
 Moving the devices back together collapses the wire, and `removeDegenerateConnectors` joins the terminals on one Node
 again. Both guides' moving sections updated.
+
+2026-10-15: Circles are a center and a radius. A Circle (shape 4) was two bounding-box corners in `<geometry>`: one
+saved without them drew nothing, a small one was hard to see, and since an unfilled circle only took clicks on its
+outline it could be resized by its corner handles but hardly moved. Now its center is the element's `x`/`y` and its
+size `radius` (any positive value, e.g. 0.5; 0 = 20), with no Points. slddoc: `parseCircle` (import) takes the
+ellipse's center and the larger of rx/ry, `writeCircle` draws `<ellipse rx=ry=radius>` about the center as xsde2svg
+does, and `Load` converts an older file's corners (`circleFromCorners`: the box's center, half its larger side; no
+size → 20); `XSLD_FORMAT.md` updated. Editor: Circle left `POINTS_BASED_CLASSES`, so it moves and snaps by its center
+like any anchored item; drawing presses at the center (snapped) and drags out the radius in 0.5 steps
+(`roundCircleRadius`), a click placing radius 20 (`placeCircle(center, radius)`); its hit box is the whole disc, so
+Ctrl/Cmd-drag from inside moves an unfilled one; a square rim handle sets the radius (`handleRadiusMouseDown`, dashed
+preview); Properties shows Center X/Y and Radius; a recovery draft is converted on restore (`migrateCircles`). Both
+guides' placing sections updated; the two TODO items closed.
+
+2026-10-15: The move key on a handle moves the item. A selected item's handles (busbar/rectangle/line/polygon corners
+and ends, an arc's bulge, a circle's radius, a wire's bends, segment midpoints and free ends) reshaped it whatever key
+was held, so Cmd-dragging a circle by its rim resized it. Each handle's mousedown (`handlePointMouseDown`,
+`handleRadiusMouseDown`, `handleVertexMouseDown`, `handleMidpointMouseDown`, `handleEndpointMouseDown`) now starts
+`startModifierDrag` for its element or wire when the move key is held (Cmd on a Mac, Ctrl elsewhere), as a press on the
+item itself does; a plain drag still reshapes. Both guides' Move row updated.

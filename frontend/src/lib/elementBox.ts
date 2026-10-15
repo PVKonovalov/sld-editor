@@ -15,6 +15,10 @@ export interface Box {
  * drawn in absolute coordinates is taken as is. A Points-based shape uses
  * its own points. Falls back to the anchor alone when nothing is rendered. */
 export function elementDiagramBox(el: DiagramElement, symbols: ElementSymbol[]): Box {
+  if (el.class === 'Circle') {
+    const r = diagramOps.circleRadius(el)
+    return { x: el.x - r, y: el.y - r, width: r * 2, height: r * 2 }
+  }
   if (el.points && el.points.length > 0) {
     const xs = el.points.map(p => p.x)
     const ys = el.points.map(p => p.y)

@@ -288,6 +288,9 @@ export const dictionary = {
   'properties.voltageClass': 'Voltage class',
   'properties.state': 'State',
   'properties.operationalStatus': 'Operational Status',
+  'properties.circleCenterX': 'Center X',
+  'properties.circleCenterY': 'Center Y',
+  'properties.circleRadius': 'Radius',
   'properties.positionStatus': 'Position status',
   'properties.orientation': 'Orientation',
   'properties.connections': 'Connections',
@@ -446,6 +449,7 @@ export const dictionary = {
   'properties.transformerVectorGroupPlaceholder': 'e.g. Yn/Δ-11',
 
   'canvas.endOffTerminal': "Attached to a device but off its terminal: drag to move the connection point (the wires on it follow)",
+  'canvas.circleRadius': 'Radius {{radius}}: drag to resize',
   'canvas.noDiagram': 'Create or open a diagram from the File panel to get started.',
   'canvas.undo': 'Undo (Ctrl+Z / Cmd+Z)',
   'canvas.redo': 'Redo (Ctrl+Shift+Z / Cmd+Shift+Z)',

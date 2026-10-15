@@ -284,6 +284,9 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.voltageClass': 'Класс напряжения',
   'properties.state': 'Состояние',
   'properties.operationalStatus': 'Оперативное состояние',
+  'properties.circleCenterX': 'Центр X',
+  'properties.circleCenterY': 'Центр Y',
+  'properties.circleRadius': 'Радиус',
   'properties.positionStatus': 'Положение выкатного элемента',
   'properties.orientation': 'Ориентация',
   'properties.connections': 'Соединения',
@@ -442,6 +445,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.transformerVectorGroupPlaceholder': 'напр. Yn/Δ-11',
 
   'canvas.endOffTerminal': 'Подключено к аппарату, но не в его выводе: перетащите, чтобы сдвинуть точку подключения (провода на ней следуют за ней)',
+  'canvas.circleRadius': 'Радиус {{radius}}: перетащите, чтобы изменить',
   'canvas.noDiagram': 'Создайте или откройте схему на панели «Файл», чтобы начать.',
   'canvas.undo': 'Отменить (Ctrl+Z / Cmd+Z)',
   'canvas.redo': 'Повторить (Ctrl+Shift+Z / Cmd+Shift+Z)',
