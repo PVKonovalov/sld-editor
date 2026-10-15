@@ -5694,3 +5694,10 @@ was held, so Cmd-dragging a circle by its rim resized it. Each handle's mousedow
 `handleRadiusMouseDown`, `handleVertexMouseDown`, `handleMidpointMouseDown`, `handleEndpointMouseDown`) now starts
 `startModifierDrag` for its element or wire when the move key is held (Cmd on a Mac, Ctrl elsewhere), as a press on the
 item itself does; a plain drag still reshapes. Both guides' Move row updated.
+
+2026-10-15: Libraries in their own bundle file. The Russian build's single JS chunk had grown past Vite's 500 kB
+warning (502.8 kB; the English one was 485 kB). `vite.config.ts` now puts everything from `node_modules` (React,
+react-zoom-pan-pinch, lucide-react) into `vendor-[hash].js` via `build.rolldownOptions.output.codeSplitting`: about
+193 kB of libraries plus 300 kB (en) / 309 kB (ru) of app code and a 0.6 kB runtime, so no warning, and after an app
+update a browser keeps the unchanged vendor file cached. `make` copies the whole `dist-xx/` folder and the backend
+embeds all of it, so packaging needs no change.
