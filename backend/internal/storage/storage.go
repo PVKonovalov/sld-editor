@@ -6,13 +6,16 @@
 package storage
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/PVKonovalov/slddoc"
@@ -38,6 +41,10 @@ var ErrInvalidName = errors.New("storage: invalid name")
 const xmlExt = ".xsld"
 const svgExt = ".svg"
 
+// MaxHistory is how many of a diagram's most recent revisions SaveRevision
+// keeps in its history.
+const MaxHistory = 200
+
 // Store is a directory of diagram files.
 type Store struct {
 	dir            string
@@ -45,6 +52,9 @@ type Store struct {
 	stateColors    []slddoc.StateColor
 	fpiColors      []slddoc.StateColor
 	defaultFPIText string
+	// mu serializes writes, so Create's existence check and SaveRevision's
+	// read-modify-write of the history see no concurrent save.
+	mu sync.Mutex
 }
 
 // New opens (creating if necessary) dir as a diagram store. lib is used to
@@ -143,27 +153,61 @@ func (s *Store) Load(name string) (*slddoc.Diagram, error) {
 
 // Create writes a brand-new diagram, failing with ErrExists if name is
 // already taken (New in the frontend's File menu). See Save for the
-// meaning of the returned renderWarning.
+// returned renderWarning.
 func (s *Store) Create(name string, d *slddoc.Diagram) (renderWarning, err error) {
 	path, err := s.xmlPath(name)
 	if err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if _, err := os.Stat(path); err == nil {
 		return nil, ErrExists
 	} else if !os.IsNotExist(err) {
 		return nil, fmt.Errorf("storage: checking %s: %w", path, err)
 	}
-	return s.Save(name, d)
+	return s.write(name, d)
 }
 
 // Save writes d as name's .xsld file — the diagram's authoritative record —
 // then renders and writes its companion .svg. A shape the configured
 // element libraries don't cover is reported back as renderWarning (naming
 // every missing shape), but never fails the save: err is non-nil only for
-// an actual I/O failure, in which case the diagram was not fully written.
+// an actual I/O failure.
 func (s *Store) Save(name string, d *slddoc.Diagram) (renderWarning, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.write(name, d)
+}
+
+// SaveRevision is Save that also records rev in d.History: the history
+// already on disk for name (d's own when name doesn't exist yet), plus rev,
+// trimmed to the newest MaxHistory entries. d.History is updated in place.
+func (s *Store) SaveRevision(name string, d *slddoc.Diagram, rev slddoc.Revision) (renderWarning, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	old, err := s.Load(name)
+	switch {
+	case errors.Is(err, ErrNotFound):
+	case err != nil:
+		return nil, err
+	default:
+		d.History = old.History
+	}
+	d.History = append(slices.Clone(d.History), rev)
+	if n := len(d.History) - MaxHistory; n > 0 {
+		d.History = d.History[n:]
+	}
+	return s.write(name, d)
+}
+
+// write saves d's .xsld and .svg, each replacing the old file atomically.
+func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error) {
 	xmlPath, err := s.xmlPath(name)
+	if err != nil {
+		return nil, err
+	}
+	svgPath, err := s.svgPath(name)
 	if err != nil {
 		return nil, err
 	}
@@ -175,29 +219,48 @@ func (s *Store) Save(name string, d *slddoc.Diagram) (renderWarning, err error) 
 		return nil, fmt.Errorf("storage: creating directory for %s: %w", name, err)
 	}
 
-	xf, err := os.Create(xmlPath)
-	if err != nil {
-		return nil, fmt.Errorf("storage: creating %s: %w", xmlPath, err)
-	}
-	defer xf.Close()
-	if err := d.Save(xf); err != nil {
+	var xml bytes.Buffer
+	if err := d.Save(&xml); err != nil {
 		return nil, fmt.Errorf("storage: saving %s: %w", name, err)
 	}
-
-	svgPath, err := s.svgPath(name)
-	if err != nil {
+	if err := replaceFile(xmlPath, xml.Bytes()); err != nil {
 		return nil, err
 	}
-	sf, err := os.Create(svgPath)
-	if err != nil {
-		return nil, fmt.Errorf("storage: creating %s.svg: %w", name, err)
-	}
-	defer sf.Close()
+
 	// Always Static: the saved .svg is a downloadable artifact, meant to
 	// stay a clean, xsde2svg-faithful document — never carries this
 	// editor's own interactivity-only markup.
-	renderWarning = slddoc.Render(d, s.lib, sf, slddoc.Static, s.defaultFPIText, s.fpiColors, s.stateColors...)
+	var svg bytes.Buffer
+	renderWarning = slddoc.Render(d, s.lib, &svg, slddoc.Static, s.defaultFPIText, s.fpiColors, s.stateColors...)
+	if err := replaceFile(svgPath, svg.Bytes()); err != nil {
+		return nil, err
+	}
 	return renderWarning, nil
+}
+
+// replaceFile writes data to a temporary file next to path and renames it
+// over path, so a reader never sees a partly written file.
+func replaceFile(path string, data []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*.tmp")
+	if err != nil {
+		return fmt.Errorf("storage: creating %s: %w", path, err)
+	}
+	tmp := f.Name()
+	_, err = f.Write(data)
+	if cerr := f.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(tmp, 0o644)
+	}
+	if err == nil {
+		err = os.Rename(tmp, path)
+	}
+	if err != nil {
+		_ = os.Remove(tmp)
+		return fmt.Errorf("storage: writing %s: %w", path, err)
+	}
+	return nil
 }
 
 // Render renders d to SVG without touching the store, for a live preview

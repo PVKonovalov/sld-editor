@@ -19,6 +19,7 @@ import (
 	"github.com/PVKonovalov/slddoc"
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
+	"sld-editor/internal/presence"
 	"sld-editor/internal/storage"
 	"xsde2svg/pkg/xsde2svg"
 )
@@ -119,6 +120,42 @@ func TestDiagramLifecycle(t *testing.T) {
 	rec = doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=missing", nil)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("get missing: status = %d, want 404", rec.Code)
+	}
+}
+
+func TestSaveHistoryAndPresence(t *testing.T) {
+	s := newTestServer(t)
+	if rec := doJSON(t, s, http.MethodPost, "/api/diagrams", createDiagramRequest{Name: "sub-1"}); rec.Code != http.StatusCreated {
+		t.Fatalf("create: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	rec := doJSON(t, s, http.MethodPost, "/api/presence", presenceRequest{Session: "a", Diagram: "sub-1"})
+	var st presence.Status
+	if err := json.Unmarshal(rec.Body.Bytes(), &st); err != nil || rec.Code != http.StatusOK {
+		t.Fatalf("presence: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if len(st.Others) != 0 || st.LastSave != nil {
+		t.Errorf("first tab: %+v", st)
+	}
+	doJSON(t, s, http.MethodPost, "/api/presence", presenceRequest{Session: "b", Diagram: "sub-1"})
+
+	rec = doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=sub-1", slddoc.Diagram{Width: 10, Height: 10})
+	var resp struct {
+		Diagram slddoc.Diagram `json:"diagram"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil || rec.Code != http.StatusOK {
+		t.Fatalf("save: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if h := resp.Diagram.History; len(h) != 2 || h[1].IP != "192.0.2.1" {
+		t.Errorf("history after create + save = %+v", h)
+	}
+
+	rec = doJSON(t, s, http.MethodPost, "/api/presence", presenceRequest{Session: "a", Diagram: "sub-1"})
+	if err := json.Unmarshal(rec.Body.Bytes(), &st); err != nil {
+		t.Fatal(err)
+	}
+	if len(st.Others) != 1 || st.Others[0].IP != "192.0.2.1" || st.Others[0].Since.IsZero() || st.LastSave == nil || *st.LastSave != resp.Diagram.History[1] {
+		t.Errorf("presence after save: %+v", st)
 	}
 }
 
@@ -632,6 +669,42 @@ func TestGetUserGuide(t *testing.T) {
 		rec := doJSON(t, s, http.MethodGet, "/api/user-guide?lang="+url.QueryEscape(c.lang), nil)
 		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), c.want) {
 			t.Errorf("lang %q: status %d, body %s, want %s", c.lang, rec.Code, rec.Body.String(), c.want)
+		}
+	}
+}
+
+func TestClientIP(t *testing.T) {
+	for remote, want := range map[string]string{
+		"[::1]:5000":              "127.0.0.1",
+		"[::ffff:10.0.3.41]:5000": "10.0.3.41",
+		"10.0.3.41:5000":          "10.0.3.41",
+		"[2001:db8::7]:5000":      "2001:db8::7",
+	} {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+		c.Request.RemoteAddr = remote
+		if got := clientIP(c); got != want {
+			t.Errorf("clientIP(%s) = %s, want %s", remote, got, want)
+		}
+	}
+}
+
+func TestClientIP_TrustsLoopbackProxyOnly(t *testing.T) {
+	s := newTestServer(t)
+	for remote, want := range map[string]string{
+		"127.0.0.1:40000": "10.0.3.41",
+		"[::1]:40000":     "10.0.3.41",
+		"10.0.3.57:40000": "10.0.3.57",
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/api/presence", strings.NewReader(`{"session":"`+remote+`","diagram":"sub-1"}`))
+		req.RemoteAddr = remote
+		req.Header.Set("X-Forwarded-For", "10.0.3.41")
+		req.Header.Set("X-Real-IP", "10.0.3.41")
+		s.Handler().ServeHTTP(httptest.NewRecorder(), req)
+		others := s.presence.Touch("probe", "sub-1", "", time.Now()).Others
+		s.presence.Touch(remote, "", "", time.Now())
+		if len(others) != 1 || others[0].IP != want {
+			t.Errorf("from %s: others = %+v, want IP %q", remote, others, want)
 		}
 	}
 }

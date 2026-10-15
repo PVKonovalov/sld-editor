@@ -15,6 +15,7 @@ import type {
   EditorSettings,
   ConnectorKind,
   Point,
+  Revision,
 } from '../types'
 import {
   DiagramContext,
@@ -119,6 +120,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   }>({ undo: [], redo: [], sameTask: false, field: null, fieldTime: 0 })
   const [canUndo, setCanUndo] = useState(false)
   const [canRedo, setCanRedo] = useState(false)
+  const [savedHistory, setSavedHistory] = useState<Revision[]>([])
 
   const syncHistoryFlags = useCallback(() => {
     setCanUndo(historyRef.current.undo.length > 0)
@@ -133,6 +135,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       diagramRef.current = d
       setDiagram(d)
       if (opts?.clean !== undefined) cleanRef.current = opts.clean
+      if (opts?.reset || opts?.clean) setSavedHistory(d?.history ?? [])
       if (opts?.reset) {
         historyRef.current = { undo: [], redo: [], sameTask: false, field: null, fieldTime: 0 }
         syncHistoryFlags()
@@ -993,6 +996,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       redo,
       canUndo,
       canRedo,
+      savedHistory,
       hiddenLayers,
       setLayerHidden,
       findQuery,
@@ -1075,6 +1079,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       redo,
       canUndo,
       canRedo,
+      savedHistory,
       hiddenLayers,
       setLayerHidden,
       findQuery,

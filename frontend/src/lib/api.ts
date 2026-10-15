@@ -7,6 +7,7 @@ import type {
   EditorConfig,
   ImportReport,
   ConverterMessage,
+  PresenceStatus,
 } from '../types'
 import { stripPictureHrefs } from './picture'
 
@@ -32,6 +33,7 @@ function normalizeDiagram(d: DiagramWire): Diagram {
     connectors: d.connectors ?? [],
     labels: d.labels ?? [],
     digitalDevices: d.digitalDevices ?? [],
+    history: d.history ?? undefined,
   }
 }
 
@@ -251,4 +253,24 @@ export async function getUserGuide(lang: string): Promise<string> {
 export async function getConfig(): Promise<EditorConfig> {
   const res = await fetch(`${BASE}/config`)
   return asJSON(res)
+}
+
+/** A tab's presence heartbeat (POST /api/presence): session is the tab's own random id, diagram the open
+ * diagram's name ("" for none). Returns the other tabs on that diagram (IP address, when opened) and its last save. */
+export async function touchPresence(session: string, diagram: string): Promise<PresenceStatus> {
+  const res = await fetch(`${BASE}/presence`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session, diagram }),
+  })
+  const data = await asJSON<{ others: PresenceStatus['others'] | null; lastSave?: PresenceStatus['lastSave'] }>(res)
+  return { others: data.others ?? [], lastSave: data.lastSave }
+}
+
+/** Tells the server this tab is closing, so it stops counting as having a diagram open. */
+export function leavePresence(session: string) {
+  navigator.sendBeacon(
+    `${BASE}/presence`,
+    new Blob([JSON.stringify({ session, diagram: '' })], { type: 'application/json' }),
+  )
 }

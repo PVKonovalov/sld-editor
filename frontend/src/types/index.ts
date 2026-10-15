@@ -456,6 +456,7 @@ export interface DiagramWire {
   connectors: Connector[] | null
   labels: Label[] | null
   digitalDevices: DigitalDevice[] | null
+  history?: Revision[] | null
 }
 
 export interface Diagram {
@@ -476,6 +477,22 @@ export interface Diagram {
   connectors: Connector[]
   labels: Label[]
   digitalDevices: DigitalDevice[]
+  // Save history, oldest first. Appended by the server on every save
+  // (backend storage.SaveRevision); the editor never changes it.
+  history?: Revision[]
+}
+
+// Matches slddoc.Revision: one save of a diagram (time is RFC 3339).
+export interface Revision {
+  time: string
+  ip?: string
+}
+
+// Matches backend presence.Status (POST /api/presence).
+export interface PresenceStatus {
+  // The other tabs with the same diagram open, in the order they opened it (since: RFC 3339).
+  others: { ip: string; since: string }[]
+  lastSave?: Revision
 }
 
 // Matches backend/internal/storage.Entry — one item in a single directory's

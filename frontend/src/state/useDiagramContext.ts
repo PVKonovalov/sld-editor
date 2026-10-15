@@ -10,6 +10,7 @@ import type {
   Point,
   ImportReport,
   ConverterMessage,
+  Revision,
 } from '../types'
 import type { PreparedImport } from '../lib/importDiagram'
 
@@ -213,6 +214,9 @@ export interface DiagramContextValue {
   redo: () => void
   canUndo: boolean
   canRedo: boolean
+  // The open diagram's save history as last read from or written to the
+  // server (oldest first), outside undo/redo.
+  savedHistory: Revision[]
   // Layers hidden on the canvas (Layers section checkboxes): not drawn and
   // not pickable while editing; session-only, never saved or exported.
   hiddenLayers: ReadonlySet<number>

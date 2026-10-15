@@ -5576,3 +5576,38 @@ still tries to start it again (`trap`). Remote folders are created first. The `.
 and `assets/workplace.xml` are copied only when the server has none, so a site's own workplace is kept. Since the
 server's own `config/sld-editor.yaml` is never deployed, the script warns, and prints the lines to add, when it has no
 `xsde:` section.
+
+2026-10-15: Several people on one diagram. A new in-memory presence registry (`backend/internal/presence`) and
+`POST /api/presence` (`{session, diagram}` → `{others, lastSave}`): every tab sends a heartbeat every 60 s
+(`components/PresenceBanner.tsx`, `diagram: ""` and a `sendBeacon` on `pagehide` when it leaves), and the server
+forgets a tab 150 s after its last one. Users are identified only by their IP address (`c.ClientIP()`); there is no
+login. A one-line amber banner at the top of the window lists the other tabs' IPs on the same diagram ("Also open by:
+…"), or, when someone saved it after this tab opened or last saved it, "Saved by <ip> at <time>. Your copy is out of
+date." Edit history in the file: slddoc's `Diagram.History` (`<history><revision time="…" ip="…"/></history>`,
+documented in `slddoc/XSLD_FORMAT.md` §4.8). `storage.SaveRevision` appends one revision per save under a store-wide
+lock, keeps the history already on disk (the client's own only for a new name, so Save As carries it), and trims it
+to the last 200 (`MaxHistory`); `diagrams/save` uses it and New records the first revision. The Properties panel's
+nothing-selected view has a read-only History section (newest first), fed by `DiagramContext.savedHistory`, which
+lives outside undo/redo. Saves are now atomic: the `.xsld` and `.svg` are written to a temporary file and renamed into
+place. Both user guides have a "Several people on one diagram" section (`#history`).
+
+2026-10-15: The "Also open by" banner shows when each other tab opened the diagram: "Also open by: 10.0.3.41 since
+10:15, 10.0.3.57 since 10:32" (with the date when not today), earliest first, one entry per tab. `POST /api/presence`'s
+`others` changed from a list of IPs to `[{ip, since}]` (`presence.Other`); the registry keeps each tab's opening time
+until it switches diagram. The time lives only in server memory, so after a restart it is the tab's first heartbeat.
+`lib/revision.ts`'s helper is now `formatTimestamp`. Both user guides updated.
+
+2026-10-15: Client IPs in IPv4 form. The save history and the presence banner now record the IPv6 loopback `::1` as
+`127.0.0.1` and an IPv4-mapped address (`::ffff:10.0.3.41`) as its IPv4 address (`api.clientIP`); a real IPv6 address
+is kept as is. Entries saved before this keep their old value.
+
+2026-10-15: Shorter presence banner. "Also open by" lists each IP address once, with its earliest opening time and,
+for several tabs, their count ("127.0.0.1 since 11:21 (3)"). The explanation ("Saving overwrites each other's
+changes.", and for an out-of-date copy, what saving would do) moved to the banner's tooltip, so the line fits; the
+banner now takes pointer events so the tooltip shows. The tab's presence id survives a Vite hot reload
+(`import.meta.hot.data`), which used to leave stale entries for up to 150 s during development.
+
+2026-10-15: Real client IPs behind a reverse proxy. The Gin router trusted no proxy (`SetTrustedProxies(nil)`), so
+behind nginx every save and presence entry recorded `127.0.0.1`. It now trusts `X-Forwarded-For` / `X-Real-IP` from
+loopback only (`127.0.0.1`, `::1`): a proxy on the same machine passes the real address, while a client connecting
+directly still cannot fake it. The guides' Configuration section shows the nginx lines to use.

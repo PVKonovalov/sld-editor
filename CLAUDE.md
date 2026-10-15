@@ -70,13 +70,19 @@ storage and the Gin API.
   symbol may declare `<terminals>`, real connection points in local coordinates, drawn by the canvas.
   `Library.ValidatePalette` checks every `palette` item at startup, so a typo fails loudly.
 - `internal/storage`: filesystem store under `diagrams.dir`. `Save` always writes `.xsld` (source of truth) plus a
-  rendered `.svg`. A missing symbol is a non-fatal render warning. Names are `/`-separated paths (subfolders), and
+  rendered `.svg`, each atomically (temp file + rename) under a store-wide lock. `SaveRevision` (used by
+  `diagrams/save`) also appends a `slddoc.Revision` (time, client IP) to the history already on disk, keeping the last
+  `MaxHistory`; the client's own history is used only for a new name. A missing symbol is a non-fatal render warning. Names are `/`-separated paths (subfolders), and
   every segment is validated (`ErrInvalidName`). `List(dir)` returns one folder level only.
 - `internal/api`: routes under `/api` — `diagrams` (list/create), `diagrams/open`, `diagrams/save`, `diagrams/svg`,
   `render`, `render/fragments`, `import/xml`, `import/svg` (runs `slddoc.Extract`, returns `{diagram, report}`), `import/xsde`
   (raw `.xsde` bytes → `xsde2svg.Convert` → `Extract` per page, returns `{pages: [{page, title, diagram, report}],
   messages}`; `messages` are the converter's INFO/WARN/ERROR diagnostics, shown in the import log),
-  `elements`, `custom-elements`, `config`, `user-guide` (`internal/api/user_guide.go`: the `user_guide` config file
+  `elements`, `custom-elements`, `config`, `presence` (`internal/api/presence.go` + `internal/presence`: an
+  in-memory registry of which tab has which diagram open; `{session, diagram}` → `{others: [{ip, since}], lastSave}`,
+  the other tabs (IP, when they opened it) and the diagram's last save; the router trusts `X-Forwarded-For` only from loopback,
+  so a same-machine nginx passes the real client IP; the frontend's `components/PresenceBanner.tsx` sends it every 60 s and
+  shows a one-line amber warning; users are known only by IP, there is no login), `user-guide` (`internal/api/user_guide.go`: the `user_guide` config file
   converted from Markdown to an HTML fragment with goldmark on every request, tables on, raw HTML off; `?lang=xx`
   picks `USER_GUIDE.xx.md` next to it when present, the frontend sending `i18n`'s `locale`; heading ids come from explicit `{#id}` anchors,
   identical in both languages, via goldmark's attribute parser; shown by `components/GuideWindow.tsx`, a draggable
@@ -98,6 +104,8 @@ storage and the Gin API.
 - **Ids are plain `int`s in one shared id space. 0 means "unset"**, since real ids start at 1. `Element.Shape` is the
   exception: it's a symbol-library key string like `"41"`. The backend never assigns ids. The frontend's `IdSequence`
   does, seeded from the round-tripped `Diagram.LastID`.
+- `History` (`<history><revision time ip/>`): the save history, appended only by the backend; the frontend shows it
+  from `DiagramContext.savedHistory` (outside undo/redo) in Properties' History section.
 - `Editor` block: grid, snap, show grid/nodes, background, defaultVoltage. It round-trips, but only the background
   affects rendering.
 - `Load` rewrites legacy values: connector kind `"ObjectLink"` → BusWork, and shape `"71"` → `"162"`. See memory: the

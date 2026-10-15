@@ -3,7 +3,9 @@ package storage
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/PVKonovalov/slddoc"
 )
@@ -192,5 +194,49 @@ func TestSafeName_AllowsSubdirectorySegments(t *testing.T) {
 		if _, err := s.xmlPath(name); err != nil {
 			t.Errorf("xmlPath(%q) should be allowed, got %v", name, err)
 		}
+	}
+}
+
+func TestSaveRevision_KeepsHistoryOnDisk(t *testing.T) {
+	s := newTestStore(t)
+	t0 := time.Date(2026, 10, 15, 10, 0, 0, 0, time.UTC)
+	rev := func(i int) slddoc.Revision {
+		return slddoc.Revision{Time: t0.Add(time.Duration(i) * time.Minute), IP: "10.0.0.1"}
+	}
+
+	// A new name starts from the diagram's own history (Save As keeps it).
+	d := &slddoc.Diagram{Width: 10, Height: 10, History: []slddoc.Revision{rev(0)}}
+	if _, err := s.SaveRevision("a", d, rev(1)); err != nil {
+		t.Fatal(err)
+	}
+	// An existing one ignores the client's history.
+	forged := &slddoc.Diagram{Width: 10, Height: 10, History: []slddoc.Revision{rev(9)}}
+	if _, err := s.SaveRevision("a", forged, rev(2)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.Load("a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []slddoc.Revision{rev(0), rev(1), rev(2)}; !slices.Equal(got.History, want) || !slices.Equal(forged.History, want) {
+		t.Errorf("History = %v (in place %v), want %v", got.History, forged.History, want)
+	}
+
+	for i := range MaxHistory {
+		if _, err := s.SaveRevision("a", &slddoc.Diagram{Width: 10, Height: 10}, rev(10+i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, _ = s.Load("a")
+	if len(got.History) != MaxHistory || got.History[0] != rev(10) {
+		t.Errorf("trimmed history: %d entries, first %v", len(got.History), got.History[0])
+	}
+
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Errorf("temporary files left behind: %v", entries)
 	}
 }

@@ -15,6 +15,7 @@ import (
 
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
+	"sld-editor/internal/presence"
 	"sld-editor/internal/storage"
 	"sld-editor/internal/webui"
 )
@@ -25,6 +26,10 @@ import (
 // request that's genuinely stuck.
 const shutdownTimeout = 10 * time.Second
 
+// presenceTTL is how long a tab counts as having a diagram open after its
+// last heartbeat: the frontend sends one every 60 s, so one may be missed.
+const presenceTTL = 150 * time.Second
+
 // Server holds every dependency the HTTP handlers need.
 type Server struct {
 	router *gin.Engine
@@ -32,6 +37,8 @@ type Server struct {
 	custom *storage.Store
 	lib    *elements.Library
 	cfg    *config.Config
+	// presence tracks which tabs have which diagram open (POST /presence).
+	presence *presence.Registry
 }
 
 // NewServer builds a ready-to-run Server. custom is the custom-elements
@@ -49,11 +56,13 @@ func NewServer(store, custom *storage.Store, lib *elements.Library, cfg *config.
 	// bigger change.
 	r.Use(gzip.Gzip(gzip.DefaultCompression))
 	r.Use(allowLocalOrigins())
-	// This is a local authoring tool served directly, never behind a
-	// reverse proxy, so there is no X-Forwarded-For chain to trust.
-	_ = r.SetTrustedProxies(nil)
+	// Trust X-Forwarded-For/X-Real-IP only from a reverse proxy on this
+	// machine (e.g. nginx proxying to 127.0.0.1), so the client IP recorded
+	// in the save history and shown by presence is the real one; a client
+	// connecting directly cannot fake it.
+	_ = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
 
-	s := &Server{router: r, store: store, custom: custom, lib: lib, cfg: cfg}
+	s := &Server{router: r, store: store, custom: custom, lib: lib, cfg: cfg, presence: presence.New(presenceTTL)}
 	s.routes()
 	return s
 }
@@ -117,6 +126,7 @@ func (s *Server) routes() {
 	grp.PUT("/custom-elements", s.saveCustomElement)
 	grp.GET("/config", s.getConfig)
 	grp.GET("/user-guide", s.getUserGuide)
+	grp.POST("/presence", s.touchPresence)
 
 	s.mountWebUI()
 }

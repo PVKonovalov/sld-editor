@@ -66,7 +66,8 @@ func (s *Server) createDiagram(c *gin.Context) {
 			Snap:        s.cfg.Editor.Snap,
 			Background:  s.cfg.Editor.Background,
 		},
-		Layers: []slddoc.Layer{{ID: slddoc.BaseLayer, Name: "Base"}},
+		Layers:  []slddoc.Layer{{ID: slddoc.BaseLayer, Name: "Base"}},
+		History: []slddoc.Revision{newRevision(c)},
 	}
 
 	warn, err := s.store.Create(req.Name, d)
@@ -121,7 +122,11 @@ func (s *Server) saveDiagram(c *gin.Context) {
 		return
 	}
 
-	warn, err := s.store.Save(c.Query("name"), &d)
+	// The history is kept server-side: SaveRevision replaces d's own with
+	// the one on disk, plus this save.
+	name := c.Query("name")
+	rev := newRevision(c)
+	warn, err := s.store.SaveRevision(name, &d, rev)
 	if errors.Is(err, storage.ErrInvalidName) {
 		errJSON(c, http.StatusBadRequest, err)
 		return
@@ -130,6 +135,7 @@ func (s *Server) saveDiagram(c *gin.Context) {
 		errJSON(c, http.StatusInternalServerError, err)
 		return
 	}
+	s.presence.Saved(name, rev)
 	c.JSON(http.StatusOK, diagramResponse(&d, warn))
 }
 

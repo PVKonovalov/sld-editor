@@ -171,6 +171,7 @@ With nothing selected, the Properties panel shows the diagram itself:
 - **Download XSLD** / **Download SVG** save the files to your computer.
 - **Width**, **Height** and **Background color** of the page, and the **Layers** and **Voltage classes** of the
   diagram (see [Layers and voltage classes](#layers)).
+- **History**: when the diagram was saved and from which IP address (see [Several people on one diagram](#history)).
 
 When you open an older diagram, the editor may repair its connections (see [Connections](#connections)); the diagram is then
 marked as changed. Save it to keep the repair.
@@ -185,6 +186,24 @@ marked as changed. Save it to keep the repair.
   crashed before you saved, the next time you start the editor (or open that diagram) it offers to **Restore** them,
   still unsaved, or **Discard** them; **Decide later** keeps the copy for next time. Saving deletes the copy. The copy
   lives only in this browser on this computer.
+
+### Several people on one diagram {#history}
+
+The editor does not lock a diagram: if two people edit the same one, the last **Save** wins and replaces the other's
+changes. To help avoid that, a one-line amber message appears at the top of the window:
+
+- **Also open by: 10.0.3.41 since 10:15 (2), 10.0.3.57 since 10:32** — the diagram is open in other browser
+  tabs, shown by their computers' IP addresses and when the first tab from each opened it (with the date if not today; a number in brackets counts its tabs),
+  earliest first. Agree who saves before both of you do. Hover over the message for a reminder of what it means.
+- **Saved by 10.0.3.41 at 10:42. Your copy is out of date.** — someone saved the diagram after you opened or last
+  saved it. Saving now would replace their changes; reopen the diagram to get them.
+
+Each tab checks in once a minute, so the message can take up to a minute to appear or go away. A tab that is closed
+stops counting at once. Opening times are kept only in the server's memory: after the server restarts, they show when
+each tab first checked in again. The editor knows people only by IP address; your own other tabs are listed too.
+
+Every save is recorded in the diagram file (`<history>` in the `.xsld`): the time and the IP address it came from.
+With nothing selected, the **History** section of Properties lists them, newest first. The last 200 saves are kept.
 
 ## Moving around the canvas {#navigation}
 
@@ -482,6 +501,18 @@ the diagram.
 These files are for whoever installs and runs the editor. `sld-editor.yaml` lives in the `config/` folder, the
 converter's `xsde2svg.yml` and `workplace.xml` in `assets/` (`backend/config/` and `backend/assets/` in the source
 tree). Relative paths inside them are resolved from the folder the editor is started in.
+
+Behind a reverse proxy, run the proxy on the same machine and have it pass the client's address, so the history and
+the "Also open by" message show real IP addresses instead of `127.0.0.1`. The editor trusts `X-Forwarded-For` /
+`X-Real-IP` only from a proxy on the same machine. For nginx:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:8090;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+}
+```
 
 ### sld-editor.yaml {#configuration-editor}
 

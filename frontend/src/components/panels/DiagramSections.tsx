@@ -4,6 +4,7 @@ import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { GroupHeader } from './GroupHeader'
 import { t } from '../../i18n'
+import { formatTimestamp } from '../../lib/revision'
 
 // The Properties panel's diagram-level groups (shown when nothing is
 // selected): the open diagram's own <layers> and <voltageClasses>, each
@@ -229,6 +230,45 @@ export function VoltageClassesSection() {
           )}
         </div>
       )}
+    </section>
+  )
+}
+
+/** The open diagram's save history (who saved it from which IP address, and when), newest first. Read-only:
+ * the server appends an entry on every save. */
+export function HistorySection() {
+  const { diagram, savedHistory } = useDiagramContext()
+  const [collapsed, setCollapsed] = useState(true)
+  if (!diagram) return null
+
+  return (
+    <section>
+      <GroupHeader
+        label={`${t('diagram.history')} (${savedHistory.length})`}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(c => !c)}
+        topic="history"
+      />
+      {!collapsed &&
+        (savedHistory.length === 0 ? (
+          <p className="text-xs text-gray-500">{t('diagram.noHistory')}</p>
+        ) : (
+          <div className="max-h-48 overflow-y-auto text-xs">
+            <div className="flex gap-2 text-[10px] text-gray-500">
+              <span className="flex-1">{t('diagram.historyTime')}</span>
+              <span className="flex-1">{t('diagram.historyIp')}</span>
+            </div>
+            {savedHistory
+              .slice()
+              .reverse()
+              .map((rev, i) => (
+                <div key={i} className="flex gap-2 text-gray-300" title={rev.time}>
+                  <span className="flex-1">{formatTimestamp(rev.time)}</span>
+                  <span className="flex-1 truncate">{rev.ip ?? ''}</span>
+                </div>
+              ))}
+          </div>
+        ))}
     </section>
   )
 }
