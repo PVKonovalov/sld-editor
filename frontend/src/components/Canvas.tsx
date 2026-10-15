@@ -80,6 +80,8 @@ const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
   TABLE_SHAPE,
 ])
 const HIGHLIGHT = '#3b82f6'
+// The handle of a wire end attached to a device but lying off its terminal.
+const MISPLACED_END = '#e6a83c'
 const CONNECT_TARGET_COLOR = '#22c55e'
 // How many grid cells, per side, get batched into one grid-dot pattern
 // tile — see the grid overlay's own comment, below, for why (a Chromium
@@ -253,7 +255,8 @@ type Routing = { from: RouteStart; path: Point[] }
 // only committed to the diagram on mouseup (see handleMidpointMouseDown) —
 // or one of the connector's own two true endpoints (kind 'endpoint',
 // 'from'/'to'), offered only while that particular end is genuinely
-// dangling (see diagramOps.isConnectorEndpointDangling).
+// dangling (see diagramOps.isConnectorEndpointDangling) or sits on a device's
+// port Node lying off its terminal (diagramOps.isConnectorEndpointMisplaced).
 type VertexDrag =
   | { connectorId: number; kind: 'vertex'; index: number; point: Point }
   | { connectorId: number; kind: 'midpoint'; segmentIndex: number; point: Point }
@@ -2437,7 +2440,7 @@ export function Canvas() {
       window.removeEventListener('mouseup', onUp)
       setVertexDrag(null)
       const point = snapPoint(toPoint(ev.clientX, ev.clientY))
-      updateDiagram(d => diagramOps.moveConnectorEndpoint(d, connectorId, end, point))
+      updateDiagram(d => diagramOps.moveConnectorEndpoint(d, connectorId, end, point, elements))
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -2456,7 +2459,7 @@ export function Canvas() {
       return preview.connectors.find(c => c.id === connectorId)?.points ?? points
     }
     if (vertexDrag.kind === 'endpoint') {
-      const preview = diagramOps.moveConnectorEndpoint(diagram!, connectorId, vertexDrag.end, vertexDrag.point)
+      const preview = diagramOps.moveConnectorEndpoint(diagram!, connectorId, vertexDrag.end, vertexDrag.point, elements)
       return preview.connectors.find(c => c.id === connectorId)?.points ?? points
     }
     const inserted = diagramOps.insertConnectorVertex(diagram!, connectorId, vertexDrag.segmentIndex, vertexDrag.point)
@@ -3322,7 +3325,11 @@ export function Canvas() {
                           unlike the filled squares above which only ever
                           move an interior bend. */}
                       {(['from', 'to'] as const).map(end => {
-                        if (!diagramOps.isConnectorEndpointDangling(diagram!, selectedConnector, end)) return null
+                        const misplaced =
+                          !diagramOps.isConnectorEndpointDangling(diagram!, selectedConnector, end) &&
+                          diagramOps.isConnectorEndpointMisplaced(diagram!, selectedConnector, end, elements)
+                        if (!misplaced && !diagramOps.isConnectorEndpointDangling(diagram!, selectedConnector, end))
+                          return null
                         const p = end === 'from' ? points[0] : points[points.length - 1]
                         return (
                           <g
@@ -3331,7 +3338,16 @@ export function Canvas() {
                             onMouseDown={e => handleEndpointMouseDown(e, selectedConnector.id, end)}
                           >
                             <circle cx={p.x} cy={p.y} r={9} fill="transparent" />
-                            <rect x={p.x - 4} y={p.y - 4} width={8} height={8} fill="none" stroke={HIGHLIGHT} strokeWidth={1.5} />
+                            {misplaced && <title>{t('canvas.endOffTerminal')}</title>}
+                            <rect
+                              x={p.x - 4}
+                              y={p.y - 4}
+                              width={8}
+                              height={8}
+                              fill="none"
+                              stroke={misplaced ? MISPLACED_END : HIGHLIGHT}
+                              strokeWidth={1.5}
+                            />
                           </g>
                         )
                       })}

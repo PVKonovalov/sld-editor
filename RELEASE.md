@@ -5611,3 +5611,66 @@ banner now takes pointer events so the tooltip shows. The tab's presence id surv
 behind nginx every save and presence entry recorded `127.0.0.1`. It now trusts `X-Forwarded-For` / `X-Real-IP` from
 loopback only (`127.0.0.1`, `::1`): a proxy on the same machine passes the real address, while a client connecting
 directly still cannot fake it. The guides' Configuration section shows the nginx lines to use.
+
+2026-10-15: Buswork T-junctions are connected on import. xsde2svg draws a T-junction as one wire ending on the middle of
+another that runs on unbroken; `slddoc.Extract` joined points only to wire ends, ports and busbars, so such an end
+stayed loose (a red cross at the junction). New `tapWireEndsOntoWires` (slddoc
+`tap.go`, run after `tapPortsOntoWires`): a wire end nothing else touches, within 5 units of another wire's line
+mid-span, splits that wire there (the second piece with a fresh id, same kind/name/voltage/layer/style) and all three
+share one node. Overhead lines are not split; wires that merely cross stay separate. On the sld-viewer corpus this
+connects every such end except those landing mid-span on overhead lines. The editor's `normalizeTopology` gets the same repair for a
+whole diagram (`tapLooseWireEnds` → `tapWireAt`), so diagrams imported earlier are connected when opened. Guides
+(import section) and `slddoc/XSLD_FORMAT.md` §5 updated.
+
+2026-10-15: Wires through a junction point are connected on import. xsde2svg's junction point (shape 7, the dot) marks
+that what crosses there is connected, but `slddoc.Extract` only joined the dot's own port (to a busbar under it, or by
+`tapPortsOntoWires` to the nearest wire when the port touched nothing else), so a wire running through the dot stayed
+whole and unconnected (e.g. a wire crossing a busbar through the dot). New
+`tapWiresThroughJunctions` (slddoc `tap.go`, run before `tapPortsOntoWires`) splits every wire passing within 5 units
+of a junction's port, with neither end near it, at the dot; overhead lines are split too, since the dot is explicit.
+Crossings without a dot stay separate. On the sld-viewer corpus this resolves all 287 such cases (206 BusWork, 68
+overhead lines, 13 LinkToObject); the one left is a LinkToObject drawn doubling back over its own start at the dot,
+already connected. The editor's `normalizeTopology` applies the same rule for a whole diagram
+(`tapWiresThroughJunctions` → new `splitWireAt`, also used by `tapWireAt`). Guides (import section) and
+`slddoc/XSLD_FORMAT.md` §5 updated.
+
+2026-10-15: A wire end attached to a device but off its terminal can be dragged. An import can leave a device's port
+Node away from its terminal (xsde2svg draws some leads longer than the editor does: a two-winding transformer's
+terminal can be 10 units short of where the imported Node and wire end lie), and such a shared Node is never moved
+by the repair on open, so the wire stopped short of the lead and its end could not be moved. New
+`diagramOps.isConnectorEndpointMisplaced` (the end's Node is the port Node of exactly one device and not on that port's
+terminal; busbar-wide Nodes shared by several devices don't count): Canvas then shows the end handle in amber with a
+tooltip, and `moveConnectorEndpoint` (now given the symbol catalog) moves the whole Node with `moveNodeBy`, every wire
+end on it following, so the connection is kept. Both guides' "Editing a wire" sections updated.
+
+2026-10-15: Off-terminal connection points are found on open/import and fixed on request. `diagramOps.misplacedPortNodes`
+lists every device port whose Node lies off its terminal, within `MISPLACED_PORT_REACH` (20), used by that one port
+only (never a busbar-wide Node) and carrying only BusWork; `DiagramContext` runs it after opening or importing a
+diagram (`misplacedPorts`; cleared on New and on restoring a draft). New `MisplacedPortsDialog` (shown once the import
+confirmation, import log, default-voltage and draft-recovery dialogs are closed) lists the devices and offsets and asks
+**Move onto terminals** (`fixMisplacedPorts` → `snapPortNodesToTerminals`: each Node moves onto its terminal with
+`moveNodeBy`, the buswork ends following, the devices staying put; one undoable edit, marking the diagram dirty) or
+**Leave as is** (the amber end handles remain). Typical offsets after an .xsde import: transformers 10, ground
+switches 2, current transformers 1. Both guides' "Editing a wire" sections updated.
+
+2026-10-15: Buswork T-junctions where a device port and a wire end meet on another wire. `tapWireEndsOntoWires`
+handled only a lone wire end, and `tapPortsOntoWires` only a lone port, so a ground switch's port and a wire end
+meeting together on the middle of another wire were both skipped and that wire stayed unconnected. The rule now takes
+the whole connection point (a wire end plus every port and wire end within 5 units): the nearest wire passing mid-span
+there, with no end at the point (not an overhead line, and not one ending on another port of a device at the point, so
+a device is never shorted across its own leads), is split and every member of the point moves onto the split. Points
+on a busbar are left to the busbar rules. On the sld-viewer corpus and two .xsde test files, comparing which device
+terminals end up in one net: unchanged in most files; the new joins are ground switches and overhead-line branches
+landing on a feeder mid-span, plus overlapping wires in one generated test file. The editor's repair on open
+(`tapWireNodesOntoWires`, replacing `tapLooseWireEnds`) does the same for any Node carrying a wire end, skipping Nodes
+on a busbar's line; `tapWiresThroughJunctions` there no longer cuts a wire routed along a busbar under a dot, and
+`tapWireAt` takes an optional set of Nodes whose wires it must not tap.
+
+2026-10-15: Moving one of two devices that touch terminal to terminal. `moveSelection` moved every port Node of a moved
+device, including one shared with a device that stayed put (e.g. a surge arrester standing directly on a ground, no
+wire between them), so the unmoved device's terminal was left off its Node, and moving it afterwards carried the
+Node a second time, twice the distance off. New `detachSharedPorts`, run first: such a port gets a fresh Node at the
+same point, joined to the shared one by a zero-length BusWork wire (the moved device's voltage and layer); the shared
+Node stays with the unmoved device and the move stretches the wire to the moved terminal, so the connection is kept.
+Moving the devices back together collapses the wire, and `removeDegenerateConnectors` joins the terminals on one Node
+again. Both guides' moving sections updated.

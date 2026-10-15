@@ -162,6 +162,13 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
   their two connection points.
 - A device lead that ends a unit or two beside a wire (a T-tap, such as a ground switch on a feeder) is connected to
   that wire on import, splitting it there.
+- A wire that ends on the middle of another wire (a T-junction in buswork), alone or together with a device's lead,
+  is connected to it the same way; an overhead line is not split for it.
+- A junction point (the dot) marks that everything crossing there is connected: every wire running through it,
+  overhead lines included, is split at the dot and joined to it and to a busbar under it. Wires crossing without a
+  dot stay separate.
+- Diagrams imported before these two rules were added get them applied when opened (the diagram is then marked as
+  changed; save it to keep the repair).
 
 ### Saving and exporting {#save-export}
 
@@ -300,7 +307,10 @@ A pasted or duplicated copy becomes the new selection. Copies keep their wires a
 
 Moving respects **Snap to grid** (Settings): the item you drag lands on a grid point (a device by its connected
 terminal), even if it was off the grid before, and the rest of a moved group keeps its place relative to it. Text
-labels and digital devices move in whole grid steps instead. Wires attached to a moved device follow it.
+labels and digital devices move in whole grid steps instead. Wires attached to a moved device follow it. A device
+whose terminal touches another device's terminal directly (a surge arrester standing on a ground, say) stays connected
+when only one of them moves: a short buswork wire joins the two terminals, and it disappears again once you move them
+back together.
 
 ### Snapping to the grid {#snap-to-grid}
 
@@ -373,6 +383,16 @@ Select a wire to show its handles (a click within a few pixels of a wire counts 
 A wire end that is not attached to anything is allowed; you can connect it later by dragging its hollow square end handle
 exactly onto a device terminal, another wire's end, a busbar or another wire's line (that wire is split there into a
 T junction; an overhead line is never tapped mid-span).
+
+A wire end attached to a device terminal can't be dragged, so it is never torn off by accident. The exception is an
+end whose connection point lies off the device's terminal (an imported drawing can leave a wire stopping short of a
+transformer's lead, for example): its end handle is shown in amber. Drag it onto the terminal; the connection is kept
+and every wire ending at that point follows. The handle disappears once the point is on the terminal.
+
+When you open or import a diagram, the editor looks for such points itself: connection points up to 20 units off a
+device's terminal, used by that one device only and carrying only buswork. If it finds any, it lists them and asks
+**Move onto terminals** (each point moves onto its terminal and the buswork ends follow; the devices stay where they
+are; one step of Undo) or **Leave as is** (the amber handles stay for fixing them one by one).
 
 ## Connections {#connections}
 

@@ -13,6 +13,7 @@ import { AboutDialog } from './components/AboutDialog'
 import { GuideWindow } from './components/GuideWindow'
 import { BatchImportDialog } from './components/BatchImportDialog'
 import { DefaultVoltageDialog } from './components/DefaultVoltageDialog'
+import { MisplacedPortsDialog } from './components/MisplacedPortsDialog'
 import { DraftRecoveryDialog } from './components/DraftRecoveryDialog'
 import { UnsavedChangesDialog } from './components/UnsavedChangesDialog'
 import { PresenceBanner } from './components/PresenceBanner'
@@ -49,6 +50,8 @@ function Shell() {
     pendingImport,
     importLogOpen,
     defaultVoltagePromptOpen,
+    misplacedPorts,
+    recoverableDrafts,
     setImportLogOpen,
     findFocusSeq,
   } = useDiagramContext()
@@ -180,6 +183,11 @@ function Shell() {
         {pendingImport && <ConfirmReloadDialog />}
         {importLogOpen && <ImportLogDialog onClose={() => setImportLogOpen(false)} />}
         {defaultVoltagePromptOpen && !pendingImport && !importLogOpen && <DefaultVoltageDialog />}
+        {misplacedPorts.length > 0 &&
+          !pendingImport &&
+          !importLogOpen &&
+          !defaultVoltagePromptOpen &&
+          recoverableDrafts.length === 0 && <MisplacedPortsDialog />}
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
         {batchImport && <BatchImportDialog />}
         <DraftRecoveryDialog />

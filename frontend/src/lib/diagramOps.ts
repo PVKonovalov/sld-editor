@@ -1596,6 +1596,7 @@ export function moveSelection(
   dx: number,
   dy: number,
 ): Diagram {
+  diagram = detachSharedPorts(diagram, ids.elementIds)
   const movedNodeIds = new Set<number>()
   for (const el of diagram.elements) {
     if (!ids.elementIds.has(el.id)) continue
@@ -1667,6 +1668,56 @@ export function moveSelection(
     result = el?.class === 'BusBarSection' ? joinBusbar(result, id) : joinPortNodes(result, id)
   }
   return joinNodesToBusbars(result, movedNodeIds)
+}
+
+/** Gives each port of an element in movedIds that shares its Node with a port of an element staying put (two
+ * devices touching terminal to terminal, or a device on a busbar's Node) a fresh Node at the same point, joined to the
+ * shared one by a zero-length buswork wire. The shared Node then stays with the unmoved element and moveSelection
+ * stretches the wire to the moved terminal, keeping the connection; a later move bringing the terminals back together
+ * collapses the wire again (removeDegenerateConnectors). Returns diagram itself when nothing is shared. */
+function detachSharedPorts(diagram: Diagram, movedIds: Set<number>): Diagram {
+  if (movedIds.size === 0) return diagram
+  const staying = new Set(
+    diagram.elements.filter(e => !movedIds.has(e.id)).flatMap(e => (e.ports ?? []).map(p => p.node)),
+  )
+  const nodes = new Map(diagram.nodes.map(n => [n.id, n]))
+  let ids: IdSequence | null = null
+  const newNodes: DiagramNode[] = []
+  const newWires: Connector[] = []
+  const elements = diagram.elements.map(el => {
+    if (!movedIds.has(el.id) || !el.ports?.some(p => staying.has(p.node))) return el
+    const ports = el.ports.map(port => {
+      const shared = nodes.get(port.node)
+      if (!staying.has(port.node) || !shared) return port
+      ids ??= new IdSequence(diagram)
+      const node = { id: ids.take(), x: shared.x, y: shared.y }
+      const wireId = ids.take()
+      newNodes.push(node)
+      newWires.push({
+        id: wireId,
+        kind: 'BusWork',
+        name: defaultConnectorName('BusWork', wireId),
+        voltage: el.voltage,
+        layer: el.layer,
+        from: shared.id,
+        to: node.id,
+        points: [
+          { x: shared.x, y: shared.y },
+          { x: shared.x, y: shared.y },
+        ],
+      })
+      return { ...port, node: node.id }
+    })
+    return { ...el, ports }
+  })
+  if (!ids) return diagram
+  return {
+    ...diagram,
+    lastId: (ids as IdSequence).lastId,
+    elements,
+    nodes: [...diagram.nodes, ...newNodes],
+    connectors: [...diagram.connectors, ...newWires],
+  }
 }
 
 /** Moves one end of a connector's own path to newPoint, keeping the segment
@@ -3052,13 +3103,84 @@ export function isConnectorEndpointDangling(diagram: Diagram, connector: Connect
   return true
 }
 
+/** How far from its terminal a port Node may lie for misplacedPortNodes to offer moving it: a source drawing's own
+ * lead length differs by up to 10; anything farther is taken as drawn on purpose. */
+export const MISPLACED_PORT_REACH = 20
+
+/** One device port whose Node lies off its terminal (misplacedPortNodes). */
+export interface MisplacedPort {
+  nodeId: number
+  elementId: number
+  port: string
+  terminal: Point
+  distance: number
+}
+
+/** Every device port whose Node lies off its terminal, within MISPLACED_PORT_REACH, where the Node belongs to that one
+ * port only (never a busbar-wide Node shared by several devices) and every wire on it is buswork. An import leaves
+ * these where the source drawing's leads differ from the editor's symbols; snapPortNodesToTerminals fixes them. */
+export function misplacedPortNodes(diagram: Diagram, symbols: ElementSymbol[]): MisplacedPort[] {
+  const owners = new Map<number, number>()
+  for (const el of diagram.elements) for (const p of el.ports ?? []) owners.set(p.node, (owners.get(p.node) ?? 0) + 1)
+  const wireKinds = new Map<number, ConnectorKind[]>()
+  for (const c of diagram.connectors) {
+    for (const n of [c.from, c.to]) wireKinds.set(n, [...(wireKinds.get(n) ?? []), c.kind])
+  }
+  const nodes = new Map(diagram.nodes.map(n => [n.id, n]))
+  const out: MisplacedPort[] = []
+  for (const el of diagram.elements) {
+    const terminals = el.ports && fixedTerminals(el, symbols)
+    if (!terminals) continue
+    el.ports!.forEach((port, i) => {
+      const node = nodes.get(port.node)
+      const terminal = terminals[i]
+      const kinds = wireKinds.get(port.node) ?? []
+      if (!node || !terminal || owners.get(port.node) !== 1 || samePoint(node, terminal)) return
+      if (kinds.length === 0 || kinds.some(k => k !== 'BusWork')) return
+      const distance = Math.hypot(node.x - terminal.x, node.y - terminal.y)
+      if (distance <= MISPLACED_PORT_REACH) out.push({ nodeId: port.node, elementId: el.id, port: port.name, terminal, distance })
+    })
+  }
+  return out
+}
+
+/** Moves each listed port Node onto its terminal, the buswork ends on it following (moveNodeBy); the devices stay put. */
+export function snapPortNodesToTerminals(diagram: Diagram, ports: MisplacedPort[]): Diagram {
+  let d = diagram
+  for (const p of ports) {
+    const node = d.nodes.find(n => n.id === p.nodeId)
+    if (node) d = moveNodeBy(d, p.nodeId, { x: p.terminal.x - node.x, y: p.terminal.y - node.y })
+  }
+  return d
+}
+
+/** True when a connector's end is on the port Node of exactly one device and that Node lies away from the port's
+ * terminal (an import placed it at the source drawing's own lead tip). Such an end may be dragged:
+ * moveConnectorEndpoint then moves the Node, and every wire end on it, keeping the connection. */
+export function isConnectorEndpointMisplaced(
+  diagram: Diagram,
+  connector: Connector,
+  end: 'from' | 'to',
+  symbols: ElementSymbol[],
+): boolean {
+  const nodeId = end === 'from' ? connector.from : connector.to
+  const node = diagram.nodes.find(n => n.id === nodeId)
+  const owners = diagram.elements.filter(e => (e.ports ?? []).some(p => p.node === nodeId))
+  if (!node || owners.length !== 1) return false
+  const el = owners[0]
+  const terminal = fixedTerminals(el, symbols)?.[el.ports!.findIndex(p => p.node === nodeId)]
+  return !!terminal && !samePoint(node, terminal)
+}
+
 /** Drags one of a connector's two true endpoints (points[0] for 'from',
  * points[length - 1] for 'to') to point — but only when
  * isConnectorEndpointDangling says that end is genuinely free; moving an
  * attached or shared one would silently tear it away from what it's
  * actually wired to, so this is a no-op otherwise (Canvas only offers a
  * handle for a dangling one in the first place — this check is a
- * defensive backstop, not the primary gate). Keeps the touching segment
+ * defensive backstop, not the primary gate). An end isConnectorEndpointMisplaced
+ * says is off its device's terminal moves its whole Node instead (moveNodeBy),
+ * every wire end on it following, so it stays connected. Keeps the touching segment
  * orthogonal via the same projection-lock rule moveConnectorVertex uses
  * for an interior vertex, just with a single neighbor instead of two:
  * that neighbor slides along whichever axis preserves its own segment's
@@ -3066,10 +3188,20 @@ export function isConnectorEndpointDangling(diagram: Diagram, connector: Connect
  * next to it instead when it's the connector's other true endpoint (a
  * straight two-point wire) and can't. The corresponding Node is moved to
  * match, same as every other connector-endpoint edit in this file. */
-export function moveConnectorEndpoint(diagram: Diagram, connectorId: number, end: 'from' | 'to', point: Point): Diagram {
+export function moveConnectorEndpoint(
+  diagram: Diagram,
+  connectorId: number,
+  end: 'from' | 'to',
+  point: Point,
+  symbols: ElementSymbol[] = [],
+): Diagram {
   const connector = diagram.connectors.find(c => c.id === connectorId)
   if (!connector) return diagram
-  if (!isConnectorEndpointDangling(diagram, connector, end)) return diagram
+  if (!isConnectorEndpointDangling(diagram, connector, end)) {
+    if (!isConnectorEndpointMisplaced(diagram, connector, end, symbols)) return diagram
+    const node = diagram.nodes.find(n => n.id === (end === 'from' ? connector.from : connector.to))!
+    return moveNodeBy(diagram, node.id, { x: point.x - node.x, y: point.y - node.y })
+  }
 
   const points = connector.points
   const lastIndex = points.length - 1
@@ -3110,39 +3242,74 @@ export function moveConnectorEndpoint(diagram: Diagram, connectorId: number, end
   return joinNodesToBusbars(moved, new Set([nodeId]))
 }
 
-/** Splits the first wire (other than exceptId, and not an overhead line,
- * which is never tapped mid-span) whose line passes through Node nodeId's
- * point, away from its ends, into two wires meeting on that Node: a T
- * junction. The first piece keeps the wire's id, the second gets a fresh
- * one. Returns diagram itself when no wire passes there. */
-function tapWireAt(diagram: Diagram, nodeId: number, exceptId: number): Diagram {
+/** Splits the first wire (other than exceptId, not an overhead line, which
+ * is never tapped mid-span, and not one ending on a Node in avoid) whose line
+ * passes through Node nodeId's point, away from its ends, into two wires
+ * meeting on that Node: a T junction. The first piece keeps the wire's id,
+ * the second gets a fresh one. Returns diagram itself when no wire passes
+ * there. */
+function tapWireAt(diagram: Diagram, nodeId: number, exceptId: number, avoid?: Set<number>): Diagram {
   const node = diagram.nodes.find(n => n.id === nodeId)
   if (!node) return diagram
   for (const c of diagram.connectors) {
     if (c.id === exceptId || c.kind === 'OverheadLine' || c.points.length < 2 || c.from === nodeId || c.to === nodeId) continue
+    if (avoid?.has(c.from) || avoid?.has(c.to)) continue
     const pts = c.points
     if (samePoint(pts[0], node) || samePoint(pts[pts.length - 1], node)) continue
     const k = pts.findIndex((a, i) => i < pts.length - 1 && isOnSegment(node, a, pts[i + 1]))
     if (k < 0) continue
-    const at = { x: node.x, y: node.y }
-    const ids = new IdSequence(diagram)
-    const secondId = ids.take()
-    return {
-      ...diagram,
-      lastId: ids.lastId,
-      connectors: [
-        ...diagram.connectors.map(x => (x.id === c.id ? { ...c, to: nodeId, points: simplifyOrthogonalPath([...pts.slice(0, k + 1), at]) } : x)),
-        {
-          ...c,
-          id: secondId,
-          name: defaultConnectorName(c.kind, secondId) ?? c.name,
-          from: nodeId,
-          points: simplifyOrthogonalPath([at, ...pts.slice(k + 1)]),
-        },
-      ],
-    }
+    return splitWireAt(diagram, c, k, { x: node.x, y: node.y }, nodeId)
   }
   return diagram
+}
+
+/** Splits wire c at point at, on its segment k, into two wires meeting on Node nodeId. The first piece keeps
+ * c's id, the second gets a fresh one. */
+function splitWireAt(diagram: Diagram, c: Connector, k: number, at: Point, nodeId: number): Diagram {
+  const ids = new IdSequence(diagram)
+  const secondId = ids.take()
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    connectors: [
+      ...diagram.connectors.map(x =>
+        x.id === c.id ? { ...c, to: nodeId, points: simplifyOrthogonalPath([...c.points.slice(0, k + 1), at]) } : x,
+      ),
+      {
+        ...c,
+        id: secondId,
+        name: defaultConnectorName(c.kind, secondId) ?? c.name,
+        from: nodeId,
+        points: simplifyOrthogonalPath([at, ...c.points.slice(k + 1)]),
+      },
+    ],
+  }
+}
+
+/** Splits every wire running through a junction point's dot, away from its ends, onto the junction's port
+ * Node: xsde2svg's dot marks that what crosses there is connected, and an import made before slddoc's
+ * tapWiresThroughJunctions left such a wire running on unbroken. Overhead lines included; a wire lying along a
+ * busbar there is not cut. Returns diagram itself when there is none. */
+function tapWiresThroughJunctions(diagram: Diagram): Diagram {
+  const busLines = diagram.elements
+    .filter(e => e.class === 'BusBarSection')
+    .flatMap(e => (e.points ?? []).slice(1).map((b, i) => [e.points![i], b] as const))
+  // A segment lying along a busbar (a wire routed over it): the busbar joins it, so it is never cut.
+  const alongBus = (a: Point, b: Point) => busLines.some(([p, q]) => isOnSegment(a, p, q) && isOnSegment(b, p, q))
+  let d = diagram
+  for (const el of diagram.elements) {
+    const nodeId = el.ports?.[0]?.node
+    if (el.class !== 'JunctionPoint' || nodeId === undefined) continue
+    const at = { x: el.x, y: el.y }
+    for (const id of d.connectors.map(c => c.id)) {
+      const c = d.connectors.find(x => x.id === id)
+      if (!c || c.points.length < 2 || c.from === nodeId || c.to === nodeId) continue
+      if (samePoint(c.points[0], at) || samePoint(c.points[c.points.length - 1], at)) continue
+      const k = c.points.findIndex((a, i) => i < c.points.length - 1 && isOnSegment(at, a, c.points[i + 1]))
+      if (k >= 0 && !alongBus(c.points[k], c.points[k + 1])) d = splitWireAt(d, c, k, at, nodeId)
+    }
+  }
+  return d
 }
 
 /** Inserts a new vertex at point between an existing connector's
@@ -3634,8 +3801,8 @@ export function fitElementPorts(
 }
 
 /** Repairs a whole diagram's topology — removeDegenerateConnectors, then
- * fitElementPorts (with join) for every element, or only those in onlyIds.
- * Run on open/import and whenever a copied group lands (paste, custom
+ * fitElementPorts (with join) for every element, or only those in onlyIds;
+ * for a whole diagram also tapWiresThroughJunctions and tapWireNodesOntoWires. Run on open/import and whenever a copied group lands (paste, custom
  * element). Returns diagram itself when nothing needed fixing, so callers
  * can tell whether to mark it dirty. */
 export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], onlyIds?: Set<number>): Diagram {
@@ -3660,9 +3827,31 @@ export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], on
   // After fitElementPorts has matched each Port to its nearest terminal, so
   // only Nodes still stray are moved, onto the terminal their Port now has.
   // Nodes nothing uses (left by an older delete) are dropped.
-  return dropUnusedNodes(
-    mergeNodesOntoPorts(moveStrayPortNodes(removeDegenerateConnectors(d), symbols, onlyIds), onlyIds),
-  )
+  d = mergeNodesOntoPorts(moveStrayPortNodes(removeDegenerateConnectors(d), symbols, onlyIds), onlyIds)
+  return dropUnusedNodes(onlyIds ? d : tapWireNodesOntoWires(tapWiresThroughJunctions(d)))
+}
+
+/** Joins each Node carrying a wire end (alone, or with device ports and other wire ends) that lies on another
+ * wire's line, away from its ends, to that wire (tapWireAt): a T junction an import made before slddoc's
+ * tapWireEndsOntoWires left open. A busbar's Node, or one on a busbar's line, is left alone (wires may be routed
+ * along a busbar), and a wire ending on another port of a device at
+ * the Node is never tapped, so the device isn't shorted across its own leads. Returns diagram itself when there is
+ * none. */
+function tapWireNodesOntoWires(diagram: Diagram): Diagram {
+  const buses = diagram.elements.filter(e => e.class === 'BusBarSection')
+  const busNodes = new Set(buses.flatMap(e => (e.ports ?? []).map(p => p.node)))
+  const nodes = new Map(diagram.nodes.map(n => [n.id, n]))
+  const onBus = (p: Point) =>
+    buses.some(b => (b.points ?? []).some((a, i, pts) => i < pts.length - 1 && isOnSegment(p, a, pts[i + 1])))
+  let d = diagram
+  for (const node of new Set(diagram.connectors.flatMap(c => [c.from, c.to]))) {
+    const at = nodes.get(node)
+    if (!at || busNodes.has(node) || onBus(at)) continue
+    const devices = d.elements.filter(e => (e.ports ?? []).some(p => p.node === node))
+    const otherPorts = new Set(devices.flatMap(e => (e.ports ?? []).map(p => p.node)).filter(n => n !== node))
+    d = tapWireAt(d, node, -1, otherPorts)
+  }
+  return d
 }
 
 /** Local terminal positions base.xml used before they were snapped to the

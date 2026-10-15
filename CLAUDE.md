@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Use Go 1.26
 - Don't use a lot of code comments. For function describe arguments and results. The best comments is a code.
 - use go fix ./...
+- Do not use actual diagram names in comments or in files saved in Git
 
 ## What this is
 

@@ -13,6 +13,7 @@ import type {
   Revision,
 } from '../types'
 import type { PreparedImport } from '../lib/importDiagram'
+import type { MisplacedPort } from '../lib/diagramOps'
 
 // A dropped/picked file whose target name (fileName minus extension)
 // already exists on the server — parked until ConfirmReloadDialog's
@@ -193,6 +194,11 @@ export interface DiagramContextValue {
   // editor.defaultVoltage of its own (diagramOps.needsDefaultVoltage), for
   // DefaultVoltageDialog to ask for one; cleared by picking one or skipping.
   defaultVoltagePromptOpen: boolean
+  // Device ports found off their terminals on open/import (diagramOps.misplacedPortNodes), asked about by
+  // MisplacedPortsDialog: fixMisplacedPorts moves them onto the terminals (one undoable edit), dismiss leaves them.
+  misplacedPorts: MisplacedPort[]
+  fixMisplacedPorts: () => void
+  dismissMisplacedPorts: () => void
   setDefaultVoltagePromptOpen: (open: boolean) => void
   // What a multi-file drop/pick calls: saves every file straight to the
   // server into currentDir (skipping names that already exist), opening

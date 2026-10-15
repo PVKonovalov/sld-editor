@@ -78,6 +78,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [importLog, setImportLog] = useState<ImportLog | null>(null)
   const [importLogOpen, setImportLogOpen] = useState(false)
   const [defaultVoltagePromptOpen, setDefaultVoltagePromptOpen] = useState(false)
+  const [misplacedPorts, setMisplacedPorts] = useState<diagramOps.MisplacedPort[]>([])
   const [batchImport, setBatchImport] = useState<BatchImport | null>(null)
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -543,6 +544,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setImportLog(null)
       setImportLogOpen(false)
       setDefaultVoltagePromptOpen(false)
+      setMisplacedPorts([])
       setError(warning ?? null)
       await browseDir(parentDir(name))
       if (preset) {
@@ -581,6 +583,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setImportLog(null)
       setImportLogOpen(false)
       setDefaultVoltagePromptOpen(diagramOps.needsVoltagePrompt(d, config))
+      setMisplacedPorts(diagramOps.misplacedPortNodes(d, elements))
       // Keeps the File panel's own browser showing wherever this diagram
       // actually lives — most often a no-op re-fetch of the folder it was
       // just opened from, but also correct if openDiagram is ever called
@@ -634,9 +637,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       // import log dialog, so after one this only asks about preset colors,
       // once the import log is closed (App).
       setDefaultVoltagePromptOpen(diagramOps.needsVoltagePrompt(d, config))
+      setMisplacedPorts(diagramOps.misplacedPortNodes(d, elements))
       await browseDir(parentDir(name))
     },
-    [clearSelection, browseDir, config],
+    [clearSelection, browseDir, config, elements],
   )
 
   // Saves each prepared page of file into dir as importTargetName(dir, file, page suffix), skipping a name in
@@ -911,10 +915,19 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setImportLog(null)
       setImportLogOpen(false)
       setDefaultVoltagePromptOpen(false)
+      setMisplacedPorts([])
       await browseDir(parentDir(name))
     },
     [confirmLeave, clearSelection, browseDir],
   )
+
+  // Answers MisplacedPortsDialog: Move snaps the listed port Nodes onto their terminals in one undoable edit.
+  const fixMisplacedPorts = useCallback(() => {
+    const ports = misplacedPorts
+    setMisplacedPorts([])
+    if (ports.length > 0) updateDiagram(d => diagramOps.snapPortNodesToTerminals(d, ports))
+  }, [misplacedPorts, updateDiagram])
+  const dismissMisplacedPorts = useCallback(() => setMisplacedPorts([]), [])
 
   const discardDraft = useCallback(async (name: string) => {
     await deleteDraft(name)
@@ -983,6 +996,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       importLogOpen,
       setImportLogOpen,
       defaultVoltagePromptOpen,
+      misplacedPorts,
+      fixMisplacedPorts,
+      dismissMisplacedPorts,
       setDefaultVoltagePromptOpen,
       importDiagramFiles,
       batchImport,
@@ -1066,6 +1082,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       importLogOpen,
       setImportLogOpen,
       defaultVoltagePromptOpen,
+      misplacedPorts,
+      fixMisplacedPorts,
+      dismissMisplacedPorts,
       setDefaultVoltagePromptOpen,
       importDiagramFiles,
       batchImport,
