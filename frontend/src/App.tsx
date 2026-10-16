@@ -16,7 +16,6 @@ import { DefaultVoltageDialog } from './components/DefaultVoltageDialog'
 import { MisplacedPortsDialog } from './components/MisplacedPortsDialog'
 import { DraftRecoveryDialog } from './components/DraftRecoveryDialog'
 import { UnsavedChangesDialog } from './components/UnsavedChangesDialog'
-import { PresenceBanner } from './components/PresenceBanner'
 import { diagramFileKind } from './lib/fileTransfer'
 import { t } from './i18n'
 import { GuideContext, type GuideApi } from './lib/guide'
@@ -171,7 +170,6 @@ function Shell() {
         {activeLeftPanel === 'elements' && <ElementsPanel onClose={() => setActiveLeftPanel(null)} />}
         {activeLeftPanel === 'settings' && <SettingsPanel onClose={() => setActiveLeftPanel(null)} />}
         <Canvas />
-        <PresenceBanner />
         {propertiesOpen && <PropertiesPanel onClose={() => setPropertiesOpen(false)} />}
         {dragCounter > 0 && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 pointer-events-none">

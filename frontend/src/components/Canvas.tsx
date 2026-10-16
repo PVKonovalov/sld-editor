@@ -12,6 +12,7 @@ import { traceNetwork, type TraceOptions, type TraceStart } from '../lib/trace'
 import { t } from '../i18n'
 import { ContextMenu, withSeparators, type ContextMenuEntry, type ContextMenuItem } from './ContextMenu'
 import { SaveCustomElementDialog } from './SaveCustomElementDialog'
+import { PresenceBanner } from './PresenceBanner'
 import type { Diagram, DiagramElement, Connector, ConnectorKind, Label, DigitalDevice, Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
@@ -2943,48 +2944,52 @@ export function Canvas() {
         }
         doubleClick={{ disabled: true }}
       >
-        {traced && trace && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 rounded border border-surface-500 bg-surface-700/95 px-3 py-1.5 text-xs text-gray-200 shadow">
-            <span className="font-medium" style={{ color: TRACE_COLOR }}>
-              {t('trace.summary', { count: traced.elements.size + traced.connectors.size })}
-            </span>
-            {trace.sources.length > 1 && (
-              <span className="text-gray-400">{t('trace.sources', { count: trace.sources.length })}</span>
-            )}
-            {traced.stops.size > 0 && (
-              <span style={{ color: TRACE_STOP_COLOR }}>{t('trace.stops', { count: traced.stops.size })}</span>
-            )}
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={trace.opts.respectStates}
-                onChange={e => setTrace({ ...trace, opts: { ...trace.opts, respectStates: e.target.checked } })}
-              />
-              {t('trace.respectStates')}
-            </label>
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={trace.opts.throughTransformers}
-                onChange={e => setTrace({ ...trace, opts: { ...trace.opts, throughTransformers: e.target.checked } })}
-              />
-              {t('trace.throughTransformers')}
-            </label>
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input type="checkbox" checked={trace.dim} onChange={e => setTrace({ ...trace, dim: e.target.checked })} />
-              {t('trace.dim')}
-            </label>
-            <button
-              type="button"
-              onClick={() => setTrace(null)}
-              title={t('contextMenu.clearTrace')}
-              aria-label={t('contextMenu.clearTrace')}
-              className="p-0.5 rounded text-gray-400 hover:text-white hover:bg-surface-600"
-            >
-              <XIcon size={14} />
-            </button>
-          </div>
-        )}
+        {/* Top-center messages, stacked so they never overlap. */}
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 w-max max-w-[90%] flex flex-col items-center gap-2 pointer-events-none [&>*]:pointer-events-auto">
+          <PresenceBanner />
+          {traced && trace && (
+            <div className="flex items-center gap-3 rounded border border-surface-500 bg-surface-700/95 px-3 py-1.5 text-xs text-gray-200 shadow">
+              <span className="font-medium" style={{ color: TRACE_COLOR }}>
+                {t('trace.summary', { count: traced.elements.size + traced.connectors.size })}
+              </span>
+              {trace.sources.length > 1 && (
+                <span className="text-gray-400">{t('trace.sources', { count: trace.sources.length })}</span>
+              )}
+              {traced.stops.size > 0 && (
+                <span style={{ color: TRACE_STOP_COLOR }}>{t('trace.stops', { count: traced.stops.size })}</span>
+              )}
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={trace.opts.respectStates}
+                  onChange={e => setTrace({ ...trace, opts: { ...trace.opts, respectStates: e.target.checked } })}
+                />
+                {t('trace.respectStates')}
+              </label>
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={trace.opts.throughTransformers}
+                  onChange={e => setTrace({ ...trace, opts: { ...trace.opts, throughTransformers: e.target.checked } })}
+                />
+                {t('trace.throughTransformers')}
+              </label>
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input type="checkbox" checked={trace.dim} onChange={e => setTrace({ ...trace, dim: e.target.checked })} />
+                {t('trace.dim')}
+              </label>
+              <button
+                type="button"
+                onClick={() => setTrace(null)}
+                title={t('contextMenu.clearTrace')}
+                aria-label={t('contextMenu.clearTrace')}
+                className="p-0.5 rounded text-gray-400 hover:text-white hover:bg-surface-600"
+              >
+                <XIcon size={14} />
+              </button>
+            </div>
+          )}
+        </div>
         <div
           ref={cursorReadoutRef}
           className="absolute bottom-4 left-4 z-10 rounded bg-surface-700/90 border border-surface-500 px-2 py-0.5 text-[11px] tabular-nums text-gray-300 pointer-events-none whitespace-pre"

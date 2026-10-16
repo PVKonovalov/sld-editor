@@ -5741,3 +5741,8 @@ is an odd 17 units halved with integer division, so the box ran from -8 to +9, t
 trolley legs started at ±8: visibly off center. `base.xml` now draws it with Breaker (41)'s 14x14 box (±7) and state
 bars, and the legs run from ±7 to the same chevrons at ±21. Terminals (±30), trolley shift and import are unchanged
 (Extract anchors shape 43 on its outer arrows, not on the box).
+
+2026-10-16: The "someone else has this diagram open" warning no longer covers the tracing bar. Both were pinned to
+the top center on their own (the warning across the whole window, the tracing bar across the canvas). `PresenceBanner`
+is now rendered inside `Canvas.tsx` in one top-center column with the tracing bar, the warning first, so they stack
+instead of overlapping; the warning is centered over the canvas like the tracing bar.

@@ -82,7 +82,7 @@ export function PresenceBanner() {
     <div
       role="status"
       title={`${text}\n${hint}`}
-      className="absolute top-2 left-1/2 -translate-x-1/2 z-40 max-w-[min(90%,48rem)] flex items-center gap-2 rounded-md border border-[#7a6230] bg-[#2b2416]/95 px-3 py-1.5 text-xs text-[#e6a83c] shadow"
+      className="max-w-[min(100%,48rem)] flex items-center gap-2 rounded-md border border-[#7a6230] bg-[#2b2416]/95 px-3 py-1.5 text-xs text-[#e6a83c] shadow"
     >
       <Icon size={14} className="shrink-0" />
       <span className="truncate">{text}</span>
