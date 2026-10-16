@@ -18,7 +18,7 @@ Open tasks only. Finished work is recorded in RELEASE.md.
       items at once).
 - [ ] Rename in series: number selected devices automatically ("QS-1, QS-2, …"), and find-and-replace in names.
 - [ ] Status bar: selection count, zoom %, the armed tool, next to the cursor coordinates readout.
-- [ ] Minimap in a canvas corner for large diagrams (e.g. CUS_Novgorodenergo), showing and moving the visible area.
+- [ ] Minimap in a canvas corner for large diagrams , showing and moving the visible area.
 - [ ] Links between diagrams: Ctrl/Cmd-click on an Object link (28) or Connector arrow (83) opens the diagram it
       points to.
 
