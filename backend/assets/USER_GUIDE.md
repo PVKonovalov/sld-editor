@@ -191,6 +191,8 @@ marked as changed. Save it to keep the repair.
   asks: **Save** (then continue), **Don't save** (drop the edits) or **Cancel** (stay where you are). A repair made
   automatically on opening doesn't count as an edit.
 - Closing or reloading the browser tab with unsaved edits shows the browser's own "Leave site?" warning.
+- The page address names the open diagram (`?diagram=folder/name`), so reloading the page opens it again (as last
+  saved), and a bookmark or a link sent to a colleague opens it directly.
 - While you edit, the editor keeps a recovery copy of the unsaved changes in your browser. If the tab was closed or
   crashed before you saved, the next time you start the editor (or open that diagram) it offers to **Restore** them,
   still unsaved, or **Discard** them; **Decide later** keeps the copy for next time. Saving deletes the copy. The copy

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diagram width="130" height="170" lastId="44">
+  <editor gridSpacing="10" snap="true" background="#12161d" defaultVoltage="1"/>
+  <layers>
+    <layer id="0" name="Base"/>
+  </layers>
+  <elements>
+    <element id="24" class="Rectangle" shape="3" name="P-24" layer="0" group="44" x="25" y="25" fill="none" stroke="#0099FF" strokeWidth="1">
+      <geometry>
+        <point x="10" y="10"/>
+        <point x="40" y="40"/>
+      </geometry>
+    </element>
+    <element id="25" class="Rectangle" shape="3" name="Q-25" layer="0" group="44" x="25" y="55" fill="none" stroke="#0099FF" strokeWidth="1">
+      <geometry>
+        <point x="10" y="40"/>
+        <point x="40" y="70"/>
+      </geometry>
+    </element>
+    <element id="26" class="Rectangle" shape="3" name="I-26" layer="0" group="44" x="25" y="85" fill="none" stroke="#0099FF" strokeWidth="1">
+      <geometry>
+        <point x="10" y="70"/>
+        <point x="40" y="100"/>
+      </geometry>
+    </element>
+    <element id="27" class="Rectangle" shape="3" name="U-27" layer="0" group="44" x="25" y="115" fill="none" stroke="#0099FF" strokeWidth="1">
+      <geometry>
+        <point x="10" y="100"/>
+        <point x="40" y="130"/>
+      </geometry>
+    </element>
+    <element id="28" class="Rectangle" shape="3" name="F-28" layer="0" group="44" x="25" y="145" fill="none" stroke="#0099FF" strokeWidth="1">
+      <geometry>
+        <point x="10" y="130"/>
+        <point x="40" y="160"/>
+      </geometry>
+    </element>
+    <element id="29" class="Rectangle" shape="3" name="Rectangle-29" layer="0" group="44" x="80" y="25" fill="none" stroke="#0099FF" strokeWidth="1">
+      <geometry>
+        <point x="40" y="10"/>
+        <point x="120" y="40"/>
+      </geometry>
+    </element>
+    <element id="30" class="Rectangle" shape="3" name="Rectangle-30" layer="0" group="44" x="80" y="55" fill="none" stroke="#0099FF" strokeWidth="1">
+      <geometry>
+        <point x="40" y="40"/>
+        <point x="120" y="70"/>
+      </geometry>
+    </element>
+    <element id="31" class="Rectangle" shape="3" name="Rectangle-31" layer="0" group="44" x="80" y="85" fill="none" stroke="#0099FF" strokeWidth="1">
+      <geometry>
+        <point x="40" y="70"/>
+        <point x="120" y="100"/>
+      </geometry>
+    </element>
+    <element id="32" class="Rectangle" shape="3" name="Rectangle-32" layer="0" group="44" x="80" y="115" fill="none" stroke="#0099FF" strokeWidth="1">
+      <geometry>
+        <point x="40" y="100"/>
+        <point x="120" y="130"/>
+      </geometry>
+    </element>
+    <element id="33" class="Rectangle" shape="3" name="Rectangle-33" layer="0" group="44" x="80" y="145" fill="none" stroke="#0099FF" strokeWidth="1">
+      <geometry>
+        <point x="40" y="130"/>
+        <point x="120" y="160"/>
+      </geometry>
+    </element>
+  </elements>
+  <labels>
+    <label id="34" layer="0" group="44" x="25" y="25" size="27" anchor="middle" color="#0099FF" valign="middle" font="Arial">P</label>
+    <label id="35" layer="0" group="44" x="25" y="55" size="27" anchor="middle" color="#0099FF" valign="middle" font="Arial">Q</label>
+    <label id="36" layer="0" group="44" x="25" y="85" size="27" anchor="middle" color="#0099FF" valign="middle" font="Arial">I</label>
+    <label id="37" layer="0" group="44" x="25" y="115" size="27" anchor="middle" color="#0099FF" valign="middle" font="Arial">U</label>
+    <label id="38" layer="0" group="44" x="25" y="145" size="27" anchor="middle" color="#0099FF" valign="middle" font="Arial">F</label>
+  </labels>
+  <digitalDevices>
+    <digitalDevice id="39" layer="0" group="44" x="107" y="27" size="24" anchor="end" color="#66FFFF" valign="middle" font="Arial" value="0"/>
+    <digitalDevice id="40" layer="0" group="44" x="107" y="57" size="24" anchor="end" color="#66FFFF" valign="middle" font="Arial" value="0"/>
+    <digitalDevice id="41" layer="0" group="44" x="107" y="87" size="24" anchor="end" color="#66FFFF" valign="middle" font="Arial" value="0"/>
+    <digitalDevice id="42" layer="0" group="44" x="107" y="117" size="24" anchor="end" color="#66FFFF" valign="middle" font="Arial" value="0"/>
+    <digitalDevice id="43" layer="0" group="44" x="107" y="147" size="24" anchor="end" color="#66FFFF" valign="middle" font="Arial" value="0.00"/>
+  </digitalDevices>
+</diagram>

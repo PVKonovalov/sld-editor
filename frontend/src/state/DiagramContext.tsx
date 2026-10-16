@@ -5,6 +5,7 @@ import { baseName, joinDiagramPath, parentDir } from '../lib/diagramPath'
 import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
 import { prepareImport, type PreparedImport } from '../lib/importDiagram'
 import { deleteDraft, getDraft, listDrafts, putDraft, type Draft } from '../lib/drafts'
+import { diagramFromAddress, setDiagramAddress } from '../lib/diagramAddress'
 import { t } from '../i18n'
 import type {
   Diagram,
@@ -67,6 +68,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const versionRef = useRef(0)
   const [documentVersion, setDocumentVersion] = useState(0)
   const [preRendered, setPreRendered] = useState<PreRendered | null>(null)
+  // The diagram the page address named at startup, until opening it was tried.
+  const addressNameRef = useRef(diagramFromAddress())
   // Set when the selection came from a click in Find's result list: the item
   // is selected and shown on the canvas, but Properties stays on the diagram
   // view (and Find) until the item is selected some other way, such as by
@@ -619,6 +622,23 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     },
     [clearSelection, browseDir, config, elements, draftIsCurrent, startLoading, stopLoading],
   )
+
+  // A reload, a bookmark or a link: the diagram the page address names opens
+  // on startup, once the element catalog and config are in. One that can't be
+  // opened (gone from the server, or an import never saved) leaves the editor
+  // empty, as without an address; the recovery dialog still offers its edits.
+  useEffect(() => {
+    const name = addressNameRef.current
+    if (name === null || !config || elements.length === 0) return
+    addressNameRef.current = null
+    openDiagramNow(name).catch(() => setDiagramAddress(null))
+  }, [config, elements, openDiagramNow])
+
+  // The page address follows the open diagram (open, New, import, Save As, restore).
+  useEffect(() => {
+    if (diagramName === null && addressNameRef.current !== null) return
+    setDiagramAddress(diagramName)
+  }, [diagramName])
 
   const newDiagram = useCallback(
     async (name: string, width?: number, height?: number, defaultVoltageName?: string) => {

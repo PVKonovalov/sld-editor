@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diagram width="90" height="80" lastId="13">
+  <editor gridSpacing="10" snap="true" background="#12161d" defaultVoltage="1"/>
+  <layers>
+    <layer id="0" name="Base"/>
+  </layers>
+  <elements>
+    <element id="7" class="Rectangle" shape="3" name="Rectangle-7" layer="0" x="45" y="40" fill="none" stroke="#ffffff" strokeWidth="0.5">
+      <geometry>
+        <point x="30" y="20"/>
+        <point x="60" y="60"/>
+      </geometry>
+    </element>
+    <element id="8" class="Circle" shape="4" name="Circle-8" layer="0" x="60" y="40" radius="2" fill="none" stroke="#ffffff" strokeWidth="1">
+    </element>
+    <element id="9" class="Line" shape="1" name="Line-9" layer="0" x="25" y="30" stroke="#ffffff" strokeWidth="1">
+      <geometry>
+        <point x="20" y="30"/>
+        <point x="30" y="30"/>
+      </geometry>
+    </element>
+    <element id="10" class="Line" shape="1" name="Line-10" layer="0" x="25" y="50" stroke="#ffffff" strokeWidth="1">
+      <geometry>
+        <point x="30" y="50"/>
+        <point x="20" y="50"/>
+      </geometry>
+    </element>
+    <element id="11" class="Line" shape="1" name="Line-11" layer="0" x="65" y="40" stroke="#ffffff" strokeWidth="1">
+      <geometry>
+        <point x="60" y="40"/>
+        <point x="70" y="40"/>
+      </geometry>
+    </element>
+  </elements>
+  <labels>
+    <label id="13" layer="0" x="50" y="30" size="10">&amp;</label>
+  </labels>
+</diagram>

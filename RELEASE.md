@@ -5799,3 +5799,10 @@ completes the next one covers the difference between what was just drawn and the
 timer is gone. The delivered SVG is used only for a document's first drawing. Checked against a server slowed to
 2 s per render: drag then Undo before the answer, and Redo/Undo/Redo within 0.2 s, both end with the page matching
 the diagram.
+
+2026-10-16: The page address names the open diagram (`?diagram=folder/name`, `lib/diagramAddress.ts`), updated in
+place (`history.replaceState`) whenever the open diagram changes (open, New, import, Save As, draft restore). On
+startup `DiagramContext` opens the diagram the address names, through the usual open (spinner, File panel folder,
+recovery offer), once the element catalog and config are loaded; one that can't be opened (gone from the server, or
+an import never saved) leaves the editor empty and the address cleared. So a reload reopens the diagram, and a
+bookmark or a link opens it directly. Both user guides' "Unsaved changes" section mention it.
