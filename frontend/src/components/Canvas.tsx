@@ -1661,7 +1661,7 @@ export function Canvas() {
   const loadingOverlay = loading !== null && (
     <div
       role="status"
-      className="absolute inset-0 z-50 flex items-center justify-center bg-surface-900/60 cursor-wait"
+      className="absolute inset-0 z-50 flex items-center justify-center bg-surface-900/60"
       onMouseDown={e => e.stopPropagation()}
     >
       <div className="flex items-center gap-2 rounded border border-surface-500 bg-surface-700/95 px-4 py-2 text-sm text-gray-200 shadow">

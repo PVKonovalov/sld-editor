@@ -5806,3 +5806,6 @@ startup `DiagramContext` opens the diagram the address names, through the usual 
 recovery offer), once the element catalog and config are loaded; one that can't be opened (gone from the server, or
 an import never saved) leaves the editor empty and the address cleared. So a reload reopens the diagram, and a
 bookmark or a link opens it directly. Both user guides' "Unsaved changes" section mention it.
+
+2026-10-16: While a diagram loads, the mouse cursor stays the normal one; the only indicator is the spinner with the
+diagram's name in the middle of the canvas (the overlay's `cursor-wait` removed).
