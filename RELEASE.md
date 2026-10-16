@@ -5713,3 +5713,17 @@ stored in its existing `rx` attribute (`Element.RadiusX`, until now used only by
 unset or 0 = square corners, the default for a new rectangle. slddoc's `writeRect` emits `rx` on the `<rect>` in both
 render modes, capped at half the shorter side; `parseRectangle` reads it back, so an imported `.svg` keeps the
 rounding (round-trip test added). Small window stays square. XSLD_FORMAT.md and both user guides updated.
+
+2026-10-16: Group/Ungroup. Elements, connectors, labels and digital devices have an optional `group` (an id from
+the shared id space; slddoc `Group` on each, `group` attribute in `.xsld`), so older files load unchanged. A group
+is a selection aid only: drawing order, layers and topology are untouched, members may sit on different layers, and
+groups don't nest. Render writes `data-group="<id>"` on each member's root node next to `data-layer`
+(`withItemAttrs`), with no wrapping `<g>`, so every item is still found by its own id; `Extract` reads it back and
+`assignUniqueIDs` gives each group a fresh id. In the editor, new `diagramOps` functions (`groupItems`,
+`ungroupItems`, `pruneGroups`, `groupMembers`, `expandToGroups`, `selectionGroups`, `itemGroup`) back
+**Group** (Ctrl/Cmd+G) and **Ungroup** (Ctrl/Cmd+Shift+G), offered in the right-click menu and in Properties'
+multi-selection view ("Group of N items"). A click on a member selects the whole group, and a second click on a
+member of the already-selected group picks just that member. Shift/Ctrl/Cmd-click and the selection frame add or
+remove whole groups, Ctrl/Cmd-drag and Alt-drag act on the whole group, and members on a hidden layer are left
+out. Copy/Paste and custom elements give a copied group a fresh id (`placeCustomElement`), and Delete ungroups a
+group left with one member. XSLD_FORMAT.md and both user guides (new "Grouping" section, shortcuts) updated.

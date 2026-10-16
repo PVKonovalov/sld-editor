@@ -170,6 +170,9 @@ export interface DiagramElement {
   name?: string
   voltage?: number
   layer: number
+  // Editor group id (an id from the shared sequence; unset = not grouped),
+  // rendered as data-group. Connectors, labels and digital devices have it too.
+  group?: number
   x: number
   y: number
   orient?: number
@@ -367,6 +370,7 @@ export interface Connector {
   name?: string
   voltage?: number
   layer: number
+  group?: number
   dashed?: boolean
   // Only meaningful when kind === 'CableLine' — see ConnectorLineStyle's
   // own doc comment.
@@ -380,6 +384,7 @@ export interface Label {
   id: number
   for?: number
   layer: number
+  group?: number
   x: number
   y: number
   size: number
@@ -399,6 +404,7 @@ export interface Label {
 export interface DigitalDevice {
   id: number
   layer: number
+  group?: number
   x: number
   y: number
   size: number

@@ -1358,8 +1358,9 @@ export function selectionCentroid(
  * it becomes the target's default layer (defaultLayer); with toActiveLayer
  * (a custom element from the palette, whose layers mean nothing here) every
  * item goes on the default layer. Label.for is remapped to the copied
- * element. Also what Paste uses, with the copied selection
- * (extractSelection) as the template. */
+ * element. Each template group becomes a fresh group of its copies (a
+ * one-member group is dropped). Also what Paste uses, with the copied
+ * selection (extractSelection) as the template. */
 export function placeCustomElement(
   diagram: Diagram,
   template: Diagram,
@@ -1389,6 +1390,12 @@ export function placeCustomElement(
   const targetLayers = new Set(diagram.layers.map(l => l.id))
   const mapLayer = (layer: number): number =>
     !toActiveLayer && targetLayers.has(layer) ? layer : defaultLayer(diagram)
+  const groupIds = new Map<number, number>()
+  const mapGroup = (group: number | undefined): number | undefined => {
+    if (!group) return undefined
+    if (!groupIds.has(group)) groupIds.set(group, ids.take())
+    return groupIds.get(group)
+  }
 
   const newNodes: DiagramNode[] = []
   const nodeIds = new Map<number, number>()
@@ -1420,6 +1427,7 @@ export function placeCustomElement(
       id,
       name: `${baseName}-${id}`,
       layer: mapLayer(e.layer),
+      group: mapGroup(e.group),
       x: at.x,
       y: at.y,
       ...(e.points ? { points: e.points.map(shift) } : {}),
@@ -1439,6 +1447,7 @@ export function placeCustomElement(
       id,
       name: defaultConnectorName(c.kind, id) ?? c.name,
       layer: mapLayer(c.layer),
+      group: mapGroup(c.group),
       voltage: mapVoltage(c.voltage),
       from: mapNode(c.from, start),
       to: mapNode(c.to, end),
@@ -1450,6 +1459,7 @@ export function placeCustomElement(
     ...l,
     id: ids.take(),
     layer: mapLayer(l.layer),
+    group: mapGroup(l.group),
     ...shift(l),
     for: l.for ? elementIds.get(l.for) : undefined,
   }))
@@ -1458,6 +1468,7 @@ export function placeCustomElement(
     ...dd,
     id: ids.take(),
     layer: mapLayer(dd.layer),
+    group: mapGroup(dd.group),
     ...shift(dd),
   }))
 
@@ -1474,7 +1485,7 @@ export function placeCustomElement(
   // older file) lacked some, and joins whatever it was dropped onto.
   let result = normalizeTopology(placed, symbols, new Set(newElements.map(e => e.id)))
   for (const e of newElements) result = joinPortNodes(result, e.id)
-  return result
+  return pruneGroups(result)
 }
 
 // How far a symbol's own drawing reaches beyond its anchor, for sizing an
@@ -4716,4 +4727,118 @@ export function applyVoltageColorMatches(diagram: Diagram, matches: VoltageColor
  * class color it could match to a preset. */
 export function needsVoltagePrompt(diagram: Diagram, config: EditorConfig | null): boolean {
   return needsDefaultVoltage(diagram) || voltageColorMatches(diagram, config).length > 0
+}
+
+// ---------------------------------------------------------------------------
+// Groups
+//
+// A group is a selection aid only: its members (elements, connectors, labels,
+// digital devices) share one `group` id from IdSequence. Groups don't nest and
+// never change rendering order or topology; members may sit on different
+// layers. A group always has at least two members (pruneGroups).
+
+export type GroupItemKind = 'element' | 'connector' | 'label' | 'digitaldevice'
+
+function groupLists(d: Diagram): [GroupItemKind, { id: number; layer: number; group?: number }[]][] {
+  return [
+    ['element', d.elements],
+    ['connector', d.connectors],
+    ['label', d.labels],
+    ['digitaldevice', d.digitalDevices],
+  ]
+}
+
+/** The group of item (id, kind), or undefined when it isn't grouped. */
+export function itemGroup(d: Diagram, id: number, kind: GroupItemKind): number | undefined {
+  const list = groupLists(d).find(([k]) => k === kind)![1]
+  return list.find(x => x.id === id)?.group || undefined
+}
+
+/** Every member of group, keyed by id, leaving out those on hiddenLayers. */
+export function groupMembers(d: Diagram, group: number, hiddenLayers?: ReadonlySet<number>): Map<number, GroupItemKind> {
+  const out = new Map<number, GroupItemKind>()
+  for (const [kind, list] of groupLists(d))
+    for (const x of list) if (x.group === group && !hiddenLayers?.has(x.layer)) out.set(x.id, kind)
+  return out
+}
+
+/** The groups that selection touches. */
+export function selectionGroups(d: Diagram, selection: Map<number, GroupItemKind>): Set<number> {
+  const groups = new Set<number>()
+  for (const [kind, list] of groupLists(d))
+    for (const x of list) if (x.group && selection.get(x.id) === kind) groups.add(x.group)
+  return groups
+}
+
+/** selection plus every other member of each group it touches, leaving out
+ * those on hiddenLayers. */
+export function expandToGroups(
+  d: Diagram,
+  selection: Map<number, GroupItemKind>,
+  hiddenLayers?: ReadonlySet<number>,
+): Map<number, GroupItemKind> {
+  const groups = selectionGroups(d, selection)
+  if (groups.size === 0) return selection
+  const out = new Map(selection)
+  for (const [kind, list] of groupLists(d))
+    for (const x of list) if (x.group && groups.has(x.group) && !hiddenLayers?.has(x.layer)) out.set(x.id, kind)
+  return out
+}
+
+function mapGroups(
+  d: Diagram,
+  next: (x: { id: number; group?: number }, kind: GroupItemKind) => number | undefined,
+): Diagram {
+  const apply = <T extends { id: number; group?: number }>(list: T[], kind: GroupItemKind): T[] => {
+    let changed = false
+    const out = list.map(x => {
+      const g = next(x, kind) || undefined
+      if (g === (x.group || undefined)) return x
+      changed = true
+      const { group: _, ...rest } = x
+      return (g ? { ...rest, group: g } : rest) as T
+    })
+    return changed ? out : list
+  }
+  const elements = apply(d.elements, 'element')
+  const connectors = apply(d.connectors, 'connector')
+  const labels = apply(d.labels, 'label')
+  const digitalDevices = apply(d.digitalDevices, 'digitaldevice')
+  if (
+    elements === d.elements &&
+    connectors === d.connectors &&
+    labels === d.labels &&
+    digitalDevices === d.digitalDevices
+  )
+    return d
+  return { ...d, elements, connectors, labels, digitalDevices }
+}
+
+/** Ungroups every group left with fewer than two members. */
+export function pruneGroups(d: Diagram): Diagram {
+  const counts = new Map<number, number>()
+  for (const [, list] of groupLists(d)) for (const x of list) if (x.group) counts.set(x.group, (counts.get(x.group) ?? 0) + 1)
+  if ([...counts.values()].every(n => n > 1)) return d
+  return mapGroups(d, x => (x.group && counts.get(x.group)! > 1 ? x.group : undefined))
+}
+
+/** Puts the selection, together with every group it touches, into one new
+ * group. Returns d unchanged when that is fewer than two items or already
+ * exactly one group. */
+export function groupItems(d: Diagram, selection: Map<number, GroupItemKind>): Diagram {
+  const members = expandToGroups(d, selection)
+  if (members.size < 2) return d
+  const groups = selectionGroups(d, members)
+  if (groups.size === 1 && [...members].every(([id, kind]) => itemGroup(d, id, kind) !== undefined)) return d
+  const ids = new IdSequence(d)
+  const group = ids.take()
+  const grouped = mapGroups(d, (x, kind) => (members.get(x.id) === kind ? group : x.group))
+  return { ...grouped, lastId: ids.lastId }
+}
+
+/** Ungroups every group the selection touches. */
+export function ungroupItems(d: Diagram, selection: Map<number, GroupItemKind>): Diagram {
+  const groups = selectionGroups(d, selection)
+  if (groups.size === 0) return d
+  return mapGroups(d, x => (x.group && groups.has(x.group) ? undefined : x.group))
 }

@@ -612,9 +612,8 @@ export function Canvas() {
   // What a drag started on (clickedId, clickedKind) should move: the whole
   // current mixed selection, when the clicked item is already part of one
   // holding more than one entry (matches the desktop convention "dragging
-  // any item in a multi-selection moves the whole group"), or otherwise
-  // just that one item on its own — the same either/or handleMouseDown's
-  // own element branch has always used, now shared by every kind.
+  // any item in a multi-selection moves the whole group"), else the item's
+  // whole group when it has one, or otherwise just that one item on its own.
   function movingGroup(clickedId: number, clickedKind: SelectionKind) {
     if (selection.get(clickedId) === clickedKind && selection.size > 1) {
       return {
@@ -622,6 +621,17 @@ export function Canvas() {
         connectorIds: connectorSelection,
         labelIds: labelSelection,
         digitalDeviceIds: digitalDeviceSelection,
+      }
+    }
+    const group = selection.has(clickedId) ? undefined : diagramOps.itemGroup(diagram!, clickedId, clickedKind)
+    if (group) {
+      const members = [...diagramOps.groupMembers(diagram!, group, hiddenLayers)]
+      const ofKind = (kind: SelectionKind) => new Set(members.filter(([, k]) => k === kind).map(([id]) => id))
+      return {
+        elementIds: ofKind('element'),
+        connectorIds: ofKind('connector'),
+        labelIds: ofKind('label'),
+        digitalDeviceIds: ofKind('digitaldevice'),
       }
     }
     const empty = new Set<number>()
@@ -691,6 +701,8 @@ export function Canvas() {
       else if (clickedKind === 'connector') selectConnector(clickedId)
       else if (clickedKind === 'label') selectLabel(clickedId)
       else selectDigitalDevice(clickedId)
+    } else if (!selection.has(clickedId)) {
+      selectMany(selectionOf(moving))
     }
 
     const elementIds = [...moving.elementIds]
@@ -899,7 +911,8 @@ export function Canvas() {
         if (!additive) selectElement(null)
         return
       }
-      for (const [id, kind] of marqueeHits(point, toPoint(ev.clientX, ev.clientY))) base.set(id, kind)
+      const hits = diagramOps.expandToGroups(diagram!, marqueeHits(point, toPoint(ev.clientX, ev.clientY)), hiddenLayers)
+      for (const [id, kind] of hits) base.set(id, kind)
       selectMany(base)
     }
     window.addEventListener('mousemove', onMove)
@@ -935,8 +948,8 @@ export function Canvas() {
         return
       }
       if (!item) selectElement(null)
-      else if (toggle) toggleSelection(item.id, item.kind)
-      else selectItem(item.id, item.kind)
+      else if (toggle) toggleItem(item.id, item.kind)
+      else selectItem(item.id, item.kind, true)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -955,17 +968,65 @@ export function Canvas() {
     const onUp = () => {
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
-      toggleSelection(id, kind)
+      toggleItem(id, kind)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
   }
 
-  function selectItem(id: number, kind: SelectionKind) {
+  // Selects (id, kind), or its whole group when it has one. With drillIn, a
+  // click on a member of a group that already holds the whole selection
+  // picks just that member, to edit it on its own.
+  function selectItem(id: number, kind: SelectionKind, drillIn = false) {
+    const group = diagramOps.itemGroup(diagram!, id, kind)
+    if (group) {
+      const members = diagramOps.groupMembers(diagram!, group, hiddenLayers)
+      const inside = selection.size > 0 && [...selection].every(([sid, skind]) => members.get(sid) === skind)
+      if (!drillIn || !inside) {
+        selectMany(members)
+        return
+      }
+    }
     if (kind === 'element') selectElement(id)
     else if (kind === 'connector') selectConnector(id)
     else if (kind === 'label') selectLabel(id)
     else selectDigitalDevice(id)
+  }
+
+  // Shift-click / Ctrl-click: adds or removes (id, kind), together with its
+  // whole group when it has one.
+  function toggleItem(id: number, kind: SelectionKind) {
+    const group = diagramOps.itemGroup(diagram!, id, kind)
+    if (!group) {
+      toggleSelection(id, kind)
+      return
+    }
+    const next = new Map(selection)
+    const members = diagramOps.groupMembers(diagram!, group, hiddenLayers)
+    const remove = selection.get(id) === kind
+    for (const [mid, mkind] of members) {
+      if (remove) next.delete(mid)
+      else next.set(mid, mkind)
+    }
+    if (next.size === 0) selectElement(null)
+    else selectMany(next)
+  }
+
+  function selectionOf(moving: ReturnType<typeof movingGroup>): Map<number, SelectionKind> {
+    return new Map<number, SelectionKind>([
+      ...[...moving.elementIds].map(id => [id, 'element'] as const),
+      ...[...moving.connectorIds].map(id => [id, 'connector'] as const),
+      ...[...moving.labelIds].map(id => [id, 'label'] as const),
+      ...[...moving.digitalDeviceIds].map(id => [id, 'digitaldevice'] as const),
+    ])
+  }
+
+  function groupSelection() {
+    updateDiagram(d => diagramOps.groupItems(d, selection))
+  }
+
+  function ungroupSelection() {
+    updateDiagram(d => diagramOps.ungroupItems(d, selection))
   }
 
   // Every item in after that before didn't have: what a paste/duplicate
@@ -1038,13 +1099,7 @@ export function Canvas() {
     clickedId: number,
     clickedKind: SelectionKind,
   ) {
-    const moving = movingGroup(clickedId, clickedKind)
-    const group = new Map<number, SelectionKind>([
-      ...[...moving.elementIds].map(id => [id, 'element'] as const),
-      ...[...moving.connectorIds].map(id => [id, 'connector'] as const),
-      ...[...moving.labelIds].map(id => [id, 'label'] as const),
-      ...[...moving.digitalDeviceIds].map(id => [id, 'digitaldevice'] as const),
-    ])
+    const group = selectionOf(movingGroup(clickedId, clickedKind))
     const template = diagramOps.extractSelection(diagram!, group, gridSpacing)
     const centroid = diagramOps.selectionCentroid(diagram!, group)
     const root = renderedRef.current?.querySelector('svg')
@@ -1524,6 +1579,12 @@ export function Canvas() {
       if (key === 'z' || key === 'y') {
         e.preventDefault()
         stepHistory(key === 'z' && !e.shiftKey ? undo : redo)
+        return
+      }
+      if (key === 'g') {
+        e.preventDefault()
+        if (e.shiftKey) ungroupSelection()
+        else groupSelection()
         return
       }
       if (e.shiftKey) return
@@ -2558,7 +2619,8 @@ export function Canvas() {
     // Delete act on all of it, whatever mix of kinds it holds), matching
     // the usual desktop convention; right-clicking anything else replaces
     // the selection with just that one item, the same as a plain click.
-    const keepsSelection = (id: number, kind: SelectionKind) => selection.get(id) === kind && selection.size > 1
+    const keepsSelection = (id: number, kind: SelectionKind) =>
+      selection.get(id) === kind && (selection.size > 1 || diagramOps.itemGroup(diagram!, id, kind) !== undefined)
 
     let elementId: number | null = null
     let connectorId: number | null = null
@@ -2566,14 +2628,14 @@ export function Canvas() {
       const id = Number(hit.id)
       if (hit.dataset.editorKind === 'connector') {
         connectorId = id
-        if (!keepsSelection(id, 'connector')) selectConnector(id)
+        if (!keepsSelection(id, 'connector')) selectItem(id, 'connector')
       } else if (hit.dataset.editorKind === 'label') {
-        if (!keepsSelection(id, 'label')) selectLabel(id)
+        if (!keepsSelection(id, 'label')) selectItem(id, 'label')
       } else if (hit.dataset.editorKind === 'digitaldevice') {
-        if (!keepsSelection(id, 'digitaldevice')) selectDigitalDevice(id)
+        if (!keepsSelection(id, 'digitaldevice')) selectItem(id, 'digitaldevice')
       } else {
         elementId = id
-        if (!keepsSelection(id, 'element')) selectElement(id)
+        if (!keepsSelection(id, 'element')) selectItem(id, 'element')
       }
     } else {
       // Same real-bounding-box fallback handleMouseDown's own plain click
@@ -2586,10 +2648,10 @@ export function Canvas() {
       const boxHit = connectorHit === null ? findElementBoxHit(point) : null
       if (connectorHit !== null) {
         connectorId = connectorHit
-        if (!keepsSelection(connectorHit, 'connector')) selectConnector(connectorHit)
+        if (!keepsSelection(connectorHit, 'connector')) selectItem(connectorHit, 'connector')
       } else if (boxHit !== null) {
         elementId = boxHit
-        if (!keepsSelection(boxHit, 'element')) selectElement(boxHit)
+        if (!keepsSelection(boxHit, 'element')) selectItem(boxHit, 'element')
       }
     }
     setContextMenu({ x: e.clientX, y: e.clientY, diagramPoint, elementId, connectorId })
@@ -2668,6 +2730,14 @@ export function Canvas() {
                   onSelect: () => updateDiagram(d => diagramOps.reverseConnector(d, contextMenu.connectorId!)),
                 },
               ]
+            : []),
+        ],
+        [
+          ...(diagramOps.groupItems(diagram, selection) !== diagram
+            ? [{ label: t('contextMenu.group'), onSelect: groupSelection }]
+            : []),
+          ...(diagramOps.selectionGroups(diagram, selection).size > 0
+            ? [{ label: t('contextMenu.ungroup'), onSelect: ungroupSelection }]
             : []),
         ],
         selection.size > 0

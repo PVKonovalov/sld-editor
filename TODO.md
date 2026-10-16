@@ -114,7 +114,7 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
       junction is dragged.
 
 ## Editing
-- [ ] Group/Ungroup elements
+- [x] Group/Ungroup elements
 - [ ] User can create new elements (edit already existing)
 
 ## Elements

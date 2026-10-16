@@ -280,6 +280,29 @@ While the frame is being dragged, the items it would pick are highlighted. The f
 selection (click empty canvas first to start over). When more than one item is selected, a
 dashed box is drawn around the whole group, and Properties shows how many items are selected.
 
+### Grouping {#grouping}
+
+Items that belong together, such as a device and its caption or a whole bay, can be grouped so they are picked
+as one:
+
+- **Group**: select two or more items and press **Ctrl+G** (**Cmd+G**), or right-click → **Group**, or click
+  **Group** in Properties. Selecting part of an existing group and grouping again merges it into the new group.
+- A click on any member selects the whole group; Properties shows "Group of N items". **Shift**-click,
+  **Ctrl**/**Cmd**-click and the selection frame add or remove whole groups, and **Ctrl**/**Cmd**-drag on any
+  member moves the group.
+- To work on one member, click it again while its group is selected: only that member is selected, with its
+  own properties, and **Ctrl**/**Cmd**-drag moves just it. To get the whole group back, click empty canvas and
+  then any member.
+- **Ungroup**: select the group and press **Ctrl+Shift+G** (**Cmd+Shift+G**), or right-click → **Ungroup**, or
+  click **Ungroup** in Properties.
+
+A group only changes selection: drawing order, layers and connections stay as they are, and members may sit on
+different layers (members on a hidden layer are left out of the selection). Groups don't nest. Copy/Paste,
+Alt-drag and custom elements keep a copied group grouped, as a new group of its own. Deleting members leaves the
+rest grouped while at least two remain. In the saved and exported SVG every member carries `data-group="<id>"`
+with no extra `<g>` around them, so a viewer can find a whole group with `[data-group="<id>"]` and every
+item still by its own id; importing that SVG restores the groups.
+
 ### Finding items {#find}
 
 With nothing selected, the **Find** section in Properties searches the diagram (**Ctrl+F** / **Cmd+F** opens it):
@@ -610,6 +633,8 @@ import log. To match your Modus installation, replace `workplace.xml` with your 
 | **Ctrl+C** / **Cmd+C** | Copy the selection |
 | **Ctrl+V** / **Cmd+V** | Paste, offset from the original |
 | **Ctrl+F** / **Cmd+F** | Find items (Properties → Find) |
+| **Ctrl+G** / **Cmd+G** | Group the selection |
+| **Ctrl+Shift+G** / **Cmd+Shift+G** | Ungroup the selected group(s) |
 | A letter shown on a palette button (**T**, **C**, **D**, **B**, **W**…) | Arm that palette item; press again to disarm |
 | **Ctrl+Z** / **Cmd+Z** | Undo the last change |
 | **Ctrl+Shift+Z** / **Cmd+Shift+Z**, **Ctrl+Y** | Redo |

@@ -866,7 +866,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     if (selection.size === 0) return
     const entries = [...selection]
     updateDiagram(d =>
-      entries.reduce((acc, [id, kind]) => {
+      diagramOps.pruneGroups(entries.reduce((acc, [id, kind]) => {
         switch (kind) {
           case 'element':
             return diagramOps.removeElement(acc, id)
@@ -877,7 +877,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           case 'digitaldevice':
             return diagramOps.removeDigitalDevice(acc, id)
         }
-      }, d),
+      }, d)),
     )
     clearSelection()
   }, [selection, updateDiagram, clearSelection])

@@ -568,13 +568,46 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
 
   // A multi-selection (shift-click), possibly mixing elements/connectors/
   // labels/digital devices, has no single item's fields to show — just its
-  // size and a bulk delete acting on the whole set (see DiagramContext's
-  // deleteSelected).
+  // size, Group/Ungroup, and a bulk delete acting on the whole set (see
+  // DiagramContext's deleteSelected).
   if (selection.size > 1) {
+    const groups = diagramOps.selectionGroups(diagram, selection)
+    const oneGroup = groups.size === 1 && diagramOps.groupMembers(diagram, [...groups][0]).size === selection.size
+    const canGroup = diagramOps.groupItems(diagram, selection) !== diagram
+    const buttonClass =
+      'flex-1 text-xs rounded border border-surface-600 hover:bg-surface-600 text-gray-200 px-2 py-1'
     return (
-      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="selecting">
+      <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="grouping">
         <div className="space-y-3">
-          <p className="text-xs text-gray-400">{t('properties.multiSelection', { count: selection.size })}</p>
+          <p className="text-xs text-gray-400">
+            {oneGroup
+              ? t('properties.groupSelection', { count: selection.size })
+              : t('properties.multiSelection', { count: selection.size })}
+          </p>
+          {(canGroup || groups.size > 0) && (
+            <div className="flex gap-2">
+              {canGroup && (
+                <button
+                  type="button"
+                  className={buttonClass}
+                  title={t('properties.groupHint')}
+                  onClick={() => updateDiagram(d => diagramOps.groupItems(d, selection))}
+                >
+                  {t('contextMenu.group')}
+                </button>
+              )}
+              {groups.size > 0 && (
+                <button
+                  type="button"
+                  className={buttonClass}
+                  title={t('properties.ungroupHint')}
+                  onClick={() => updateDiagram(d => diagramOps.ungroupItems(d, selection))}
+                >
+                  {t('contextMenu.ungroup')}
+                </button>
+              )}
+            </div>
+          )}
           <LayerSelect layers={diagram.layers} value={selectionLayer()} onChange={moveToLayer} />
           <DeleteButton label={t('properties.deleteElements')} onDelete={deleteSelected} />
         </div>
