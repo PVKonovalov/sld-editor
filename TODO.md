@@ -11,7 +11,7 @@ Open tasks only. Finished work is recorded in RELEASE.md.
       switched in Settings or following the OS (`prefers-color-scheme`). Needs the Tailwind `surface-*`/`gray-*`
       colours turned into theme tokens, and a decision on the diagram itself: keep each diagram's own background, or
       offer a light default for new ones.
-- [ ] Rotate and mirror shortcuts: `R` turns the selection 90°, `M` mirrors it (today only through Properties).
+- [+] Rotate and mirror shortcuts: `R` turns the selection 90°, `M` mirrors it (today only through Properties).
 - [ ] Align and distribute a multi-selection: left/centre/right, top/middle/bottom, equal spacing (rows of feeder
       bays).
 - [ ] Bulk edit a multi-selection: voltage class, state, size step (today only the layer can be set for several

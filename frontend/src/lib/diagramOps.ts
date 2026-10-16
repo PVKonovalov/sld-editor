@@ -3346,9 +3346,9 @@ function tapWiresThroughJunctions(diagram: Diagram): Diagram {
     const nodeId = el.ports?.[0]?.node
     if (el.class !== 'JunctionPoint' || nodeId === undefined) continue
     const at = { x: el.x, y: el.y }
-    for (const id of d.connectors.map(c => c.id)) {
-      const c = d.connectors.find(x => x.id === id)
-      if (!c || c.points.length < 2 || c.from === nodeId || c.to === nodeId) continue
+    // A split replaces only the wire it splits, so the rest of this snapshot stays current.
+    for (const c of [...d.connectors]) {
+      if (c.points.length < 2 || c.from === nodeId || c.to === nodeId) continue
       if (samePoint(c.points[0], at) || samePoint(c.points[c.points.length - 1], at)) continue
       const k = c.points.findIndex((a, i) => i < c.points.length - 1 && isOnSegment(at, a, c.points[i + 1]))
       if (k >= 0 && !alongBus(c.points[k], c.points[k + 1])) d = splitWireAt(d, c, k, at, nodeId)

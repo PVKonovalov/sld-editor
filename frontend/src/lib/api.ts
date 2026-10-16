@@ -13,6 +13,18 @@ import { stripPictureHrefs } from './picture'
 
 const BASE = '/api'
 
+// A JSON request body, gzip-compressed when the browser can (the backend
+// unpacks Content-Encoding: gzip): a large diagram is about ten times smaller
+// on the wire, which matters on every render and save over a slow link.
+async function jsonBody(method: string, value: unknown): Promise<RequestInit> {
+  const json = JSON.stringify(value)
+  if (typeof CompressionStream === 'undefined') {
+    return { method, headers: { 'Content-Type': 'application/json' }, body: json }
+  }
+  const body = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).blob()
+  return { method, headers: { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip' }, body }
+}
+
 async function asJSON<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null)
@@ -85,11 +97,7 @@ export async function saveDiagram(
   name: string,
   diagram: Diagram,
 ): Promise<{ diagram: Diagram; warning?: string }> {
-  const res = await fetch(`${BASE}/diagrams/save?name=${encodeURIComponent(name)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(diagram),
-  })
+  const res = await fetch(`${BASE}/diagrams/save?name=${encodeURIComponent(name)}`, await jsonBody('PUT', diagram))
   const data = await asJSON<DiagramResponse>(res)
   return { diagram: normalizeDiagram(data.diagram), warning: data.warning }
 }
@@ -97,11 +105,7 @@ export async function saveDiagram(
 /** Renders a diagram (saved or not) to SVG without persisting it — used for
  * a live canvas preview of in-progress edits. */
 export async function renderPreview(diagram: Diagram): Promise<{ svg: string; warning?: string }> {
-  const res = await fetch(`${BASE}/render`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(stripPictureHrefs(diagram)),
-  })
+  const res = await fetch(`${BASE}/render`, await jsonBody('POST', stripPictureHrefs(diagram)))
   return asJSON(res)
 }
 
@@ -119,11 +123,7 @@ export async function renderPreviewFragments(
   diagram: Diagram,
   ids: number[],
 ): Promise<{ fragments: Record<string, string>; warning?: string }> {
-  const res = await fetch(`${BASE}/render/fragments`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ diagram: stripPictureHrefs(diagram), ids }),
-  })
+  const res = await fetch(`${BASE}/render/fragments`, await jsonBody('POST', { diagram: stripPictureHrefs(diagram), ids }))
   return asJSON(res)
 }
 
@@ -131,11 +131,7 @@ export async function renderPreviewFragments(
  * browser to download directly to the user's own machine — not tied to the
  * server's own diagrams directory the way saveDiagram/getDiagram are. */
 export async function exportDiagramXML(diagram: Diagram): Promise<string> {
-  const res = await fetch(`${BASE}/export/xml`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(diagram),
-  })
+  const res = await fetch(`${BASE}/export/xml`, await jsonBody('POST', diagram))
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error((body && body.error) || `${res.status} ${res.statusText}`)
@@ -146,11 +142,7 @@ export async function exportDiagramXML(diagram: Diagram): Promise<string> {
 /** exportDiagramXML's counterpart for the Static-mode SVG (the same
  * rendering the companion .svg Save writes to disk). */
 export async function exportDiagramSVG(diagram: Diagram): Promise<string> {
-  const res = await fetch(`${BASE}/export/svg`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(diagram),
-  })
+  const res = await fetch(`${BASE}/export/svg`, await jsonBody('POST', diagram))
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error((body && body.error) || `${res.status} ${res.statusText}`)
@@ -223,7 +215,7 @@ export async function listCustomElements(): Promise<CustomElement[]> {
 export async function saveCustomElement(name: string, diagram: Diagram, overwrite: boolean): Promise<CustomElement> {
   const res = await fetch(
     `${BASE}/custom-elements?name=${encodeURIComponent(name)}${overwrite ? '&overwrite=1' : ''}`,
-    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(diagram) },
+    await jsonBody('PUT', diagram),
   )
   if (res.status === 409) throw new ConflictError(name)
   const data = await asJSON<Omit<CustomElement, 'diagram'> & { diagram: DiagramWire }>(res)

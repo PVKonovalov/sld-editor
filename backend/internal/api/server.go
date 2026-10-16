@@ -46,15 +46,12 @@ type Server struct {
 // nil serves an empty custom-elements list.
 func NewServer(store, custom *storage.Store, lib *elements.Library, cfg *config.Config) *Server {
 	r := gin.Default()
-	// A diagram's own rendered SVG (and, for a large one, its JSON form
-	// too) is repetitive text — highly compressible — so this alone cuts
-	// response size substantially for the big-diagram-over-a-slow-link
-	// case, with no frontend change needed: every browser already sends
-	// Accept-Encoding: gzip and decompresses transparently. Doesn't touch
-	// the request body direction (the diagram JSON the frontend posts up)
-	// — that would need the frontend to compress it itself, a separate,
-	// bigger change.
-	r.Use(gzip.Gzip(gzip.DefaultCompression))
+	// A diagram's rendered SVG and its JSON are repetitive text, so both
+	// directions are compressed for the big-diagram-over-a-slow-link case:
+	// responses for every browser (Accept-Encoding: gzip), and request
+	// bodies the frontend sends with Content-Encoding: gzip (lib/api.ts
+	// jsonBody), which are unpacked before any handler reads them.
+	r.Use(gzip.Gzip(gzip.DefaultCompression, gzip.WithDecompressFn(gzip.DefaultDecompressHandle)))
 	r.Use(allowLocalOrigins())
 	// Trust X-Forwarded-For/X-Real-IP only from a reverse proxy on this
 	// machine (e.g. nginx proxying to 127.0.0.1), so the client IP recorded

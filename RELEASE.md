@@ -5746,3 +5746,13 @@ bars, and the legs run from ±7 to the same chevrons at ±21. Terminals (±30), 
 the top center on their own (the warning across the whole window, the tracing bar across the canvas). `PresenceBanner`
 is now rendered inside `Canvas.tsx` in one top-center column with the tracing bar, the warning first, so they stack
 instead of overlapping; the warning is centered over the canvas like the tracing bar.
+
+2026-10-16: Large diagrams open much faster. Opening a diagram with about 2,500 elements, 1,250 wires and 2,200
+nodes spent most of its time in `normalizeTopology`, in `tapWiresThroughJunctions`: for every junction point it
+looked up every wire again by id (`connectors.find`), so the cost grew with junctions × wires². It now walks a copy
+of the wire list (a split replaces only the wire it splits), with the same result byte for byte: 3.5 s → 0.18 s in
+Node, 1.3 s → 0.17 s in Chrome; Safari, which spent about 33 s there, gains the most. Request bodies that carry a
+diagram (render, render fragments, save, XML/SVG export, custom elements) are now sent gzip-compressed when the
+browser supports `CompressionStream` (`lib/api.ts` `jsonBody`), and the backend unpacks `Content-Encoding: gzip`
+(`gzip.WithDecompressFn` in `internal/api/server.go`; a broken body is a 400): a 1 MB diagram goes up as about
+105 KB, which on a slow link saves seconds on every render and save.

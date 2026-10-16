@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"net"
@@ -222,6 +223,39 @@ func TestRenderPreview_DoesNotPersist(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &entries)
 	if len(entries) != 0 {
 		t.Errorf("render preview should not persist a diagram: %+v", entries)
+	}
+}
+
+func TestRenderPreview_GzipRequestBody(t *testing.T) {
+	s := newTestServer(t)
+	d := slddoc.Diagram{
+		Width: 10, Height: 10,
+		Elements: []slddoc.Element{{ID: 1, Class: slddoc.ClassBreaker, Shape: "41", X: 1, Y: 1}},
+	}
+	raw, err := json.Marshal(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body bytes.Buffer
+	gz := gzip.NewWriter(&body)
+	_, _ = gz.Write(raw)
+	_ = gz.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/api/render", &body)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `id=\"1\"`) {
+		t.Fatalf("gzip render: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/render", strings.NewReader("not gzip"))
+	req.Header.Set("Content-Encoding", "gzip")
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Errorf("broken gzip body: status = %d, want 400", rec.Code)
 	}
 }
 
