@@ -115,7 +115,40 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 
 ## Editing
 - [x] Group/Ungroup elements
-- [ ] User can create new elements (edit already existing)
+
+## User can create new elements
+
+A new element is a new template symbol (SVG with `{color}`/`{fill}`/`{state:…}`/`{stateAttr}` placeholders plus
+`<terminals>`) kept in a library the editor writes itself. Canvas, ports, wiring, rotate and mirror then work
+without code changes. Custom elements (`custom-elements/*.xsld`) stay as they are: reusable sets of existing parts,
+not one device.
+
+- [ ] User library: config key `elements.user_library` (e.g. `../user-elements.xml`), loaded after `base.xml`.
+- [ ] `GET/PUT/DELETE /api/symbols`: write the library atomically, then reload the catalog and symbol library
+      without restarting the server (both are loaded only at startup now).
+- [ ] Palette: a final "User elements" group filled automatically, no `palette:` edit needed.
+- [ ] Symbol editor dialog: name, category, class (an existing one, e.g. Breaker/Disconnector/Load; it decides
+      states, voltage and topology export; a new class needs slddoc code).
+- [ ] Symbol editor: SVG template in a text box, live preview on a grid around the anchor in states 0/1/2 and at
+      0/90/180/-90.
+- [ ] Symbol editor: terminals placed by clicking on the preview, snapped to the grid.
+- [ ] "Duplicate as new" on a built-in shape: copies its template under a new code.
+- [ ] Optional override of a built-in code (e.g. 41), behind an explicit warning: it changes every diagram and
+      export using it, which then no longer match xsde2svg.
+- [ ] `<symbols>` section in `.xsld` with copies of the user symbols a diagram uses, so it opens and imports
+      correctly on another installation or after a symbol is deleted.
+- [ ] Drawing tools in the symbol editor (line, rectangle, circle, arc, text) instead of raw SVG.
+
+Open questions:
+
+- Code range for user symbols, so they never clash with xsde2svg codes (`data-type` is numeric), e.g. 900001+.
+- Whether to allow overriding built-in codes at all.
+
+Notes:
+
+- Importing a saved SVG with user symbols needs those symbols known (user library or the diagram's `<symbols>`).
+- Two users editing the library at once: the later save wins, as for diagrams.
+- Shapes drawn by Go code (Rectangle, Table, Substation…) can't be edited this way, only templates.
 
 ## Elements
 - [x] A Rectangle With Rounded Corners
