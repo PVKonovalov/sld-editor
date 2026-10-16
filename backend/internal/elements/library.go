@@ -217,6 +217,17 @@ func ValidateHotKeys(keys map[string]string, groups []config.PaletteGroup) (map[
 	return out, nil
 }
 
+// Terminals maps each shape that declares terminals to them, for slddoc.Repair and slddoc.InferSizeSteps.
+func (l *Library) Terminals() map[string][]slddoc.Point {
+	out := make(map[string][]slddoc.Point, len(l.Symbols))
+	for _, s := range l.Symbols {
+		if len(s.Terminals) > 0 {
+			out[s.Shape] = s.Terminals
+		}
+	}
+	return out
+}
+
 // SymbolLibrary builds an internal/slddoc.SymbolLibrary from this Library's
 // templates, for rendering.
 func (l *Library) SymbolLibrary() *slddoc.SymbolLibrary {

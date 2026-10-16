@@ -19,6 +19,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
     setImportLogOpen,
     error,
     clearError,
+    loading,
   } = useDiagramContext()
   const [newDialogOpen, setNewDialogOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -45,7 +46,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
           <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{t('file.new')}</h3>
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || loading !== null}
             onClick={() => setNewDialogOpen(true)}
             className="w-full px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
           >
@@ -65,7 +66,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
               <li>
                 <button
                   type="button"
-                  disabled={busy}
+                  disabled={busy || loading !== null}
                   onClick={() => run(() => browseDir(parentDir(currentDir)))}
                   className="w-full flex items-center gap-1.5 text-left px-2 py-1 rounded text-xs hover:bg-surface-600 text-gray-300"
                 >
@@ -79,7 +80,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
                 <li key={`dir:${d.name}`}>
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={busy || loading !== null}
                     onClick={() => run(() => browseDir(joinDiagramPath(currentDir, d.name)))}
                     className="w-full flex items-center gap-1.5 text-left px-2 py-1 rounded text-xs hover:bg-surface-600 text-gray-300 truncate"
                   >
@@ -91,7 +92,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
                 <li key={`file:${d.name}`}>
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={busy || loading !== null}
                     onClick={() => run(() => openDiagram(joinDiagramPath(currentDir, d.name)))}
                     className={`w-full text-left px-2 py-1 rounded text-xs hover:bg-surface-600 truncate ${
                       joinDiagramPath(currentDir, d.name) === diagramName ? 'bg-surface-600 text-white' : 'text-gray-300'
@@ -130,7 +131,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
           />
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || loading !== null}
             onClick={() => fileInputRef.current?.click()}
             className="w-full px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
           >

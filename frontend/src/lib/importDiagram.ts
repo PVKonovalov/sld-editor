@@ -3,10 +3,9 @@
 // result) and the multi-file batch import (importDiagramFiles, which saves
 // each result straight to the server instead).
 import * as api from './api'
-import * as diagramOps from './diagramOps'
 import { diagramFileKind, readFileAsText } from './fileTransfer'
 import { t } from '../i18n'
-import type { ConverterMessage, Diagram, EditorConfig, ElementSymbol, ImportReport } from '../types'
+import type { ConverterMessage, Diagram, ImportReport } from '../types'
 
 export interface PreparedImport {
   diagram: Diagram
@@ -19,49 +18,27 @@ export interface PreparedImport {
 }
 
 /** Turns a picked/dropped file into one diagram per page: an .xsld as-is, an xsde2svg-style .svg through
- * slddoc.Extract, an .xsde through xsde2svg and then Extract. An extracted diagram gets editor.defaultVoltage set to
- * its most-used voltage class and its size steps recovered (inferSizeSteps); every diagram then gets the fixes opening
- * one does (ensureLastId, applyPresetVoltageNames, normalizeTopology).
+ * slddoc.Extract, an .xsde through xsde2svg and then Extract. The server also repairs each diagram as opening one
+ * does, and gives an extracted one its most-used voltage class as the default voltage and its size steps.
  * Rejects for an unsupported extension or a file the backend can't read. */
-export async function prepareImport(
-  file: File,
-  config: EditorConfig | null,
-  symbols: ElementSymbol[],
-): Promise<PreparedImport[]> {
+export async function prepareImport(file: File): Promise<PreparedImport[]> {
   const kind = diagramFileKind(file.name)
   if (!kind) throw new Error(t('file.invalidDiagramFile', { name: file.name }))
   if (kind === 'xsld') {
     const raw = await api.importDiagramXML(await readFileAsText(file))
-    return [{ diagram: finish(raw, config, symbols, false), report: null, nameSuffix: '', messages: null }]
+    return [{ diagram: raw, report: null, nameSuffix: '', messages: null }]
   }
   if (kind === 'svg') {
     const { diagram, report } = await api.importDiagramSVG(await readFileAsText(file))
-    return [{ diagram: finish(diagram, config, symbols, true), report, nameSuffix: '', messages: null }]
+    return [{ diagram, report, nameSuffix: '', messages: null }]
   }
   const { pages, messages } = await api.importDiagramXSDE(await file.arrayBuffer())
   const imported = new Set(pages.map(p => p.page))
   return pages.map((p, i) => ({
-    diagram: finish(p.diagram, config, symbols, true),
+    diagram: p.diagram,
     report: p.report,
     nameSuffix: p.page > 1 ? `_${p.page - 1}` : '',
     // Whole-document messages, and those of a page that didn't extract, go with the first page.
     messages: messages.filter(m => m.page === p.page || (i === 0 && !imported.has(m.page))),
   }))
-}
-
-function finish(raw: Diagram, config: EditorConfig | null, symbols: ElementSymbol[], extracted: boolean): Diagram {
-  if (extracted) {
-    const voltage = diagramOps.mostUsedVoltage(raw)
-    if (voltage !== undefined && raw.editor?.defaultVoltage === undefined) {
-      raw = { ...raw, editor: { ...raw.editor, defaultVoltage: voltage } }
-    }
-  }
-  let fixed = diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config)
-  if (extracted) {
-    // Extract reads each element's real port positions but not its size
-    // step, so recover the step from where those ports sit. (T-taps, a port
-    // drawn on or beside a wire mid-span, are joined by Extract itself.)
-    fixed = diagramOps.inferSizeSteps(fixed, symbols)
-  }
-  return diagramOps.normalizeTopology(fixed, symbols)
 }

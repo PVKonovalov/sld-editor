@@ -25,6 +25,7 @@ import {
   type DraftInfo,
   type ImportLog,
   type PendingImport,
+  type PreRendered,
   type SelectionKind,
   type UnsavedChoice,
 } from './useDiagramContext'
@@ -60,6 +61,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [config, setConfig] = useState<EditorConfig | null>(null)
   const [selectedElementId, setSelectedElementIdState] = useState<number | null>(null)
   const [selection, setSelection] = useState<Map<number, SelectionKind>>(new Map())
+  // The diagram being opened/imported/created/restored until the canvas shows
+  // its document version (null while that is still unknown).
+  const [loadingState, setLoadingState] = useState<{ name: string; version: number | null } | null>(null)
+  const versionRef = useRef(0)
+  const [documentVersion, setDocumentVersion] = useState(0)
+  const [preRendered, setPreRendered] = useState<PreRendered | null>(null)
   // Set when the selection came from a click in Find's result list: the item
   // is selected and shown on the canvas, but Properties stays on the diagram
   // view (and Find) until the item is selected some other way, such as by
@@ -140,9 +147,20 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       if (opts?.reset) {
         historyRef.current = { undo: [], redo: [], sameTask: false, field: null, fieldTime: 0 }
         syncHistoryFlags()
+        const version = ++versionRef.current
+        setDocumentVersion(version)
+        setPreRendered(null)
+        setLoadingState(l => l && { ...l, version })
       }
     },
     [syncHistoryFlags],
+  )
+
+  const startLoading = useCallback((name: string) => setLoadingState({ name, version: null }), [])
+  const stopLoading = useCallback(() => setLoadingState(null), [])
+  const diagramShown = useCallback(
+    (version: number) => setLoadingState(l => (l && l.version === version ? null : l)),
+    [],
   )
 
   const latestRef = useRef({ diagramName, diagram, dirty })
@@ -526,7 +544,15 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // in-memory, still-dirty value waiting on the user's next explicit Save.
   const newDiagramNow = useCallback(
     async (name: string, width?: number, height?: number, defaultVoltageName?: string) => {
-      const { diagram: created, warning } = await api.createDiagram(name, width, height)
+      startLoading(name)
+      let result
+      try {
+        result = await api.createDiagram(name, width, height)
+      } catch (e) {
+        stopLoading()
+        throw e
+      }
+      const { diagram: created, warning } = result
       let d = created
       const preset = defaultVoltageName ? config?.voltageColors.find(v => v.name === defaultVoltageName) : undefined
       if (preset) {
@@ -553,31 +579,27 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         setError(saved.warning ?? null)
       }
     },
-    [browseDir, clearSelection, config, commitDiagram],
+    [browseDir, clearSelection, config, commitDiagram, startLoading, stopLoading],
   )
 
   const openDiagramNow = useCallback(
     async (name: string) => {
-      const raw = await api.getDiagram(name)
-      // Both return the same reference when there's nothing to fix, so
-      // d !== raw below still means "something actually changed".
-      const d = diagramOps.normalizeTopology(
-        diagramOps.applyPresetVoltageNames(diagramOps.ensureLastId(raw), config),
-        elements,
-      )
+      startLoading(name)
+      let opened
+      try {
+        opened = await api.getDiagram(name)
+      } catch (e) {
+        stopLoading()
+        throw e
+      }
+      // The server already repaired it (ids, preset voltage names, topology)
+      // and rendered it; a repair has to reach disk, so it counts as an edit.
+      const d = opened.diagram
       openedRef.current = d
       setDiagramName(name)
-      commitDiagram(d, { reset: true, clean: d === raw ? d : null })
-      // ensureLastId returns the same object reference when it found
-      // nothing to backfill (see its own doc comment) — a genuine
-      // backfill (a missing lastId, or a legacy label still sharing id 0
-      // with every other one) needs to reach disk, not just this
-      // in-memory session, so it's flagged dirty the same as any other
-      // edit rather than silently staying fixed only until the tab closes.
-      // The same goes for a voltage class renamed from its preset
-      // (applyPresetVoltageNames) and a topology repair (normalizeTopology:
-      // missing fixed ports, duplicate ports, zero-length wires).
-      setDirty(d !== raw)
+      commitDiagram(d, { reset: true, clean: opened.repaired ? null : d })
+      setPreRendered({ diagram: d, svg: opened.svg, warning: opened.warning })
+      setDirty(opened.repaired)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
       setImportLog(null)
@@ -595,7 +617,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         setRecoverableDrafts([{ name: draft.name, savedAt: draft.savedAt }])
       }
     },
-    [clearSelection, browseDir, config, elements, draftIsCurrent],
+    [clearSelection, browseDir, config, elements, draftIsCurrent, startLoading, stopLoading],
   )
 
   const newDiagram = useCallback(
@@ -624,6 +646,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     async (prepared: PreparedImport, fileName: string, name: string) => {
       const { diagram: d, report, messages } = prepared
       const log: ImportLog | null = report ? { fileName, report, messages } : null
+      startLoading(name)
       openedRef.current = null
       setDiagramName(name)
       commitDiagram(d, { reset: true, clean: null })
@@ -640,7 +663,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setMisplacedPorts(diagramOps.misplacedPortNodes(d, elements))
       await browseDir(parentDir(name))
     },
-    [clearSelection, browseDir, config, elements],
+    [clearSelection, browseDir, config, elements, startLoading],
   )
 
   // Saves each prepared page of file into dir as importTargetName(dir, file, page suffix), skipping a name in
@@ -698,7 +721,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         }
         let pages: PreparedImport[]
         try {
-          pages = await prepareImport(file, config, elements)
+          pages = await prepareImport(file)
         } catch (e) {
           items.push({ fileName: file.name, name, status: 'failed', message: (e as Error).message })
           continue
@@ -720,7 +743,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const importDiagramFile = useCallback(
     async (file: File) => {
       if (!diagramFileKind(file.name)) throw new Error(t('file.invalidDiagramFile', { name: file.name }))
-      const pages = await prepareImport(file, config, elements)
+      const pages = await prepareImport(file)
       if (pages.length > 1) {
         const dir = currentDir
         const existing = new Set((await api.listDiagrams(dir)).filter(e => !e.isDir).map(e => e.name))
@@ -906,6 +929,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setRecoverableDrafts(list => list.filter(d => d.name !== name))
       if (!draft) return
       if (name !== latestRef.current.diagramName && !(await confirmLeave())) return
+      startLoading(name)
       openedRef.current = null
       setDiagramName(name)
       commitDiagram(diagramOps.migrateCircles(draft.diagram), { reset: true, clean: null })
@@ -918,7 +942,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setMisplacedPorts([])
       await browseDir(parentDir(name))
     },
-    [confirmLeave, clearSelection, browseDir],
+    [confirmLeave, clearSelection, browseDir, startLoading],
   )
 
   // Answers MisplacedPortsDialog: Move snaps the listed port Nodes onto their terminals in one undoable edit.
@@ -951,6 +975,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     () => ({
       diagramName,
       diagram,
+      loading: loadingState?.name ?? null,
+      documentVersion,
+      preRendered,
+      diagramShown,
       dirty,
       currentDir,
       diagrams,
@@ -1035,6 +1063,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       closeDraftRecovery,
     }),
     [
+      loadingState,
+      documentVersion,
+      preRendered,
+      diagramShown,
       diagramName,
       diagram,
       dirty,

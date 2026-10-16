@@ -457,6 +457,7 @@ export const dictionary = {
   'canvas.endOffTerminal': "Attached to a device but off its terminal: drag to move the connection point (the wires on it follow)",
   'canvas.circleRadius': 'Radius {{radius}}: drag to resize',
   'canvas.noDiagram': 'Create or open a diagram from the File panel to get started.',
+  'canvas.loading': 'Loading {{name}}…',
   'canvas.undo': 'Undo (Ctrl+Z / Cmd+Z)',
   'canvas.redo': 'Redo (Ctrl+Shift+Z / Cmd+Shift+Z)',
   'canvas.zoomIn': 'Zoom in',

@@ -171,120 +171,6 @@ export function needsDefaultVoltage(diagram: Diagram): boolean {
   return !id || !diagram.voltageClasses.some(vc => vc.id === id)
 }
 
-/** Backfills lastId for a diagram saved before this editor tracked one (or
- * one that has never had an id assigned by it), by scanning every existing
- * element/node/connector/voltage-class/label id for the highest value
- * already in use — so a freshly opened legacy diagram can't hand out an id
- * that collides with one already on disk. A no-op once a diagram has its
- * own lastId.
- *
- * Also backfills a fresh id for any Label still carrying id 0 — Label
- * didn't have its own id at all until this editor added one, so a diagram
- * saved before that has every one of its labels share id 0 (Go/JSON's
- * zero value for a missing attribute), which breaks per-label
- * select/drag/edit/delete (they'd all resolve to the same "id"). Unlike
- * the lastId backfill above, this always runs, even for a diagram whose
- * lastId is already set from its elements/connectors — the two gaps are
- * independent and can each exist without the other. */
-export function ensureLastId(diagram: Diagram): Diagram {
-  let d = diagram
-
-  if (!d.lastId) {
-    let max = 0
-    const consider = (id: number) => {
-      if (id > max) max = id
-    }
-    d.elements.forEach(e => consider(e.id))
-    d.nodes.forEach(n => consider(n.id))
-    d.connectors.forEach(c => consider(c.id))
-    d.voltageClasses.forEach(vc => consider(vc.id))
-    d.labels.forEach(l => consider(l.id))
-    d.digitalDevices.forEach(dd => consider(dd.id))
-    if (max > 0) d = { ...d, lastId: max }
-  }
-
-  if (d.labels.some(l => l.id === 0)) {
-    const ids = new IdSequence(d)
-    const labels = d.labels.map(l => (l.id === 0 ? { ...l, id: ids.take() } : l))
-    d = { ...d, lastId: ids.lastId, labels }
-  }
-
-  return ensureUniqueIds(d)
-}
-
-/** Repairs a diagram whose items share an id (older .svg imports numbered
- * their nodes and voltage classes 1..N, colliding with the source's own
- * ids, and the source writes a Powerflow arrow and its reading under one
- * id): elements, then connectors, digital devices and labels keep the
- * first use of an id, later ones get a fresh id; a colliding node or
- * voltage class is renumbered with every reference to it. Layer ids are
- * never reused. Returns diagram itself when every id is already unique. */
-export function ensureUniqueIds(diagram: Diagram): Diagram {
-  const used = new Set<number>(diagram.layers.map(l => l.id))
-  const collides = (id: number) => id === 0 || used.has(id)
-  let dirty = false
-  const ids = new IdSequence(diagram)
-  const take = () => {
-    let id = ids.take()
-    while (used.has(id)) id = ids.take()
-    used.add(id)
-    dirty = true
-    return id
-  }
-  const keep = <T extends { id: number }>(items: T[]): T[] =>
-    items.map(x => {
-      if (collides(x.id)) return { ...x, id: take() }
-      used.add(x.id)
-      return x
-    })
-  const elements = keep(diagram.elements)
-  const connectors = keep(diagram.connectors)
-  const digitalDevices = keep(diagram.digitalDevices)
-  const labels = keep(diagram.labels)
-
-  const nodeId = new Map<number, number>()
-  const nodes = diagram.nodes.map(n => {
-    if (!collides(n.id)) {
-      used.add(n.id)
-      return n
-    }
-    const id = take()
-    nodeId.set(n.id, id)
-    return { ...n, id }
-  })
-  const classId = new Map<number, number>()
-  const voltageClasses = diagram.voltageClasses.map(vc => {
-    if (!collides(vc.id)) {
-      used.add(vc.id)
-      return vc
-    }
-    const id = take()
-    classId.set(vc.id, id)
-    return { ...vc, id }
-  })
-  if (!dirty) return diagram
-
-  const node = (id: number) => nodeId.get(id) ?? id
-  const volt = (v: number | undefined) => (v === undefined ? v : (classId.get(v) ?? v))
-  return {
-    ...diagram,
-    lastId: ids.lastId,
-    nodes,
-    voltageClasses,
-    elements: elements.map(e => ({
-      ...e,
-      voltage: volt(e.voltage),
-      ports: e.ports?.map(p => ({ ...p, node: node(p.node) })),
-      windings: e.windings?.map(w => ({ ...w, voltage: volt(w.voltage) })),
-      sectors: e.sectors?.map(sc => ({ ...sc, voltage: volt(sc.voltage) })),
-    })),
-    connectors: connectors.map(c => ({ ...c, from: node(c.from), to: node(c.to), voltage: volt(c.voltage) })),
-    digitalDevices,
-    labels,
-    editor: diagram.editor && { ...diagram.editor, defaultVoltage: volt(diagram.editor.defaultVoltage) },
-  }
-}
-
 // Matches a rendered node's own data-editor-kind attribute (internal/
 // slddoc's Render/RenderFragments) — "digitaldevice", not "digitalDevice",
 // same lowercase-no-separator convention Canvas.tsx's own querySelector
@@ -2148,57 +2034,6 @@ function scaledLength(v: number, step: number): number {
   return Math.trunc(p < 0 ? p - 1e-9 : p + 1e-9)
 }
 
-/** Sets each imported element's size step (scale) when its Port Nodes sit
- * where its terminals do at one step but not at the library size: an
- * xsde2svg diagram draws every element at its own step, and Extract reads
- * the real port positions but not the step. Only elements whose shape
- * takes a size step and has two or more terminals are considered (one
- * terminal on the anchor is the same at every step), except lead shapes
- * (ElementSymbol.leads), whose step Extract reads from the drawn body; a
- * port whose Node is shared with another element (one Node for a whole
- * busbar) is skipped. */
-export function inferSizeSteps(diagram: Diagram, symbols: ElementSymbol[]): Diagram {
-  const nodes = new Map(diagram.nodes.map(n => [n.id, n]))
-  const portUse = new Map<number, number>()
-  for (const e of diagram.elements) for (const p of e.ports ?? []) portUse.set(p.node, (portUse.get(p.node) ?? 0) + 1)
-  let changed = false
-  const elements = diagram.elements.map(el => {
-    const symbol = symbols.find(s => s.shape === el.shape)
-    if (!symbol?.scalable || !symbol.terminals || symbol.terminals.length < 2 || el.scale) return el
-    // Extract already set a lead shape's step from its drawn body: its port
-    // spacing is its per-instance lead length, not its size.
-    if (symbol.leads) return el
-    const points = (el.ports ?? [])
-      .filter(p => portUse.get(p.node) === 1)
-      .map(p => nodes.get(p.node))
-      .filter((n): n is DiagramNode => !!n)
-    if (points.length === 0) return el
-    // The worst distance from a port to its nearest terminal at a step.
-    const error = (step: number) => {
-      const terminals = symbolTerminals({ ...el, scale: step }, symbols) ?? []
-      return Math.max(...points.map(p => Math.min(...terminals.map(t => Math.hypot(t.x - p.x, t.y - p.y)))))
-    }
-    let best = 0
-    let bestError = error(0)
-    for (const step of SIZE_STEPS) {
-      const e = error(step)
-      if (e < bestError - 0.5) {
-        best = step
-        bestError = e
-      }
-    }
-    if (best === 0 || bestError > SIZE_STEP_TOLERANCE) return el
-    changed = true
-    return { ...el, scale: best }
-  })
-  return changed ? { ...diagram, elements } : diagram
-}
-
-// How far (diagram units) an imported port may sit from its terminal at
-// the inferred size step: base.xml moves some terminals a unit or two onto
-// the grid (e.g. the Thyristor's anode lead), which scales along.
-const SIZE_STEP_TOLERANCE = 6
-
 // A Fork's (shape 26) own default arm length — slddoc's own forkArmLength.
 export const FORK_ARM_LENGTH = 10
 
@@ -3331,32 +3166,6 @@ function splitWireAt(diagram: Diagram, c: Connector, k: number, at: Point, nodeI
   }
 }
 
-/** Splits every wire running through a junction point's dot, away from its ends, onto the junction's port
- * Node: xsde2svg's dot marks that what crosses there is connected, and an import made before slddoc's
- * tapWiresThroughJunctions left such a wire running on unbroken. Overhead lines included; a wire lying along a
- * busbar there is not cut. Returns diagram itself when there is none. */
-function tapWiresThroughJunctions(diagram: Diagram): Diagram {
-  const busLines = diagram.elements
-    .filter(e => e.class === 'BusBarSection')
-    .flatMap(e => (e.points ?? []).slice(1).map((b, i) => [e.points![i], b] as const))
-  // A segment lying along a busbar (a wire routed over it): the busbar joins it, so it is never cut.
-  const alongBus = (a: Point, b: Point) => busLines.some(([p, q]) => isOnSegment(a, p, q) && isOnSegment(b, p, q))
-  let d = diagram
-  for (const el of diagram.elements) {
-    const nodeId = el.ports?.[0]?.node
-    if (el.class !== 'JunctionPoint' || nodeId === undefined) continue
-    const at = { x: el.x, y: el.y }
-    // A split replaces only the wire it splits, so the rest of this snapshot stays current.
-    for (const c of [...d.connectors]) {
-      if (c.points.length < 2 || c.from === nodeId || c.to === nodeId) continue
-      if (samePoint(c.points[0], at) || samePoint(c.points[c.points.length - 1], at)) continue
-      const k = c.points.findIndex((a, i) => i < c.points.length - 1 && isOnSegment(at, a, c.points[i + 1]))
-      if (k >= 0 && !alongBus(c.points[k], c.points[k + 1])) d = splitWireAt(d, c, k, at, nodeId)
-    }
-  }
-  return d
-}
-
 /** Reverses wire connectorId's direction: from and to swap and its points run the other way, so an Object link's
  * arrowhead (always at the to end) moves to the other end. The geometry and connections are unchanged. */
 export function reverseConnector(diagram: Diagram, connectorId: number): Diagram {
@@ -3426,35 +3235,6 @@ export function updateVoltageClass(diagram: Diagram, id: number, patch: Partial<
  * leaves it unassigned in effect until reassigned to something real. */
 export function removeVoltageClass(diagram: Diagram, id: number): Diagram {
   return { ...diagram, voltageClasses: diagram.voltageClasses.filter(vc => vc.id !== id) }
-}
-
-/** Renames every voltage class still named after its own color (or not
- * named at all) — how slddoc.Extract names a color it had no voltage hint
- * for, e.g. `name="#962896" color="#962896"` — to the server preset
- * (config.voltageColors, from the yaml's voltage_colors) with the same
- * color, compared case-insensitively. A class the user already renamed is
- * never touched. Returns the same diagram reference when nothing matched,
- * so a caller can tell whether anything changed (the same convention
- * ensureLastId uses). */
-export function applyPresetVoltageNames(diagram: Diagram, config: EditorConfig | null): Diagram {
-  const presets = config?.voltageColors ?? []
-  if (presets.length === 0) return diagram
-  let changed = false
-  // A preset name another class already carries isn't given out again:
-  // the voltage dialog offers merging the two instead (applyVoltageColorMatches).
-  const taken = new Set(diagram.voltageClasses.map(vc => vc.name.trim().toLowerCase()))
-  const voltageClasses = diagram.voltageClasses.map(vc => {
-    const color = vc.color.trim().toLowerCase()
-    const name = vc.name.trim().toLowerCase()
-    if (name !== '' && name !== color) return vc
-    const preset = presets.find(p => p.color.trim().toLowerCase() === color)
-    if (!preset || preset.name === vc.name) return vc
-    if (taken.has(preset.name.trim().toLowerCase())) return vc
-    taken.add(preset.name.trim().toLowerCase())
-    changed = true
-    return { ...vc, name: preset.name }
-  })
-  return changed ? { ...diagram, voltageClasses } : diagram
 }
 
 // BASE_LAYER mirrors internal/slddoc's BaseLayer: the always-present layer
@@ -3856,12 +3636,12 @@ export function fitElementPorts(
   return newNodes.length > 0 || target.size > 0 ? joinPortNodes(d, elementId) : d
 }
 
-/** Repairs a whole diagram's topology — removeDegenerateConnectors, then
- * fitElementPorts (with join) for every element, or only those in onlyIds;
- * for a whole diagram also tapWiresThroughJunctions and tapWireNodesOntoWires. Run on open/import and whenever a copied group lands (paste, custom
- * element). Returns diagram itself when nothing needed fixing, so callers
- * can tell whether to mark it dirty. */
-export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], onlyIds?: Set<number>): Diagram {
+/** Repairs the topology around just-inserted elements onlyIds (a pasted or
+ * duplicated group, a custom element) — removeDegenerateConnectors, then
+ * fitElementPorts (with join) for those elements. A whole diagram is repaired
+ * by the server on open and import (slddoc.Repair, the same rules). Returns
+ * diagram itself when nothing needed fixing. */
+export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], onlyIds: Set<number>): Diagram {
   if (symbols.length === 0) return diagram
   let d = moveLegacyTerminalNodes(removeDegenerateConnectors(diagram), symbols, onlyIds)
   // One shared node index (rebuilt only after a fit actually changed
@@ -3870,7 +3650,7 @@ export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], on
   let index = new Map(d.nodes.map(n => [n.id, n]))
   const elementsById = new Map(d.elements.map(e => [e.id, e]))
   for (const el of diagram.elements) {
-    if (onlyIds && !onlyIds.has(el.id)) continue
+    if (!onlyIds.has(el.id)) continue
     const current = elementsById.get(el.id)
     if (!current) continue
     const next = fitElementPorts(d, el.id, symbols, false, index, current)
@@ -3884,30 +3664,7 @@ export function normalizeTopology(diagram: Diagram, symbols: ElementSymbol[], on
   // only Nodes still stray are moved, onto the terminal their Port now has.
   // Nodes nothing uses (left by an older delete) are dropped.
   d = mergeNodesOntoPorts(moveStrayPortNodes(removeDegenerateConnectors(d), symbols, onlyIds), onlyIds)
-  return dropUnusedNodes(onlyIds ? d : tapWireNodesOntoWires(tapWiresThroughJunctions(d)))
-}
-
-/** Joins each Node carrying a wire end (alone, or with device ports and other wire ends) that lies on another
- * wire's line, away from its ends, to that wire (tapWireAt): a T junction an import made before slddoc's
- * tapWireEndsOntoWires left open. A busbar's Node, or one on a busbar's line, is left alone (wires may be routed
- * along a busbar), and a wire ending on another port of a device at
- * the Node is never tapped, so the device isn't shorted across its own leads. Returns diagram itself when there is
- * none. */
-function tapWireNodesOntoWires(diagram: Diagram): Diagram {
-  const buses = diagram.elements.filter(e => e.class === 'BusBarSection')
-  const busNodes = new Set(buses.flatMap(e => (e.ports ?? []).map(p => p.node)))
-  const nodes = new Map(diagram.nodes.map(n => [n.id, n]))
-  const onBus = (p: Point) =>
-    buses.some(b => (b.points ?? []).some((a, i, pts) => i < pts.length - 1 && isOnSegment(p, a, pts[i + 1])))
-  let d = diagram
-  for (const node of new Set(diagram.connectors.flatMap(c => [c.from, c.to]))) {
-    const at = nodes.get(node)
-    if (!at || busNodes.has(node) || onBus(at)) continue
-    const devices = d.elements.filter(e => (e.ports ?? []).some(p => p.node === node))
-    const otherPorts = new Set(devices.flatMap(e => (e.ports ?? []).map(p => p.node)).filter(n => n !== node))
-    d = tapWireAt(d, node, -1, otherPorts)
-  }
-  return d
+  return dropUnusedNodes(d)
 }
 
 /** Local terminal positions base.xml used before they were snapped to the

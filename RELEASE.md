@@ -5756,3 +5756,19 @@ diagram (render, render fragments, save, XML/SVG export, custom elements) are no
 browser supports `CompressionStream` (`lib/api.ts` `jsonBody`), and the backend unpacks `Content-Encoding: gzip`
 (`gzip.WithDecompressFn` in `internal/api/server.go`; a broken body is a 400): a 1 MB diagram goes up as about
 105 KB, which on a slow link saves seconds on every render and save.
+
+2026-10-16: Opening a diagram is one request, with a loading spinner. Before, the browser downloaded the diagram,
+repaired it (`normalizeTopology`, preset voltage names, id fixes), uploaded the whole of it to `/api/render` and
+downloaded the SVG; Safari spent about 33 s of a large diagram's open in that repair. The repair is now a Go port
+in slddoc (`repair.go`: `Repair`, `EnsureIDs`, `InferSizeSteps`, `MostUsedVoltage`), run by the backend's
+`prepareDiagram` (`internal/api/repair.go`, which also applies the `voltage_colors` preset names). `GET
+/api/diagrams/open` now repairs, renders for the canvas and returns `{diagram, svg, repaired}`; the editor shows that
+SVG as delivered (`preRendered`) and marks the diagram unsaved when `repaired`. The import endpoints (xml, svg, xsde)
+return already repaired diagrams too (plus the default voltage and size steps for an extracted one), so the browser
+no longer repairs a whole diagram: `normalizeTopology` only fixes a pasted or duplicated group, and
+`ensureLastId`, `ensureUniqueIds`, `applyPresetVoltageNames`, `inferSizeSteps`, `tapWiresThroughJunctions` and
+`tapWireNodesOntoWires` were removed from `diagramOps.ts`. The port was checked against the TypeScript original on
+447 diagrams: identical results for all of them (181 repaired), and identical size steps (1,163). A large diagram
+(about 2,500 elements) now opens in one 0.25 s request with no upload. While a diagram is opened, imported, created
+or restored, the canvas shows "Loading <name>…" and takes no clicks (nor does the File panel), until it has drawn
+that document (`loading`, `documentVersion`, `diagramShown` in `DiagramContext`; no timers).

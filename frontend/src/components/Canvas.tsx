@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
 import { TransformWrapper, TransformComponent, useControls, type ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
-import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, X as XIcon } from 'lucide-react'
+import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, X as XIcon, Loader2 } from 'lucide-react'
 import { useDiagramContext, type SelectionKind } from '../state/useDiagramContext'
 import { usePaletteToggle } from '../state/usePaletteToggle'
 import * as api from '../lib/api'
@@ -510,6 +510,10 @@ export function Canvas() {
     focusRequest,
     requestFind,
     diagramName,
+    loading,
+    documentVersion,
+    preRendered,
+    diagramShown,
   } = useDiagramContext()
   // An item on a layer hidden in the Layers section is neither drawn
   // (hiddenLayerCss) nor picked by any diagram-state hit test below.
@@ -584,6 +588,8 @@ export function Canvas() {
   // opened/created diagram, which always takes the full-render path (see
   // below) since there's nothing yet to diff against.
   const lastRenderedRef = useRef<Diagram | null>(null)
+  // The document version (a replaced diagram) lastRenderedRef belongs to.
+  const lastRenderedVersionRef = useRef(0)
   // Bumped after every successful incremental patch, purely to give the
   // elementBoxes effect below a signal to recompute — that effect already
   // depends on svg, but svg itself never changes for a patch (only real
@@ -1143,16 +1149,31 @@ export function Canvas() {
   }
 
   useEffect(() => {
+    const version = documentVersion
     if (!diagram) {
       setSvg('')
       setWarning(null)
       lastRenderedRef.current = null
       return
     }
+    // A diagram the server rendered while opening it is shown as delivered.
+    if (preRendered?.diagram === diagram) {
+      setSvg(preRendered.svg)
+      setWarning(preRendered.warning ?? null)
+      lastRenderedRef.current = diagram
+      lastRenderedVersionRef.current = version
+      diagramShown(version)
+      return
+    }
     let cancelled = false
     const handle = setTimeout(() => {
-      const baseline = lastRenderedRef.current
+      // A replaced document is always rendered whole, never diffed against the previous one.
+      const baseline = lastRenderedVersionRef.current === version ? lastRenderedRef.current : null
       const diff = baseline ? diagramOps.diffDiagramForRender(baseline, diagram) : { kind: 'full' as const }
+      const shown = () => {
+        lastRenderedVersionRef.current = version
+        diagramShown(version)
+      }
 
       if (diff.kind === 'none') {
         // Nothing rendering-relevant actually changed (e.g. a no-op
@@ -1160,6 +1181,7 @@ export function Canvas() {
         // diagram as the new baseline so a *later* diff doesn't end up
         // comparing against an increasingly stale reference.
         lastRenderedRef.current = diagram
+        shown()
         return
       }
 
@@ -1173,9 +1195,12 @@ export function Canvas() {
             lastRenderedRef.current = diagram
             setWarning(res.warning ?? null)
             setPatchVersion(v => v + 1)
+            shown()
           })
           .catch(e => {
-            if (!cancelled) setWarning((e as Error).message)
+            if (cancelled) return
+            setWarning((e as Error).message)
+            shown()
           })
         return
       }
@@ -1187,16 +1212,19 @@ export function Canvas() {
           setSvg(res.svg)
           lastRenderedRef.current = diagram
           setWarning(res.warning ?? null)
+          shown()
         })
         .catch(e => {
-          if (!cancelled) setWarning((e as Error).message)
+          if (cancelled) return
+          setWarning((e as Error).message)
+          shown()
         })
     }, 150)
     return () => {
       cancelled = true
       clearTimeout(handle)
     }
-  }, [diagram])
+  }, [diagram, documentVersion, preRendered, diagramShown])
 
   // Recomputes every symbol element's own real bounding box straight from
   // the backend-rendered markup, once it's actually in the DOM — the fix
@@ -1625,10 +1653,26 @@ export function Canvas() {
     }
   })
 
+  // Shown from the moment a diagram is opened (or imported, created, restored)
+  // until the canvas has drawn it; it takes every click meanwhile.
+  const loadingOverlay = loading !== null && (
+    <div
+      role="status"
+      className="absolute inset-0 z-50 flex items-center justify-center bg-surface-900/60 cursor-wait"
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <div className="flex items-center gap-2 rounded border border-surface-500 bg-surface-700/95 px-4 py-2 text-sm text-gray-200 shadow">
+        <Loader2 size={16} className="animate-spin shrink-0" />
+        <span className="truncate">{t('canvas.loading', { name: loading })}</span>
+      </div>
+    </div>
+  )
+
   if (!diagram) {
     return (
-      <div className="flex-1 flex items-center justify-center text-sm text-gray-500 px-8 text-center">
+      <div className="flex-1 relative flex items-center justify-center text-sm text-gray-500 px-8 text-center">
         {t('canvas.noDiagram')}
+        {loadingOverlay}
       </div>
     )
   }
@@ -3849,6 +3893,7 @@ export function Canvas() {
       {customElementTemplate && (
         <SaveCustomElementDialog template={customElementTemplate} onClose={() => setCustomElementTemplate(null)} />
       )}
+      {loadingOverlay}
     </div>
   )
 }

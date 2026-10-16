@@ -30,7 +30,8 @@ func newTestServer(t *testing.T) *Server {
 	gin.SetMode(gin.TestMode)
 
 	lib := &elements.Library{Symbols: []elements.Symbol{
-		{Shape: "41", Class: "Breaker", Name: "Breaker", Template: `<path style="stroke:{color}"/>`},
+		{Shape: "41", Class: "Breaker", Name: "Breaker", Template: `<path style="stroke:{color}"/>`,
+			Terminals: []slddoc.Point{{X: 0, Y: -10}, {X: 0, Y: 10}}},
 	}}
 	store, err := storage.New(t.TempDir(), lib.SymbolLibrary(), "", nil)
 	if err != nil {
@@ -99,10 +100,11 @@ func TestDiagramLifecycle(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("get: status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	var d slddoc.Diagram
-	if err := json.Unmarshal(rec.Body.Bytes(), &d); err != nil {
+	var opened openResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &opened); err != nil {
 		t.Fatal(err)
 	}
+	d := opened.Diagram
 	d.Elements = append(d.Elements, slddoc.Element{ID: 1, Class: slddoc.ClassBreaker, Shape: "41", Layer: slddoc.BaseLayer, X: 5, Y: 5})
 
 	rec = doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=sub-1", d)
@@ -121,6 +123,57 @@ func TestDiagramLifecycle(t *testing.T) {
 	rec = doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=missing", nil)
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("get missing: status = %d, want 404", rec.Code)
+	}
+}
+
+type openResponse struct {
+	Diagram  slddoc.Diagram `json:"diagram"`
+	SVG      string         `json:"svg"`
+	Repaired bool           `json:"repaired"`
+}
+
+func TestOpenDiagram_RepairsAndRenders(t *testing.T) {
+	s := newTestServer(t)
+	d := slddoc.Diagram{
+		Width: 100, Height: 100,
+		VoltageClasses: []slddoc.VoltageClass{{ID: 2, Name: "#962896", Color: "#962896"}},
+		Elements:       []slddoc.Element{{ID: 1, Class: slddoc.ClassBreaker, Shape: "41", Voltage: 2, X: 50, Y: 50}},
+	}
+	if rec := doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=sub-1", d); rec.Code != http.StatusOK {
+		t.Fatalf("save: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+
+	open := func() openResponse {
+		rec := doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=sub-1", nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("open: status = %d, body = %s", rec.Code, rec.Body.String())
+		}
+		var r openResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	r := open()
+	if !r.Repaired {
+		t.Error("a breaker without ports should be repaired on open")
+	}
+	el := r.Diagram.Elements[0]
+	if len(el.Ports) != 2 || len(r.Diagram.Nodes) != 2 {
+		t.Errorf("ports = %+v, nodes = %+v, want two fixed ports on two nodes", el.Ports, r.Diagram.Nodes)
+	}
+	if r.Diagram.VoltageClasses[0].Name != "10 kV" {
+		t.Errorf("voltage class = %q, want the preset name", r.Diagram.VoltageClasses[0].Name)
+	}
+	if !strings.Contains(r.SVG, `id="1"`) || !strings.Contains(r.SVG, `data-editor-kind="element"`) {
+		t.Errorf("open should return the interactive render: %s", r.SVG)
+	}
+
+	if rec := doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=sub-1", r.Diagram); rec.Code != http.StatusOK {
+		t.Fatalf("save repaired: status = %d", rec.Code)
+	}
+	if again := open(); again.Repaired {
+		t.Error("a saved repaired diagram should open unchanged")
 	}
 }
 

@@ -75,7 +75,9 @@ storage and the Gin API.
   `diagrams/save`) also appends a `slddoc.Revision` (time, client IP) to the history already on disk, keeping the last
   `MaxHistory`; the client's own history is used only for a new name. A missing symbol is a non-fatal render warning. Names are `/`-separated paths (subfolders), and
   every segment is validated (`ErrInvalidName`). `List(dir)` returns one folder level only.
-- `internal/api`: routes under `/api` — `diagrams` (list/create), `diagrams/open`, `diagrams/save`, `diagrams/svg`,
+- `internal/api`: routes under `/api` — `diagrams` (list/create), `diagrams/open` (repairs the diagram with
+  `prepareDiagram` in `internal/api/repair.go`: `slddoc.EnsureIDs`, preset voltage names, `slddoc.Repair`; renders it
+  for the canvas; returns `{diagram, svg, repaired}`, so opening is one request), `diagrams/save`, `diagrams/svg`,
   `render`, `render/fragments`, `import/xml`, `import/svg` (runs `slddoc.Extract`, returns `{diagram, report}`), `import/xsde`
   (raw `.xsde` bytes → `xsde2svg.Convert` → `Extract` per page, returns `{pages: [{page, title, diagram, report}],
   messages}`; `messages` are the converter's INFO/WARN/ERROR diagnostics, shown in the import log),
@@ -152,13 +154,18 @@ storage and the Gin API.
   the busbar is drawn/moved/reshaped, on repair; `joinNodesToBusbars` for a wire end or terminal moved onto one). `placeElement` creates them (`fitElementPorts`), Properties edits
   re-fit them with `moveNodes` (orientation/mirror/position/size carry port nodes and wire ends along), and
   `moveSelection` joins a zero-length wire's ends (`removeDegenerateConnectors`) and a dropped terminal to whatever
-  lies exactly under it (`joinPortNodes`: merges a node, splits a wire, or taps a busbar). `normalizeTopology`
-  repairs older diagrams on open/import and when a copied group lands, never moving an existing node (an imported
-  diagram may use one node for a whole busbar).
+  lies exactly under it (`joinPortNodes`: merges a node, splits a wire, or taps a busbar). A whole diagram is repaired
+  on the server on open and import (`slddoc.Repair`, a rule-for-rule Go port of these functions; the import endpoints
+  also run `prepareDiagram`, plus `InferSizeSteps` for an extracted one), never moving an existing node (an imported
+  diagram may use one node for a whole busbar); `normalizeTopology` repairs only a copied group as it lands. Keep
+  the two in step when a rule changes.
 - `components/Canvas.tsx`: pan/zoom (`react-zoom-pan-pinch`, double-click zoom disabled) and all interaction.
   - **Hit-testing:** reads `data-editor-kind` + `Number(id)` from the server-rendered SVG.
   - **Rendering:** debounced. Each change is diffed against the last render: `'patch'` fetches `/api/render/fragments`
-    and swaps just those DOM nodes, `'full'` refetches `/api/render`, `'none'` skips.
+    and swaps just those DOM nodes, `'full'` refetches `/api/render`, `'none'` skips. A just-opened diagram shows the
+    SVG `diagrams/open` delivered (`preRendered`), and a replaced document (`documentVersion`) is always rendered
+    whole. While a diagram is being opened, imported, created or restored, a spinner covers the canvas (`loading`)
+    until the canvas reports that document drawn (`diagramShown`).
     A Picture's (shape 11) embedded image (`href`, a data URI) is stripped from both requests (`lib/picture.ts`);
     Interactive render writes its `<image>` without an href and the canvas fills it in from state after each render.
   - **Dragging:** mutates the rendered DOM directly and commits to diagram state on mouseup.

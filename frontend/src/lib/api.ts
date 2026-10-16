@@ -7,6 +7,7 @@ import type {
   EditorConfig,
   ImportReport,
   ConverterMessage,
+  OpenedDiagram,
   PresenceStatus,
 } from '../types'
 import { stripPictureHrefs } from './picture'
@@ -88,9 +89,13 @@ export async function createDiagram(
 // %2F round-trips back to a real "/" once Go's net/url decodes the query
 // string, matching backend/internal/api's own getDiagram/saveDiagram,
 // which read name from c.Query, not c.Param.
-export async function getDiagram(name: string): Promise<Diagram> {
+//
+// The server repairs the diagram and renders it for the canvas in the same
+// request (see OpenedDiagram).
+export async function getDiagram(name: string): Promise<OpenedDiagram> {
   const res = await fetch(`${BASE}/diagrams/open?name=${encodeURIComponent(name)}`)
-  return normalizeDiagram(await asJSON<DiagramWire>(res))
+  const data = await asJSON<Omit<OpenedDiagram, 'diagram'> & { diagram: DiagramWire }>(res)
+  return { ...data, diagram: normalizeDiagram(data.diagram) }
 }
 
 export async function saveDiagram(

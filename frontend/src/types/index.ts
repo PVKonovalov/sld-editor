@@ -448,6 +448,16 @@ export interface ImportReport {
   failed: string[]
 }
 
+// GET /api/diagrams/open: the diagram as repaired on the server (repaired
+// tells whether that changed anything, so the editor marks it unsaved) and its
+// interactive SVG for the canvas.
+export interface OpenedDiagram {
+  diagram: Diagram
+  svg: string
+  repaired: boolean
+  warning?: string
+}
+
 // The wire shape (a Go nil slice serializes as JSON null): use
 // normalizeDiagram in lib/api.ts to get the array-always shape below
 // everywhere else in the app.

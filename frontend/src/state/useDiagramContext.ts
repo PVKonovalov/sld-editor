@@ -57,6 +57,14 @@ export interface DraftInfo {
   savedAt: number
 }
 
+// The server's render of a diagram it has just opened (GET /api/diagrams/open),
+// for the canvas to show as-is instead of rendering it again.
+export interface PreRendered {
+  diagram: Diagram
+  svg: string
+  warning?: string
+}
+
 // UnsavedChangesDialog's three answers.
 export type UnsavedChoice = 'save' | 'discard' | 'cancel'
 
@@ -69,6 +77,15 @@ export interface DiagramContextValue {
   diagramName: string | null
   diagram: Diagram | null
   dirty: boolean
+  // The name of the diagram being opened, imported, created or restored, until
+  // the canvas has shown it (diagramShown); null otherwise.
+  loading: string | null
+  // Counts every replacement of the open diagram (open, new, import, restore).
+  documentVersion: number
+  // Set when the open diagram came with the server's render (open).
+  preRendered: PreRendered | null
+  // The canvas has shown documentVersion version: ends loading for it.
+  diagramShown: (version: number) => void
   // The File panel's own folder browser: currentDir is the directory
   // (relative to the server's diagrams root, "" for the root itself)
   // diagrams currently lists the immediate contents of — subdirectories

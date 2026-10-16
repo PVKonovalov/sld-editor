@@ -453,6 +453,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'canvas.endOffTerminal': 'Подключено к аппарату, но не в его выводе: перетащите, чтобы сдвинуть точку подключения (провода на ней следуют за ней)',
   'canvas.circleRadius': 'Радиус {{radius}}: перетащите, чтобы изменить',
   'canvas.noDiagram': 'Создайте или откройте схему на панели «Файл», чтобы начать.',
+  'canvas.loading': 'Загрузка {{name}}…',
   'canvas.undo': 'Отменить (Ctrl+Z / Cmd+Z)',
   'canvas.redo': 'Повторить (Ctrl+Shift+Z / Cmd+Shift+Z)',
   'canvas.zoomIn': 'Увеличить',

@@ -94,6 +94,10 @@ func (s *Server) createDiagram(c *gin.Context) {
 // two alone, but conflicts with /diagrams/:name/svg's own extra path
 // segment in Gin's router, so all three were moved to query params instead
 // for one consistent scheme.
+//
+// The diagram is repaired (prepareDiagram) and rendered for the live canvas here, so opening one is a single
+// request: responds {diagram, svg, repaired, warning?}, repaired telling whether the repair changed anything (the
+// editor then marks it unsaved). Nothing is written to disk.
 func (s *Server) getDiagram(c *gin.Context) {
 	d, err := s.store.Load(c.Query("name"))
 	if errors.Is(err, storage.ErrNotFound) {
@@ -108,7 +112,14 @@ func (s *Server) getDiagram(c *gin.Context) {
 		errJSON(c, http.StatusInternalServerError, err)
 		return
 	}
-	c.JSON(http.StatusOK, d)
+	repaired := s.prepareDiagram(d, false)
+	var buf bytes.Buffer
+	renderErr := s.store.Render(d, &buf, slddoc.Interactive)
+	resp := gin.H{"diagram": d, "svg": buf.String(), "repaired": repaired}
+	if renderErr != nil {
+		resp["warning"] = renderErr.Error()
+	}
+	c.JSON(http.StatusOK, resp)
 }
 
 // saveDiagram implements both File > Save (name unchanged) and File > Save
@@ -268,6 +279,7 @@ func (s *Server) importDiagramXML(c *gin.Context) {
 		errJSON(c, http.StatusBadRequest, err)
 		return
 	}
+	s.prepareDiagram(d, false)
 	c.JSON(http.StatusOK, d)
 }
 
@@ -340,6 +352,7 @@ func (s *Server) importDiagramSVG(c *gin.Context) {
 		errJSON(c, http.StatusBadRequest, err)
 		return
 	}
+	s.prepareDiagram(d, true)
 	c.JSON(http.StatusOK, gin.H{
 		"diagram": d,
 		"report":  newImportReport(report),
@@ -388,6 +401,7 @@ func (s *Server) importDiagramXSDE(c *gin.Context) {
 			messages = append(messages, xsde2svg.Message{Level: "ERROR", Page: i + 1, Text: err.Error()})
 			continue
 		}
+		s.prepareDiagram(d, true)
 		out = append(out, importedPage{Page: i + 1, Title: p.Title, Diagram: d, Report: newImportReport(report)})
 	}
 	if messages == nil {
