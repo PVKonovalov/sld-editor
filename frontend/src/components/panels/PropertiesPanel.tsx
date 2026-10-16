@@ -1178,6 +1178,18 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 />
               </label>
             )}
+            {isRectangle && (
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.rectangleCornerRadius')}</span>
+                <input
+                  type="number"
+                  min={0}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.rx ?? 0}
+                  onChange={e => patch({ rx: Math.max(0, Number(e.target.value)) || undefined })}
+                />
+              </label>
+            )}
           </>
         )}
 

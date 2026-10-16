@@ -97,7 +97,7 @@ func main() {
 	if *openBrowser {
 		if _, port, ok := strings.Cut(cfg.Server.Bind, ":"); ok {
 			go func() {
-				time.Sleep(1 * time.Second)
+				time.Sleep(1 * time.Second) // Waiting for http server to load
 				if err := browser.OpenURL(fmt.Sprintf("http://localhost:%s", port)); err != nil {
 					llog.Logger.Errorf("opening browser: %v", err)
 				}

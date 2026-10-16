@@ -113,6 +113,12 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 - [ ] Junction point (7): its extracted label is a standalone Label (`For` = junction id) and doesn't move when the
       junction is dragged.
 
+## Editing
+- [ ] Group/Ungroup elements
+- [ ] User can create new elements (edit already existing)
+
+## Elements
+- [x] A Rectangle With Rounded Corners
 
 # Errors
 - [x] Circle is invisible

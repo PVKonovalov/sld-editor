@@ -394,6 +394,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.rectangleFill': 'Цвет заливки',
   'properties.rectangleStroke': 'Цвет рамки',
   'properties.rectangleStrokeWidth': 'Толщина рамки',
+  'properties.rectangleCornerRadius': 'Радиус скругления углов',
   'properties.arrowStroke': 'Цвет линии',
   'properties.arrowStrokeWidth': 'Толщина линии',
   'properties.arrowDoubleHeaded': 'Двусторонняя стрелка',

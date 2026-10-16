@@ -398,6 +398,7 @@ export const dictionary = {
   'properties.rectangleFill': 'Fill color',
   'properties.rectangleStroke': 'Border color',
   'properties.rectangleStrokeWidth': 'Border width',
+  'properties.rectangleCornerRadius': 'Corner radius',
   'properties.arrowStroke': 'Line color',
   'properties.arrowStrokeWidth': 'Line width',
   'properties.arrowDoubleHeaded': 'Double-headed',

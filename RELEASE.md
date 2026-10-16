@@ -5707,3 +5707,9 @@ pointing along the last segment, as xsde2svg does, so there was no way to turn i
 New `diagramOps.reverseConnector` swaps `from`/`to` and reverses the points (geometry and connections unchanged, no
 format change, one undo step), offered as **Reverse direction** in the link's Properties and in its right-click
 menu. Both guides' wiring sections updated.
+
+2026-10-16: Rectangle with rounded corners. A Rectangle (shape 3) has a new **Corner radius** field in Properties,
+stored in its existing `rx` attribute (`Element.RadiusX`, until now used only by Arc), so the format is unchanged:
+unset or 0 = square corners, the default for a new rectangle. slddoc's `writeRect` emits `rx` on the `<rect>` in both
+render modes, capped at half the shorter side; `parseRectangle` reads it back, so an imported `.svg` keeps the
+rounding (round-trip test added). Small window stays square. XSLD_FORMAT.md and both user guides updated.

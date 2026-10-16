@@ -288,9 +288,10 @@ export interface DiagramElement {
   // angle), stroke its line color and fill its arrowhead fill.
   length?: number
   headStroke?: string
-  // Arc (shape 9) only — its own SVG arc parameters, stored exactly as the
+  // Arc (shape 9): its own SVG arc parameters, stored exactly as the
   // arc command writes them (points holds its start and end), matching
-  // slddoc's own Element.RadiusX/RadiusY/LargeArc/Sweep.
+  // slddoc's own Element.RadiusX/RadiusY/LargeArc/Sweep. A Rectangle's
+  // (shape 3) rx is its corner radius (unset = square corners).
   rx?: number
   ry?: number
   largeArc?: boolean

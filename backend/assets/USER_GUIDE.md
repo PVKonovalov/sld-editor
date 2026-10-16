@@ -241,7 +241,8 @@ typing in a field or in the middle of a drag or drawing.
 Some elements are drawn instead of clicked:
 
 - **Busbar**, **Arrow**, **Rectangle**, **Small window**, **Button**, **Window icon**, **Table**, **Arc**:
-  press on the canvas and drag from one corner or end to the other.
+  press on the canvas and drag from one corner or end to the other. A rectangle starts with square corners; set
+  **Corner radius** in Properties to round them (0 = square, at most half the shorter side).
 - **Circle**: press where the center goes (on the grid when snapping) and drag outward to set the radius, in steps of
   0.5; a plain click places a circle of radius 20. Ctrl/Cmd-drag from anywhere inside it to move it (the center stays
   on the grid); drag the square handle on its rim to change the radius. Properties has its center X/Y and radius,
