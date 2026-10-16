@@ -287,6 +287,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.circleCenterX': 'Центр X',
   'properties.circleCenterY': 'Центр Y',
   'properties.circleRadius': 'Радиус',
+  'properties.reverseDirection': 'Обратное направление',
+  'properties.reverseDirectionHint': 'Перенести стрелку на другой конец связи',
   'properties.positionStatus': 'Положение выкатного элемента',
   'properties.orientation': 'Ориентация',
   'properties.connections': 'Соединения',

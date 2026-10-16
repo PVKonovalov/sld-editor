@@ -3346,6 +3346,17 @@ function tapWiresThroughJunctions(diagram: Diagram): Diagram {
   return d
 }
 
+/** Reverses wire connectorId's direction: from and to swap and its points run the other way, so an Object link's
+ * arrowhead (always at the to end) moves to the other end. The geometry and connections are unchanged. */
+export function reverseConnector(diagram: Diagram, connectorId: number): Diagram {
+  return {
+    ...diagram,
+    connectors: diagram.connectors.map(c =>
+      c.id === connectorId ? { ...c, from: c.to, to: c.from, points: [...c.points].reverse() } : c,
+    ),
+  }
+}
+
 /** Inserts a new vertex at point between an existing connector's
  * points[segmentIndex] and points[segmentIndex + 1] — the raw building
  * block behind both "double-click a segment to add a bend" (used as-is,

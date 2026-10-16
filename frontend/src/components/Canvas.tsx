@@ -2660,6 +2660,15 @@ export function Canvas() {
                 },
               ]
             : []),
+          ...(contextMenu.connectorId !== null &&
+          diagram.connectors.find(c => c.id === contextMenu.connectorId)?.kind === 'LinkToObject'
+            ? [
+                {
+                  label: t('properties.reverseDirection'),
+                  onSelect: () => updateDiagram(d => diagramOps.reverseConnector(d, contextMenu.connectorId!)),
+                },
+              ]
+            : []),
         ],
         selection.size > 0
           ? [

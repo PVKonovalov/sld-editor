@@ -346,7 +346,9 @@ items moved; **Ctrl+Z** undoes the whole snap.
 ## Wiring {#wiring}
 
 Drawing a wire always starts by choosing its kind in the Elements panel's **Wires** group: **Buswork** (plain
-wire), **Overhead line**, **Cable line** or **Object link**. The kind cannot be changed later.
+wire), **Overhead line**, **Cable line** or **Object link**. The kind cannot be changed later. An object link's arrowhead
+is drawn at the end where you finished it; **Reverse direction** (in Properties, or by right-clicking the link) moves
+it to the other end.
 
 The same group also has **Connector arrow**, which is not a wire kind: it is placed like an element and marks where a
 line continues off the sheet. Its tail is its terminal, so draw the line from (or to) the tail; Properties sets its

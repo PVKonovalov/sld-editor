@@ -5701,3 +5701,9 @@ react-zoom-pan-pinch, lucide-react) into `vendor-[hash].js` via `build.rolldownO
 193 kB of libraries plus 300 kB (en) / 309 kB (ru) of app code and a 0.6 kB runtime, so no warning, and after an app
 update a browser keeps the unchanged vendor file cached. `make` copies the whole `dist-xx/` folder and the backend
 embeds all of it, so packaging needs no change.
+
+2026-10-16: Reverse direction for an Object link. A LinkToObject wire's arrowhead is always drawn at its `to` end,
+pointing along the last segment, as xsde2svg does, so there was no way to turn it round short of redrawing the link.
+New `diagramOps.reverseConnector` swaps `from`/`to` and reverses the points (geometry and connections unchanged, no
+format change, one undo step), offered as **Reverse direction** in the link's Properties and in its right-click
+menu. Both guides' wiring sections updated.

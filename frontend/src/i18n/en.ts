@@ -291,6 +291,8 @@ export const dictionary = {
   'properties.circleCenterX': 'Center X',
   'properties.circleCenterY': 'Center Y',
   'properties.circleRadius': 'Radius',
+  'properties.reverseDirection': 'Reverse direction',
+  'properties.reverseDirectionHint': 'Move the arrowhead to the other end of the link',
   'properties.positionStatus': 'Position status',
   'properties.orientation': 'Orientation',
   'properties.connections': 'Connections',

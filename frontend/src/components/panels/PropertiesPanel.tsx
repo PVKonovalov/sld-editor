@@ -654,6 +654,16 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               </select>
             </label>
           )}
+          {connector.kind === 'LinkToObject' && (
+            <button
+              type="button"
+              className="w-full text-xs rounded border border-surface-600 hover:bg-surface-600 text-gray-200 px-2 py-1"
+              title={t('properties.reverseDirectionHint')}
+              onClick={() => updateDiagram(d => diagramOps.reverseConnector(d, connector.id))}
+            >
+              {t('properties.reverseDirection')}
+            </button>
+          )}
           <ConnectionsSection connector={connector} />
           <LayerSelect layers={diagram.layers} value={connector.layer} onChange={layer => moveItemToLayer(connector.id, 'connector', layer)} />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: connector.id })}</p>
