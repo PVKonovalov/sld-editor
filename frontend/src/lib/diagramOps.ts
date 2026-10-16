@@ -4842,3 +4842,75 @@ export function ungroupItems(d: Diagram, selection: Map<number, GroupItemKind>):
   if (groups.size === 0) return d
   return mapGroups(d, x => (x.group && groups.has(x.group) ? undefined : x.group))
 }
+
+// ---------------------------------------------------------------------------
+// Rotate and mirror (the R/M keys and Properties' Orientation/Mirror)
+
+// Classes drawn from their own Points: Properties edits those instead of an
+// orientation (Table's and Line's own label rotation is a separate field).
+const POINTS_DRAWN_CLASSES = new Set([
+  'BusBarSection', 'Rectangle', 'SmallWindow', 'Picture', 'Arrow', 'Button', 'WindowIcon',
+  'AutomationDevice', 'Road', 'Line', 'Polygon', 'Container', 'Arc', 'Table',
+])
+// Look and connect the same at every orientation, or (Table2) have none.
+const NO_ORIENT_CLASSES = new Set(['Lamp', 'PostPole', 'LampOnPole', 'ConnectorArrow', 'ConnectorPoint', 'Table2'])
+// Have no mirrored layout in xsde2svg.
+const NO_MIRROR_CLASSES = new Set([
+  'PowerflowIndicator', 'Fork', 'Booster', 'Resistor', 'SynchronousCompensator', 'SynchronousMotor',
+  'KnifeSwitch3', 'KnifeSwitch', 'BlockingFilter', 'PowerPole',
+])
+// A Power plant's (38) hydro kind (NType), the only one with a mirrored layout.
+export const POWER_PLANT_HYDRO = 1
+
+/** Whether el has an Orientation of 0/90/180/-90. */
+export function canRotate(el: DiagramElement): boolean {
+  return !(POINTS_DRAWN_CLASSES.has(el.class) && el.points) && !NO_ORIENT_CLASSES.has(el.class)
+}
+
+/** Whether el has a Mirror flag. */
+export function canMirror(el: DiagramElement): boolean {
+  return (
+    canRotate(el) &&
+    !NO_MIRROR_CLASSES.has(el.class) &&
+    !(el.class === 'PowerPlant' && el.nType !== POWER_PLANT_HYDRO)
+  )
+}
+
+// One of 0, 90, 180, -90 for a multiple of 90.
+function normalizeOrient(a: number): number {
+  const r = ((a % 360) + 360) % 360
+  return r === 270 ? -90 : r
+}
+
+function updateElementsInPlace(
+  diagram: Diagram,
+  ids: Iterable<number>,
+  symbols: ElementSymbol[],
+  change: (el: DiagramElement) => Partial<DiagramElement> | null,
+): Diagram {
+  let d = diagram
+  for (const id of ids) {
+    const el = d.elements.find(e => e.id === id)
+    const fields = el ? change(el) : null
+    if (!el || !fields) continue
+    const next = { ...el, ...fields }
+    d = fitElementPorts({ ...d, elements: d.elements.map(e => (e === el ? next : e)) }, id, symbols, true)
+  }
+  return d
+}
+
+/** Turns each element of ids that canRotate by 90° about its own anchor,
+ * clockwise or not, its ports and wire ends following. Others are skipped.
+ * Returns diagram itself when none turned. */
+export function rotateElements(diagram: Diagram, ids: Iterable<number>, symbols: ElementSymbol[], clockwise: boolean): Diagram {
+  return updateElementsInPlace(diagram, ids, symbols, el =>
+    canRotate(el) ? { orient: normalizeOrient((el.orient ?? 0) + (clockwise ? 90 : -90)) } : null,
+  )
+}
+
+/** Flips Mirror on each element of ids that canMirror, its ports and wire
+ * ends following. Others are skipped. Returns diagram itself when none
+ * flipped. */
+export function mirrorElements(diagram: Diagram, ids: Iterable<number>, symbols: ElementSymbol[]): Diagram {
+  return updateElementsInPlace(diagram, ids, symbols, el => (canMirror(el) ? { mirror: !el.mirror || undefined } : null))
+}

@@ -54,7 +54,9 @@ See [Placing elements](#placing).
 1. Expand **Switching devices**, click **Disconnector**, then click the canvas below the busbar.
 2. Arm **Breaker** the same way and click below the disconnector. Placing is single-shot: arm the element again for
    each copy.
-3. To turn a device, select it and change **Orientation** (or **Mirror**) in Properties; its terminals turn with it.
+3. To turn a device, select it and press **R** (90° clockwise; **Shift+R** counter-clockwise) or **M** (mirror), or
+   change **Orientation** (or **Mirror**) in Properties; its terminals and the wires on them turn with it. With
+   several items selected, each device turns about its own anchor; items without an orientation stay as they are.
 4. To move a device, hold **Ctrl** (**Cmd** on a Mac) and drag it. A plain drag pans the canvas.
 
 Tip: a device whose terminal is dropped exactly onto the busbar is connected to it without a wire. See
@@ -633,6 +635,8 @@ import log. To match your Modus installation, replace `workplace.xml` with your 
 | **Ctrl+C** / **Cmd+C** | Copy the selection |
 | **Ctrl+V** / **Cmd+V** | Paste, offset from the original |
 | **Ctrl+F** / **Cmd+F** | Find items (Properties → Find) |
+| **R** / **Shift+R** | Rotate the selected devices 90° clockwise / counter-clockwise, each about its own anchor |
+| **M** | Mirror the selected devices (on/off) |
 | **Ctrl+G** / **Cmd+G** | Group the selection |
 | **Ctrl+Shift+G** / **Cmd+Shift+G** | Ungroup the selected group(s) |
 | A letter shown on a palette button (**T**, **C**, **D**, **B**, **W**…) | Arm that palette item; press again to disarm |

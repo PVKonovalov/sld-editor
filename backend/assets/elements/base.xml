@@ -413,7 +413,9 @@
        Status (State), matching sld-viewer's own Pattern D convention
        (applyTrolleyState) — the far chevrons stay fixed outside that group,
        same as a real xsde2svg export's own fixed disconnect-contact
-       stubs. -->
+       stubs. The box and state bar are Breaker (41)'s symmetric 14x14 ones,
+       not xsde2svg's odd 17 (whose integer halving drew them one unit off
+       center). -->
   <symbol shape="43" class="Breaker" name="Breaker (withdrawable)">
     <terminals>
       <terminal x="0" y="-30"/>
@@ -421,9 +423,9 @@
     </terminals>
     <template><![CDATA[
 <g transform="translate({positionOffset},0)"{positionAttr}>
-<path d="M -8 -8 h 17 v 17 h -17 z"{fillAttr} style="fill:{fill};stroke:{color};stroke-width:1" />
-<path d="{state:M 0 -5 v 11|M -5 0 h 11|M -3.9 -3.9 l 7.8 7.8}"{stateAttr} style="stroke:{color};stroke-width:1" />
-<path d="M 0 -8 v -13 m 0 0 l -4 4 m 4 -4 l 4 4 M 0 8 v 13 m 0 0 l -4 -4 m 4 4 l 4 -4" style="stroke:{color};stroke-width:1" />
+<path d="M -7 -7 h 14 v 14 h -14 z"{fillAttr} style="fill:{fill};stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -5 v 10|M -5 0 h 10|M -3.5 -3.5 l 7 7}"{stateAttr} style="stroke:{color};stroke-width:1" />
+<path d="M 0 -7 v -14 m 0 0 l -4 4 m 4 -4 l 4 4 M 0 7 v 14 m 0 0 l -4 -4 m 4 4 l 4 -4" style="stroke:{color};stroke-width:1" />
 </g>
 <path d="M 0 -30 l -4 4 m 8 0 l -4 -4 M 0 30 l -4 -4 m 8 0 l -4 4" style="stroke:{color};stroke-width:1" />
 ]]></template>

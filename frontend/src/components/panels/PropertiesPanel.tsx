@@ -338,7 +338,7 @@ function substationSectors(el: DiagramElement): { voltage?: number }[] {
 const SUBSTATION_MAX_SECTORS = 4
 // A Power plant's (38) kinds, its NType.
 const POWER_PLANT_THERMAL = 0
-const POWER_PLANT_HYDRO = 1
+const POWER_PLANT_HYDRO = diagramOps.POWER_PLANT_HYDRO
 const SUBSTATION_DEFAULT_RADIUS = 20
 
 // A Substation's sector list (one voltage per sector, 1–4, add/remove) and
@@ -960,13 +960,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isPowerflowIndicator = el.class === 'PowerflowIndicator'
   const isFork = el.class === 'Fork'
   const isBooster = el.class === 'Booster'
-  const isResistor = el.class === 'Resistor'
-  const isSyncCompensator = el.class === 'SynchronousCompensator'
-  const isSyncMotor = el.class === 'SynchronousMotor'
   const isKnifeSwitch3 = el.class === 'KnifeSwitch3'
   const isKnifeSwitch = el.class === 'KnifeSwitch'
-  const isBlockingFilter = el.class === 'BlockingFilter'
-  const isPowerPole = el.class === 'PowerPole'
   const isTable = el.class === 'Table'
   const isTable2 = el.class === 'Table2'
   const isPackageSubstation = el.class === 'PackageSubstation'
@@ -2663,23 +2658,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         ) : (
-          // Lamp's own template is a plain circle with no terminals at
-          // all — rotating it changes nothing, visually or functionally,
-          // so Orientation is skipped for it alone. FaultPassageIndicator
-          // looks the same rotated too, but unlike Lamp it does have real
-          // terminals (top/bottom) — Orientation is what lets one of those
-          // land on a horizontal wire instead of only ever a vertical one,
-          // so it still needs the field even though nothing visually
-          // changes. PostPole gets the same skip as Lamp — no terminals
-          // either, and both its own round and (axis-aligned, 4-fold
-          // symmetric) square variants look identical at every orientation
-          // this editor supports (see slddoc's own ClassPostPole doc
-          // comment) — Mirror is equally inert for the same reason. Table2
-          // gets the same skip too — it has no Orient/Mirror concept in
-          // the model at all (see slddoc's own ClassTable2 doc comment;
-          // unlike Table (312), whose own Orient rotates just its label
-          // and is shown in the Points-editor branch above instead).
-          !isLamp && !isPostPole && !isLampOnPole && !isConnectorArrow && !isConnectorPoint && !isTable2 && (
+          // Which shapes have an Orientation: diagramOps.canRotate.
+          diagramOps.canRotate(el) && (
             <>
               <label className="block text-xs">
                 <span className="block text-gray-400 mb-1">{t('properties.orientation')}</span>
@@ -2695,19 +2675,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   ))}
                 </select>
               </label>
-              {/* PowerflowIndicator's own arrow glyph has no Mirror concept
-                  in the real source at all (unlike Orientation, which does
-                  rotate it) — writePowerflowIndicator never applies it, so
-                  the checkbox is skipped here the same reason Orientation
-                  itself is skipped for Lamp/PostPole just above. A Booster's
-                  real source has no mirror branch either (its circle is
-                  symmetric and its arrow never rotates), nor a Resistor's. A Synchronous compensator
-                  (and a Synchronous motor) is symmetric and has no mirror branch either; a 3-position knife
-                  switch's State already picks either side, and a Knife switch and a
-                  Blocking filter have no mirror branch. A thermal Power plant is
-                  symmetric; only the hydro kind has a mirrored layout. A Power pole is a
-                  symmetric circle with no mirror branch. */}
-              {!isPowerflowIndicator && !isFork && !isBooster && !isResistor && !isSyncCompensator && !isSyncMotor && !isKnifeSwitch3 && !isKnifeSwitch && !isBlockingFilter && !(isPowerPlant && el.nType !== POWER_PLANT_HYDRO) && !isPowerPole && (
+              {/* Which shapes have a Mirror: diagramOps.canMirror. */}
+              {diagramOps.canMirror(el) && (
                 <label className="flex items-center gap-2 text-xs">
                   <input
                     type="checkbox"

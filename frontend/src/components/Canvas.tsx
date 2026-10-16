@@ -1555,6 +1555,20 @@ export function Canvas() {
         if (!e.repeat) setSpaceHeld(true)
         return
       }
+      // R / Shift+R rotates the selected devices 90° clockwise / counter-
+      // clockwise and M mirrors them, each about its own anchor (r and m are
+      // never placement hot keys, see elements.ReservedHotKeys).
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.code === 'KeyR' || e.code === 'KeyM')) {
+        if (elementSelection.size === 0 || pointerHeldRef.current || gestureInProgress) return
+        e.preventDefault()
+        const ids = [...elementSelection]
+        updateDiagram(d =>
+          e.code === 'KeyR'
+            ? diagramOps.rotateElements(d, ids, elements, !e.shiftKey)
+            : diagramOps.mirrorElements(d, ids, elements),
+        )
+        return
+      }
       // A placement hot key (config hot_keys): a plain letter or digit, no
       // Ctrl/Cmd/Alt, arms (or disarms) its palette item, though not in the
       // middle of a drag or a drawing.

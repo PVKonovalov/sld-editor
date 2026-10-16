@@ -5727,3 +5727,17 @@ member of the already-selected group picks just that member. Shift/Ctrl/Cmd-clic
 remove whole groups, Ctrl/Cmd-drag and Alt-drag act on the whole group, and members on a hidden layer are left
 out. Copy/Paste and custom elements give a copied group a fresh id (`placeCustomElement`), and Delete ungroups a
 group left with one member. XSLD_FORMAT.md and both user guides (new "Grouping" section, shortcuts) updated.
+
+2026-10-16: R and M keys rotate and mirror. `r`/`m` were reserved in `hot_keys` (`elements.ReservedHotKeys`) but
+nothing handled them. Now **R** turns every selected device 90° clockwise (**Shift+R** counter-clockwise) and **M**
+flips its Mirror, each about its own anchor, with ports and wire ends following (`fitElementPorts`), as one undo
+step. The keys match by physical key (`KeyR`/`KeyM`), so they also work with a Russian layout. Items without an
+orientation (points-drawn shapes, Lamp, Post pole, Table2…) or without a mirrored layout are skipped. Which shapes
+have Orientation/Mirror moved from inline checks in `PropertiesPanel.tsx` to `diagramOps.canRotate`/`canMirror`,
+used by both the panel and the new `diagramOps.rotateElements`/`mirrorElements`. Both user guides updated.
+
+2026-10-16: Breaker (withdrawable) (43) is drawn symmetric. Its template copied xsde2svg's `element_43.go`, whose box
+is an odd 17 units halved with integer division, so the box ran from -8 to +9, the state bar from -5 to +6, and the
+trolley legs started at ±8: visibly off center. `base.xml` now draws it with Breaker (41)'s 14x14 box (±7) and state
+bars, and the legs run from ±7 to the same chevrons at ±21. Terminals (±30), trolley shift and import are unchanged
+(Extract anchors shape 43 on its outer arrows, not on the box).
