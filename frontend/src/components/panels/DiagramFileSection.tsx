@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import { t } from '../../i18n'
 import * as api from '../../lib/api'
@@ -15,6 +16,8 @@ export function DiagramFileSection() {
   const { diagramName, diagram, dirty, saveDiagram, saveDiagramAs, error, clearError } = useDiagramContext()
   const [saveAsName, setSaveAsName] = useState('')
   const [busy, setBusy] = useState(false)
+  // Set while the Save button's own save runs, for its spinner.
+  const [saving, setSaving] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
   const dir = diagramName ? parentDir(diagramName) : ''
 
@@ -38,9 +41,14 @@ export function DiagramFileSection() {
         <button
           type="button"
           disabled={busy || !diagramName || !dirty}
-          onClick={() => run(saveDiagram)}
-          className="w-full px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
+          onClick={() => {
+            setSaving(true)
+            void run(saveDiagram).finally(() => setSaving(false))
+          }}
+          aria-busy={saving}
+          className="w-full flex items-center justify-center gap-1.5 px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
         >
+          {saving && <Loader2 size={12} className="animate-spin shrink-0" />}
           {t('file.save')}
           {dirty ? ' *' : ''}
         </button>

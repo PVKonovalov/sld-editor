@@ -456,7 +456,7 @@ function ZoomControls({
 }
 
 // Renders the current in-memory diagram by asking the backend to render it,
-// debounced, rather than reimplementing internal/slddoc's symbol-template
+// rendered in sequence (renderNext), rather than reimplementing internal/slddoc's symbol-template
 // rendering in the browser. Selection (click, Shift/Ctrl/Cmd-click, the
 // selection frame), drag, Alt-drag duplicate, copy/paste, click-to-place
 // and wire routing are all handled here by hit-testing a click against the
@@ -464,7 +464,7 @@ function ZoomControls({
 // Render/RenderFragments write on every selectable node, and reading its
 // plain DOM id (the entity's own bare integer id, parsed back out of the
 // string the DOM always represents it as) — then mutating diagram state
-// directly. Each debounce firing diffs the latest diagram against
+// directly. Each render transaction (renderNext, one at a time) diffs the latest diagram against
 // lastRenderedRef (diagramOps.diffDiagramForRender) to pick how to catch
 // the displayed SVG up: POST /api/render/fragments and patch just the
 // changed nodes in place (patchFragmentsInDom) when only a fixed set of
@@ -1148,83 +1148,86 @@ export function Canvas() {
     window.addEventListener('mouseup', onUp)
   }
 
-  useEffect(() => {
-    const version = documentVersion
-    if (!diagram) {
+  // Rendering runs as a sequence of transactions: one request at a time, each
+  // one completing and applied to the page, never cancelled. A change made
+  // while one runs waits; when it completes, the next request covers the
+  // difference between what was just drawn and the diagram as it is then.
+  const renderTargetRef = useRef<{ diagram: Diagram | null; version: number; preRendered: typeof preRendered }>({
+    diagram: null,
+    version: 0,
+    preRendered: null,
+  })
+  renderTargetRef.current = { diagram, version: documentVersion, preRendered }
+  const renderingRef = useRef(false)
+  // The diagram whose render failed: not retried until the diagram changes.
+  const renderFailedRef = useRef<Diagram | null>(null)
+
+  const renderNext = useCallback(() => {
+    if (renderingRef.current) return
+    const { diagram: target, version, preRendered: delivered } = renderTargetRef.current
+    if (!target) {
       setSvg('')
       setWarning(null)
       lastRenderedRef.current = null
       return
     }
-    // A diagram the server rendered while opening it is shown as delivered.
-    if (preRendered?.diagram === diagram) {
-      setSvg(preRendered.svg)
-      setWarning(preRendered.warning ?? null)
-      lastRenderedRef.current = diagram
+    const shown = () => {
+      lastRenderedRef.current = target
       lastRenderedVersionRef.current = version
       diagramShown(version)
+    }
+    if (target === renderFailedRef.current) return
+    if (lastRenderedRef.current === target && lastRenderedVersionRef.current === version) return
+    // A diagram the server rendered while opening it is shown as delivered,
+    // only as that document's first drawing: an undo back to it later is
+    // diffed like any other change.
+    if (delivered?.diagram === target && lastRenderedVersionRef.current !== version) {
+      setSvg(delivered.svg)
+      setWarning(delivered.warning ?? null)
+      shown()
       return
     }
-    let cancelled = false
-    const handle = setTimeout(() => {
-      // A replaced document is always rendered whole, never diffed against the previous one.
-      const baseline = lastRenderedVersionRef.current === version ? lastRenderedRef.current : null
-      const diff = baseline ? diagramOps.diffDiagramForRender(baseline, diagram) : { kind: 'full' as const }
-      const shown = () => {
-        lastRenderedVersionRef.current = version
-        diagramShown(version)
-      }
+    // A replaced document is always rendered whole, never diffed against the previous one.
+    const baseline = lastRenderedVersionRef.current === version ? lastRenderedRef.current : null
+    const diff = baseline ? diagramOps.diffDiagramForRender(baseline, target) : { kind: 'full' as const }
+    if (diff.kind === 'none') {
+      shown()
+      return
+    }
 
-      if (diff.kind === 'none') {
-        // Nothing rendering-relevant actually changed (e.g. a no-op
-        // updateDiagram) — skip the round trip entirely, but still adopt
-        // diagram as the new baseline so a *later* diff doesn't end up
-        // comparing against an increasingly stale reference.
-        lastRenderedRef.current = diagram
-        shown()
-        return
-      }
-
-      if (diff.kind === 'patch') {
-        api
-          .renderPreviewFragments(diagram, diff.targets.map(target => target.id))
-          .then(res => {
-            if (cancelled) return
+    renderingRef.current = true
+    const request =
+      diff.kind === 'patch'
+        ? api.renderPreviewFragments(target, diff.targets.map(t => t.id)).then(res => {
             const root = wrapperRef.current
             if (root) patchFragmentsInDom(root, diff.targets, res.fragments)
-            lastRenderedRef.current = diagram
-            setWarning(res.warning ?? null)
             setPatchVersion(v => v + 1)
-            shown()
+            return res.warning
           })
-          .catch(e => {
-            if (cancelled) return
-            setWarning((e as Error).message)
-            shown()
+        : api.renderPreview(target).then(res => {
+            setSvg(res.svg)
+            return res.warning
           })
-        return
-      }
+    request
+      .then(warning => {
+        setWarning(warning ?? null)
+        renderFailedRef.current = null
+        shown()
+      })
+      .catch(e => {
+        setWarning((e as Error).message)
+        renderFailedRef.current = target
+        diagramShown(version)
+      })
+      .finally(() => {
+        renderingRef.current = false
+        renderNext()
+      })
+  }, [diagramShown])
 
-      api
-        .renderPreview(diagram)
-        .then(res => {
-          if (cancelled) return
-          setSvg(res.svg)
-          lastRenderedRef.current = diagram
-          setWarning(res.warning ?? null)
-          shown()
-        })
-        .catch(e => {
-          if (cancelled) return
-          setWarning((e as Error).message)
-          shown()
-        })
-    }, 150)
-    return () => {
-      cancelled = true
-      clearTimeout(handle)
-    }
-  }, [diagram, documentVersion, preRendered, diagramShown])
+  useEffect(() => {
+    renderNext()
+  }, [diagram, documentVersion, preRendered, renderNext])
 
   // Recomputes every symbol element's own real bounding box straight from
   // the backend-rendered markup, once it's actually in the DOM — the fix
@@ -2085,7 +2088,7 @@ export function Canvas() {
   }
 
   // Drags the real backend-rendered symbol(s) by (dx, dy) directly in the
-  // DOM, rather than waiting on the debounced re-render — so the user sees
+  // DOM, rather than waiting on the next render transaction — so the user sees
   // the actual placed element follow the cursor while dragging, not just
   // an abstract highlight. Reads each element's own current x/y/points from
   // diagram state (unchanged until mouseup) and offsets from there; a

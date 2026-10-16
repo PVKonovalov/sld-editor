@@ -116,6 +116,65 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 ## Editing
 - [x] Group/Ungroup elements
 
+## Reducing frontend/backend traffic: a working copy on the server
+
+Today every edit uploads the whole diagram (`/api/render/fragments` or `/api/render`, about 105 KB gzipped for a
+2,500-element diagram), because the backend is stateless and the unsaved working copy lives only in the browser.
+Opening is already one request (the server repairs and renders it). The goal: the server keeps each tab's working
+copy and receives only what changed.
+
+Server:
+
+- [ ] `internal/workspace`: an in-memory registry, tab session → `{name, version, diagram}`, one per tab, guarded by
+      a per-session lock. The session id is the one presence already sends (`PresenceBanner.tsx`), moved to a
+      shared module (`lib/session.ts`).
+- [ ] `GET /api/diagrams/open?name=&session=` also stores the repaired diagram as that tab's working copy and returns
+      its `version`.
+- [ ] `PUT /api/workspace?session=`: the whole diagram (New, import, draft restore, and the resend fallback). Returns
+      the new `version` and the full SVG.
+- [ ] `POST /api/workspace/apply?session=`: `{base, changes}`. `changes` holds upserted and deleted elements,
+      connectors, labels, digital devices and nodes (whole items, by id), plus the small top-level fields when they
+      changed (`width`, `height`, `lastId`, `editor`, `layers`, `voltageClasses`). The
+      server applies them, decides patch vs full render itself (the rules of today's `diffDiagramForRender`), and
+      returns `{version, fragments}` or `{version, svg}`.
+- [ ] A `base` that isn't the server's current version, or an unknown session (server restart), answers 409
+      `{resend: true}`; the frontend then sends the whole diagram once with `PUT /api/workspace`.
+- [ ] Item order: an upserted existing item keeps its place, a new one is appended, as the frontend's arrays do. If
+      the surviving ids of an array come in a different order (a reorder), the frontend sends the whole diagram.
+- [ ] `PUT /api/diagrams/save?name=&session=&version=` writes the working copy (Save and Save As) instead of an
+      uploaded body; a version mismatch answers 409 and the frontend resends, then saves.
+- [ ] Export XML/SVG and "Save as custom element" for the whole diagram read the working copy too.
+- [ ] Freeing memory: the presence `leave` (pagehide) drops the tab's copy; a copy not touched for the presence TTL
+      is dropped as the fallback for a tab that vanished without notice. Optionally a cap on copies
+      (`workspace.max_sessions`, documented in the guides' Configuration section).
+- [ ] Pictures: the working copy keeps the image (`href`), so the Static .svg written on Save has it; an image goes
+      up only when its Picture changes, so `lib/picture.ts`'s stripping is no longer needed for rendering.
+
+Frontend:
+
+- [ ] `lib/workspace.ts`: the last state the server acknowledged (`acked`, `version`) and `changesBetween(acked,
+      current)`, by id and object reference (untouched items keep their reference, as `diffDiagramForRender`
+      already relies on). Undo/redo needs nothing extra: it is just another current state.
+- [ ] Event-driven sync, no timers (replaces the 150 ms render delay): at most one request in flight; a change
+      while one is in flight is only noted, and when the response arrives one request goes out for the latest
+      state. The response's fragments or SVG update the canvas as today.
+- [ ] `commitDiagram` resets (open, New, import, restore) set `acked` from the open response or send the whole
+      diagram with `PUT /api/workspace`.
+- [ ] Save sends only `name` and `version`; on 409 it resends and retries once.
+- [ ] Remove `/api/render`, `/api/render/fragments` and their callers once nothing uses them; keep
+      `/api/diagrams/svg` (downloads).
+
+Tests and checks:
+
+- [ ] Go: applying changes (upsert, delete, top-level fields, order), version mismatch, unknown session, save from
+      the working copy, memory release on leave.
+- [ ] API: open → apply a move → fragments only; apply with a stale base → 409; save → file on disk equals the
+      working copy.
+- [ ] Measure a move on the 2,500-element diagram: request size (expected under 1 KB) and round trip.
+
+Order: (1) workspace + open + apply + resend (edits stop uploading the diagram); (2) save and exports from the
+working copy; (3) remove the old render endpoints.
+
 ## User can create new elements
 
 A new element is a new template symbol (SVG with `{color}`/`{fill}`/`{state:…}`/`{stateAttr}` placeholders plus

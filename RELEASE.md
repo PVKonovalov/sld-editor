@@ -5772,3 +5772,30 @@ no longer repairs a whole diagram: `normalizeTopology` only fixes a pasted or du
 (about 2,500 elements) now opens in one 0.25 s request with no upload. While a diagram is opened, imported, created
 or restored, the canvas shows "Loading <name>…" and takes no clicks (nor does the File panel), until it has drawn
 that document (`loading`, `documentVersion`, `diagramShown` in `DiagramContext`; no timers).
+
+2026-10-16: The Save button (Properties, diagram view) shows a spinning icon next to its label while its save is
+running, from the click until the server has answered or failed (`DiagramFileSection.tsx`, `aria-busy` set).
+
+2026-10-16: Snap to grid no longer draws diagonal wires on imported diagrams, and an imported busbar gets a port per
+connection point. An xsde2svg import joins every wire end along a busbar on one Node at the busbar's first point,
+while each wire is still drawn to where it meets the bus. `snapDiagramToGrid` rerouted every wire end onto its Node,
+so such wires were pulled along the bus to its first point, and two (with a repeated point, or a point inside a
+straight run) came out diagonal (e.g. a capacitor bank's and a reactor's disconnector wires). Now a wire end follows
+its Node only if it was on it, and `rerouteConnectorEnd` (and slddoc's `rerouteEnd`) drop repeated and in-line points
+before rerouting. In slddoc, `Repair` gains `splitBusbarNodes`: each point where a wire end or device terminal meets
+a busbar gets its own Node there, a port of that busbar (and of any other busbar it lies on); the topology is
+unchanged, as a busbar is one electrical node. `Repair` also repeats its pass until one changes nothing, so a
+diagram it repairs is never repaired again on the next open (6 of 447 local diagrams needed a second pass). On the
+447 local diagrams, wire ends on a busbar node drawn elsewhere went from 2,097 to 17.
+
+2026-10-16: Undo right after a drag puts the dragged items back on the canvas, and rendering runs as a sequence
+of transactions. On a large diagram, dragging a label and pressing Undo left the text where the drag had put it
+while its selection mark went back. Two causes: every change cancelled the render still running (the 150 ms timer
+and the answer of the request in flight), so a drag's own render could be dropped after the drag had already moved
+its items on the page; and Undo back to the diagram as opened was shown as the SVG `diagrams/open` had delivered,
+the same markup React already had, so the page was never touched. `Canvas.tsx`'s `renderNext` now runs one request
+at a time, never cancels it and always applies its answer; a change made meanwhile waits, and when the request
+completes the next one covers the difference between what was just drawn and the diagram as it is then. The 150 ms
+timer is gone. The delivered SVG is used only for a document's first drawing. Checked against a server slowed to
+2 s per render: drag then Undo before the answer, and Redo/Undo/Redo within 0.2 s, both end with the page matching
+the diagram.

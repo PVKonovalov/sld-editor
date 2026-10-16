@@ -155,16 +155,20 @@ storage and the Gin API.
   re-fit them with `moveNodes` (orientation/mirror/position/size carry port nodes and wire ends along), and
   `moveSelection` joins a zero-length wire's ends (`removeDegenerateConnectors`) and a dropped terminal to whatever
   lies exactly under it (`joinPortNodes`: merges a node, splits a wire, or taps a busbar). A whole diagram is repaired
-  on the server on open and import (`slddoc.Repair`, a rule-for-rule Go port of these functions; the import endpoints
+  on the server on open and import (`slddoc.Repair`, a rule-for-rule Go port of these functions, plus
+  `splitBusbarNodes`, which turns an imported busbar's one shared node into a port node per connection point, and
+  repeated until a pass changes nothing; the import endpoints
   also run `prepareDiagram`, plus `InferSizeSteps` for an extracted one), never moving an existing node (an imported
   diagram may use one node for a whole busbar); `normalizeTopology` repairs only a copied group as it lands. Keep
   the two in step when a rule changes.
 - `components/Canvas.tsx`: pan/zoom (`react-zoom-pan-pinch`, double-click zoom disabled) and all interaction.
   - **Hit-testing:** reads `data-editor-kind` + `Number(id)` from the server-rendered SVG.
-  - **Rendering:** debounced. Each change is diffed against the last render: `'patch'` fetches `/api/render/fragments`
-    and swaps just those DOM nodes, `'full'` refetches `/api/render`, `'none'` skips. A just-opened diagram shows the
-    SVG `diagrams/open` delivered (`preRendered`), and a replaced document (`documentVersion`) is always rendered
-    whole. While a diagram is being opened, imported, created or restored, a spinner covers the canvas (`loading`)
+  - **Rendering:** a sequence of transactions (`renderNext`): one request at a time, never cancelled, its answer
+    always applied; a change made meanwhile waits, and the next request covers the difference between what was just
+    drawn and the diagram then. No timers. Each step is diffed against the last render: `'patch'` fetches
+    `/api/render/fragments` and swaps just those DOM nodes, `'full'` refetches `/api/render`, `'none'` skips. A
+    just-opened diagram's first drawing is the SVG `diagrams/open` delivered (`preRendered`), and a replaced document
+    (`documentVersion`) is always rendered whole. While a diagram is being opened, imported, created or restored, a spinner covers the canvas (`loading`)
     until the canvas reports that document drawn (`diagramShown`).
     A Picture's (shape 11) embedded image (`href`, a data URI) is stripped from both requests (`lib/picture.ts`);
     Interactive render writes its `<image>` without an href and the canvas fills it in from state after each render.

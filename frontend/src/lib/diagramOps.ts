@@ -1654,9 +1654,13 @@ function detachSharedPorts(diagram: Diagram, movedIds: Set<number>): Diagram {
 /** Moves one end of a connector's own path to newPoint, keeping the segment
  * touching it orthogonal: a two-point wire gets a bend inserted, a longer
  * one has its neighboring vertex slid along the axis that preserves that
- * segment's orientation (moveConnectorVertex's projection-lock rule). */
+ * segment's orientation (moveConnectorVertex's projection-lock rule).
+ * Repeated points and points inside a straight run (an imported path may
+ * carry them) are dropped first, so the vertex that slides is a real bend. */
 function rerouteConnectorEnd(points: Point[], end: 'from' | 'to', newPoint: Point): Point[] {
   if (points.length < 2) return points
+  const simple = simplifyOrthogonalPath(points)
+  if (simple.length >= 2) points = simple
   if (end === 'from') {
     const old0 = points[0]
     const new0 = newPoint
@@ -3991,7 +3995,8 @@ export function gridReferencePoint(
  * gridReferencePoint, and each of its port Nodes that sat on its terminal
  * moves with it (the first device to claim a shared Node wins); a wire end
  * on such a Node follows it, keeping its last segment orthogonal
- * (rerouteConnectorEnd). A points-based element snaps each vertex; its
+ * (rerouteConnectorEnd); a wire end that wasn't on its Node (an imported
+ * busbar's shared Node) just snaps where it is. A points-based element snaps each vertex; its
  * anchor follows the vertex it coincides with, or else the first/last
  * vertex midpoint. Finally a wire squeezed to zero length is removed, its
  * two ends joined (they were connected through it anyway).
@@ -4055,11 +4060,17 @@ export function snapDiagramToGrid(
     return { ...el, x: el.x + dx, y: el.y + dy }
   })
 
+  // A wire end follows its Node only when it was on it: an imported busbar
+  // shares one Node (at its first point) with every wire end along it.
+  const follows = (end: Point, nodeId: number) => {
+    const node = nodeIndex.get(nodeId)
+    return !!node && samePoint(end, node)
+  }
   const connectors = diagram.connectors.map(c => {
     if (c.points.length === 0) return c
     let points = c.points.map(snap)
-    const from = nodePos.get(c.from)
-    const to = nodePos.get(c.to)
+    const from = follows(c.points[0], c.from) ? nodePos.get(c.from) : undefined
+    const to = follows(c.points[c.points.length - 1], c.to) ? nodePos.get(c.to) : undefined
     if (from && !samePoint(points[0], from)) points = rerouteConnectorEnd(points, 'from', from)
     if (to && !samePoint(points[points.length - 1], to)) points = rerouteConnectorEnd(points, 'to', to)
     points = simplifyOrthogonalPath(points)
