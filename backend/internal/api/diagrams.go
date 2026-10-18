@@ -95,9 +95,9 @@ func (s *Server) createDiagram(c *gin.Context) {
 // segment in Gin's router, so all three were moved to query params instead
 // for one consistent scheme.
 //
-// The diagram is repaired (prepareDiagram) and rendered for the live canvas here, so opening one is a single
-// request: responds {diagram, svg, repaired, warning?}, repaired telling whether the repair changed anything (the
-// editor then marks it unsaved). Nothing is written to disk.
+// The diagram's ids are checked (slddoc.EnsureIDs, no topology repair: see prepareDiagram) and it is rendered for
+// the live canvas here, so opening one is a single request: responds {diagram, svg, repaired, warning?}, repaired
+// telling whether the id check changed anything (the editor then marks it unsaved). Nothing is written to disk.
 func (s *Server) getDiagram(c *gin.Context) {
 	d, err := s.store.Load(c.Query("name"))
 	if errors.Is(err, storage.ErrNotFound) {
@@ -112,7 +112,7 @@ func (s *Server) getDiagram(c *gin.Context) {
 		errJSON(c, http.StatusInternalServerError, err)
 		return
 	}
-	repaired := s.prepareDiagram(d, false)
+	repaired := slddoc.EnsureIDs(d)
 	var buf bytes.Buffer
 	renderErr := s.store.Render(d, &buf, slddoc.Interactive)
 	resp := gin.H{"diagram": d, "svg": buf.String(), "repaired": repaired}
@@ -279,8 +279,20 @@ func (s *Server) importDiagramXML(c *gin.Context) {
 		errJSON(c, http.StatusBadRequest, err)
 		return
 	}
-	s.prepareDiagram(d, false)
+	slddoc.EnsureIDs(d)
 	c.JSON(http.StatusOK, d)
+}
+
+// repairDiagram: POST /repair repairs the posted diagram (prepareDiagram), the client's "Repair diagram" for one
+// that was never repaired; responds {diagram, repaired}. Nothing is written to disk.
+func (s *Server) repairDiagram(c *gin.Context) {
+	var d slddoc.Diagram
+	if err := c.ShouldBindJSON(&d); err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+	repaired := s.prepareDiagram(&d, false)
+	c.JSON(http.StatusOK, gin.H{"diagram": &d, "repaired": repaired})
 }
 
 // importReport is slddoc.Report's own JSON form (that struct carries no

@@ -100,6 +100,12 @@ export interface DiagramContextValue {
   currentDir: string
   diagrams: DiagramEntry[]
   browseDir: (dir: string) => Promise<DiagramEntry[]>
+  // Folder actions on currentDir's listing. createFolder takes a name relative to currentDir; renameEntry and
+  // deleteEntry take full paths. A rename that covers the open diagram renames it in place (name, page address,
+  // recovery draft); deleting the open diagram throws.
+  createFolder: (name: string) => Promise<void>
+  renameEntry: (from: string, to: string, isDir: boolean) => Promise<void>
+  deleteEntry: (path: string, isDir: boolean) => Promise<void>
   elements: ElementSymbol[]
   config: EditorConfig | null
   error: string | null
@@ -228,6 +234,9 @@ export interface DiagramContextValue {
   closeBatchImport: () => void
   saveDiagram: () => Promise<void>
   saveDiagramAs: (name: string) => Promise<void>
+  // Repairs the open diagram on the server (api.repairDiagram) as one undo step; resolves to whether anything
+  // changed. Throws when the diagram was edited while the request ran.
+  repairDiagram: () => Promise<boolean>
   updateDiagram: (updater: (d: Diagram) => Diagram) => void
   updateEditorSettings: (patch: Partial<EditorSettings>) => void
   // Undo/redo of diagram edits (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl+Y,
@@ -259,8 +268,13 @@ export interface DiagramContextValue {
   requestFind: () => void
   // Asks the canvas to centre (and zoom in) on one item; seq changes on
   // every request so the same item can be asked for again.
-  focusRequest: { id: number; kind: SelectionKind; seq: number } | { point: Point; seq: number } | null
+  // reveal: only pan, and only when the item isn't fully in view (no zoom).
+  focusRequest: { id: number; kind: SelectionKind; seq: number; reveal?: boolean } | { point: Point; seq: number } | null
   focusItem: (id: number, kind: SelectionKind) => void
+  // An item marked on the canvas without selecting it (the Connections section's links), until the selection
+  // changes or another document opens. highlightItem toggles it and pans the item into view.
+  highlighted: { id: number; kind: SelectionKind } | null
+  highlightItem: (id: number, kind: SelectionKind) => void
   // Centres the canvas on a diagram point and flashes a ring there (the
   // Connections section's node coordinates).
   focusPoint: (point: Point) => void

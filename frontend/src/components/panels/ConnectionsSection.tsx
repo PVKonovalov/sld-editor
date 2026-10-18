@@ -9,14 +9,15 @@ import type { Connector, DiagramElement } from '../../types'
 
 // The Properties panel's topology view of one element (each of its Ports)
 // or wire (its two ends): the Node each sits on, and everything else
-// attached to that Node, each a link that selects it, with a scissors button
+// attached to that Node, each a link that highlights it on the canvas
+// without selecting it (a second click clears it), with a scissors button
 // that disconnects just that item from the Node
 // (diagramOps.disconnectAttachment), in one undo step.
 
 type Row = { key: string; heading: string; node: number; self: diagramOps.NodeAttachment }
 
 export function ConnectionsSection({ element, connector }: { element?: DiagramElement; connector?: Connector }) {
-  const { diagram, elements, config, selectElement, selectConnector, updateDiagram, focusPoint } = useDiagramContext()
+  const { diagram, elements, config, highlighted, highlightItem, updateDiagram, focusPoint } = useDiagramContext()
   const [collapsed, setCollapsed] = useState(false)
   if (!diagram) return null
 
@@ -64,21 +65,24 @@ export function ConnectionsSection({ element, connector }: { element?: DiagramEl
 
   function attachmentLink(node: number, a: diagramOps.NodeAttachment) {
     let label: string
-    let onClick: () => void
     if (a.kind === 'element') {
       const el = elementsById.get(a.id)
       if (!el) return null
       label = t('properties.connectionElementPort', { name: elementName(el), port: a.port })
-      onClick = () => selectElement(a.id)
     } else {
       const c = connectorsById.get(a.id)
       if (!c) return null
       label = connectorName(c)
-      onClick = () => selectConnector(a.id)
     }
+    const lit = highlighted?.id === a.id && highlighted.kind === a.kind
     return (
       <li key={`${a.kind}-${a.id}-${a.kind === 'element' ? a.port : a.end}`} className="flex items-start gap-1">
-        <button type="button" className="flex-1 min-w-0 text-left text-sky-300 hover:underline" onClick={onClick}>
+        <button
+          type="button"
+          aria-pressed={lit}
+          className={`flex-1 min-w-0 text-left hover:underline ${lit ? 'text-amber-300' : 'text-sky-300'}`}
+          onClick={() => highlightItem(a.id, a.kind)}
+        >
           {label}
         </button>
         <button

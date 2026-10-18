@@ -108,9 +108,15 @@ func (s *Server) routes() {
 	// needs that.
 	grp.GET("/diagrams", s.listDiagrams)
 	grp.POST("/diagrams", s.createDiagram)
+	grp.DELETE("/diagrams", s.deleteDiagram)
+	grp.POST("/diagrams/rename", s.renameDiagram)
+	grp.POST("/folders", s.createFolder)
+	grp.POST("/folders/rename", s.renameFolder)
+	grp.DELETE("/folders", s.deleteFolder)
 	grp.GET("/diagrams/open", s.getDiagram)
 	grp.PUT("/diagrams/save", s.saveDiagram)
 	grp.GET("/diagrams/svg", s.renderDiagramSVG)
+	grp.POST("/repair", s.repairDiagram)
 	grp.POST("/render", s.renderPreview)
 	grp.POST("/render/fragments", s.renderPreviewFragments)
 	grp.POST("/export/xml", s.exportDiagramXML)
@@ -124,6 +130,7 @@ func (s *Server) routes() {
 	grp.GET("/config", s.getConfig)
 	grp.GET("/user-guide", s.getUserGuide)
 	grp.POST("/presence", s.touchPresence)
+	grp.GET("/presence/open", s.openTabs)
 
 	s.mountWebUI()
 }

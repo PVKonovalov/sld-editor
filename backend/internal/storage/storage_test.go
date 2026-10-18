@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
@@ -238,5 +239,81 @@ func TestSaveRevision_KeepsHistoryOnDisk(t *testing.T) {
 	}
 	if len(entries) != 2 {
 		t.Errorf("temporary files left behind: %v", entries)
+	}
+}
+
+func TestFolderActions(t *testing.T) {
+	s := newTestStore(t)
+	d := &slddoc.Diagram{Width: 100, Height: 100}
+	if _, err := s.Create("a/one", d); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.CreateDir("b/c"); err != nil {
+		t.Fatalf("CreateDir: %v", err)
+	}
+	if err := s.CreateDir("b/c"); !errors.Is(err, ErrExists) {
+		t.Errorf("CreateDir existing: %v, want ErrExists", err)
+	}
+	if err := s.CreateDir(""); !errors.Is(err, ErrInvalidName) {
+		t.Errorf("CreateDir root: %v, want ErrInvalidName", err)
+	}
+
+	if err := s.Rename("a/one", "b/c/two"); err != nil {
+		t.Fatalf("Rename: %v", err)
+	}
+	if _, err := s.Load("b/c/two"); err != nil {
+		t.Errorf("Load renamed: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(s.dir, "b", "c", "two.svg")); err != nil {
+		t.Errorf("svg not moved: %v", err)
+	}
+	if _, err := s.Load("a/one"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Load old name: %v, want ErrNotFound", err)
+	}
+	if err := s.Rename("a/one", "x"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Rename missing: %v, want ErrNotFound", err)
+	}
+	if _, err := s.Create("three", d); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Rename("three", "b/c/two"); !errors.Is(err, ErrExists) {
+		t.Errorf("Rename onto existing: %v, want ErrExists", err)
+	}
+
+	if err := s.RenameDir("b", "b/c/d"); !errors.Is(err, ErrInvalidName) {
+		t.Errorf("RenameDir into itself: %v, want ErrInvalidName", err)
+	}
+	if err := s.RenameDir("b", "a"); !errors.Is(err, ErrExists) {
+		t.Errorf("RenameDir onto existing: %v, want ErrExists", err)
+	}
+	if err := s.RenameDir("three", "z"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("RenameDir of a diagram: %v, want ErrNotFound", err)
+	}
+	if err := s.RenameDir("b", "x/y"); err != nil {
+		t.Fatalf("RenameDir: %v", err)
+	}
+	if _, err := s.Load("x/y/c/two"); err != nil {
+		t.Errorf("Load after RenameDir: %v", err)
+	}
+
+	if err := s.DeleteDir("x/y/c"); !errors.Is(err, ErrNotEmpty) {
+		t.Errorf("DeleteDir non-empty: %v, want ErrNotEmpty", err)
+	}
+	if err := s.Delete("x/y/c/two"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if err := s.Delete("x/y/c/two"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("Delete again: %v, want ErrNotFound", err)
+	}
+	if err := s.DeleteDir("x/y/c"); err != nil {
+		t.Fatalf("DeleteDir: %v", err)
+	}
+	if err := s.DeleteDir("x/y/c"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("DeleteDir again: %v, want ErrNotFound", err)
+	}
+	entries, err := s.List("x/y")
+	if err != nil || len(entries) != 0 {
+		t.Errorf("List(x/y) = %v, %v; want empty", entries, err)
 	}
 }

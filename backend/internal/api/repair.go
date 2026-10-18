@@ -6,11 +6,11 @@ import (
 	"github.com/PVKonovalov/slddoc"
 )
 
-// prepareDiagram applies, in place, what the editor needs before showing a diagram it opens or imports: ids
-// backfilled and made unique (slddoc.EnsureIDs), voltage classes still named after their color renamed to the
-// configured preset, and the topology repaired (slddoc.Repair). An extracted diagram (an .svg or .xsde import) also
-// gets its most-used voltage class as the default voltage and its elements' size steps (slddoc.InferSizeSteps).
-// Returns whether d changed.
+// prepareDiagram repairs d in place: ids backfilled and made unique (slddoc.EnsureIDs), voltage classes still named
+// after their color renamed to the configured preset, and the topology repaired (slddoc.Repair). It runs only where
+// a diagram is first produced from an .svg or .xsde import (extracted, which also gets its most-used voltage class
+// as the default voltage and its elements' size steps, slddoc.InferSizeSteps) and on the client's explicit request
+// (POST /repair); opening a diagram only runs slddoc.EnsureIDs. Returns whether d changed.
 func (s *Server) prepareDiagram(d *slddoc.Diagram, extracted bool) bool {
 	changed := false
 	if extracted && (d.Editor == nil || d.Editor.DefaultVoltage == 0) {

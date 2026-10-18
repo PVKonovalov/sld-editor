@@ -75,15 +75,19 @@ storage and the Gin API.
   `diagrams/save`) also appends a `slddoc.Revision` (time, client IP) to the history already on disk, keeping the last
   `MaxHistory`; the client's own history is used only for a new name. A missing symbol is a non-fatal render warning. Names are `/`-separated paths (subfolders), and
   every segment is validated (`ErrInvalidName`). `List(dir)` returns one folder level only.
-- `internal/api`: routes under `/api` — `diagrams` (list/create), `diagrams/open` (repairs the diagram with
-  `prepareDiagram` in `internal/api/repair.go`: `slddoc.EnsureIDs`, preset voltage names, `slddoc.Repair`; renders it
-  for the canvas; returns `{diagram, svg, repaired}`, so opening is one request), `diagrams/save`, `diagrams/svg`,
+- `internal/api`: routes under `/api` — `diagrams` (list/create), `diagrams/open` (only `slddoc.EnsureIDs`, never a
+  topology repair; renders it for the canvas; returns `{diagram, svg, repaired}`, so opening is one request), `repair`
+  (the client's "Repair diagram": `prepareDiagram` in `internal/api/repair.go`, i.e. `slddoc.EnsureIDs`, preset voltage
+  names, `slddoc.Repair`, on the posted diagram; `{diagram, repaired}`), `diagrams/save`, `diagrams/svg`,
+  `diagrams/rename` + `DELETE diagrams` and `folders` (create/`rename`/`DELETE`, empty folders only; `internal/api/folders.go`,
+  the File panel's `FolderActionDialog`),
   `render`, `render/fragments`, `import/xml`, `import/svg` (runs `slddoc.Extract`, returns `{diagram, report}`), `import/xsde`
   (raw `.xsde` bytes → `xsde2svg.Convert` → `Extract` per page, returns `{pages: [{page, title, diagram, report}],
   messages}`; `messages` are the converter's INFO/WARN/ERROR diagnostics, shown in the import log),
   `elements`, `custom-elements`, `config`, `presence` (`internal/api/presence.go` + `internal/presence`: an
   in-memory registry of which tab has which diagram open; `{session, diagram}` → `{others: [{ip, since}], lastSave}`,
-  the other tabs (IP, when they opened it) and the diagram's last save; the router trusts `X-Forwarded-For` only from loopback,
+  the other tabs (IP, when they opened it) and the diagram's last save; `GET presence/open?path=` lists the tabs with a
+  diagram or anything in a folder open, for the rename/delete dialogs; the router trusts `X-Forwarded-For` only from loopback,
   so a same-machine nginx passes the real client IP; the frontend's `components/PresenceBanner.tsx` sends it every 60 s and
   shows a one-line amber warning; users are known only by IP, there is no login), `user-guide` (`internal/api/user_guide.go`: the `user_guide` config file
   converted from Markdown to an HTML fragment with goldmark on every request, tables on, raw HTML off; `?lang=xx`
@@ -131,7 +135,7 @@ storage and the Gin API.
   kind clears the others. The exception is that selecting does *not* clear `armedWireKind`. Also here: import flows
   (single file → `pendingImport` confirm when the name exists; multi-file → `batchImport`) and the default-voltage
   prompt. Anything that replaces the open diagram (`openDiagram`, `newDiagram`, `importDiagramFile`, `restoreDraft`)
-  goes through `confirmLeave`, which asks Save / Don't save / Cancel when there are unsaved edits; a repair made on
+  goes through `confirmLeave`, which asks Save / Don't save / Cancel when there are unsaved edits; an id fix made on
   open doesn't count (`openedRef`). Unsaved edits are also copied to an IndexedDB recovery draft (`lib/drafts.ts`),
   offered back on startup and on open. Undo/redo (`undo`/`redo`/`canUndo`/`canRedo`) keeps whole-`Diagram`
   snapshots: `updateDiagram` applies its updater to `diagramRef` (not inside `setDiagram`) and pushes the old one, and
@@ -155,10 +159,11 @@ storage and the Gin API.
   re-fit them with `moveNodes` (orientation/mirror/position/size carry port nodes and wire ends along), and
   `moveSelection` joins a zero-length wire's ends (`removeDegenerateConnectors`) and a dropped terminal to whatever
   lies exactly under it (`joinPortNodes`: merges a node, splits a wire, or taps a busbar). A whole diagram is repaired
-  on the server on open and import (`slddoc.Repair`, a rule-for-rule Go port of these functions, plus
-  `splitBusbarNodes`, which turns an imported busbar's one shared node into a port node per connection point, and
-  repeated until a pass changes nothing; the import endpoints
-  also run `prepareDiagram`, plus `InferSizeSteps` for an extracted one), never moving an existing node (an imported
+  on the server only right after an `.svg`/`.xsde` import is extracted, and on the client's explicit "Repair diagram"
+  (`POST /api/repair`); opening and `.xsld` import run only `EnsureIDs` (`slddoc.Repair` is a rule-for-rule Go port of
+  these functions, plus `splitBusbarNodes`, which turns an imported busbar's one shared node into a port node per
+  connection point, repeated until a pass changes nothing; `prepareDiagram` adds `InferSizeSteps` for an extracted
+  one), never moving an existing node (an imported
   diagram may use one node for a whole busbar); `normalizeTopology` repairs only a copied group as it lands. Keep
   the two in step when a rule changes.
 - `components/Canvas.tsx`: pan/zoom (`react-zoom-pan-pinch`, double-click zoom disabled) and all interaction.

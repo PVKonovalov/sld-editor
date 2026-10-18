@@ -140,6 +140,22 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
   the color changes. Everything drawn in the class is recolored. Each color is matched to its nearest standard color only. **Properties
   → Voltage classes → Match preset colors…** opens the list again later.
 
+### Folders {#folders}
+
+- **File → New folder** creates an empty folder in the folder the File panel shows. A name may contain `/` to
+  create nested folders at once.
+- Hover a folder or diagram in the folder browser to show its **Rename or move** (pencil) and **Delete** (bin)
+  buttons.
+- **Rename or move** asks for the new path from the top folder, filled in with the current one. Change the last
+  part to rename it, or the folder part to move it (for example `region1/sub-5` → `archive/sub-5`). Missing folders
+  are created. A folder moves with everything in it, and it can't be moved into itself. When the open diagram is
+  renamed or moved, directly or with its folder, it stays open under the new name, page address included, and its
+  unsaved edits are kept.
+- **Delete** asks first and can't be undone. It removes a diagram's `.xsld` and `.svg`. Only an empty folder can be
+  deleted, and the open diagram can't be deleted.
+- Both dialogs list the other tabs (by IP address) that have the diagram, or anything in the folder, open. Those
+  tabs are not told about the change: saving there writes the diagram back under its old name.
+
 ### Importing {#import}
 
 - Drop `.xsld`, `.svg` or `.xsde` files anywhere on the window, or use **File → Load from file…**.
@@ -169,8 +185,8 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 - A junction point (the dot) marks that everything crossing there is connected: every wire running through it,
   overhead lines included, is split at the dot and joined to it and to a busbar under it. Wires crossing without a
   dot stay separate.
-- Diagrams imported before these two rules were added get them applied when opened (the diagram is then marked as
-  changed; save it to keep the repair).
+- Diagrams imported before these two rules were added get them with **Repair diagram** (see
+  [Repairing a diagram](#repair)).
 
 ### Saving and exporting {#save-export}
 
@@ -182,13 +198,23 @@ With nothing selected, the Properties panel shows the diagram itself:
   diagram (see [Layers and voltage classes](#layers)).
 - **History**: when the diagram was saved and from which IP address (see [Several people on one diagram](#history)).
 
-When you open an older diagram, the editor may repair its connections (see [Connections](#connections)); the diagram is then
-marked as changed. Save it to keep the repair.
+### Repairing a diagram {#repair}
+
+An `.svg` or `.xsde` import is repaired as it comes in: every device gets exactly its fixed ports on its terminals,
+a busbar gets a port at each point where something meets it, wire ends and terminals lying on a wire or a junction
+dot are joined to it, voltage classes get the server's standard names, and wires of zero length are removed (see
+[Connections](#connections)). Opening a diagram never changes its connections; it only fixes duplicate or missing
+ids, and then marks the diagram as changed.
+
+A diagram saved before these rules existed, or edited outside the editor, can be repaired by hand: **Repair
+diagram** in the diagram's Properties (nothing selected) applies the same repair to the diagram as it is now,
+unsaved edits included. It is one step that **Undo** reverts, and the diagram is marked as changed until you save
+it. "Nothing to repair" means the diagram already follows every rule.
 
 ### Unsaved changes {#unsaved}
 
 - Opening another diagram, creating a new one, or importing a file while the open diagram has unsaved edits first
-  asks: **Save** (then continue), **Don't save** (drop the edits) or **Cancel** (stay where you are). A repair made
+  asks: **Save** (then continue), **Don't save** (drop the edits) or **Cancel** (stay where you are). An id fix made
   automatically on opening doesn't count as an edit.
 - Closing or reloading the browser tab with unsaved edits shows the browser's own "Leave site?" warning.
 - The page address names the open diagram (`?diagram=folder/name`), so reloading the page opens it again (as last
@@ -452,11 +478,13 @@ are; one step of Undo) or **Leave as is** (the amber handles stay for fixing the
   mid-air), which is useful for checking that things are really connected.
 - The **Connections** section in Properties lists, for a selected device or busbar, each of its ports with the node
   it sits on (id and coordinates) and everything else attached there; for a selected wire, the same for its two ends.
-  A port with nothing attached shows *not connected*, a wire end *free end*. Click a listed item to select it,
-  or the node's coordinates to center the canvas on that point (a ring flashes there).
+  A port with nothing attached shows *not connected*, a wire end *free end*. Click a listed item to highlight it
+  in amber on the canvas (the view pans to it when it is out of sight); the selection and Properties stay as they
+  are, and clicking it again, or selecting anything, clears the highlight. To open its properties, select it on the
+  canvas. Click the node's coordinates to center the canvas on that point (a ring flashes there).
 - The scissors icon after a listed item disconnects just that item from this connection point; everything else
-  there stays connected. So that the editor does not reconnect them (it joins anything lying exactly on a
-  connection point when a diagram is opened), the two are also pulled apart: a detached wire end is drawn back one
+  there stays connected. So that a repair does not reconnect them (it joins anything lying exactly on a
+  connection point, see [Repairing a diagram](#repair)), the two are also pulled apart: a detached wire end is drawn back one
   grid step along its wire (and shows as a red free end), a device touching another device or a busbar directly
   steps one grid step away from it, and a busbar point is dropped with the rest moved one step off the busbar.
   **Ctrl+Z** undoes it.

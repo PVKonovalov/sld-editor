@@ -75,3 +75,15 @@ export function getDraft(name: string): Promise<Draft | null> {
 export function listDrafts(): Promise<Draft[]> {
   return enqueue(() => run<Draft[]>('readonly', s => s.getAll()), [])
 }
+
+/** Moves the drafts of the diagram from, or of every diagram inside the folder from (isDir), to the matching names
+ * under to, keeping when each was written. */
+export async function renameDrafts(from: string, to: string, isDir: boolean): Promise<void> {
+  for (const draft of await listDrafts()) {
+    const moved = isDir ? draft.name.startsWith(`${from}/`) : draft.name === from
+    if (!moved) continue
+    const name = to + draft.name.slice(from.length)
+    await enqueue(() => run('readwrite', s => s.put({ ...draft, name })).then(() => undefined), undefined)
+    await deleteDraft(draft.name)
+  }
+}

@@ -513,6 +513,13 @@ export interface PresenceStatus {
   lastSave?: Revision
 }
 
+// Matches backend presence.OpenTab (GET /api/presence/open): another tab with diagram open (since: RFC 3339).
+export interface OpenTab {
+  diagram: string
+  ip: string
+  since: string
+}
+
 // Matches backend/internal/storage.Entry — one item in a single directory's
 // listing (GET /api/diagrams?dir=...): either a subdirectory (isDir true,
 // modTime the directory's own, not especially meaningful) the File panel's

@@ -3,19 +3,13 @@ import { TriangleAlert, Users } from 'lucide-react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import * as api from '../lib/api'
 import { formatTimestamp } from '../lib/revision'
+import { presenceSession } from '../lib/presenceSession'
 import type { PresenceStatus } from '../types'
 import { t } from '../i18n'
 
 // How often a tab tells the server which diagram it has open; the server
 // forgets a tab after 150 s (backend api.presenceTTL).
 const HEARTBEAT_MS = 60_000
-
-// This tab's presence id (crypto.randomUUID needs a secure context, which a
-// plain-http LAN install isn't). Kept across Vite hot reloads, which would
-// otherwise leave the old id listed until the server forgets it.
-const session: string =
-  import.meta.hot?.data.session ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-if (import.meta.hot) import.meta.hot.data.session = session
 
 /** "10.0.3.41 since 10:15 (2), 10.0.3.57 since 10:32": one entry per IP address, with its earliest
  * opening time and how many tabs it has open; others is already in opening order. */
@@ -44,7 +38,7 @@ export function PresenceBanner() {
     let cancelled = false
     const beat = () =>
       api
-        .touchPresence(session, diagramName ?? '')
+        .touchPresence(presenceSession, diagramName ?? '')
         .then(st => !cancelled && setStatus(st))
         .catch(() => !cancelled && setStatus(null))
     setStatus(null)
@@ -58,7 +52,7 @@ export function PresenceBanner() {
   }, [diagramName])
 
   useEffect(() => {
-    const leave = () => api.leavePresence(session)
+    const leave = () => api.leavePresence(presenceSession)
     window.addEventListener('pagehide', leave)
     return () => window.removeEventListener('pagehide', leave)
   }, [])

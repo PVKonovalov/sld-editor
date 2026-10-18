@@ -93,3 +93,36 @@ func (r *Registry) Saved(diagram string, rev slddoc.Revision) {
 	defer r.mu.Unlock()
 	r.saves[diagram] = rev
 }
+
+// OpenTab is a tab with a diagram open.
+type OpenTab struct {
+	Diagram string    `json:"diagram"`
+	IP      string    `json:"ip"`
+	Since   time.Time `json:"since"`
+}
+
+// OpenUnder returns the tabs other than id, still alive at now, that have path open or any diagram inside the
+// folder path, ordered by diagram, then by when they opened it.
+func (r *Registry) OpenUnder(path, id string, now time.Time) []OpenTab {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	tabs := []OpenTab{}
+	for k, s := range r.sessions {
+		if k == id || now.Sub(s.seen) > r.ttl {
+			continue
+		}
+		if s.diagram == path || strings.HasPrefix(s.diagram, path+"/") {
+			tabs = append(tabs, OpenTab{Diagram: s.diagram, IP: s.ip, Since: s.opened})
+		}
+	}
+	slices.SortFunc(tabs, func(a, b OpenTab) int {
+		if c := strings.Compare(a.Diagram, b.Diagram); c != 0 {
+			return c
+		}
+		if c := a.Since.Compare(b.Since); c != 0 {
+			return c
+		}
+		return strings.Compare(a.IP, b.IP)
+	})
+	return tabs
+}

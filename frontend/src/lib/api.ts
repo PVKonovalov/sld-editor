@@ -9,6 +9,7 @@ import type {
   ConverterMessage,
   OpenedDiagram,
   PresenceStatus,
+  OpenTab,
 } from '../types'
 import { stripPictureHrefs } from './picture'
 
@@ -65,6 +66,24 @@ export async function listDiagrams(dir: string): Promise<DiagramEntry[]> {
   return asJSON(res)
 }
 
+/** Creates the empty folder dir (POST /api/folders). */
+export async function createFolder(dir: string): Promise<void> {
+  await asJSON(await fetch(`${BASE}/folders?dir=${encodeURIComponent(dir)}`, { method: 'POST' }))
+}
+
+/** Renames or moves a diagram (isDir false) or a folder with its contents (isDir true) from one full path to
+ * another; missing folders on the way are created. */
+export async function renameEntry(from: string, to: string, isDir: boolean): Promise<void> {
+  const q = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+  await asJSON(await fetch(`${BASE}/${isDir ? 'folders' : 'diagrams'}/rename?${q}`, { method: 'POST' }))
+}
+
+/** Deletes a diagram, or an empty folder (isDir true). */
+export async function deleteEntry(path: string, isDir: boolean): Promise<void> {
+  const q = `${isDir ? 'dir' : 'name'}=${encodeURIComponent(path)}`
+  await asJSON(await fetch(`${BASE}/${isDir ? 'folders' : 'diagrams'}?${q}`, { method: 'DELETE' }))
+}
+
 export async function createDiagram(
   name: string,
   width?: number,
@@ -90,8 +109,8 @@ export async function createDiagram(
 // string, matching backend/internal/api's own getDiagram/saveDiagram,
 // which read name from c.Query, not c.Param.
 //
-// The server repairs the diagram and renders it for the canvas in the same
-// request (see OpenedDiagram).
+// The server checks the diagram's ids (no topology repair: see repairDiagram)
+// and renders it for the canvas in the same request (see OpenedDiagram).
 export async function getDiagram(name: string): Promise<OpenedDiagram> {
   const res = await fetch(`${BASE}/diagrams/open?name=${encodeURIComponent(name)}`)
   const data = await asJSON<Omit<OpenedDiagram, 'diagram'> & { diagram: DiagramWire }>(res)
@@ -105,6 +124,14 @@ export async function saveDiagram(
   const res = await fetch(`${BASE}/diagrams/save?name=${encodeURIComponent(name)}`, await jsonBody('PUT', diagram))
   const data = await asJSON<DiagramResponse>(res)
   return { diagram: normalizeDiagram(data.diagram), warning: data.warning }
+}
+
+/** Repairs a diagram's topology on the server (POST /api/repair: fixed ports, busbar ports, wire splits, ids,
+ * preset voltage names) without persisting it; repaired tells whether anything changed. */
+export async function repairDiagram(diagram: Diagram): Promise<{ diagram: Diagram; repaired: boolean }> {
+  const res = await fetch(`${BASE}/repair`, await jsonBody('POST', diagram))
+  const data = await asJSON<{ diagram: DiagramWire; repaired: boolean }>(res)
+  return { diagram: normalizeDiagram(data.diagram), repaired: data.repaired }
 }
 
 /** Renders a diagram (saved or not) to SVG without persisting it — used for
@@ -270,4 +297,11 @@ export function leavePresence(session: string) {
     `${BASE}/presence`,
     new Blob([JSON.stringify({ session, diagram: '' })], { type: 'application/json' }),
   )
+}
+
+/** The other tabs (not session) that have the diagram path, or any diagram inside the folder path, open. */
+export async function openTabs(path: string, session: string): Promise<OpenTab[]> {
+  const res = await fetch(`${BASE}/presence/open?path=${encodeURIComponent(path)}&session=${encodeURIComponent(session)}`)
+  const data = await asJSON<{ others: OpenTab[] | null }>(res)
+  return data.others ?? []
 }

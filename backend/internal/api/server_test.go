@@ -132,48 +132,57 @@ type openResponse struct {
 	Repaired bool           `json:"repaired"`
 }
 
-func TestOpenDiagram_RepairsAndRenders(t *testing.T) {
+func TestOpenDiagram_RendersWithoutRepair(t *testing.T) {
 	s := newTestServer(t)
 	d := slddoc.Diagram{
 		Width: 100, Height: 100,
 		VoltageClasses: []slddoc.VoltageClass{{ID: 2, Name: "#962896", Color: "#962896"}},
 		Elements:       []slddoc.Element{{ID: 1, Class: slddoc.ClassBreaker, Shape: "41", Voltage: 2, X: 50, Y: 50}},
+		LastID:         2,
 	}
 	if rec := doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=sub-1", d); rec.Code != http.StatusOK {
 		t.Fatalf("save: status = %d, body = %s", rec.Code, rec.Body.String())
 	}
 
-	open := func() openResponse {
-		rec := doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=sub-1", nil)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("open: status = %d, body = %s", rec.Code, rec.Body.String())
-		}
-		var r openResponse
-		if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
-			t.Fatal(err)
-		}
-		return r
+	rec := doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=sub-1", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("open: status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	r := open()
-	if !r.Repaired {
-		t.Error("a breaker without ports should be repaired on open")
+	var r openResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &r); err != nil {
+		t.Fatal(err)
 	}
-	el := r.Diagram.Elements[0]
-	if len(el.Ports) != 2 || len(r.Diagram.Nodes) != 2 {
-		t.Errorf("ports = %+v, nodes = %+v, want two fixed ports on two nodes", el.Ports, r.Diagram.Nodes)
-	}
-	if r.Diagram.VoltageClasses[0].Name != "10 kV" {
-		t.Errorf("voltage class = %q, want the preset name", r.Diagram.VoltageClasses[0].Name)
+	if r.Repaired || len(r.Diagram.Elements[0].Ports) != 0 || r.Diagram.VoltageClasses[0].Name != "#962896" {
+		t.Errorf("open must not repair: repaired = %v, diagram = %+v", r.Repaired, r.Diagram)
 	}
 	if !strings.Contains(r.SVG, `id="1"`) || !strings.Contains(r.SVG, `data-editor-kind="element"`) {
 		t.Errorf("open should return the interactive render: %s", r.SVG)
 	}
 
-	if rec := doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=sub-1", r.Diagram); rec.Code != http.StatusOK {
-		t.Fatalf("save repaired: status = %d", rec.Code)
+	rec = doJSON(t, s, http.MethodPost, "/api/repair", r.Diagram)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("repair: status = %d, body = %s", rec.Code, rec.Body.String())
 	}
-	if again := open(); again.Repaired {
-		t.Error("a saved repaired diagram should open unchanged")
+	var fixed struct {
+		Diagram  slddoc.Diagram `json:"diagram"`
+		Repaired bool           `json:"repaired"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &fixed); err != nil {
+		t.Fatal(err)
+	}
+	if !fixed.Repaired || len(fixed.Diagram.Elements[0].Ports) != 2 || len(fixed.Diagram.Nodes) != 2 {
+		t.Errorf("repair: repaired = %v, diagram = %+v, want two fixed ports on two nodes", fixed.Repaired, fixed.Diagram)
+	}
+	if fixed.Diagram.VoltageClasses[0].Name != "10 kV" {
+		t.Errorf("voltage class = %q, want the preset name", fixed.Diagram.VoltageClasses[0].Name)
+	}
+
+	rec = doJSON(t, s, http.MethodPost, "/api/repair", fixed.Diagram)
+	if err := json.Unmarshal(rec.Body.Bytes(), &fixed); err != nil {
+		t.Fatal(err)
+	}
+	if fixed.Repaired {
+		t.Error("repairing a repaired diagram should change nothing")
 	}
 }
 
@@ -443,6 +452,10 @@ func TestImportDiagramSVG(t *testing.T) {
 	// The server's own "10 kV" preset (#962896) names the extracted class.
 	if len(resp.Diagram.VoltageClasses) != 1 || resp.Diagram.VoltageClasses[0].Name != "10 kV" {
 		t.Errorf("voltage classes = %+v, want one named from the 10 kV preset", resp.Diagram.VoltageClasses)
+	}
+	// An extracted diagram goes through prepareDiagram: default voltage, preset names, repair.
+	if resp.Diagram.Editor == nil || resp.Diagram.Editor.DefaultVoltage != resp.Diagram.VoltageClasses[0].ID {
+		t.Errorf("editor = %+v, want the extracted class as default voltage", resp.Diagram.Editor)
 	}
 	if len(resp.Report.Skipped) != 1 || resp.Report.Skipped[0] != (importSkippedEntry{Code: "130", Name: "Device", Count: 1}) {
 		t.Errorf("report.skipped = %+v, want one 130 Device", resp.Report.Skipped)
@@ -793,5 +806,55 @@ func TestClientIP_TrustsLoopbackProxyOnly(t *testing.T) {
 		if len(others) != 1 || others[0].IP != want {
 			t.Errorf("from %s: others = %+v, want IP %q", remote, others, want)
 		}
+	}
+}
+
+func TestFolderAndDiagramActions(t *testing.T) {
+	s := newTestServer(t)
+	status := func(method, path string) int {
+		t.Helper()
+		return doJSON(t, s, method, path, nil).Code
+	}
+	if rec := doJSON(t, s, http.MethodPost, "/api/diagrams", createDiagramRequest{Name: "a/one"}); rec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", rec.Code, rec.Body.String())
+	}
+	steps := []struct {
+		method, path string
+		want         int
+	}{
+		{http.MethodPost, "/api/folders?dir=b", http.StatusCreated},
+		{http.MethodPost, "/api/folders?dir=b", http.StatusConflict},
+		{http.MethodPost, "/api/folders?dir=../x", http.StatusBadRequest},
+		{http.MethodPost, "/api/diagrams/rename?from=a/one&to=b/two", http.StatusOK},
+		{http.MethodPost, "/api/diagrams/rename?from=a/one&to=b/two", http.StatusNotFound},
+		{http.MethodDelete, "/api/folders?dir=b", http.StatusConflict},
+		{http.MethodPost, "/api/folders/rename?from=b&to=a", http.StatusConflict},
+		{http.MethodPost, "/api/folders/rename?from=b&to=c/d", http.StatusOK},
+		{http.MethodGet, "/api/diagrams/open?name=c/d/two", http.StatusOK},
+		{http.MethodDelete, "/api/diagrams?name=c/d/two", http.StatusOK},
+		{http.MethodDelete, "/api/diagrams?name=c/d/two", http.StatusNotFound},
+		{http.MethodDelete, "/api/folders?dir=c/d", http.StatusOK},
+		{http.MethodDelete, "/api/folders?dir=", http.StatusBadRequest},
+	}
+	for _, st := range steps {
+		if got := status(st.method, st.path); got != st.want {
+			t.Errorf("%s %s: status = %d, want %d", st.method, st.path, got, st.want)
+		}
+	}
+}
+
+func TestOpenTabs(t *testing.T) {
+	s := newTestServer(t)
+	doJSON(t, s, http.MethodPost, "/api/presence", presenceRequest{Session: "a", Diagram: "sub/A"})
+	doJSON(t, s, http.MethodPost, "/api/presence", presenceRequest{Session: "b", Diagram: "sub/B"})
+	rec := doJSON(t, s, http.MethodGet, "/api/presence/open?path=sub&session=a", nil)
+	var got struct {
+		Others []presence.OpenTab `json:"others"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Others) != 1 || got.Others[0].Diagram != "sub/B" {
+		t.Errorf("others = %+v, want only sub/B", got.Others)
 	}
 }

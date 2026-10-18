@@ -43,3 +43,21 @@ func TestTouch(t *testing.T) {
 		t.Errorf("a tab that left is still listed: %v", st.Others)
 	}
 }
+
+func TestOpenUnder(t *testing.T) {
+	r := New(150 * time.Second)
+	t0 := time.Date(2026, 10, 15, 10, 0, 0, 0, time.UTC)
+	r.Touch("a", "sub/A", "10.0.0.1", t0)
+	r.Touch("b", "sub/deep/B", "10.0.0.2", t0)
+	r.Touch("c", "subway/C", "10.0.0.3", t0)
+	r.Touch("d", "sub/A", "10.0.0.4", t0.Add(-time.Hour))
+
+	want := []OpenTab{{Diagram: "sub/deep/B", IP: "10.0.0.2", Since: t0}}
+	if got := r.OpenUnder("sub", "a", t0.Add(time.Minute)); !slices.Equal(got, want) {
+		t.Errorf("OpenUnder(sub) = %v, want %v", got, want)
+	}
+	want = []OpenTab{{Diagram: "sub/A", IP: "10.0.0.1", Since: t0}}
+	if got := r.OpenUnder("sub/A", "b", t0.Add(time.Minute)); !slices.Equal(got, want) {
+		t.Errorf("OpenUnder(sub/A) = %v, want %v", got, want)
+	}
+}

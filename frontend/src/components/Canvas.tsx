@@ -81,6 +81,8 @@ const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
   TABLE_SHAPE,
 ])
 const HIGHLIGHT = '#3b82f6'
+// The Connections section's highlighted item (not a selection).
+const FOCUS_HIGHLIGHT = '#f59e0b'
 // The handle of a wire end attached to a device but lying off its terminal.
 const MISPLACED_END = '#e6a83c'
 const CONNECT_TARGET_COLOR = '#22c55e'
@@ -508,6 +510,7 @@ export function Canvas() {
     redo,
     hiddenLayers,
     focusRequest,
+    highlighted,
     requestFind,
     diagramName,
     loading,
@@ -782,6 +785,18 @@ export function Canvas() {
         ? { x: focusRequest.point.x, y: focusRequest.point.y, width: 0, height: 0 }
         : itemBox(focusRequest.id, focusRequest.kind)
       if (!zoom || !wrapper || !box) return
+      if (!isPoint && focusRequest.reveal) {
+        const { scale, positionX, positionY } = zoom.instance.state
+        const left = box.x * scale + positionX
+        const top = box.y * scale + positionY
+        const right = left + box.width * scale
+        const bottom = top + box.height * scale
+        if (left >= 0 && top >= 0 && right <= wrapper.clientWidth && bottom <= wrapper.clientHeight) return
+        const cx = box.x + box.width / 2
+        const cy = box.y + box.height / 2
+        zoom.setTransform(wrapper.clientWidth / 2 - cx * scale, wrapper.clientHeight / 2 - cy * scale, scale, 0)
+        return
+      }
       const scale = Math.max(zoom.instance.state.scale, 1)
       const cx = box.x + box.width / 2
       const cy = box.y + box.height / 2
@@ -858,6 +873,46 @@ export function Canvas() {
     } catch {
       return null
     }
+  }
+
+  // The mark of the item highlighted from the Connections section: an amber band along a wire, an amber box
+  // around anything else.
+  function highlightMark() {
+    if (!highlighted || !diagram) return null
+    if (highlighted.kind === 'connector') {
+      const c = diagram.connectors.find(x => x.id === highlighted.id)
+      if (!c || isHidden(c)) return null
+      return (
+        <polyline
+          points={c.points.map(p => `${p.x},${p.y}`).join(' ')}
+          fill="none"
+          stroke={FOCUS_HIGHLIGHT}
+          strokeWidth={8}
+          strokeOpacity={0.6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          pointerEvents="none"
+        />
+      )
+    }
+    const el = highlighted.kind === 'element' ? diagram.elements.find(e => e.id === highlighted.id) : null
+    if (el && isHidden(el)) return null
+    const box = itemBox(highlighted.id, highlighted.kind)
+    if (!box) return null
+    const pad = BOX_HIGHLIGHT_PAD * 2
+    return (
+      <rect
+        x={box.x - pad}
+        y={box.y - pad}
+        width={box.width + pad * 2}
+        height={box.height + pad * 2}
+        fill={FOCUS_HIGHLIGHT}
+        fillOpacity={0.15}
+        stroke={FOCUS_HIGHLIGHT}
+        strokeWidth={2}
+        pointerEvents="none"
+      />
+    )
   }
 
   // The one dashed box drawn around a multi-selection: the union of its
@@ -3389,6 +3444,7 @@ export function Canvas() {
                     />
                   )
                 })}
+              {highlightMark()}
               {/* Every selected connector gets this basic highlight
                   (including selectedConnector itself) — full reshape/
                   vertex handles below stay singular, tied to

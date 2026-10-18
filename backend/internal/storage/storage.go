@@ -29,6 +29,9 @@ var ErrExists = errors.New("storage: diagram already exists")
 // exist.
 var ErrNotFound = errors.New("storage: diagram not found")
 
+// ErrNotEmpty is returned by DeleteDir when the folder still holds anything.
+var ErrNotEmpty = errors.New("storage: folder is not empty")
+
 // ErrInvalidName is returned by any call whose name/dir argument fails
 // safeName/safePathSegments' own validation (path traversal, an empty
 // segment, ...) — distinct from ErrExists/ErrNotFound so the API layer can
@@ -212,9 +215,7 @@ func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error)
 		return nil, err
 	}
 	// A name with subdirectory segments (e.g. "region1/substation-5") may
-	// name a folder that doesn't exist on disk yet — this is the only way
-	// a new one is created (no separate "New Folder" action): saving into
-	// it just makes it. A no-op when the directory already exists.
+	// name a folder that doesn't exist on disk yet: saving into it makes it.
 	if err := os.MkdirAll(filepath.Dir(xmlPath), 0o755); err != nil {
 		return nil, fmt.Errorf("storage: creating directory for %s: %w", name, err)
 	}
@@ -236,6 +237,154 @@ func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error)
 		return nil, err
 	}
 	return renderWarning, nil
+}
+
+// CreateDir creates the empty folder dir (its missing parents too), failing with ErrExists when something already has
+// that path.
+func (s *Store) CreateDir(dir string) error {
+	full, err := s.folderPath(dir)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+		return fmt.Errorf("storage: creating %s: %w", dir, err)
+	}
+	if err := os.Mkdir(full, 0o755); err != nil {
+		if os.IsExist(err) {
+			return ErrExists
+		}
+		return fmt.Errorf("storage: creating %s: %w", dir, err)
+	}
+	return nil
+}
+
+// Rename renames or moves the diagram from to to (its .xsld and .svg), creating to's missing folders. It fails with
+// ErrNotFound when from doesn't exist and ErrExists when to does.
+func (s *Store) Rename(from, to string) error {
+	fromXML, err := s.xmlPath(from)
+	if err != nil {
+		return err
+	}
+	fromSVG, _ := s.svgPath(from)
+	toXML, err := s.xmlPath(to)
+	if err != nil {
+		return err
+	}
+	toSVG, _ := s.svgPath(to)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := checkMove(fromXML, toXML, false); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(toXML), 0o755); err != nil {
+		return fmt.Errorf("storage: creating directory for %s: %w", to, err)
+	}
+	if err := os.Rename(fromXML, toXML); err != nil {
+		return fmt.Errorf("storage: renaming %s: %w", from, err)
+	}
+	if err := os.Rename(fromSVG, toSVG); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("storage: renaming %s: %w", from, err)
+	}
+	return nil
+}
+
+// RenameDir renames or moves the folder from, with everything in it, to to, creating to's missing parents. It fails
+// with ErrNotFound when from isn't a folder, ErrExists when to exists, and ErrInvalidName when to lies inside from.
+func (s *Store) RenameDir(from, to string) error {
+	fromPath, err := s.folderPath(from)
+	if err != nil {
+		return err
+	}
+	toPath, err := s.folderPath(to)
+	if err != nil {
+		return err
+	}
+	if strings.HasPrefix(to+"/", from+"/") {
+		return fmt.Errorf("%w: %q is inside %q", ErrInvalidName, to, from)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := checkMove(fromPath, toPath, true); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(toPath), 0o755); err != nil {
+		return fmt.Errorf("storage: creating %s: %w", to, err)
+	}
+	if err := os.Rename(fromPath, toPath); err != nil {
+		return fmt.Errorf("storage: renaming %s: %w", from, err)
+	}
+	return nil
+}
+
+// checkMove reports ErrNotFound unless from exists (a folder when dir, a file otherwise) and ErrExists when to
+// exists, unless to is from itself under another letter case (a case-insensitive file system).
+func checkMove(from, to string, dir bool) error {
+	fi, err := os.Stat(from)
+	if os.IsNotExist(err) || err == nil && fi.IsDir() != dir {
+		return ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("storage: checking %s: %w", from, err)
+	}
+	ti, err := os.Stat(to)
+	switch {
+	case os.IsNotExist(err):
+		return nil
+	case err != nil:
+		return fmt.Errorf("storage: checking %s: %w", to, err)
+	case from != to && os.SameFile(fi, ti):
+		return nil
+	default:
+		return ErrExists
+	}
+}
+
+// Delete removes the diagram name (its .xsld and .svg), failing with ErrNotFound when it doesn't exist.
+func (s *Store) Delete(name string) error {
+	xmlPath, err := s.xmlPath(name)
+	if err != nil {
+		return err
+	}
+	svgPath, _ := s.svgPath(name)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := os.Remove(xmlPath); err != nil {
+		if os.IsNotExist(err) {
+			return ErrNotFound
+		}
+		return fmt.Errorf("storage: deleting %s: %w", name, err)
+	}
+	if err := os.Remove(svgPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("storage: deleting %s: %w", name, err)
+	}
+	return nil
+}
+
+// DeleteDir removes the folder dir, failing with ErrNotFound when it isn't a folder and ErrNotEmpty when it holds
+// any file or folder.
+func (s *Store) DeleteDir(dir string) error {
+	full, err := s.folderPath(dir)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if fi, err := os.Stat(full); os.IsNotExist(err) || err == nil && !fi.IsDir() {
+		return ErrNotFound
+	}
+	items, err := os.ReadDir(full)
+	if err != nil {
+		return fmt.Errorf("storage: reading %s: %w", dir, err)
+	}
+	if len(items) > 0 {
+		return ErrNotEmpty
+	}
+	if err := os.Remove(full); err != nil {
+		return fmt.Errorf("storage: deleting %s: %w", dir, err)
+	}
+	return nil
 }
 
 // replaceFile writes data to a temporary file next to path and renames it
@@ -342,4 +491,12 @@ func (s *Store) dirPath(dir string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(s.dir, filepath.Join(segments...)), nil
+}
+
+// folderPath is dirPath for a folder that is not the store's root.
+func (s *Store) folderPath(dir string) (string, error) {
+	if dir == "" {
+		return "", fmt.Errorf("%w: folder name must not be empty", ErrInvalidName)
+	}
+	return s.dirPath(dir)
 }

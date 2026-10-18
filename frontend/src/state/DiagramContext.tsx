@@ -4,7 +4,7 @@ import * as diagramOps from '../lib/diagramOps'
 import { baseName, joinDiagramPath, parentDir } from '../lib/diagramPath'
 import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
 import { prepareImport, type PreparedImport } from '../lib/importDiagram'
-import { deleteDraft, getDraft, listDrafts, putDraft, type Draft } from '../lib/drafts'
+import { deleteDraft, getDraft, listDrafts, putDraft, renameDrafts, type Draft } from '../lib/drafts'
 import { diagramFromAddress, setDiagramAddress } from '../lib/diagramAddress'
 import { t } from '../i18n'
 import type {
@@ -308,7 +308,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [findFocusSeq, setFindFocusSeq] = useState(0)
   const requestFind = useCallback(() => setFindFocusSeq(n => n + 1), [])
   const [focusRequest, setFocusRequest] = useState<
-    { id: number; kind: SelectionKind; seq: number } | { point: Point; seq: number } | null
+    { id: number; kind: SelectionKind; seq: number; reveal?: boolean } | { point: Point; seq: number } | null
   >(null)
   const focusItem = useCallback(
     (id: number, kind: SelectionKind) => setFocusRequest(prev => ({ id, kind, seq: (prev?.seq ?? 0) + 1 })),
@@ -318,6 +318,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     (point: Point) => setFocusRequest(prev => ({ point, seq: (prev?.seq ?? 0) + 1 })),
     [],
   )
+  const [highlighted, setHighlighted] = useState<{ id: number; kind: SelectionKind } | null>(null)
+  const highlightItem = useCallback((id: number, kind: SelectionKind) => {
+    setHighlighted(prev => (prev?.id === id && prev.kind === kind ? null : { id, kind }))
+    setFocusRequest(prev => ({ id, kind, seq: (prev?.seq ?? 0) + 1, reveal: true }))
+  }, [])
+  useEffect(() => setHighlighted(null), [selection, documentVersion])
 
   // Drops selected ids an edit removed (or a newly opened diagram doesn't
   // have), so the selection never points at an item that isn't there.
@@ -843,6 +849,36 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [diagram, diagramName, browseDir, commitDiagram],
   )
 
+  const createFolder = useCallback(
+    async (name: string) => {
+      await api.createFolder(joinDiagramPath(currentDir, name))
+      await browseDir(currentDir)
+    },
+    [currentDir, browseDir],
+  )
+
+  const renameEntry = useCallback(
+    async (from: string, to: string, isDir: boolean) => {
+      await api.renameEntry(from, to, isDir)
+      await renameDrafts(from, to, isDir)
+      const open = latestRef.current.diagramName
+      if (open && (isDir ? open.startsWith(`${from}/`) : open === from)) setDiagramName(to + open.slice(from.length))
+      await browseDir(currentDir)
+    },
+    [currentDir, browseDir],
+  )
+
+  const deleteEntry = useCallback(
+    async (path: string, isDir: boolean) => {
+      const open = latestRef.current.diagramName
+      if (open && (isDir ? open.startsWith(`${path}/`) : open === path)) throw new Error(t('file.deleteOpenDiagram'))
+      await api.deleteEntry(path, isDir)
+      if (!isDir) await deleteDraft(path)
+      await browseDir(currentDir)
+    },
+    [currentDir, browseDir],
+  )
+
   const updateDiagram = useCallback(
     (updater: (d: Diagram) => Diagram) => {
       const prev = diagramRef.current
@@ -870,6 +906,15 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     },
     [commitDiagram, syncHistoryFlags],
   )
+
+  const repairDiagram = useCallback(async () => {
+    const sent = diagramRef.current
+    if (!sent) return false
+    const { diagram: repaired, repaired: changed } = await api.repairDiagram(sent)
+    if (diagramRef.current !== sent) throw new Error(t('file.repairStale'))
+    if (changed) updateDiagram(() => repaired)
+    return changed
+  }, [updateDiagram])
 
   // Steps the history one way: the current diagram goes onto the other
   // stack. A diagram that is the last opened/saved one is clean again.
@@ -1003,6 +1048,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       currentDir,
       diagrams,
       browseDir,
+      createFolder,
+      renameEntry,
+      deleteEntry,
       elements,
       config,
       error,
@@ -1054,6 +1102,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       closeBatchImport,
       saveDiagram,
       saveDiagramAs,
+      repairDiagram,
       updateDiagram,
       updateEditorSettings,
       undo,
@@ -1073,6 +1122,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       focusRequest,
       focusItem,
       focusPoint,
+      highlighted,
+      highlightItem,
       findPinned,
       selectFromFind,
       unsavedPrompt,
@@ -1093,6 +1144,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       currentDir,
       diagrams,
       browseDir,
+      createFolder,
+      renameEntry,
+      deleteEntry,
       elements,
       config,
       error,
@@ -1144,6 +1198,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       closeBatchImport,
       saveDiagram,
       saveDiagramAs,
+      repairDiagram,
       updateDiagram,
       updateEditorSettings,
       undo,
@@ -1163,6 +1218,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       focusRequest,
       focusItem,
       focusPoint,
+      highlighted,
+      highlightItem,
       findPinned,
       selectFromFind,
       unsavedPrompt,
