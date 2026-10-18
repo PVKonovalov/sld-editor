@@ -428,8 +428,43 @@ from, choose an item, then click the terminal, busbar point or wire point to con
 
 Clicking the middle of a wire splits it there, as when a wire is drawn onto it.
 
+A new wire takes the voltage class of where it starts: the device or busbar, or for a power transformer the winding
+whose terminal it starts from (the windings can differ), or the wire it starts on. When that has none (an
+autotransformer's tap terminal, an element without a voltage, a start in mid-air), it takes the voltage of where it
+ends, and failing that the diagram's default voltage.
+
+Where an edit connects a **Buswork** wire to a busbar (drawing the wire to or from it, dragging its end onto it,
+drawing or moving the busbar over the wire's end, **Topology → Connect to…**), a **Junction point** is added on that
+connection, with the busbar's voltage class and layer, unless one is there already. Connections that existed before
+are not changed, and deleting the wire later leaves the dot.
+
 Joining a wire in the middle of another wire splits it and creates a real junction. Overhead and cable lines get an
 automatic name (`Overhead line-12`).
+
+A **Buswork** wire that crosses a busbar or another buswork wire of a different voltage class hops over it: a
+**Wire jump** is put into the wire at the crossing, and the wire is cut around it, so the two stay unconnected and the
+crossing is visible. The jump over a busbar is one size larger. It doesn't matter how the crossing came about: drawing
+the wire, dragging its end or a bend, moving it or the device it is attached to, pasting it, changing its voltage, or
+drawing or moving a busbar across it. The buswork wire is always the one cut, never the busbar; of two buswork wires,
+the one you changed. A crossing at the same voltage, or too close to a bend or an end of the wire for the jump to fit,
+stays a plain crossing, and crossings on lines an edit didn't touch are left as they are. The jumps are part of the
+same edit, so **Ctrl+Z** undoes them together; a jump left behind when its wire is moved away stays until deleted.
+
+### Different voltage classes {#voltage-mismatch}
+
+The editor never silently connects two different voltage classes. When an edit would make such a connection, it
+first asks **Connect different voltage classes?**, naming the classes and the number of connection points. This
+covers finishing a wire on a terminal, busbar or wire, **Topology → Connect to…**, placing, dropping, moving,
+rotating or pasting devices onto something, drawing, moving or reshaping a busbar over wire ends or terminals, and
+dragging a wire end onto something.
+
+- **Connect** makes the edit with those connections.
+- **Don't connect** (also **Esc**) makes the same edit without them: those ends stay free and their crosses are red.
+
+A class counts per terminal (a power transformer's terminal has its winding's voltage), and something with no
+voltage class (an autotransformer's tap terminal, a decorative element) connects to anything. Connections that
+already exist are kept, and an `.svg`/`.xsde` import or **Repair diagram** connects as before, since real diagrams
+join different classes in many places.
 
 ### Editing a wire {#editing-wire}
 
@@ -478,7 +513,8 @@ are; one step of Undo) or **Leave as is** (the amber handles stay for fixing the
   mid-air), which is useful for checking that things are really connected.
 - The **Connections** section in Properties lists, for a selected device or busbar, each of its ports with the node
   it sits on (id and coordinates) and everything else attached there; for a selected wire, the same for its two ends.
-  A port with nothing attached shows *not connected*, a wire end *free end*. Click a listed item to highlight it
+  A port with nothing attached shows *not connected*, a wire end *free end*. A busbar port with nothing attached
+  that isn't at either end of the busbar (left behind where a wire used to end) has a red bin button that removes it. Click a listed item to highlight it
   in amber on the canvas (the view pans to it when it is out of sight); the selection and Properties stay as they
   are, and clicking it again, or selecting anything, clears the highlight. To open its properties, select it on the
   canvas. Click the node's coordinates to center the canvas on that point (a ring flashes there).

@@ -130,6 +130,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     fieldTime: number
   }>({ undo: [], redo: [], sameTask: false, field: null, fieldTime: 0 })
   const [canUndo, setCanUndo] = useState(false)
+  // The connection points where the edit waiting in pendingEditRef would join different voltage classes.
+  const [voltagePrompt, setVoltagePrompt] = useState<diagramOps.VoltageMismatch[] | null>(null)
+  const pendingEditRef = useRef<((d: Diagram) => Diagram)[] | null>(null)
+  const elementsRef = useRef(elements)
+  elementsRef.current = elements
   const [canRedo, setCanRedo] = useState(false)
   const [savedHistory, setSavedHistory] = useState<Revision[]>([])
 
@@ -148,6 +153,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       if (opts?.clean !== undefined) cleanRef.current = opts.clean
       if (opts?.reset || opts?.clean) setSavedHistory(d?.history ?? [])
       if (opts?.reset) {
+        pendingEditRef.current = null
+        setVoltagePrompt(null)
         historyRef.current = { undo: [], redo: [], sameTask: false, field: null, fieldTime: 0 }
         syncHistoryFlags()
         const version = ++versionRef.current
@@ -879,11 +886,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [currentDir, browseDir],
   )
 
-  const updateDiagram = useCallback(
-    (updater: (d: Diagram) => Diagram) => {
-      const prev = diagramRef.current
-      if (!prev) return
-      const next = updater(prev)
+  // Records next, made from prev, as one edit (undo step, dirty flag).
+  const applyEdit = useCallback(
+    (prev: Diagram, next: Diagram) => {
       if (next === prev) return
       const h = historyRef.current
       const field = editingField()
@@ -907,12 +912,57 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [commitDiagram, syncHistoryFlags],
   )
 
+  // Every edit first runs with joins of different voltage classes skipped; if it met any, it waits for
+  // VoltageMismatchDialog's answer (resolveVoltagePrompt), and edits made meanwhile queue behind it.
+  // Every edit also puts wire jumps where a buswork wire it touched crosses another voltage class
+  // (jumpChangedCrossings) and a junction point on each busbar–buswork connection it made (addJunctionPoints),
+  // except with opts.automatic false.
+  const updateDiagram = useCallback(
+    (edit: (d: Diagram) => Diagram, opts?: { automatic?: boolean }) => {
+      const updater =
+        opts?.automatic === false
+          ? edit
+          : (d: Diagram) => {
+              const symbols = elementsRef.current
+              return diagramOps.addJunctionPoints(d, diagramOps.jumpChangedCrossings(d, edit(d), symbols), symbols)
+            }
+      const pending = pendingEditRef.current
+      if (pending) {
+        pending.push(updater)
+        return
+      }
+      const prev = diagramRef.current
+      if (!prev) return
+      const { result, mismatches } = diagramOps.withVoltagePolicy(true, () => updater(prev))
+      if (mismatches.length === 0) {
+        applyEdit(prev, result)
+        return
+      }
+      pendingEditRef.current = [updater]
+      setVoltagePrompt(mismatches)
+    },
+    [applyEdit],
+  )
+
+  const resolveVoltagePrompt = useCallback(
+    (connect: boolean) => {
+      const updaters = pendingEditRef.current
+      pendingEditRef.current = null
+      setVoltagePrompt(null)
+      const prev = diagramRef.current
+      if (!updaters || !prev) return
+      const { result } = diagramOps.withVoltagePolicy(!connect, () => updaters.reduce((d, u) => u(d), prev))
+      applyEdit(prev, result)
+    },
+    [applyEdit],
+  )
+
   const repairDiagram = useCallback(async () => {
     const sent = diagramRef.current
     if (!sent) return false
     const { diagram: repaired, repaired: changed } = await api.repairDiagram(sent)
     if (diagramRef.current !== sent) throw new Error(t('file.repairStale'))
-    if (changed) updateDiagram(() => repaired)
+    if (changed) updateDiagram(() => repaired, { automatic: false })
     return changed
   }, [updateDiagram])
 
@@ -1104,6 +1154,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       saveDiagramAs,
       repairDiagram,
       updateDiagram,
+      voltagePrompt,
+      resolveVoltagePrompt,
       updateEditorSettings,
       undo,
       redo,
@@ -1200,6 +1252,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       saveDiagramAs,
       repairDiagram,
       updateDiagram,
+      voltagePrompt,
+      resolveVoltagePrompt,
       updateEditorSettings,
       undo,
       redo,

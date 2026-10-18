@@ -13,7 +13,7 @@ import type {
   Revision,
 } from '../types'
 import type { PreparedImport } from '../lib/importDiagram'
-import type { MisplacedPort } from '../lib/diagramOps'
+import type { MisplacedPort, VoltageMismatch } from '../lib/diagramOps'
 
 // A dropped/picked file whose target name (fileName minus extension)
 // already exists on the server — parked until ConfirmReloadDialog's
@@ -237,7 +237,14 @@ export interface DiagramContextValue {
   // Repairs the open diagram on the server (api.repairDiagram) as one undo step; resolves to whether anything
   // changed. Throws when the diagram was edited while the request ran.
   repairDiagram: () => Promise<boolean>
-  updateDiagram: (updater: (d: Diagram) => Diagram) => void
+  // opts.automatic false skips what every edit otherwise gets: wire jumps (diagramOps.jumpChangedCrossings) and
+  // junction points on new busbar–buswork connections (diagramOps.addJunctionPoints).
+  updateDiagram: (updater: (d: Diagram) => Diagram, opts?: { automatic?: boolean }) => void
+  // Set while an edit would join different voltage classes at these connection points (diagramOps.
+  // withVoltagePolicy) and waits for the answer: resolveVoltagePrompt(true) applies it with those joins, false
+  // without them (the ends stay free).
+  voltagePrompt: VoltageMismatch[] | null
+  resolveVoltagePrompt: (connect: boolean) => void
   updateEditorSettings: (patch: Partial<EditorSettings>) => void
   // Undo/redo of diagram edits (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl+Y,
   // the canvas buttons). The history restarts whenever another diagram is

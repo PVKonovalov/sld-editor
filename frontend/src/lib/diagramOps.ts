@@ -2042,12 +2042,22 @@ function scaledLength(v: number, step: number): number {
 export const FORK_ARM_LENGTH = 10
 
 
+/** The voltage class a wire end on element el's port Node nodeId takes: for a PowerTransformer, the winding that
+ * port belongs to (ports "1"…"N" follow the windings; an autotransformer's tap, the port after them, has none), for
+ * any other element its own voltage. undefined when unset. */
+export function terminalVoltage(el: DiagramElement, nodeId: number): number | undefined {
+  if (el.class !== 'PowerTransformer') return el.voltage ?? undefined
+  const port = el.ports?.find(p => p.node === nodeId)
+  return (port && el.windings?.[Number(port.name) - 1]?.voltage) || undefined
+}
+
 /** Electrically joins two elements with an explicit, possibly multi-segment
  * path (points.length >= 2 — points[0] the from-side endpoint, the last
  * entry the to-side one), the routing tool's element-to-element creator.
  * Each end attaches to that element's terminal Port Node nearest it
  * (attachElementEnd). The new connector's
- * voltage class comes from whichever of from/to already has one — it's
+ * voltage class comes from whichever of from/to already has one, at the
+ * terminal it attached to (terminalVoltage: a transformer's winding) — it's
  * electrically joining them, so it should read as the same voltage they
  * already do, not some unrelated value — falling back to defaultVoltage
  * (the last one picked in Properties, same seed placeElement/placeBusbar
@@ -2067,6 +2077,10 @@ export function drawConnectorPath(
   const from = diagram.elements.find(e => e.id === fromId)
   const to = diagram.elements.find(e => e.id === toId)
   if (!from || !to) return diagram
+  const startVoltage = [elementVoltageAt(diagram, fromId, points[0])]
+  if (!voltagesJoin(-toId, startVoltage, [elementVoltageAt(diagram, toId, points[points.length - 1])])) {
+    return drawDanglingConnectorPath(diagram, fromId, points, defaultVoltage, kind)
+  }
 
   const ids = new IdSequence(diagram)
   const start = points[0]
@@ -2080,7 +2094,7 @@ export function drawConnectorPath(
     kind,
     name: defaultConnectorName(kind, connectorId),
     layer: from.layer,
-    voltage: from.voltage ?? to.voltage ?? defaultVoltage,
+    voltage: terminalVoltage(from, fromNodeId) ?? terminalVoltage(to, toNodeId) ?? defaultVoltage,
     from: fromNodeId,
     to: toNodeId,
     points,
@@ -2198,6 +2212,9 @@ export function drawConnectorPathToConnector(
   const from = diagram.elements.find(e => e.id === fromId)
   const target = diagram.connectors.find(c => c.id === targetConnectorId)
   if (!from || !target) return diagram
+  if (!voltagesJoin(-targetConnectorId, [elementVoltageAt(diagram, fromId, points[0])], [target.voltage])) {
+    return drawDanglingConnectorPath(diagram, fromId, points, defaultVoltage, kind)
+  }
 
   const ids = new IdSequence(diagram)
   const start = points[0]
@@ -2213,7 +2230,7 @@ export function drawConnectorPathToConnector(
     kind,
     name: defaultConnectorName(kind, tapConnectorId),
     layer: from.layer,
-    voltage: from.voltage ?? target.voltage ?? defaultVoltage,
+    voltage: terminalVoltage(from, fromNodeId) ?? target.voltage ?? defaultVoltage,
     from: fromNodeId,
     to: splice.junctionNode.id,
     points,
@@ -2248,6 +2265,9 @@ export function drawConnectorPathFromConnector(
   const source = diagram.connectors.find(c => c.id === sourceConnectorId)
   const to = diagram.elements.find(e => e.id === toId)
   if (!source || !to) return diagram
+  if (!voltagesJoin(-toId, [source.voltage], [elementVoltageAt(diagram, toId, points[points.length - 1])])) {
+    return drawDanglingConnectorPathFromConnector(diagram, sourceConnectorId, sourceSegmentIndex, points, defaultVoltage, kind)
+  }
 
   const ids = new IdSequence(diagram)
   const tapPoint = points[0]
@@ -2263,7 +2283,7 @@ export function drawConnectorPathFromConnector(
     kind,
     name: defaultConnectorName(kind, tapConnectorId),
     layer: to.layer,
-    voltage: source.voltage ?? to.voltage ?? defaultVoltage,
+    voltage: source.voltage ?? terminalVoltage(to, toNodeId) ?? defaultVoltage,
     from: splice.junctionNode.id,
     to: toNodeId,
     points,
@@ -2298,6 +2318,9 @@ export function drawConnectorBetweenConnectors(
   const source = diagram.connectors.find(c => c.id === sourceConnectorId)
   const target = diagram.connectors.find(c => c.id === targetConnectorId)
   if (!source || !target) return diagram
+  if (!voltagesJoin(-targetConnectorId, [source.voltage], [target.voltage])) {
+    return drawDanglingConnectorPathFromConnector(diagram, sourceConnectorId, sourceSegmentIndex, points, defaultVoltage, kind)
+  }
 
   const ids = new IdSequence(diagram)
   const startTap = points[0]
@@ -2364,7 +2387,7 @@ export function drawDanglingConnectorPath(
     kind,
     name: defaultConnectorName(kind, connectorId),
     layer: from.layer,
-    voltage: from.voltage ?? defaultVoltage,
+    voltage: terminalVoltage(from, fromNodeId) ?? defaultVoltage,
     from: fromNodeId,
     to: toNode.id,
     points,
@@ -2452,7 +2475,7 @@ export function drawConnectorPathFromPoint(
     kind,
     name: defaultConnectorName(kind, connectorId),
     layer: to.layer,
-    voltage: to.voltage ?? defaultVoltage,
+    voltage: terminalVoltage(to, toNodeId) ?? defaultVoltage,
     from: fromNode.id,
     to: toNodeId,
     points,
@@ -3120,7 +3143,11 @@ export function moveConnectorEndpoint(
   // to it. Never onto this wire's own other end.
   const otherEnd = end === 'from' ? connector.to : connector.from
   const onto = diagram.nodes.find(n => n.id !== nodeId && n.id !== otherEnd && samePoint(n, point))
-  if (onto) return mergeNode(moved, nodeId, onto.id)
+  if (onto) {
+    return voltagesJoin(onto.id, nodeVoltages(moved, nodeId), nodeVoltages(moved, onto.id))
+      ? mergeNode(moved, nodeId, onto.id)
+      : moved
+  }
   const tapped = tapWireAt(moved, nodeId, connectorId)
   if (tapped !== moved) return tapped
   return joinNodesToBusbars(moved, new Set([nodeId]))
@@ -3142,6 +3169,7 @@ function tapWireAt(diagram: Diagram, nodeId: number, exceptId: number, avoid?: S
     if (samePoint(pts[0], node) || samePoint(pts[pts.length - 1], node)) continue
     const k = pts.findIndex((a, i) => i < pts.length - 1 && isOnSegment(node, a, pts[i + 1]))
     if (k < 0) continue
+    if (!voltagesJoin(nodeId, nodeVoltages(diagram, nodeId), [c.voltage])) continue
     return splitWireAt(diagram, c, k, { x: node.x, y: node.y }, nodeId)
   }
   return diagram
@@ -3343,6 +3371,54 @@ function isOnSegment(p: Point, a: Point, b: Point): boolean {
   return dot >= -TOPOLOGY_EPSILON && dot <= len2 + TOPOLOGY_EPSILON
 }
 
+// ---------------------------------------------------------------------------
+// Joining different voltage classes
+// ---------------------------------------------------------------------------
+
+/** A connection point where an edit would join different voltage classes (key tells them apart). */
+export interface VoltageMismatch {
+  key: number
+  voltages: number[]
+}
+
+// Set only while withVoltagePolicy runs: whether a join of different voltage classes is skipped, and every one met.
+let voltagePolicy: { skip: boolean; found: Map<number, Set<number>> } | null = null
+
+/** Runs edit (synchronously) with every new connection checked for voltage classes: a join of two different ones
+ * (a class unset on either side always matches) is made only when skip is false, and is reported either way. Outside
+ * it, joins are never checked. */
+export function withVoltagePolicy<T>(skip: boolean, edit: () => T): { result: T; mismatches: VoltageMismatch[] } {
+  const outer = voltagePolicy
+  voltagePolicy = { skip, found: new Map() }
+  try {
+    const result = edit()
+    const mismatches = [...voltagePolicy.found].map(([key, v]) => ({ key, voltages: [...v] }))
+    return { result, mismatches }
+  } finally {
+    voltagePolicy = outer
+  }
+}
+
+/** Whether a new connection at Node key (or a route end, keyed by the negated id of what it lands on) between
+ * things of voltage classes a and b may be made (see withVoltagePolicy). */
+function voltagesJoin(key: number, a: Iterable<number | undefined>, b: Iterable<number | undefined>): boolean {
+  if (!voltagePolicy) return true
+  const all = new Set([...a, ...b].filter((v): v is number => !!v))
+  if (all.size <= 1) return true
+  const seen = voltagePolicy.found.get(key) ?? new Set<number>()
+  for (const v of all) seen.add(v)
+  voltagePolicy.found.set(key, seen)
+  return !voltagePolicy.skip
+}
+
+/** The voltage classes of everything attached to Node nodeId: element Ports (terminalVoltage) and wire ends. */
+function nodeVoltages(diagram: Diagram, nodeId: number): (number | undefined)[] {
+  const out: (number | undefined)[] = []
+  for (const e of diagram.elements) if ((e.ports ?? []).some(p => p.node === nodeId)) out.push(terminalVoltage(e, nodeId))
+  for (const c of diagram.connectors) if (c.from === nodeId || c.to === nodeId) out.push(c.voltage)
+  return out
+}
+
 /** The terminal positions an element's fixed Ports must sit on, or null
  * when its Ports aren't fixed (a BusBarSection, a shape with no terminals,
  * or one missing from the catalog). */
@@ -3416,7 +3492,7 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
     if (!node) continue
 
     for (const other of d.nodes.filter(n => !ownNodes.has(n.id) && samePoint(n, node))) {
-      d = mergeNode(d, other.id, node.id)
+      if (voltagesJoin(node.id, nodeVoltages(d, node.id), nodeVoltages(d, other.id))) d = mergeNode(d, other.id, node.id)
     }
 
     const split: Connector[] = []
@@ -3426,6 +3502,7 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
       if (samePoint(c.points[0], node) || samePoint(c.points[c.points.length - 1], node)) continue
       const k = c.points.findIndex((a, i) => i < c.points.length - 1 && isOnSegment(node, a, c.points[i + 1]))
       if (k < 0) continue
+      if (!voltagesJoin(node.id, nodeVoltages(d, node.id), [c.voltage])) continue
       ids ??= new IdSequence(d)
       const at = { x: node.x, y: node.y }
       const before = simplifyOrthogonalPath([...c.points.slice(0, k + 1), at])
@@ -3448,7 +3525,8 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
         bus.points &&
         bus.points.length >= 2 &&
         !(bus.ports ?? []).some(p => p.node === node.id) &&
-        bus.points.some((a, i) => i < bus.points!.length - 1 && isOnSegment(node, a, bus.points![i + 1])),
+        bus.points.some((a, i) => i < bus.points!.length - 1 && isOnSegment(node, a, bus.points![i + 1])) &&
+        voltagesJoin(node.id, nodeVoltages(d, node.id), [bus.voltage]),
     )
     if (tappedBuses.length > 0) {
       const tapped = new Set(tappedBuses.map(b => b.id))
@@ -3495,6 +3573,7 @@ function cutWireThroughDevice(diagram: Diagram, el: DiagramElement): Diagram {
     const s1 = at(pts, n1)
     const s2 = at(pts, n2)
     if (s1 === null || s2 === null || s1 === s2) continue
+    if (!voltagesJoin(n1.id, [terminalVoltage(el, n1.id), terminalVoltage(el, n2.id)], [c.voltage])) continue
     const [first, second, a, b] = s1 < s2 ? [n1, n2, s1, s2] : [n2, n1, s2, s1]
     // Only a stretch of the wire with no bend between the terminals.
     if (Math.floor(b) - Math.floor(a) > 1 || (Math.floor(b) !== Math.floor(a) && b % 1 !== 0)) continue
@@ -3782,6 +3861,7 @@ function mergeNodesOntoPorts(diagram: Diagram, onlyIds?: Set<number>): Diagram {
     if (keep === undefined) continue
     // Don't collapse a wire running from this terminal straight back onto it.
     if (d.connectors.some(c => (c.from === n.id && c.to === keep) || (c.to === n.id && c.from === keep))) continue
+    if (!voltagesJoin(keep, nodeVoltages(d, keep), nodeVoltages(d, n.id))) continue
     d = mergeNode(d, n.id, keep)
   }
   return d
@@ -3806,26 +3886,37 @@ function attachElementEnd(
   ids: IdSequence,
 ): number {
   const el = acc.elements.find(e => e.id === elementId)
-  if (el && el.ports && hasFixedPorts(el)) {
-    let best = el.ports[0].node
-    let bestDist = Infinity
-    for (const p of el.ports) {
-      const n = acc.nodes.find(x => x.id === p.node)
-      if (!n) continue
-      const dist = Math.hypot(n.x - at.x, n.y - at.y)
-      if (dist < bestDist) {
-        best = p.node
-        bestDist = dist
-      }
-    }
-    return best
-  }
+  if (el && hasFixedPorts(el)) return nearestPortNode(el, acc.nodes, at)
   const node: DiagramNode = { id: ids.take(), x: at.x, y: at.y }
   acc.nodes = [...acc.nodes, node]
   acc.elements = acc.elements.map(e =>
     e.id === elementId ? { ...e, ports: [...(e.ports ?? []), { name: nextPortName(e), node: node.id }] } : e,
   )
   return node.id
+}
+
+/** The Port Node of el (which has fixed Ports) nearest at. */
+function nearestPortNode(el: DiagramElement, nodes: DiagramNode[], at: Point): number {
+  let best = el.ports![0].node
+  let bestDist = Infinity
+  for (const p of el.ports!) {
+    const n = nodes.find(x => x.id === p.node)
+    if (!n) continue
+    const dist = Math.hypot(n.x - at.x, n.y - at.y)
+    if (dist < bestDist) {
+      best = p.node
+      bestDist = dist
+    }
+  }
+  return best
+}
+
+/** The voltage class a wire end at `at` on element elementId would meet: its nearest terminal's (terminalVoltage)
+ * for an element with fixed Ports, its own otherwise (a busbar). */
+function elementVoltageAt(diagram: Diagram, elementId: number, at: Point): number | undefined {
+  const el = diagram.elements.find(e => e.id === elementId)
+  if (!el) return undefined
+  return hasFixedPorts(el) ? terminalVoltage(el, nearestPortNode(el, diagram.nodes, at)) : (el.voltage ?? undefined)
 }
 
 /** One end of a "Topology → Connect to…" join: an element at the terminal
@@ -3881,6 +3972,7 @@ export function joinTopologyTargets(diagram: Diagram, first: TopologyTarget, sec
   if (!b) return diagram
   const a = topologyTargetNode(b.diagram, first, ids)
   if (!a || a.node === b.node) return diagram
+  if (!voltagesJoin(b.node, nodeVoltages(a.diagram, a.node), nodeVoltages(a.diagram, b.node))) return diagram
   return removeDegenerateConnectors({ ...mergeNode(a.diagram, a.node, b.node), lastId: ids.lastId })
 }
 
@@ -3897,7 +3989,10 @@ export function joinBusbar(diagram: Diagram, busId: number): Diagram {
   const pts = bus.points
   const own = new Set((bus.ports ?? []).map(p => p.node))
   const onLine = diagram.nodes.filter(
-    n => !own.has(n.id) && pts.some((a, i) => i < pts.length - 1 && isOnSegment(n, a, pts[i + 1])),
+    n =>
+      !own.has(n.id) &&
+      pts.some((a, i) => i < pts.length - 1 && isOnSegment(n, a, pts[i + 1])) &&
+      voltagesJoin(n.id, nodeVoltages(diagram, n.id), [bus.voltage]),
   )
   if (onLine.length === 0) return diagram
   const ports = [...(bus.ports ?? [])]
@@ -3916,7 +4011,12 @@ function joinNodesToBusbars(diagram: Diagram, nodeIds: Set<number>): Diagram {
     if (bus.class !== 'BusBarSection' || !bus.points || bus.points.length < 2) continue
     const pts = bus.points
     const own = new Set((bus.ports ?? []).map(p => p.node))
-    const add = nodes.filter(n => !own.has(n.id) && pts.some((a, i) => i < pts.length - 1 && isOnSegment(n, a, pts[i + 1])))
+    const add = nodes.filter(
+      n =>
+        !own.has(n.id) &&
+        pts.some((a, i) => i < pts.length - 1 && isOnSegment(n, a, pts[i + 1])) &&
+        voltagesJoin(n.id, nodeVoltages(d, n.id), [bus.voltage]),
+    )
     if (add.length === 0) continue
     const ports = [...(bus.ports ?? [])]
     for (const n of add) ports.push({ name: String(ports.length + 1), node: n.id })
@@ -4681,4 +4781,257 @@ export function rotateElements(diagram: Diagram, ids: Iterable<number>, symbols:
  * flipped. */
 export function mirrorElements(diagram: Diagram, ids: Iterable<number>, symbols: ElementSymbol[]): Diagram {
   return updateElementsInPlace(diagram, ids, symbols, el => (canMirror(el) ? { mirror: !el.mirror || undefined } : null))
+}
+
+// ---------------------------------------------------------------------------
+// Wire jumps on a new buswork wire
+// ---------------------------------------------------------------------------
+
+const WIRE_JUMP_SHAPE = '14'
+// A jump over a busbar is one size step larger (terminals ±14 instead of ±10).
+const WIRE_JUMP_BUSBAR_STEP = 1
+const CROSSING_EPS = 1e-6
+
+/** Where segment a→b crosses segment p→q through both interiors (not at an end, not along it): the point and its
+ * distance from a, or null. */
+function segmentCrossing(a: Point, b: Point, p: Point, q: Point): { at: Point; along: number } | null {
+  const rx = b.x - a.x
+  const ry = b.y - a.y
+  const sx = q.x - p.x
+  const sy = q.y - p.y
+  const den = rx * sy - ry * sx
+  if (Math.abs(den) < CROSSING_EPS) return null
+  const t = ((p.x - a.x) * sy - (p.y - a.y) * sx) / den
+  const u = ((p.x - a.x) * ry - (p.y - a.y) * rx) / den
+  if (t <= CROSSING_EPS || t >= 1 - CROSSING_EPS || u <= CROSSING_EPS || u >= 1 - CROSSING_EPS) return null
+  return { at: { x: a.x + t * rx, y: a.y + t * ry }, along: t * Math.hypot(rx, ry) }
+}
+
+/** Puts a Wire jump (shape 14) into the new buswork wire connectorId wherever it crosses a busbar or another
+ * buswork wire of a different voltage class: the wire is cut around the crossing and its pieces end on the jump's
+ * two ports, so it hops over the other line without joining it. A jump over a busbar is size step 1. A crossing too
+ * close to a bend or end of the wire, or to the previous jump, for the jump to fit on one straight run is left as a
+ * plain crossing. Returns diagram unchanged when there is nothing to do. */
+export function addCrossingJumps(diagram: Diagram, connectorId: number, symbols: ElementSymbol[]): Diagram {
+  const wire = diagram.connectors.find(c => c.id === connectorId)
+  const symbol = symbols.find(s => s.shape === WIRE_JUMP_SHAPE)
+  if (!wire || !symbol || wire.kind !== 'BusWork' || wire.voltage == null || wire.points.length < 2) return diagram
+
+  const others: { points: Point[]; step: number }[] = []
+  for (const e of diagram.elements) {
+    if (e.class === 'BusBarSection' && e.points && e.voltage != null && e.voltage !== wire.voltage) {
+      others.push({ points: e.points, step: WIRE_JUMP_BUSBAR_STEP })
+    }
+  }
+  for (const c of diagram.connectors) {
+    if (c.id !== wire.id && c.kind === 'BusWork' && c.voltage != null && c.voltage !== wire.voltage) {
+      others.push({ points: c.points, step: 0 })
+    }
+  }
+
+  // The jump's half length at a size step: its farthest terminal from the anchor.
+  const halfAt = (step: number) => {
+    const probe: DiagramElement = { id: 0, class: 'NonIntersection', shape: WIRE_JUMP_SHAPE, layer: 0, x: 0, y: 0, scale: step }
+    return Math.max(...(symbolTerminals(probe, symbols) ?? []).map(t => Math.hypot(t.x, t.y)))
+  }
+
+  type Crossing = { segment: number; at: Point; along: number; step: number }
+  const found: Crossing[] = []
+  let start = 0
+  const pts = wire.points
+  for (let k = 0; k + 1 < pts.length; k++) {
+    for (const o of others) {
+      for (let i = 0; i + 1 < o.points.length; i++) {
+        const x = segmentCrossing(pts[k], pts[k + 1], o.points[i], o.points[i + 1])
+        if (x) found.push({ segment: k, at: x.at, along: start + x.along, step: o.step })
+      }
+    }
+    start += Math.hypot(pts[k + 1].x - pts[k].x, pts[k + 1].y - pts[k].y)
+  }
+  found.sort((a, b) => a.along - b.along || b.step - a.step)
+
+  const ids = new IdSequence(diagram)
+  const jumps: DiagramElement[] = []
+  const nodes: DiagramNode[] = []
+  const pieces: Connector[] = []
+  let from = wire.from
+  let rest = pts
+  let restStart = -Infinity
+  let restSegment = 0
+  for (const c of found) {
+    const half = halfAt(c.step)
+    const a = pts[c.segment]
+    const b = pts[c.segment + 1]
+    const segStart = c.along - Math.hypot(c.at.x - a.x, c.at.y - a.y)
+    const segEnd = segStart + Math.hypot(b.x - a.x, b.y - a.y)
+    // The jump must lie inside one straight run, clear of the previous jump and of the run's ends.
+    if (!Number.isFinite(half) || c.along - half <= Math.max(segStart, restStart) + CROSSING_EPS) continue
+    if (c.along + half >= segEnd - CROSSING_EPS) continue
+
+    const angle = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI
+    let orient = Math.round(angle * 1e6) / 1e6
+    while (orient >= 90) orient -= 180
+    while (orient < -90) orient += 180
+    const at = roundPoint(c.at)
+    const jump: DiagramElement = {
+      id: ids.take(),
+      class: 'NonIntersection',
+      shape: WIRE_JUMP_SHAPE,
+      layer: wire.layer,
+      voltage: wire.voltage,
+      x: at.x,
+      y: at.y,
+      ...(orient !== 0 ? { orient } : {}),
+      ...(c.step !== 0 ? { scale: c.step } : {}),
+    }
+    jump.name = `${symbol.name}-${jump.id}`
+    const terminals = (symbolTerminals(jump, symbols) ?? []).map(roundPoint)
+    if (terminals.length !== 2) continue
+    const dist = (p: Point) => Math.hypot(p.x - a.x, p.y - a.y)
+    const [near, far] = dist(terminals[0]) <= dist(terminals[1]) ? [0, 1] : [1, 0]
+    const portNodes = terminals.map(t => ({ id: ids.take(), x: t.x, y: t.y }))
+    jump.ports = portNodes.map((n, i) => ({ name: String(i + 1), node: n.id }))
+
+    const headPoints = simplifyOrthogonalPath([...rest.slice(0, c.segment - restSegment + 1), terminals[near]])
+    pieces.push({ ...wire, id: pieces.length === 0 ? wire.id : ids.take(), from, to: portNodes[near].id, points: headPoints })
+    jumps.push(jump)
+    nodes.push(...portNodes)
+    from = portNodes[far].id
+    rest = [terminals[far], ...pts.slice(c.segment + 1)]
+    restStart = c.along + half
+    restSegment = c.segment
+  }
+  if (jumps.length === 0) return diagram
+  pieces.push({ ...wire, id: ids.take(), from, to: wire.to, points: simplifyOrthogonalPath(rest) })
+  for (const p of pieces) {
+    if (p.id !== wire.id) p.name = defaultConnectorName(p.kind, p.id)
+  }
+
+  return {
+    ...diagram,
+    lastId: ids.lastId,
+    nodes: [...diagram.nodes, ...nodes],
+    elements: [...diagram.elements, ...jumps],
+    connectors: diagram.connectors.flatMap(c => (c.id === wire.id ? pieces : [c])),
+  }
+}
+
+function samePoints(a: Point[] | undefined, b: Point[] | undefined): boolean {
+  if (a === b) return true
+  if (!a || !b || a.length !== b.length) return false
+  return a.every((p, i) => p.x === b[i].x && p.y === b[i].y)
+}
+
+/** Applies addCrossingJumps after the edit prev → next to every buswork wire it touched: one that is new or whose
+ * points or voltage changed, and one crossed by a busbar that is new or whose points or voltage changed. Lines the
+ * edit left alone keep their crossings as they are. */
+export function jumpChangedCrossings(prev: Diagram, next: Diagram, symbols: ElementSymbol[]): Diagram {
+  if (next === prev || (next.connectors === prev.connectors && next.elements === prev.elements)) return next
+  const oldWires = new Map(prev.connectors.map(c => [c.id, c]))
+  const oldElements = new Map(prev.elements.map(e => [e.id, e]))
+  const wires = new Set<number>()
+  for (const c of next.connectors) {
+    if (c.kind !== 'BusWork') continue
+    const old = oldWires.get(c.id)
+    if (!old || old.voltage !== c.voltage || !samePoints(old.points, c.points)) wires.add(c.id)
+  }
+  for (const bus of next.elements) {
+    if (bus.class !== 'BusBarSection' || !bus.points || bus.voltage == null) continue
+    const old = oldElements.get(bus.id)
+    if (old && old.voltage === bus.voltage && samePoints(old.points, bus.points)) continue
+    const line = bus.points
+    for (const c of next.connectors) {
+      if (c.kind !== 'BusWork' || wires.has(c.id) || c.voltage == null || c.voltage === bus.voltage) continue
+      const crosses = c.points.some(
+        (a, k) =>
+          k + 1 < c.points.length &&
+          line.some((p, i) => i + 1 < line.length && segmentCrossing(a, c.points[k + 1], p, line[i + 1]) !== null),
+      )
+      if (crosses) wires.add(c.id)
+    }
+  }
+  let d = next
+  for (const id of wires) d = addCrossingJumps(d, id, symbols)
+  return d
+}
+
+/** Whether busbar busId's port on Node nodeId may be removed: nothing else is attached to that Node and it lies
+ * away from both ends of the busbar's line. */
+export function canRemoveBusbarPort(diagram: Diagram, busId: number, nodeId: number): boolean {
+  const bus = diagram.elements.find(e => e.id === busId)
+  const node = diagram.nodes.find(n => n.id === nodeId)
+  if (!bus || bus.class !== 'BusBarSection' || !bus.points || bus.points.length < 2 || !node) return false
+  if (samePoint(node, bus.points[0]) || samePoint(node, bus.points[bus.points.length - 1])) return false
+  const used =
+    diagram.connectors.some(c => c.from === nodeId || c.to === nodeId) ||
+    diagram.elements.some(e => e.id !== busId && (e.ports ?? []).some(p => p.node === nodeId))
+  return !used && (bus.ports ?? []).filter(p => p.node === nodeId).length === 1
+}
+
+/** Removes busbar busId's unused port on Node nodeId (see canRemoveBusbarPort) and that Node, renumbering the
+ * remaining ports "1"…"N". Returns diagram unchanged when the port can't be removed. */
+export function removeBusbarPort(diagram: Diagram, busId: number, nodeId: number): Diagram {
+  if (!canRemoveBusbarPort(diagram, busId, nodeId)) return diagram
+  return {
+    ...diagram,
+    nodes: diagram.nodes.filter(n => n.id !== nodeId),
+    elements: diagram.elements.map(e =>
+      e.id === busId
+        ? { ...e, ports: e.ports!.filter(p => p.node !== nodeId).map((p, i) => ({ ...p, name: String(i + 1) })) }
+        : e,
+    ),
+  }
+}
+
+const JUNCTION_POINT_SHAPE = '7'
+
+/** The Nodes where a busbar's port meets a buswork wire's end. */
+function busbarBusworkNodes(diagram: Diagram): Set<number> {
+  const busNodes = new Set<number>()
+  for (const e of diagram.elements) if (e.class === 'BusBarSection') for (const p of e.ports ?? []) busNodes.add(p.node)
+  const out = new Set<number>()
+  for (const c of diagram.connectors) {
+    if (c.kind !== 'BusWork') continue
+    if (busNodes.has(c.from)) out.add(c.from)
+    if (busNodes.has(c.to)) out.add(c.to)
+  }
+  return out
+}
+
+/** Puts a Junction point (shape 7) on every busbar–buswork connection the edit prev → next created, unless one is
+ * there already: on that Node, with the busbar's voltage class and layer. Connections that existed before are left
+ * as they are. */
+export function addJunctionPoints(prev: Diagram, next: Diagram, symbols: ElementSymbol[]): Diagram {
+  if (next === prev || (next.connectors === prev.connectors && next.elements === prev.elements)) return next
+  const symbol = symbols.find(s => s.shape === JUNCTION_POINT_SHAPE)
+  if (!symbol) return next
+  const before = busbarBusworkNodes(prev)
+  const fresh = [...busbarBusworkNodes(next)].filter(n => !before.has(n))
+  if (fresh.length === 0) return next
+  const nodes = new Map(next.nodes.map(n => [n.id, n]))
+  const ids = new IdSequence(next)
+  const added: DiagramElement[] = []
+  for (const nodeId of fresh) {
+    const node = nodes.get(nodeId)
+    if (!node) continue
+    const hasDot = next.elements.some(
+      e => e.class === 'JunctionPoint' && ((e.ports ?? []).some(p => p.node === nodeId) || samePoint(e, node)),
+    )
+    if (hasDot) continue
+    const bus = next.elements.find(e => e.class === 'BusBarSection' && (e.ports ?? []).some(p => p.node === nodeId))!
+    const id = ids.take()
+    added.push({
+      id,
+      class: 'JunctionPoint',
+      shape: JUNCTION_POINT_SHAPE,
+      name: `${symbol.name}-${id}`,
+      layer: bus.layer,
+      ...(bus.voltage != null ? { voltage: bus.voltage } : {}),
+      x: node.x,
+      y: node.y,
+      ports: [{ name: '1', node: nodeId }],
+    })
+  }
+  if (added.length === 0) return next
+  return { ...next, lastId: ids.lastId, elements: [...next.elements, ...added] }
 }

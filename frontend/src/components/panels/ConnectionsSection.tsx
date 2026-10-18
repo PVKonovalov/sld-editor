@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ScissorsLineDashed } from 'lucide-react'
+import { ScissorsLineDashed, Trash2 } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
@@ -12,7 +12,9 @@ import type { Connector, DiagramElement } from '../../types'
 // attached to that Node, each a link that highlights it on the canvas
 // without selecting it (a second click clears it), with a scissors button
 // that disconnects just that item from the Node
-// (diagramOps.disconnectAttachment), in one undo step.
+// (diagramOps.disconnectAttachment), in one undo step. A busbar's port with
+// nothing attached, away from its ends, has a bin button that removes it
+// (diagramOps.removeBusbarPort).
 
 type Row = { key: string; heading: string; node: number; self: diagramOps.NodeAttachment }
 
@@ -131,8 +133,21 @@ export function ConnectionsSection({ element, connector }: { element?: DiagramEl
                 {others.length > 0 ? (
                   <ul className="pl-3 space-y-0.5">{others.map(a => attachmentLink(row.node, a))}</ul>
                 ) : (
-                  <div className="pl-3 text-red-400">
-                    {t(connector ? 'properties.connectionFreeEnd' : 'properties.connectionNotConnected')}
+                  <div className="pl-3 flex items-start gap-1 text-red-400">
+                    <span className="flex-1 min-w-0">
+                      {t(connector ? 'properties.connectionFreeEnd' : 'properties.connectionNotConnected')}
+                    </span>
+                    {element && diagramOps.canRemoveBusbarPort(diagram, element.id, row.node) && (
+                      <button
+                        type="button"
+                        title={t('properties.removePort', { port: row.self.kind === 'element' ? row.self.port : '' })}
+                        aria-label={t('properties.removePort', { port: row.self.kind === 'element' ? row.self.port : '' })}
+                        onClick={() => updateDiagram(d => diagramOps.removeBusbarPort(d, element.id, row.node))}
+                        className="shrink-0 p-0.5 rounded text-red-400 hover:text-red-300 hover:bg-surface-600"
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

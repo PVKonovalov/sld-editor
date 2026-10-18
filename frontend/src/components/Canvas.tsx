@@ -2011,53 +2011,66 @@ export function Canvas() {
   // way its kind needs (see the diagramOps creators' own doc comments) —
   // shared by a completed route and "Topology → Create wire to…".
   function commitRoute(from: RouteStart, target: ConnectTarget, path: Point[], kind: ConnectorKind) {
-    updateDiagram(d => {
-      if (from.kind === 'element') {
-        return target.kind === 'element'
-          ? diagramOps.drawConnectorPath(d, from.elementId, target.elementId, path, defaultVoltage, kind)
-          : diagramOps.drawConnectorPathToConnector(
-              d,
-              from.elementId,
-              target.connectorId,
-              target.segmentIndex,
-              path,
-              defaultVoltage,
-              kind,
-            )
-      }
-      if (from.kind === 'connector') {
-        return target.kind === 'element'
-          ? diagramOps.drawConnectorPathFromConnector(
-              d,
-              from.connectorId,
-              from.segmentIndex,
-              target.elementId,
-              path,
-              defaultVoltage,
-              kind,
-            )
-          : diagramOps.drawConnectorBetweenConnectors(
-              d,
-              from.connectorId,
-              from.segmentIndex,
-              target.connectorId,
-              target.segmentIndex,
-              path,
-              defaultVoltage,
-              kind,
-            )
-      }
+    updateDiagram(d => drawRoute(d, from, target, path, kind))
+  }
+
+  function drawRoute(d: Diagram, from: RouteStart, target: ConnectTarget, path: Point[], kind: ConnectorKind): Diagram {
+    if (from.kind === 'element') {
       return target.kind === 'element'
-        ? diagramOps.drawConnectorPathFromPoint(d, path, target.elementId, defaultVoltage, kind)
-        : diagramOps.drawConnectorPathFromPointToConnector(
+        ? diagramOps.drawConnectorPath(d, from.elementId, target.elementId, path, defaultVoltage, kind)
+        : diagramOps.drawConnectorPathToConnector(
             d,
-            path,
+            from.elementId,
             target.connectorId,
             target.segmentIndex,
+            path,
             defaultVoltage,
             kind,
           )
-    })
+    }
+    if (from.kind === 'connector') {
+      return target.kind === 'element'
+        ? diagramOps.drawConnectorPathFromConnector(
+            d,
+            from.connectorId,
+            from.segmentIndex,
+            target.elementId,
+            path,
+            defaultVoltage,
+            kind,
+          )
+        : diagramOps.drawConnectorBetweenConnectors(
+            d,
+            from.connectorId,
+            from.segmentIndex,
+            target.connectorId,
+            target.segmentIndex,
+            path,
+            defaultVoltage,
+            kind,
+          )
+    }
+    return target.kind === 'element'
+      ? diagramOps.drawConnectorPathFromPoint(d, path, target.elementId, defaultVoltage, kind)
+      : diagramOps.drawConnectorPathFromPointToConnector(
+          d,
+          path,
+          target.connectorId,
+          target.segmentIndex,
+          defaultVoltage,
+          kind,
+        )
+  }
+
+  // A route ended in mid-air: a free far end, whatever the start.
+  function drawDanglingRoute(d: Diagram, from: RouteStart, path: Point[], kind: ConnectorKind): Diagram {
+    if (from.kind === 'element') {
+      return diagramOps.drawDanglingConnectorPath(d, from.elementId, path, defaultVoltage, kind)
+    }
+    if (from.kind === 'connector') {
+      return diagramOps.drawDanglingConnectorPathFromConnector(d, from.connectorId, from.segmentIndex, path, defaultVoltage, kind)
+    }
+    return diagramOps.drawDanglingConnectorPathFromPoint(d, path, defaultVoltage, kind)
   }
 
   // Double-click either ends an in-progress route "in mid-air" at wherever
@@ -2091,22 +2104,8 @@ export function Canvas() {
       e.stopPropagation()
       const from = routing.from
       const kind = armedWireKind ?? 'BusWork'
-      updateDiagram(d => {
-        if (from.kind === 'element') {
-          return diagramOps.drawDanglingConnectorPath(d, from.elementId, routing.path, defaultVoltage, kind)
-        }
-        if (from.kind === 'connector') {
-          return diagramOps.drawDanglingConnectorPathFromConnector(
-            d,
-            from.connectorId,
-            from.segmentIndex,
-            routing.path,
-            defaultVoltage,
-            kind,
-          )
-        }
-        return diagramOps.drawDanglingConnectorPathFromPoint(d, routing.path, defaultVoltage, kind)
-      })
+      const path = routing.path
+      updateDiagram(d => drawDanglingRoute(d, from, path, kind))
       setRouting(null)
       setRoutingCursor(null)
       setConnectTarget(null)
