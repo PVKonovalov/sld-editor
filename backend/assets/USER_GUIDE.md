@@ -441,11 +441,13 @@ are not changed, and deleting the wire later leaves the dot.
 Joining a wire in the middle of another wire splits it and creates a real junction. Overhead and cable lines get an
 automatic name (`Overhead line-12`).
 
-A **Buswork** wire that crosses a busbar or another buswork wire of a different voltage class hops over it: a
+A **Buswork** wire that crosses a busbar, another buswork wire, an overhead or cable line or a link to object of a
+different voltage class hops over it: a
 **Wire jump** is put into the wire at the crossing, and the wire is cut around it, so the two stay unconnected and the
 crossing is visible. The jump over a busbar is one size larger. It doesn't matter how the crossing came about: drawing
 the wire, dragging its end or a bend, moving it or the device it is attached to, pasting it, changing its voltage, or
-drawing or moving a busbar across it. The buswork wire is always the one cut, never the busbar; of two buswork wires,
+drawing or moving a busbar, an overhead or cable line or a link to object across it. The buswork wire is always the
+one cut, never the busbar or the line; of two buswork wires,
 the one you changed. A crossing at the same voltage, or too close to a bend or an end of the wire for the jump to fit,
 stays a plain crossing, and crossings on lines an edit didn't touch are left as they are. The jumps are part of the
 same edit, so **Ctrl+Z** undoes them together; a jump left behind when its wire is moved away stays until deleted.

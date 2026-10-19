@@ -4791,6 +4791,8 @@ const WIRE_JUMP_SHAPE = '14'
 // A jump over a busbar is one size step larger (terminals ±14 instead of ±10).
 const WIRE_JUMP_BUSBAR_STEP = 1
 const CROSSING_EPS = 1e-6
+// Lines a buswork wire hops over besides busbars and other buswork; the buswork wire is always the one cut.
+const JUMPED_LINE_KINDS: ReadonlySet<ConnectorKind> = new Set<ConnectorKind>(['OverheadLine', 'CableLine', 'LinkToObject'])
 
 /** Where segment a→b crosses segment p→q through both interiors (not at an end, not along it): the point and its
  * distance from a, or null. */
@@ -4807,8 +4809,8 @@ function segmentCrossing(a: Point, b: Point, p: Point, q: Point): { at: Point; a
   return { at: { x: a.x + t * rx, y: a.y + t * ry }, along: t * Math.hypot(rx, ry) }
 }
 
-/** Puts a Wire jump (shape 14) into the new buswork wire connectorId wherever it crosses a busbar or another
- * buswork wire of a different voltage class: the wire is cut around the crossing and its pieces end on the jump's
+/** Puts a Wire jump (shape 14) into the new buswork wire connectorId wherever it crosses a busbar, another
+ * buswork wire, an overhead or cable line or a link to object of a different voltage class: the wire is cut around the crossing and its pieces end on the jump's
  * two ports, so it hops over the other line without joining it. A jump over a busbar is size step 1. A crossing too
  * close to a bend or end of the wire, or to the previous jump, for the jump to fit on one straight run is left as a
  * plain crossing. Returns diagram unchanged when there is nothing to do. */
@@ -4824,7 +4826,8 @@ export function addCrossingJumps(diagram: Diagram, connectorId: number, symbols:
     }
   }
   for (const c of diagram.connectors) {
-    if (c.id !== wire.id && c.kind === 'BusWork' && c.voltage != null && c.voltage !== wire.voltage) {
+    const jumped = c.kind === 'BusWork' || JUMPED_LINE_KINDS.has(c.kind)
+    if (c.id !== wire.id && jumped && c.voltage != null && c.voltage !== wire.voltage) {
       others.push({ points: c.points, step: 0 })
     }
   }
@@ -4923,8 +4926,8 @@ function samePoints(a: Point[] | undefined, b: Point[] | undefined): boolean {
 }
 
 /** Applies addCrossingJumps after the edit prev → next to every buswork wire it touched: one that is new or whose
- * points or voltage changed, and one crossed by a busbar that is new or whose points or voltage changed. Lines the
- * edit left alone keep their crossings as they are. */
+ * points or voltage changed, and one crossed by a busbar, overhead or cable line or link to object that is new or
+ * whose points or voltage changed. Lines the edit left alone keep their crossings as they are. */
 export function jumpChangedCrossings(prev: Diagram, next: Diagram, symbols: ElementSymbol[]): Diagram {
   if (next === prev || (next.connectors === prev.connectors && next.elements === prev.elements)) return next
   const oldWires = new Map(prev.connectors.map(c => [c.id, c]))
@@ -4935,13 +4938,22 @@ export function jumpChangedCrossings(prev: Diagram, next: Diagram, symbols: Elem
     const old = oldWires.get(c.id)
     if (!old || old.voltage !== c.voltage || !samePoints(old.points, c.points)) wires.add(c.id)
   }
+  const changedLines: { points: Point[]; voltage: number }[] = []
   for (const bus of next.elements) {
     if (bus.class !== 'BusBarSection' || !bus.points || bus.voltage == null) continue
     const old = oldElements.get(bus.id)
     if (old && old.voltage === bus.voltage && samePoints(old.points, bus.points)) continue
-    const line = bus.points
+    changedLines.push({ points: bus.points, voltage: bus.voltage })
+  }
+  for (const c of next.connectors) {
+    if (!JUMPED_LINE_KINDS.has(c.kind) || c.voltage == null) continue
+    const old = oldWires.get(c.id)
+    if (old && old.voltage === c.voltage && samePoints(old.points, c.points)) continue
+    changedLines.push({ points: c.points, voltage: c.voltage })
+  }
+  for (const { points: line, voltage } of changedLines) {
     for (const c of next.connectors) {
-      if (c.kind !== 'BusWork' || wires.has(c.id) || c.voltage == null || c.voltage === bus.voltage) continue
+      if (c.kind !== 'BusWork' || wires.has(c.id) || c.voltage == null || c.voltage === voltage) continue
       const crosses = c.points.some(
         (a, k) =>
           k + 1 < c.points.length &&
