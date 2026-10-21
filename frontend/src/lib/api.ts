@@ -1,4 +1,5 @@
 import type {
+  CIMWarning,
   CustomElement,
   Diagram,
   DiagramWire,
@@ -180,6 +181,18 @@ export async function exportDiagramSVG(diagram: Diagram): Promise<string> {
     throw new Error((body && body.error) || `${res.status} ${res.statusText}`)
   }
   return res.text()
+}
+
+/** Converts the diagram to CGMES 3.0 (POST /api/export/cim): a zip of the EQ and DL documents, its file
+ * name, and what the export filled in or left out. name seeds the mRIDs and names the files. */
+export async function exportDiagramCIM(
+  diagram: Diagram,
+  name: string,
+): Promise<{ filename: string; file: Blob; warnings: CIMWarning[] }> {
+  const res = await fetch(`${BASE}/export/cim?name=${encodeURIComponent(name)}`, await jsonBody('POST', diagram))
+  const out = await asJSON<{ filename: string; file: string; warnings: CIMWarning[] | null }>(res)
+  const bytes = Uint8Array.from(atob(out.file), c => c.charCodeAt(0))
+  return { filename: out.filename, file: new Blob([bytes], { type: 'application/zip' }), warnings: out.warnings ?? [] }
 }
 
 /** Parses a raw .xsld file's own text (loaded from the user's machine, e.g.

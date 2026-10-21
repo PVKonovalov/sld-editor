@@ -3,12 +3,14 @@ import { Loader2 } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import { t } from '../../i18n'
 import * as api from '../../lib/api'
-import { downloadText } from '../../lib/fileTransfer'
+import { downloadBlob, downloadText } from '../../lib/fileTransfer'
+import { CimWarnings } from './CimWarnings'
+import type { CIMWarning } from '../../types'
 import { joinDiagramPath, parentDir } from '../../lib/diagramPath'
 import { GuideButton } from '../GuideButton'
 
 /** The open diagram's own file actions, in the Properties panel's diagram
- * view: Save, Save As and Export (download .xsld/.svg). The File panel
+ * view: Save, Save As and Export (download .xsld/.svg, or a CGMES 3.0 zip). The File panel
  * keeps only what brings a diagram in (New, Open, Import — including
  * Show import log, which belongs to the last import). Save As writes next to the open diagram
  * (its own parentDir), not into whatever folder the File panel happens to
@@ -25,12 +27,15 @@ export function DiagramFileSection() {
   const [repairing, setRepairing] = useState(false)
   // The last Repair's outcome, cleared by any other action here.
   const [repairNote, setRepairNote] = useState<string | null>(null)
+  // The last CIM export's notes, cleared by any other action here.
+  const [cimWarnings, setCimWarnings] = useState<CIMWarning[] | null>(null)
   const dir = diagramName ? parentDir(diagramName) : ''
 
   async function run(action: () => Promise<void>) {
     setBusy(true)
     setLocalError(null)
     setRepairNote(null)
+    setCimWarnings(null)
     clearError()
     try {
       await action()
@@ -120,6 +125,25 @@ export function DiagramFileSection() {
             {t('file.downloadSvg')}
           </button>
         </div>
+        <div className="flex items-center gap-1 mt-1">
+          <button
+            type="button"
+            disabled={busy || !diagram}
+            onClick={() =>
+              run(async () => {
+                if (!diagram) return
+                const out = await api.exportDiagramCIM(diagram, diagramName ?? 'diagram')
+                downloadBlob(out.filename, out.file)
+                setCimWarnings(out.warnings)
+              })
+            }
+            className="flex-1 px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
+          >
+            {t('file.downloadCim')}
+          </button>
+          <GuideButton topic="cim-export" />
+        </div>
+        {cimWarnings && <CimWarnings warnings={cimWarnings} />}
       </div>
 
       <div>

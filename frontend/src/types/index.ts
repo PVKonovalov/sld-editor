@@ -540,6 +540,16 @@ export interface Diagram {
 }
 
 // Matches slddoc.Revision: one save of a diagram (time is RFC 3339).
+// Matches slddoc.CIMWarning: something the CIM export filled in or left out.
+// fields name Electrical/TransformerWinding keys ("2:ratedU" = winding 2's)
+// or "connectionKind".
+export interface CIMWarning {
+  kind: 'missing' | 'voltage' | 'noTerminal' | 'notExported'
+  item: 'element' | 'connector' | 'voltageClass'
+  id: number
+  fields?: string[]
+}
+
 export interface Revision {
   time: string
   ip?: string

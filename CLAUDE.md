@@ -81,7 +81,9 @@ storage and the Gin API.
   names, `slddoc.Repair`, on the posted diagram; `{diagram, repaired}`), `diagrams/save`, `diagrams/svg`,
   `diagrams/rename` + `DELETE diagrams` and `folders` (create/`rename`/`DELETE`, empty folders only; `internal/api/folders.go`,
   the File panel's `FolderActionDialog`),
-  `render`, `render/fragments`, `import/xml`, `import/svg` (runs `slddoc.Extract`, returns `{diagram, report}`), `import/xsde`
+  `render`, `render/fragments`, `export/cim` (`internal/api/cim.go`: the posted diagram → `slddoc.ExportCIM` → a zip
+  of CGMES 3.0 EQ + DL RDF/XML, returned as `{filename, file, warnings}`; the frontend's `components/panels/CimWarnings.tsx`
+  lists the warnings), `import/xml`, `import/svg` (runs `slddoc.Extract`, returns `{diagram, report}`), `import/xsde`
   (raw `.xsde` bytes → `xsde2svg.Convert` → `Extract` per page, returns `{pages: [{page, title, diagram, report}],
   messages}`; `messages` are the converter's INFO/WARN/ERROR diagnostics, shown in the import log),
   `elements`, `custom-elements`, `config`, `presence` (`internal/api/presence.go` + `internal/presence`: an

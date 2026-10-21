@@ -194,9 +194,36 @@ With nothing selected, the Properties panel shows the diagram itself:
 
 - **Save** writes the `.xsld` and its `.svg`. **Save As** saves a copy under a new name in the same folder.
 - **Download XSLD** / **Download SVG** save the files to your computer.
+- **Download CIM (CGMES 3.0)** exports the diagram for other power system tools (see [CIM export](#cim-export)).
 - **Width**, **Height** and **Background color** of the page, and the **Layers** and **Voltage classes** of the
   diagram (see [Layers and voltage classes](#layers)).
 - **History**: when the diagram was saved and from which IP address (see [Several people on one diagram](#history)).
+
+### CIM export {#cim-export}
+
+**Download CIM (CGMES 3.0)** saves a zip of two CIM files (IEC 61970-552 RDF/XML, CGMES 3.0): `<name>_EQ.xml`, the
+equipment and how it is connected, and `<name>_DL.xml`, the diagram layout (IEC 61970-453) that places it. Unsaved
+edits are included.
+
+- The diagram becomes one substation with a voltage level per voltage class. A class's nominal voltage is read from
+  its name ("110 kV", "6,3 кВ", "400 V"; a bare number is kV).
+- Each device becomes its CIM class (breaker, disconnector, load break switch, ground disconnector, fuse, power
+  transformer with an end per winding, synchronous machine, shunt or series compensator, busbar section, ground)
+  with a terminal per connection point. A changeover knife switch becomes two disconnectors from its pivot. A switch's
+  state gives its normal position; no state means closed.
+- Each overhead or cable line becomes an AC line segment in a line of its own name.
+- Buswork wires, a busbar's connection points, junctions, wire jumps, poles, cable joints, current transformers,
+  fault indicators and blocking filters join what they touch into one connectivity node. Current and voltage
+  transformers, surge arresters, fault indicators and blocking filters are exported as auxiliary equipment on that
+  node.
+- Text labels become text objects, linked to their device; layers become visibility layers. Decorative shapes, links
+  to object, digital devices and pictures of substations or power plants are not exported.
+- Identifiers are derived from the diagram's name and item ids, so exporting the same diagram again keeps them.
+
+Values the files need but the diagram doesn't have (see [Electrical parameters](#electrical-parameters)) are written
+as 0, or as the voltage class's nominal voltage for a rated voltage. Under the button, the export lists each such
+item and what was missing, as well as voltage classes without a voltage in the name and devices it could not export;
+click an item to highlight it on the canvas.
 
 ### Repairing a diagram {#repair}
 
