@@ -87,7 +87,8 @@ storage and the Gin API.
   (raw `.xsde` bytes → `xsde2svg.Convert` → `Extract` per page, returns `{pages: [{page, title, diagram, report}],
   messages}`; `messages` are the converter's INFO/WARN/ERROR diagnostics, shown in the import log),
   `import/cim` (a zip of CGMES profiles or one RDF/XML document → `slddoc.ImportCIM`, a page per DL diagram, same
-  `{pages, messages}` shape; an own export round-trips via its `shape-<code>` styles and glue points),
+  `{pages, messages}` shape; an own export round-trips via its `shape-<code>` styles and glue points; a model without a
+  DL is laid out by `slddoc` `cimlayout.go`),
   `elements`, `custom-elements`, `config`, `presence` (`internal/api/presence.go` + `internal/presence`: an
   in-memory registry of which tab has which diagram open; `{session, diagram}` → `{others: [{ip, since}], lastSave}`,
   the other tabs (IP, when they opened it) and the diagram's last save; `GET presence/open?path=` lists the tabs with a

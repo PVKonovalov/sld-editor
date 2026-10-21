@@ -207,6 +207,14 @@ exported comes back as it was drawn.
 - A layout in other units is scaled so neighbouring devices are about six grid steps apart, snapped to the grid, and
   turned the right way up when its y axis points up.
 - Equipment without a symbol here (a DC line, for example) is listed under **Skipped** in the import log.
+- A model with equipment but no diagram layout (an EQ profile alone) is laid out automatically: a diagram per
+  substation (and one for equipment outside any), each voltage level a band with the highest voltage on top, its
+  busbars on one row and its bays as columns hanging from them, transformers on a row between the bands of their
+  windings, and loads and other end devices at the bottom of their bays. Bays that lead to a transformer of a higher
+  voltage (or, on the top band, to a line) go up from their busbar, the rest down. A voltage level without a busbar
+  hangs its bays from a wire at its busiest node. Connections to a transformer, to another busbar (a bus coupler)
+  and those closing a ring run through free corridors between the bands, so they touch nothing else; a line to
+  another substation ends in a short stub with its name. The import log says the layout was generated.
 - Not restored: a value the export wrote as 0 because it was unset comes back as a real 0; decorative shapes and
   digital devices were never exported; equipment the layout places on another diagram is not drawn on this one.
 

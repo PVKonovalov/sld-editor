@@ -64,6 +64,10 @@ Placing one from the palette works (see RELEASE.md, 2026-09-29). Still to do:
 - [ ] Topology export (CIM/CGMES or JSON) for the downstream topology processor.
 - [x] Import xsde diagrams
 
+
+## CIM import - export
+- [ ] Element Object link:28 should be used with CIM class EnergyConsumer or cim:EnergySource
+
 ## Shapes not yet ported
 
 xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one needs a template in
