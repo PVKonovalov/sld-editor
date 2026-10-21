@@ -125,6 +125,7 @@ func (s *Server) routes() {
 	grp.POST("/import/xml", s.importDiagramXML)
 	grp.POST("/import/svg", s.importDiagramSVG)
 	grp.POST("/import/xsde", s.importDiagramXSDE)
+	grp.POST("/import/cim", s.importDiagramCIM)
 	grp.GET("/elements", s.listElements)
 	grp.GET("/custom-elements", s.listCustomElements)
 	grp.PUT("/custom-elements", s.saveCustomElement)

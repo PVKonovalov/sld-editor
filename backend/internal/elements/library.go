@@ -232,6 +232,15 @@ func (l *Library) Terminals() map[string][]slddoc.Point {
 	return out
 }
 
+// Classes maps each shape to its element class, for slddoc.ImportCIM.
+func (l *Library) Classes() map[string]slddoc.Class {
+	out := make(map[string]slddoc.Class, len(l.Symbols))
+	for _, s := range l.Symbols {
+		out[s.Shape] = slddoc.Class(s.Class)
+	}
+	return out
+}
+
 // SymbolLibrary builds an internal/slddoc.SymbolLibrary from this Library's
 // templates, for rendering.
 func (l *Library) SymbolLibrary() *slddoc.SymbolLibrary {

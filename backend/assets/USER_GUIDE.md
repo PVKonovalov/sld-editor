@@ -158,7 +158,7 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 
 ### Importing {#import}
 
-- Drop `.xsld`, `.svg` or `.xsde` files anywhere on the window, or use **File → Load from file…**.
+- Drop `.xsld`, `.svg`, `.xsde` or CIM (`.zip`, `.xml`) files anywhere on the window, or use **File → Load from file…**.
 - A Modus `.xsde` diagram is converted with xsde2svg first, then imported like its `.svg`. A single-page `.xsde`
   opens in the editor; each page of a multi-page one is saved into the current folder as `<name>`, `<name>_1`,
   `<name>_2`…, like several files at once.
@@ -187,6 +187,28 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
   dot stay separate.
 - Diagrams imported before these two rules were added get them with **Repair diagram** (see
   [Repairing a diagram](#repair)).
+
+### CIM import {#cim-import}
+
+A CIM model, as a `.zip` of CGMES profile files (EQ and DL, other profiles are ignored) or one RDF/XML `.xml` file,
+is imported like an `.xsde`: each diagram of its Diagram Layout (DL) becomes a diagram, the first opened, several
+saved into the current folder as `<name>`, `<name>_1`… Both CGMES 3.0 and 2.4.15 are read, and a file this editor
+exported comes back as it was drawn.
+
+- Each device becomes the symbol of its CIM class at the point the layout gives it, rotated in steps of 90°, with its
+  name, voltage class (one per base voltage, named like "110 kV" and coloured like the matching standard voltage), the
+  switch position (`normalOpen`) and its [electrical parameters](#electrical-parameters). A class with a choice keeps
+  it as its **CIM class** (an asynchronous machine becomes a motor with CIM class AsynchronousMachine). Loads,
+  network infeeds and SVCs use the Load, Network infeed and Static var compensator symbols.
+- AC line segments become overhead lines along their layout points (cable lines when the layout says so), with their
+  parameters. Labels and visibility layers come along.
+- Wires the layout draws for a connectivity node are kept. Whatever of a node they leave unconnected gets an
+  orthogonal wire to the rest of it, to its busbar when it has one; the import log counts these.
+- A layout in other units is scaled so neighbouring devices are about six grid steps apart, snapped to the grid, and
+  turned the right way up when its y axis points up.
+- Equipment without a symbol here (a DC line, for example) is listed under **Skipped** in the import log.
+- Not restored: a value the export wrote as 0 because it was unset comes back as a real 0; decorative shapes and
+  digital devices were never exported; equipment the layout places on another diagram is not drawn on this one.
 
 ### Saving and exporting {#save-export}
 

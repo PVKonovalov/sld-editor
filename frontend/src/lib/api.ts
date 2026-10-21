@@ -241,6 +241,27 @@ export async function importDiagramXSDE(bytes: ArrayBuffer): Promise<{
   }
 }
 
+/** Converts a CIM model (a zip of CGMES profiles, or one RDF/XML document) to a diagram per Diagram Layout diagram
+ * (POST /api/import/cim), in the shape of importDiagramXSDE's answer. */
+export async function importDiagramCIM(bytes: ArrayBuffer): Promise<{
+  pages: { page: number; title: string; diagram: Diagram; report: ImportReport }[]
+  messages: ConverterMessage[]
+}> {
+  const res = await fetch(`${BASE}/import/cim`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/octet-stream' },
+    body: bytes,
+  })
+  const data = await asJSON<{
+    pages: { page: number; title: string; diagram: DiagramWire; report: ImportReport }[]
+    messages: ConverterMessage[] | null
+  }>(res)
+  return {
+    pages: data.pages.map(p => ({ ...p, diagram: normalizeDiagram(p.diagram) })),
+    messages: data.messages ?? [],
+  }
+}
+
 export async function listElements(): Promise<ElementSymbol[]> {
   const res = await fetch(`${BASE}/elements`)
   return asJSON(res)

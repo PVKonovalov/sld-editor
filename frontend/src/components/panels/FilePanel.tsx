@@ -159,7 +159,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".xsld,.svg,.xsde,image/svg+xml"
+            accept=".xsld,.svg,.xsde,.zip,.xml,.rdf,image/svg+xml"
             multiple
             className="hidden"
             onChange={e => {

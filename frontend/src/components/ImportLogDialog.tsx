@@ -122,7 +122,7 @@ export function ImportLogDialog({ onClose }: { onClose: () => void }) {
             ) : (
               <ul className="space-y-0.5">
                 {report.skipped.map(s => (
-                  <li key={s.code} className="flex gap-2">
+                  <li key={`${s.code}-${s.name}`} className="flex gap-2">
                     <span className="text-gray-400 tabular-nums w-14 shrink-0">{s.code}</span>
                     <span className="flex-1 text-gray-100">{s.name || t('importLog.unknownType')}</span>
                     <span className="text-gray-400 tabular-nums">× {s.count}</span>
