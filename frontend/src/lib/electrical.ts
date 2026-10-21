@@ -1,0 +1,72 @@
+import type { Connector, DiagramElement, Electrical } from '../types'
+
+// The nameplate parameters each class carries (slddoc.Electrical), in the
+// order the Properties panel lists them. Integer fields take whole numbers.
+
+export type ElectricalField = keyof Electrical
+export type WindingField = 'ratedU' | 'ratedS' | 'r' | 'x' | 'g' | 'b' | 'phaseAngleClock'
+
+export const INTEGER_FIELDS = new Set<string>(['maximumSections', 'normalSections', 'phaseAngleClock'])
+
+const LINE: ElectricalField[] = ['length', 'r', 'x', 'bch', 'gch', 'r0', 'x0', 'b0ch', 'g0ch']
+const MACHINE: ElectricalField[] = ['ratedS', 'ratedU', 'maxP', 'minP', 'maxQ', 'minQ']
+const SHUNT: ElectricalField[] = ['nomU', 'bPerSection', 'gPerSection', 'maximumSections', 'normalSections']
+const SWITCH: ElectricalField[] = ['ratedCurrent']
+
+const ELEMENT_FIELDS: Record<string, ElectricalField[]> = {
+  Booster: ['ratedS', 'ratedU', 'r', 'x'],
+  Reactor: ['r', 'x'],
+  ChokeCoil: ['r', 'x'],
+  Generator: MACHINE,
+  SynchronousCompensator: MACHINE,
+  SynchronousMotor: MACHINE,
+  Capacitor: SHUNT,
+  CapacitorBank: SHUNT,
+  ReactorShunt: SHUNT,
+  BusBarSection: ['ipMax'],
+  ...Object.fromEntries(
+    [
+      'Breaker',
+      'PowerCircuitBreaker',
+      'Disconnector',
+      'KnifeSwitch',
+      'KnifeSwitch3',
+      'LoadBreakSwitch',
+      'Sectionalizer',
+      'GroundSwitch',
+      'ShortCircuiter',
+      'ShortCircuiterNoGround',
+      'Fuse',
+      'DisconnectorFuse',
+      'Chassis',
+      'HalfChassis',
+      'Starter',
+    ].map(c => [c, SWITCH]),
+  ),
+}
+
+export const WINDING_FIELDS: WindingField[] = ['ratedU', 'ratedS', 'r', 'x', 'g', 'b', 'phaseAngleClock']
+
+/** The parameters an element's class carries, empty when it has none (a PowerTransformer keeps them per winding). */
+export function elementElectricalFields(el: DiagramElement): ElectricalField[] {
+  return ELEMENT_FIELDS[el.class] ?? []
+}
+
+/** The parameters a connector carries: only overhead and cable lines have any. */
+export function connectorElectricalFields(c: Connector): ElectricalField[] {
+  return c.kind === 'OverheadLine' || c.kind === 'CableLine' ? LINE : []
+}
+
+/**
+ * Sets one parameter (undefined clears it) and returns the new Electrical, or undefined when none is left set,
+ * so an element without parameters stores no <electrical> at all.
+ */
+export function withElectricalValue(
+  current: Electrical | undefined,
+  field: ElectricalField,
+  value: number | undefined,
+): Electrical | undefined {
+  const next: Electrical = { ...current, [field]: value }
+  if (value === undefined) delete next[field]
+  return Object.keys(next).length > 0 ? next : undefined
+}

@@ -8,6 +8,14 @@ import { HistorySection, LayersSection, VoltageClassesSection } from './DiagramS
 import { DiagramFileSection } from './DiagramFileSection'
 import { PictureSection } from './PictureSection'
 import { ConnectionsSection } from './ConnectionsSection'
+import { ElectricalSection } from './ElectricalSection'
+import {
+  connectorElectricalFields,
+  elementElectricalFields,
+  withElectricalValue,
+  WINDING_FIELDS,
+  type ElectricalField,
+} from '../../lib/electrical'
 import { elementDiagramBox } from '../../lib/elementBox'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
@@ -697,6 +705,19 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               {t('properties.reverseDirection')}
             </button>
           )}
+          <ElectricalSection
+            groups={[{ fields: connectorElectricalFields(connector), values: connector.electrical ?? {} }]}
+            onChange={(_, field, value) =>
+              updateDiagram(d => ({
+                ...d,
+                connectors: d.connectors.map(c =>
+                  c.id === connector.id
+                    ? { ...c, electrical: withElectricalValue(c.electrical, field as ElectricalField, value) }
+                    : c,
+                ),
+              }))
+            }
+          />
           <ConnectionsSection connector={connector} />
           <LayerSelect layers={diagram.layers} value={connector.layer} onChange={layer => moveItemToLayer(connector.id, 'connector', layer)} />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: connector.id })}</p>
@@ -2750,6 +2771,22 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               </label>
             )
           })()}
+        <ElectricalSection
+          groups={
+            el.class === 'PowerTransformer'
+              ? (el.windings ?? []).map((w, i) => ({
+                  title: t('properties.transformerWinding', { n: i + 1 }),
+                  fields: WINDING_FIELDS,
+                  values: w,
+                }))
+              : [{ fields: elementElectricalFields(el), values: el.electrical ?? {} }]
+          }
+          onChange={(group, field, value) =>
+            el.class === 'PowerTransformer'
+              ? patch({ windings: (el.windings ?? []).map((w, i) => (i === group ? { ...w, [field]: value } : w)) })
+              : patch({ electrical: withElectricalValue(el.electrical, field as ElectricalField, value) })
+          }
+        />
         <ConnectionsSection element={el} />
         <LayerSelect layers={diagram.layers} value={el.layer} onChange={layer => moveItemToLayer(el.id, 'element', layer)} />
         <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: el.id })}</p>

@@ -161,6 +161,42 @@ export interface TransformerWinding {
   // transformer's own winding count (writePowerTransformer's own
   // defaultTerminal).
   terminal?: TerminalDirection
+  // Nameplate parameters (slddoc.TransformerWinding): kV, MVA, Ω, S, clock number.
+  ratedU?: number
+  ratedS?: number
+  r?: number
+  x?: number
+  g?: number
+  b?: number
+  phaseAngleClock?: number
+}
+
+// Matches slddoc.Electrical: an element's or line's nameplate data, in CIM
+// names and units (km, Ω, S, MVA, kV, MW, Mvar, A). Each class uses only its
+// own subset (lib/electrical.ts).
+export interface Electrical {
+  length?: number
+  r?: number
+  x?: number
+  bch?: number
+  gch?: number
+  r0?: number
+  x0?: number
+  b0ch?: number
+  g0ch?: number
+  ratedS?: number
+  ratedU?: number
+  minP?: number
+  maxP?: number
+  minQ?: number
+  maxQ?: number
+  nomU?: number
+  bPerSection?: number
+  gPerSection?: number
+  maximumSections?: number
+  normalSections?: number
+  ratedCurrent?: number
+  ipMax?: number
 }
 
 export interface DiagramElement {
@@ -333,6 +369,7 @@ export interface DiagramElement {
   // A Picture's (shape 11) image as a data URI. Stripped from live-render
   // requests (lib/picture.ts).
   href?: string
+  electrical?: Electrical
 }
 
 // Matches backend/internal/slddoc.TableCell — one real cell of a Table2
@@ -378,6 +415,8 @@ export interface Connector {
   from: number
   to: number
   points: Point[]
+  // OverheadLine/CableLine only.
+  electrical?: Electrical
 }
 
 export interface Label {

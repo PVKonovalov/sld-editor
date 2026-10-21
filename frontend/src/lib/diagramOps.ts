@@ -3176,7 +3176,7 @@ function tapWireAt(diagram: Diagram, nodeId: number, exceptId: number, avoid?: S
 }
 
 /** Splits wire c at point at, on its segment k, into two wires meeting on Node nodeId. The first piece keeps
- * c's id, the second gets a fresh one. */
+ * c's id and electrical parameters, the second gets a fresh id and none. */
 function splitWireAt(diagram: Diagram, c: Connector, k: number, at: Point, nodeId: number): Diagram {
   const ids = new IdSequence(diagram)
   const secondId = ids.take()
@@ -3193,6 +3193,7 @@ function splitWireAt(diagram: Diagram, c: Connector, k: number, at: Point, nodeI
         name: defaultConnectorName(c.kind, secondId) ?? c.name,
         from: nodeId,
         points: simplifyOrthogonalPath([at, ...c.points.slice(k + 1)]),
+        electrical: undefined,
       },
     ],
   }
@@ -3512,7 +3513,14 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
       const secondId = ids.take()
       split.push(
         { ...c, to: node.id, points: before },
-        { ...c, id: secondId, name: defaultConnectorName(c.kind, secondId) ?? c.name, from: node.id, points: after },
+        {
+          ...c,
+          id: secondId,
+          name: defaultConnectorName(c.kind, secondId) ?? c.name,
+          from: node.id,
+          points: after,
+          electrical: undefined,
+        },
       )
       touched.add(c.id)
     }
@@ -3586,7 +3594,14 @@ function cutWireThroughDevice(diagram: Diagram, el: DiagramElement): Diagram {
       lastId: ids.lastId,
       connectors: [
         ...diagram.connectors.map(x => (x.id === c.id ? { ...c, to: first.id, points: head } : x)),
-        { ...c, id: tailId, name: defaultConnectorName(c.kind, tailId) ?? c.name, from: second.id, points: tail },
+        {
+          ...c,
+          id: tailId,
+          name: defaultConnectorName(c.kind, tailId) ?? c.name,
+          from: second.id,
+          points: tail,
+          electrical: undefined,
+        },
       ],
     }
   }

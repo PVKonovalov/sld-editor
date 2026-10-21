@@ -586,6 +586,25 @@ Select a single item to edit it in the Properties panel:
 The voltage class list includes the server's standard voltages; choosing one that the diagram doesn't have yet adds
 it. The last voltage chosen becomes the default for new elements.
 
+### Electrical parameters {#electrical-parameters}
+
+The collapsible **Electrical parameters** group in Properties stores nameplate data in the diagram file, for the CIM
+export. Every field is optional: leave it empty when the value is unknown. Names and units follow CIM:
+
+| Item | Parameters |
+|---|---|
+| Overhead and cable lines | length (km), R, X (Ω), B, G (S) for the whole line, and zero-sequence R0, X0, B0, G0 |
+| Power transformer | per winding: rated voltage (kV), rated power (MVA), R, X (Ω), G, B (S), clock number (0–11) |
+| Booster | rated power, rated voltage, R, X |
+| Generator, synchronous compensator and motor | rated power, rated voltage, min/max P (MW), min/max Q (Mvar) |
+| Capacitor, capacitor bank, shunt reactor | nominal voltage (kV), B and G per section (S), sections in total and in service |
+| Reactor, choke coil | R, X |
+| Switching devices and fuses | rated current (A) |
+| Busbar | peak current (A) |
+
+Copying a device copies its parameters. When a line is split (a tap, or a busbar laid across it), the original
+piece keeps the parameters and the new piece starts empty.
+
 ### Layers and voltage classes {#layers}
 
 With nothing selected, Properties shows the diagram's **Layers** and **Voltage classes** (name, colour, how many items
