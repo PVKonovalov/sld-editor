@@ -63,9 +63,12 @@ export function elementElectricalFields(el: DiagramElement): ElectricalField[] {
   return (el.cim ? CIM_FIELDS[el.cim] : undefined) ?? ELEMENT_FIELDS[el.class] ?? []
 }
 
-/** The parameters a connector carries: only overhead and cable lines have any. */
+/** The parameters a connector carries: an overhead or cable line's, or a link to object's load when it stands for an
+ * EnergyConsumer (its default CIM class). */
 export function connectorElectricalFields(c: Connector): ElectricalField[] {
-  return c.kind === 'OverheadLine' || c.kind === 'CableLine' ? LINE : []
+  if (c.kind === 'OverheadLine' || c.kind === 'CableLine') return LINE
+  if (c.kind === 'LinkToObject' && (c.cim ?? 'EnergyConsumer') === 'EnergyConsumer') return ['p', 'q']
+  return []
 }
 
 /**

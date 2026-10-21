@@ -52,6 +52,7 @@ export const dictionary = {
   'cim.voltage': 'the name holds no voltage, so the nominal voltage is 0',
   'cim.noTerminal': 'no equipment terminal on its node to attach to',
   'cim.notExported': 'has no CIM equivalent and was not exported',
+  'cim.openEnd': 'something is connected at its arrow end, which is left unconnected',
   'file.import': 'Import',
   'file.loadFromFile': 'Load from file…',
   'file.dropHint': 'Or drop .xsld, .svg, .xsde or CIM (.zip, .xml) files anywhere in the app window. Several files at once, or a file with several pages, are saved straight into the current folder.',

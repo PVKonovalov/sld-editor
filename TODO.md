@@ -66,7 +66,7 @@ Placing one from the palette works (see RELEASE.md, 2026-09-29). Still to do:
 
 
 ## CIM import - export
-- [ ] Element Object link:28 should be used with CIM class EnergyConsumer or cim:EnergySource
+- [x] Element Object link:28 should be used with CIM class EnergyConsumer or cim:EnergySource
 
 ## Shapes not yet ported
 

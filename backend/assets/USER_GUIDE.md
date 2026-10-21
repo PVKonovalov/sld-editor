@@ -201,7 +201,8 @@ exported comes back as it was drawn.
   it as its **CIM class** (an asynchronous machine becomes a motor with CIM class AsynchronousMachine). Loads,
   network infeeds and SVCs use the Load, Network infeed and Static var compensator symbols.
 - AC line segments become overhead lines along their layout points (cable lines when the layout says so), with their
-  parameters. Labels and visibility layers come along.
+  parameters. Labels and visibility layers come along. A consumer or source this editor exported as a link to object
+  comes back as one.
 - Wires the layout draws for a connectivity node are kept. Whatever of a node they leave unconnected gets an
   orthogonal wire to the rest of it, to its busbar when it has one; the import log counts these.
 - A layout in other units is scaled so neighbouring devices are about six grid steps apart, snapped to the grid, and
@@ -249,12 +250,16 @@ edits are included.
 - **Load**, **Network infeed** and **Static var compensator** (under Other equipment in the palette) are symbols for
   CIM equipment that classic diagrams have no symbol for: a consumer, a connection to an outside network, and an SVC.
 - Each overhead or cable line becomes an AC line segment in a line of its own name.
+- A **link to object** stands for the outside object it points to: an energy consumer by default, or an energy
+  source when its **CIM class** in Properties says so. It is connected at its start only; the arrow end is the object
+  (**Reverse direction** swaps them), and something connected there is noted and left out. A consumer link has P and
+  Q in its [electrical parameters](#electrical-parameters).
 - Buswork wires, a busbar's connection points, junctions, wire jumps, poles, cable joints, current transformers,
   fault indicators and blocking filters join what they touch into one connectivity node. Current and voltage
   transformers, surge arresters, fault indicators and blocking filters are exported as auxiliary equipment on that
   node.
-- Text labels become text objects, linked to their device; layers become visibility layers. Decorative shapes, links
-  to object, digital devices and pictures of substations or power plants are not exported.
+- Text labels become text objects, linked to their device; layers become visibility layers. Decorative shapes,
+  digital devices and pictures of substations or power plants are not exported.
 - Identifiers are derived from the diagram's name and item ids, so exporting the same diagram again keeps them.
 
 Values the files need but the diagram doesn't have (see [Electrical parameters](#electrical-parameters)) are written
@@ -665,6 +670,7 @@ export. Every field is optional: leave it empty when the value is unknown. Names
 | Reactor, choke coil | R, X |
 | Switching devices and fuses | rated current (A) |
 | Busbar | peak current (A) |
+| Link to object (energy consumer) | P (MW), Q (Mvar) |
 | Load | P (MW), Q (Mvar) |
 | Network infeed | min/max P (MW), min/max Q (Mvar) |
 | Static var compensator | capacitive and inductive rating (Ω) |

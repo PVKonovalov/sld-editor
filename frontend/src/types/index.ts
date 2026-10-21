@@ -424,8 +424,10 @@ export interface Connector {
   from: number
   to: number
   points: Point[]
-  // OverheadLine/CableLine only.
+  // OverheadLine/CableLine parameters, or a LinkToObject's load.
   electrical?: Electrical
+  // The CIM class a LinkToObject exports as; unset means the default.
+  cim?: string
 }
 
 export interface Label {
@@ -553,7 +555,7 @@ export interface Diagram {
 // fields name Electrical/TransformerWinding keys ("2:ratedU" = winding 2's)
 // or "connectionKind".
 export interface CIMWarning {
-  kind: 'missing' | 'voltage' | 'noTerminal' | 'notExported'
+  kind: 'missing' | 'voltage' | 'noTerminal' | 'notExported' | 'openEnd'
   item: 'element' | 'connector' | 'voltageClass'
   id: number
   fields?: string[]
@@ -708,4 +710,6 @@ export interface EditorConfig {
   // Placement hot keys (config hot_keys, lower-cased): key → palette item
   // code. Absent from an older server, or when none are configured.
   hotKeys?: Record<string, string>
+  // The CIM classes a connector kind exported as equipment can stand for, default first (slddoc.ConnectorCIMClasses).
+  cimConnectorClasses?: Partial<Record<ConnectorKind, string[]>>
 }

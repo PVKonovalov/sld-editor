@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+
+	"github.com/PVKonovalov/slddoc"
 )
 
 type editorDefaults struct {
@@ -41,5 +43,9 @@ func (s *Server) getConfig(c *gin.Context) {
 		"defaultFpiText":        s.cfg.Indicators.DefaultFPIText,
 		"palette":               s.cfg.Palette,
 		"hotKeys":               s.cfg.HotKeys,
+		// The CIM classes a connector kind exported as equipment can stand for, default first.
+		"cimConnectorClasses": map[slddoc.ConnectorKind][]string{
+			slddoc.KindLinkToObject: slddoc.ConnectorCIMClasses(slddoc.KindLinkToObject),
+		},
 	})
 }

@@ -705,6 +705,29 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               {t('properties.reverseDirection')}
             </button>
           )}
+          {(config?.cimConnectorClasses?.[connector.kind]?.length ?? 0) > 1 && (
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-1">{t('properties.cimClass')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={connector.cim ?? ''}
+                onChange={e =>
+                  updateDiagram(d => ({
+                    ...d,
+                    connectors: d.connectors.map(c =>
+                      c.id === connector.id ? { ...c, cim: e.target.value || undefined } : c,
+                    ),
+                  }))
+                }
+              >
+                {config!.cimConnectorClasses![connector.kind]!.map((c, i) => (
+                  <option key={c} value={i === 0 ? '' : c}>
+                    {i === 0 ? t('properties.cimClassDefault', { name: c }) : c}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <ElectricalSection
             groups={[{ fields: connectorElectricalFields(connector), values: connector.electrical ?? {} }]}
             onChange={(_, field, value) =>
