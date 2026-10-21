@@ -4740,7 +4740,7 @@ const NO_ORIENT_CLASSES = new Set(['Lamp', 'PostPole', 'LampOnPole', 'ConnectorA
 // Have no mirrored layout in xsde2svg.
 const NO_MIRROR_CLASSES = new Set([
   'PowerflowIndicator', 'Fork', 'Booster', 'Resistor', 'SynchronousCompensator', 'SynchronousMotor',
-  'KnifeSwitch3', 'KnifeSwitch', 'BlockingFilter', 'PowerPole',
+  'KnifeSwitch3', 'KnifeSwitch', 'BlockingFilter', 'PowerPole', 'Load', 'NetworkInfeed', 'StaticVarCompensator',
 ])
 // A Power plant's (38) hydro kind (NType), the only one with a mirrored layout.
 export const POWER_PLANT_HYDRO = 1

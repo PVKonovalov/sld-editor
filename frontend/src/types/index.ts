@@ -122,6 +122,9 @@ export type ElementClass =
   | 'PowerflowIndicator'
   | 'Table'
   | 'Table2'
+  | 'Load'
+  | 'NetworkInfeed'
+  | 'StaticVarCompensator'
 
 // Matches slddoc.WindingScheme — a PowerTransformer winding's own
 // connection scheme. Only the three values with a real connection glyph in
@@ -197,6 +200,10 @@ export interface Electrical {
   normalSections?: number
   ratedCurrent?: number
   ipMax?: number
+  p?: number
+  q?: number
+  capacitiveRating?: number
+  inductiveRating?: number
 }
 
 export interface DiagramElement {
@@ -370,6 +377,8 @@ export interface DiagramElement {
   // requests (lib/picture.ts).
   href?: string
   electrical?: Electrical
+  // The CIM class this element exports as, one of its symbol's cim list; unset means the default.
+  cim?: string
 }
 
 // Matches backend/internal/slddoc.TableCell — one real cell of a Table2
@@ -607,6 +616,9 @@ export interface ElementSymbol {
   // per-instance length (DiagramElement.span): breakers, disconnectors and
   // similar two-terminal devices.
   leads?: boolean
+  // The CIM classes an element of this shape can export as, the default first (slddoc.CIMClasses);
+  // absent for a shape that isn't exported as equipment.
+  cim?: string[]
 }
 
 // Matches backend/internal/api.customElement: one entry of the Elements

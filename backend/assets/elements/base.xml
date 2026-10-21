@@ -1411,4 +1411,41 @@
          drag-two-corners shape like Table/Rectangle. -->
     <template></template>
   </symbol>
+  <!-- This editor's own symbols for CIM equipment with no xsde2svg shape, in a range of their own
+       (3300xx). Each has one terminal at the top of its lead; the CIM class it exports as is chosen per
+       element (Element.CIM). -->
+  <!-- Load: a lead ending in a filled arrowhead (EnergyConsumer). -->
+  <symbol shape="330001" class="Load" name="Load">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 12" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M -6 12 h 12 l -6 10 z" style="fill:{color};stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Network infeed: a hatched square, the outside network (ExternalNetworkInjection). -->
+  <symbol shape="330002" class="NetworkInfeed" name="Network infeed">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 6" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M -10 6 h 20 v 20 h -20 z" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M -10 16 l 10 -10 M -10 26 l 20 -20 M 0 26 l 10 -10" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- Static var compensator: a box marked SVC. -->
+  <symbol shape="330003" class="StaticVarCompensator" name="Static var compensator">
+    <terminals>
+      <terminal x="0" y="0"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 6" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M -14 6 h 28 v 16 h -28 z" style="fill:none;stroke:{color};stroke-width:2" />
+<text x="0" y="14" style="fill:{color};font-size:9px;font-family:Arial;text-anchor:middle;dominant-baseline:middle" >SVC</text>
+]]></template>
+  </symbol>
 </symbols>

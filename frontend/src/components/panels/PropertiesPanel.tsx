@@ -1113,6 +1113,23 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
+        {(typeSymbol?.cim?.length ?? 0) > 1 && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.cimClass')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.cim ?? ''}
+              onChange={e => patch({ cim: e.target.value || undefined })}
+            >
+              {typeSymbol!.cim!.map((c, i) => (
+                <option key={c} value={i === 0 ? '' : c}>
+                  {i === 0 ? t('properties.cimClassDefault', { name: c }) : c}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
         {isLamp && (
           <>
             <label className="block text-xs">

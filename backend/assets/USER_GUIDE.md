@@ -212,6 +212,12 @@ edits are included.
   transformer with an end per winding, synchronous machine, shunt or series compensator, busbar section, ground)
   with a terminal per connection point. A changeover knife switch becomes two disconnectors from its pivot. A switch's
   state gives its normal position; no state means closed.
+- Some symbols can stand for more than one CIM class: pick it in Properties' **CIM class** list (shown only for
+  them). A breaker can be a disconnecting circuit breaker, a generator or motor an asynchronous machine, a shunt
+  reactor a Petersen coil, a starter a load break switch, a **Load** a conform or non-conform load, and a **Network
+  infeed** an equivalent injection or energy source.
+- **Load**, **Network infeed** and **Static var compensator** (under Other equipment in the palette) are symbols for
+  CIM equipment that classic diagrams have no symbol for: a consumer, a connection to an outside network, and an SVC.
 - Each overhead or cable line becomes an AC line segment in a line of its own name.
 - Buswork wires, a busbar's connection points, junctions, wire jumps, poles, cable joints, current transformers,
   fault indicators and blocking filters join what they touch into one connectivity node. Current and voltage
@@ -629,6 +635,9 @@ export. Every field is optional: leave it empty when the value is unknown. Names
 | Reactor, choke coil | R, X |
 | Switching devices and fuses | rated current (A) |
 | Busbar | peak current (A) |
+| Load | P (MW), Q (Mvar) |
+| Network infeed | min/max P (MW), min/max Q (Mvar) |
+| Static var compensator | capacitive and inductive rating (Ω) |
 
 Copying a device copies its parameters. When a line is split (a tap, or a busbar laid across it), the original
 piece keeps the parameters and the new piece starts empty.

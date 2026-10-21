@@ -24,6 +24,9 @@ const ELEMENT_FIELDS: Record<string, ElectricalField[]> = {
   CapacitorBank: SHUNT,
   ReactorShunt: SHUNT,
   BusBarSection: ['ipMax'],
+  Load: ['p', 'q'],
+  NetworkInfeed: ['minP', 'maxP', 'minQ', 'maxQ'],
+  StaticVarCompensator: ['capacitiveRating', 'inductiveRating'],
   ...Object.fromEntries(
     [
       'Breaker',
@@ -47,9 +50,17 @@ const ELEMENT_FIELDS: Record<string, ElectricalField[]> = {
 
 export const WINDING_FIELDS: WindingField[] = ['ratedU', 'ratedS', 'r', 'x', 'g', 'b', 'phaseAngleClock']
 
-/** The parameters an element's class carries, empty when it has none (a PowerTransformer keeps them per winding). */
+// A chosen CIM class that uses other parameters than its element class's default.
+const CIM_FIELDS: Record<string, ElectricalField[]> = {
+  AsynchronousMachine: ['ratedS', 'ratedU'],
+  PetersenCoil: ['nomU'],
+  EnergySource: [],
+}
+
+/** The parameters an element carries, by its CIM class choice and then its class; empty when it has none (a
+ * PowerTransformer keeps them per winding). */
 export function elementElectricalFields(el: DiagramElement): ElectricalField[] {
-  return ELEMENT_FIELDS[el.class] ?? []
+  return (el.cim ? CIM_FIELDS[el.cim] : undefined) ?? ELEMENT_FIELDS[el.class] ?? []
 }
 
 /** The parameters a connector carries: only overhead and cable lines have any. */

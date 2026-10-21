@@ -244,6 +244,9 @@ export const dictionary = {
   'elementCatalog.name.386': 'Enclosed substation',
   'elementCatalog.name.106': 'Lamp',
   'elementCatalog.name.320003': 'Fault passage indicator',
+  'elementCatalog.name.330001': 'Load',
+  'elementCatalog.name.330002': 'Network infeed',
+  'elementCatalog.name.330003': 'Static var compensator',
   'elementCatalog.name.3': 'Rectangle',
   'elementCatalog.name.2': 'Arrow',
   'elementCatalog.name.4': 'Circle',
@@ -554,6 +557,12 @@ export const dictionary = {
   'electrical.g': 'G, S',
   'electrical.b': 'B, S',
   'electrical.phaseAngleClock': 'Clock number',
+  'electrical.p': 'P, MW',
+  'electrical.q': 'Q, Mvar',
+  'electrical.capacitiveRating': 'Capacitive rating, Ω',
+  'electrical.inductiveRating': 'Inductive rating, Ω',
+  'properties.cimClass': 'CIM class',
+  'properties.cimClassDefault': '{{name}} (default)',
 } as const
 
 export type Dictionary = typeof dictionary
