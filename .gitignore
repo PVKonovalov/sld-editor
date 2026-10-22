@@ -63,3 +63,4 @@ frontend/src/i18n/active.ts
 # PowSyBl example tool build output
 /tools/cim-tools/target/
 /tools/cim-tools/out/
+/tools/cim-tools/out/

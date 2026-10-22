@@ -147,15 +147,15 @@ A *model* is any file PowSyBl imports: a CGMES zip (such as our export), XIIDM, 
 
 ### Build
 
-Java 21 or later and Maven 3.9 (any Maven wrapper works, for example the one in a checkout of
-<https://github.com/powsybl/powsybl-core>):
+Only Java 21 or later is needed: the project carries a Maven wrapper, which downloads Maven 3.9.9 on its first run.
 
 ```
 cd tools/cim-tools
-mvn package
+./mvnw package          # Windows: mvnw.cmd package
 ```
 
-This downloads PowSyBl 7.4.0 and powsybl-single-line-diagram 5.6.0 from Maven Central and writes one runnable jar,
+An installed Maven 3.9 (`mvn package`) works too. The build downloads PowSyBl 7.4.0 and powsybl-single-line-diagram
+5.6.0 from Maven Central and writes one runnable jar,
 `target/cim-tools.jar` (about 40 MB). Logging goes to stderr; add `2>/dev/null` to see only the results.
 
 ### Check an export
@@ -214,6 +214,7 @@ npx vite --port 5185                                # terminal 2, in CIMDiagramL
 tools/cim-tools/fuseki.sh load <name>_CGMES.zip     # then Load diagram profiles → Render diagram
 
 # PowSyBl
+(cd tools/cim-tools && ./mvnw package)              # once
 java -jar tools/cim-tools/target/cim-tools.jar check  <name>_CGMES.zip
 java -jar tools/cim-tools/target/cim-tools.jar render <name>_CGMES.zip out/
 java -jar tools/cim-tools/target/cim-tools.jar to-cgmes ieee14 ieee14.zip   # → File → Import
