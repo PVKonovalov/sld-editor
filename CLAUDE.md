@@ -25,7 +25,8 @@ Other docs in this repo: `README.md` (build/run/packaging), `backend/assets/USER
 (end-user guide in English and Russian, shown in the app by the sidebar's Help button in the build's own locale; keep
 both in step with UI behaviour changes), `RELEASE.md` (dated changelog, where each feature's full
 history lives), `TODO.md` (planned work, incl. the "Reducing frontend/backend traffic" design), `elements.md` (the
-xsde2svg shape list being ported one shape at a time).
+xsde2svg shape list being ported one shape at a time), `docs/CIM_INTEROP.md` (the CIM export with the CGMES DiagramLayout
+Editor and PowSyBl; its example tool is `tools/cim-tools`, a Maven project outside `make`).
 
 ## Commands
 

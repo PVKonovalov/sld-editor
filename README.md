@@ -143,3 +143,9 @@ server {
 Then check and reload: `sudo nginx -t && sudo nginx -s reload`. Use
 `client_max_body_size 0;` to switch the check off when nginx serves only the
 editor.
+
+# CIM with other tools
+
+[`docs/CIM_INTEROP.md`](docs/CIM_INTEROP.md) shows how to view the editor's CGMES export in the CGMES
+DiagramLayout Editor (through Apache Jena Fuseki) and how to check, render and produce CGMES files with PowSyBl,
+using the example command-line tool in `tools/cim-tools` (Maven, not part of `make`).

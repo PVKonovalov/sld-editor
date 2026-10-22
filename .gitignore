@@ -59,3 +59,7 @@ frontend/src/i18n/active.ts
 
 # Production build output (see the repo root Makefile)
 /build/
+
+# PowSyBl example tool build output
+/tools/cim-tools/target/
+/tools/cim-tools/out/
