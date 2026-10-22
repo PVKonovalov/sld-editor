@@ -152,7 +152,10 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
   renamed or moved, directly or with its folder, it stays open under the new name, page address included, and its
   unsaved edits are kept.
 - **Delete** asks first and can't be undone. It removes a diagram's `.xsld` and `.svg`. Only an empty folder can be
-  deleted, and the open diagram can't be deleted.
+  deleted. Deleting the open diagram closes it, leaving the editor empty (any unsaved changes are lost, as the dialog
+  warns), so even the last diagram of a folder can be deleted, and then the folder itself. A diagram, or a folder with
+  anything in it, that another tab has open can't be deleted: the dialog lists those tabs, and Delete stays off until
+  they close it (a tab counts as open until about two and a half minutes after its last contact).
 - Both dialogs list the other tabs (by IP address) that have the diagram, or anything in the folder, open. Those
   tabs are not told about the change: saving there writes the diagram back under its old name.
 

@@ -6,6 +6,7 @@ import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
 import { prepareImport, type PreparedImport } from '../lib/importDiagram'
 import { deleteDraft, getDraft, listDrafts, putDraft, renameDrafts, type Draft } from '../lib/drafts'
 import { diagramFromAddress, setDiagramAddress } from '../lib/diagramAddress'
+import { presenceSession } from '../lib/presenceSession'
 import { t } from '../i18n'
 import type {
   Diagram,
@@ -875,15 +876,19 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [currentDir, browseDir],
   )
 
+  // Deleting the open diagram closes it: the editor is left empty, as at startup, and its edits are dropped.
   const deleteEntry = useCallback(
     async (path: string, isDir: boolean) => {
-      const open = latestRef.current.diagramName
-      if (open && (isDir ? open.startsWith(`${path}/`) : open === path)) throw new Error(t('file.deleteOpenDiagram'))
-      await api.deleteEntry(path, isDir)
+      await api.deleteEntry(path, isDir, presenceSession)
       if (!isDir) await deleteDraft(path)
+      if (!isDir && latestRef.current.diagramName === path) {
+        commitDiagram(null, { reset: true, clean: null })
+        setDiagramName(null)
+        setDirty(false)
+      }
       await browseDir(currentDir)
     },
-    [currentDir, browseDir],
+    [currentDir, browseDir, commitDiagram],
   )
 
   // Records next, made from prev, as one edit (undo step, dirty flag).

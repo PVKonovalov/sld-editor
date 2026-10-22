@@ -80,8 +80,9 @@ export async function renameEntry(from: string, to: string, isDir: boolean): Pro
 }
 
 /** Deletes a diagram, or an empty folder (isDir true). */
-export async function deleteEntry(path: string, isDir: boolean): Promise<void> {
-  const q = `${isDir ? 'dir' : 'name'}=${encodeURIComponent(path)}`
+/** Deletes a diagram or an empty folder; the server refuses while a tab other than session has it open. */
+export async function deleteEntry(path: string, isDir: boolean, session: string): Promise<void> {
+  const q = `${isDir ? 'dir' : 'name'}=${encodeURIComponent(path)}&session=${encodeURIComponent(session)}`
   await asJSON(await fetch(`${BASE}/${isDir ? 'folders' : 'diagrams'}?${q}`, { method: 'DELETE' }))
 }
 

@@ -82,7 +82,8 @@ storage and the Gin API.
   topology repair; renders it for the canvas; returns `{diagram, svg, repaired}`, so opening is one request), `repair`
   (the client's "Repair diagram": `prepareDiagram` in `internal/api/repair.go`, i.e. `slddoc.EnsureIDs`, preset voltage
   names, `slddoc.Repair`, on the posted diagram; `{diagram, repaired}`), `diagrams/save`, `diagrams/svg`,
-  `diagrams/rename` + `DELETE diagrams` and `folders` (create/`rename`/`DELETE`, empty folders only; `internal/api/folders.go`,
+  `diagrams/rename` + `DELETE diagrams` and `folders` (create/`rename`/`DELETE`, empty folders only, a delete refused
+  with 409 while another tab (`session=`) has it open; `internal/api/folders.go`,
   the File panel's `FolderActionDialog`),
   `render`, `render/fragments`, `export/cim` (`internal/api/cim.go`: the posted diagram → `slddoc.ExportCIM` → a zip
   of CGMES 3.0 EQ + DL RDF/XML, returned as `{filename, file, warnings}`; the frontend's `components/panels/CimWarnings.tsx`

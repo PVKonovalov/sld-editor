@@ -46,6 +46,9 @@ func (s *Server) renameFolder(c *gin.Context) {
 
 // deleteFolder: DELETE /folders?dir= deletes an empty folder.
 func (s *Server) deleteFolder(c *gin.Context) {
+	if s.openElsewhere(c, c.Query("dir")) {
+		return
+	}
 	storageDone(c, http.StatusOK, s.store.DeleteDir(c.Query("dir")))
 }
 
@@ -54,9 +57,23 @@ func (s *Server) renameDiagram(c *gin.Context) {
 	storageDone(c, http.StatusOK, s.store.Rename(c.Query("from"), c.Query("to")))
 }
 
-// deleteDiagram: DELETE /diagrams?name= deletes a diagram.
+// deleteDiagram: DELETE /diagrams?name=&session= deletes a diagram, unless another tab has it open.
 func (s *Server) deleteDiagram(c *gin.Context) {
+	if s.openElsewhere(c, c.Query("name")) {
+		return
+	}
 	storageDone(c, http.StatusOK, s.store.Delete(c.Query("name")))
+}
+
+// openElsewhere refuses a delete (409, with the tabs) while a tab other than the request's session= has the path,
+// or anything inside it, open: deleting it under them would let their next save bring it back.
+func (s *Server) openElsewhere(c *gin.Context, path string) bool {
+	tabs := s.presence.OpenUnder(path, c.Query("session"), time.Now())
+	if len(tabs) == 0 {
+		return false
+	}
+	c.JSON(http.StatusConflict, gin.H{"error": "open in another tab", "others": tabs})
+	return true
 }
 
 // openTabs: GET /presence/open?path=&session= responds {others: [{diagram, ip, since}]}, the other tabs that have

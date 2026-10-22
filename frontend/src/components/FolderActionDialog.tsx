@@ -16,7 +16,8 @@ export type FolderAction =
  * path, prefilled with the item's own), and Delete (a confirmation). Rename and Delete list the other tabs that
  * have the item, or anything inside it, open. */
 export function FolderActionDialog({ action, onClose }: { action: FolderAction; onClose: () => void }) {
-  const { createFolder, renameEntry, deleteEntry, currentDir } = useDiagramContext()
+  const { createFolder, renameEntry, deleteEntry, currentDir, diagramName, dirty } = useDiagramContext()
+  const deletesOpen = action.kind === 'delete' && !action.isDir && action.path === diagramName
   const [value, setValue] = useState(action.kind === 'rename' ? action.path : '')
   const [others, setOthers] = useState<OpenTab[]>([])
   const [busy, setBusy] = useState(false)
@@ -36,8 +37,12 @@ export function FolderActionDialog({ action, onClose }: { action: FolderAction; 
   }, [path])
 
   const trimmed = value.trim()
+  // Something open in another tab can't be deleted: its next save would bring it back.
+  const blocked = action.kind === 'delete' && others.length > 0
   const canSubmit =
-    !busy && (action.kind === 'delete' || (trimmed !== '' && (action.kind !== 'rename' || trimmed !== action.path)))
+    !busy &&
+    !blocked &&
+    (action.kind === 'delete' || (trimmed !== '' && (action.kind !== 'rename' || trimmed !== action.path)))
 
   async function submit() {
     if (!canSubmit) return
@@ -109,11 +114,18 @@ export function FolderActionDialog({ action, onClose }: { action: FolderAction; 
             </p>
           )}
 
+          {deletesOpen && (
+            <div className="flex gap-1.5 text-[11px] text-amber-300">
+              <TriangleAlert size={14} className="shrink-0 mt-px" />
+              <p>{t(dirty ? 'file.deleteOpenDiagramUnsaved' : 'file.deleteOpenDiagram')}</p>
+            </div>
+          )}
+
           {others.length > 0 && (
             <div className="flex gap-1.5 text-[11px] text-amber-300">
               <TriangleAlert size={14} className="shrink-0 mt-px" />
               <div>
-                <p>{t('file.openElsewhere')}</p>
+                <p>{t(blocked ? 'file.openElsewhereNoDelete' : 'file.openElsewhere')}</p>
                 <ul>
                   {others.map(o => (
                     <li key={`${o.diagram} ${o.ip} ${o.since}`} className="break-all">

@@ -858,3 +858,24 @@ func TestOpenTabs(t *testing.T) {
 		t.Errorf("others = %+v, want only sub/B", got.Others)
 	}
 }
+
+// A diagram, or a folder holding one, open in another tab can't be deleted; the deleting tab's own one can.
+func TestDeleteRefusedWhileOpenElsewhere(t *testing.T) {
+	s := newTestServer(t)
+	for _, name := range []string{"f/one", "two"} {
+		if rec := doJSON(t, s, http.MethodPost, "/api/diagrams", createDiagramRequest{Name: name}); rec.Code != http.StatusCreated && rec.Code != http.StatusOK {
+			t.Fatalf("create %s: %d %s", name, rec.Code, rec.Body.String())
+		}
+	}
+	doJSON(t, s, http.MethodPost, "/api/presence", presenceRequest{Session: "other", Diagram: "f/one"})
+	doJSON(t, s, http.MethodPost, "/api/presence", presenceRequest{Session: "me", Diagram: "two"})
+
+	for _, path := range []string{"/api/diagrams?name=f/one&session=me", "/api/folders?dir=f&session=me"} {
+		if rec := doJSON(t, s, http.MethodDelete, path, nil); rec.Code != http.StatusConflict {
+			t.Errorf("DELETE %s: status %d, want 409 (open in another tab)", path, rec.Code)
+		}
+	}
+	if rec := doJSON(t, s, http.MethodDelete, "/api/diagrams?name=two&session=me", nil); rec.Code != http.StatusOK {
+		t.Errorf("deleting my own open diagram: status %d, body %s", rec.Code, rec.Body.String())
+	}
+}
