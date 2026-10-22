@@ -247,7 +247,8 @@ equipment and how it is connected, and `<name>_DL.xml`, the diagram layout (IEC 
 edits are included.
 
 - The diagram is split into substations by its connections: everything joined without passing through a line is one
-  substation (transformers inside), named after its busbar with the most connections. Each has a voltage level per
+  substation (transformers inside), named after its busbar with the most connections. A line end with no equipment
+  around it (only wires, poles and the like) belongs to the substation at the line's other end. Each has a voltage level per
   voltage class, and an overhead or cable line runs between substations.
 - A class's nominal voltage is read from its name ("110 kV", "6,3 кВ", "400 V"; a bare number is kV); a class still
   named after its colour takes the name of the standard voltage of that colour (`voltage_colors`). Equipment whose
