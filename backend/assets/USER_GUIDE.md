@@ -192,8 +192,9 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 
 A CIM model, as a `.zip` of CGMES profile files (EQ and DL, other profiles are ignored) or one RDF/XML `.xml` file,
 is imported like an `.xsde`: each diagram of its Diagram Layout (DL) becomes a diagram, the first opened, several
-saved into the current folder as `<name>`, `<name>_1`… Both CGMES 3.0 and 2.4.15 are read, and a file this editor
-exported comes back as it was drawn.
+saved into the current folder as `<name>`, `<name>_1`… Both CGMES 3.0 and 2.4.15 are read, node-breaker and
+bus-branch models alike (a bus-branch model's topological nodes stand in for connectivity nodes), and a file this
+editor exported comes back as it was drawn.
 
 - Each device becomes the symbol of its CIM class at the point the layout gives it, rotated in steps of 90°, with its
   name, voltage class (one per base voltage, named like "110 kV" and coloured like the matching standard voltage), the
@@ -203,6 +204,11 @@ exported comes back as it was drawn.
 - AC line segments become overhead lines along their layout points (cable lines when the layout says so), with their
   parameters. Labels and visibility layers come along. A consumer or source this editor exported as a link to object
   comes back as one.
+- What is connected comes from the model, never from the drawing: two items join only when they are on the same
+  node, however the layout places them, and a CIM import is not run through **Repair diagram** (which joins what
+  touches; better not used on one). Where a layout makes wires or terminals of different nodes cross or touch, a
+  **wire jump** is put into the wire there, so they don't look connected; the import log counts the jumps and any
+  spot too cramped for one.
 - Wires the layout draws for a connectivity node are kept. Whatever of a node they leave unconnected gets an
   orthogonal wire to the rest of it, to its busbar when it has one; the import log counts these.
 - A layout in other units is scaled so neighbouring devices are about six grid steps apart, snapped to the grid, and

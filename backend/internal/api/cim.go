@@ -90,7 +90,7 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 	messages := []cimMessage{}
 	for i, p := range pages {
 		s.applyPresetVoltageColors(p.Diagram)
-		s.prepareDiagram(p.Diagram, true)
+		s.prepareCIM(p.Diagram)
 		report := newImportReport(p.Report)
 		// Skipped is keyed by CIM class, which names itself.
 		for k := range report.Skipped {
@@ -102,6 +102,19 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, gin.H{"pages": out, "messages": messages})
+}
+
+// prepareCIM finishes an imported CIM diagram like prepareDiagram does an extracted one, except for the topology
+// repair: its connections are the model's, and joining what merely touches in the drawing would change them.
+func (s *Server) prepareCIM(d *slddoc.Diagram) {
+	if v := slddoc.MostUsedVoltage(d); v != 0 {
+		if d.Editor == nil {
+			d.Editor = &slddoc.EditorSettings{}
+		}
+		d.Editor.DefaultVoltage = v
+	}
+	slddoc.EnsureIDs(d)
+	s.applyPresetVoltageNames(d)
 }
 
 // cimMessage is one import note, shaped like xsde2svg's converter messages.

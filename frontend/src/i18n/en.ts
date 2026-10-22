@@ -61,7 +61,7 @@ export const dictionary = {
   'file.showImportLog': 'Show import log',
   'file.repair': 'Repair',
   'file.repairButton': 'Repair diagram',
-  'file.repairHint': 'Fits the ports of every device to its terminals, gives busbars a port at each connection and joins wire ends lying on wires. An .svg, .xsde or CIM import is repaired already.',
+  'file.repairHint': 'Fits the ports of every device to its terminals, gives busbars a port at each connection and joins wire ends lying on wires. An .svg or .xsde import is repaired already; a CIM import takes its connections from the model and is best left as it is.',
   'file.repairDone': 'Diagram repaired. Undo reverts it; save to keep it.',
   'file.repairNothing': 'Nothing to repair.',
   'file.repairStale': 'The diagram changed while it was being repaired. Try again.',
