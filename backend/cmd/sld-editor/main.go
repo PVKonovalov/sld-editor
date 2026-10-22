@@ -65,7 +65,7 @@ func main() {
 	}
 	cfg.HotKeys = hotKeys
 
-	cimClasses, err := slddoc.DefaultCIMClasses().With(cfg.CIM.Classes)
+	cimClasses, err := slddoc.NewCIMClassTable(lib.Classes(), cfg.CIM.Classes)
 	if err != nil {
 		llog.Logger.Fatalf("validating cim configuration: %v", err)
 	}

@@ -40,7 +40,7 @@ type Server struct {
 	cfg    *config.Config
 	// presence tracks which tabs have which diagram open (POST /presence).
 	presence *presence.Registry
-	// cimClasses is the CIM class table: the built-in one with config.CIM.Classes put in.
+	// cimClasses is the CIM class table per shape: the built-in lists with config.CIM.Classes put in.
 	cimClasses slddoc.CIMClassTable
 }
 
@@ -63,10 +63,11 @@ func NewServer(store, custom *storage.Store, lib *elements.Library, cfg *config.
 	_ = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
 
 	s := &Server{router: r, store: store, custom: custom, lib: lib, cfg: cfg, presence: presence.New(presenceTTL)}
-	// main.go has checked cfg.CIM.Classes; an invalid table here (tests) falls back to the built-in one.
-	s.cimClasses = slddoc.DefaultCIMClasses()
-	if t, err := s.cimClasses.With(cfg.CIM.Classes); err == nil {
+	// main.go has checked cfg.CIM.Classes; an invalid table here (tests) falls back to the built-in lists.
+	if t, err := slddoc.NewCIMClassTable(lib.Classes(), cfg.CIM.Classes); err == nil {
 		s.cimClasses = t
+	} else {
+		s.cimClasses, _ = slddoc.NewCIMClassTable(lib.Classes(), nil)
 	}
 	s.routes()
 	return s

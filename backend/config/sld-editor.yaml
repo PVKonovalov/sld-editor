@@ -172,11 +172,12 @@ hot_keys:
   w: "21"    # Buswork
   g: "54"    # Grounder
 
-# CIM export and import. classes: an element class (or LinkToObject, a link to
-# object) → the CIM classes it can stand for, its default first; the others are
-# offered in Properties' CIM class list. A class left out keeps its built-in
-# list (each device exports as its usual CIM class). A device can only stand for
-# CIM classes the export writes alike: switches (Breaker,
+# CIM export and import. classes: a symbol shape code, as in the palette above
+# ("28" is a link to object) → the CIM classes an element of that shape can
+# stand for, its default first; the others are offered in Properties' CIM
+# class list. A shape left out keeps its element class's built-in list (each
+# device exports as its usual CIM class). A device can only stand for CIM
+# classes the export writes alike: switches (Breaker,
 # DisconnectingCircuitBreaker, Disconnector, LoadBreakSwitch,
 # GroundDisconnector, Switch, Fuse, Jumper), machines (SynchronousMachine,
 # AsynchronousMachine), injections (EnergyConsumer, ConformLoad,
@@ -186,11 +187,12 @@ hot_keys:
 # WaveTrap). Mistakes stop the server at startup.
 cim:
   classes:
-    Breaker: [ Breaker, DisconnectingCircuitBreaker ]
-    Starter: [ Switch, LoadBreakSwitch ]
-    Generator: [ SynchronousMachine, AsynchronousMachine ]
-    SynchronousMotor: [ SynchronousMachine, AsynchronousMachine ]
-    ReactorShunt: [ LinearShuntCompensator, PetersenCoil ]
-    Load: [ EnergyConsumer, ConformLoad, NonConformLoad ]
-    NetworkInfeed: [ ExternalNetworkInjection, EquivalentInjection, EnergySource ]
-    LinkToObject: [ EnergyConsumer, EnergySource ]
+    "41": [ Breaker, DisconnectingCircuitBreaker ]                            # Breaker
+    "43": [ Breaker, DisconnectingCircuitBreaker ]                            # Breaker (withdrawable)
+    "76": [ Switch, LoadBreakSwitch ]                                         # Starter
+    "173": [ SynchronousMachine, AsynchronousMachine ]                        # Generator
+    "39": [ SynchronousMachine, AsynchronousMachine ]                         # Synchronous motor
+    "397": [ LinearShuntCompensator, PetersenCoil ]                           # Reactor (shunt)
+    "330001": [ EnergyConsumer, ConformLoad, NonConformLoad ]                 # Load
+    "330002": [ ExternalNetworkInjection, EquivalentInjection, EnergySource ] # Network infeed
+    "28": [ EnergyConsumer, EnergySource ]                                    # Link to object

@@ -128,8 +128,9 @@ type Config struct {
 	// are reserved. elements.ValidateHotKeys checks it at startup.
 	HotKeys map[string]string `yaml:"hot_keys"`
 
-	// CIM configures the CIM export and import. Classes maps an element class (or LinkToObject) to the CIM classes
-	// it can stand for, its default first; a class left out keeps its built-in list. Checked at startup.
+	// CIM configures the CIM export and import. Classes maps a symbol shape code (as in Palette; "28" is a link to
+	// object) to the CIM classes it can stand for, its default first; a shape left out keeps its element class's
+	// built-in list. Checked at startup.
 	CIM struct {
 		Classes map[string][]string `yaml:"classes"`
 	} `yaml:"cim"`

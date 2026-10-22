@@ -765,7 +765,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `indicators.default_fpi_text` | Text a fault passage indicator shows when it has none of its own. |
 | `palette` | The Elements panel: groups (`name`, in display order) and their `items`, each an xsde2svg object type code. |
 | `hot_keys` | Placement keys: a letter or digit → a palette item code (`r` and `m` are taken by rotate and mirror). |
-| `cim.classes` | An element class (or `LinkToObject`) → the CIM classes it can stand for, its default first ([CIM export](#cim-export)); a class left out keeps the built-in list. Only CIM classes exported alike can be chosen: switches, machines, injections, shunts or auxiliary equipment (the file's comment lists them). |
+| `cim.classes` | A symbol shape code, as in `palette` (`"28"` is a link to object) → the CIM classes an element of that shape can stand for, its default first ([CIM export](#cim-export)); a shape left out keeps the built-in list of its element class. Only CIM classes exported alike can be chosen: switches, machines, injections, shunts or auxiliary equipment (the file's comment lists them). |
 
 Most single values can also be set by an environment variable named after the key path in capitals, e.g.
 `SERVER_BIND`, `DIAGRAMS_DIR`, `XSDE_CONFIG`, `XSDE_WORKPLACE`, `EDITOR_GRID_SPACING` (lists comma-separated, e.g.
