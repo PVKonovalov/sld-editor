@@ -243,8 +243,15 @@ With nothing selected, the Properties panel shows the diagram itself:
 equipment and how it is connected, and `<name>_DL.xml`, the diagram layout (IEC 61970-453) that places it. Unsaved
 edits are included.
 
-- The diagram becomes one substation with a voltage level per voltage class. A class's nominal voltage is read from
-  its name ("110 kV", "6,3 кВ", "400 V"; a bare number is kV).
+- The diagram is split into substations by its connections: everything joined without passing through a line is one
+  substation (transformers inside), named after its busbar with the most connections. Each has a voltage level per
+  voltage class, and an overhead or cable line runs between substations.
+- A class's nominal voltage is read from its name ("110 kV", "6,3 кВ", "400 V"; a bare number is kV); a class still
+  named after its colour takes the name of the standard voltage of that colour (`voltage_colors`). Equipment whose
+  class holds no voltage takes the voltage of what it is switched to; where nothing around has one, its
+  substation's (or the diagram's) most common voltage is used, and the export log says so.
+- A switch or line with both ends on one node is left out, and a transformer with 4 windings is exported but noted,
+  since some tools (PowSyBl among them) read only 2 or 3.
 - Each device becomes its CIM class (breaker, disconnector, load break switch, ground disconnector, fuse, power
   transformer with an end per winding, synchronous machine, shunt or series compensator, busbar section, ground)
   with a terminal per connection point. A changeover knife switch becomes two disconnectors from its pivot. A switch's
@@ -269,7 +276,8 @@ edits are included.
 - Identifiers are derived from the diagram's name and item ids, so exporting the same diagram again keeps them.
 
 Values the files need but the diagram doesn't have (see [Electrical parameters](#electrical-parameters)) are written
-as 0, or as the voltage class's nominal voltage for a rated voltage. Under the Export row, the export lists each such
+as 0, or as the voltage class's nominal voltage for a rated voltage (among them an SVC's slope and a network infeed's
+active power limits, which tools such as PowSyBl require). Under the Export row, the export lists each such
 item and what was missing, as well as voltage classes without a voltage in the name and devices it could not export;
 click an item to highlight it on the canvas.
 
@@ -679,7 +687,7 @@ export. Every field is optional: leave it empty when the value is unknown. Names
 | Link to object (energy consumer) | P (MW), Q (Mvar) |
 | Load | P (MW), Q (Mvar) |
 | Network infeed | min/max P (MW), min/max Q (Mvar) |
-| Static var compensator | capacitive and inductive rating (Ω) |
+| Static var compensator | capacitive and inductive rating (Ω), slope (kV/Mvar) |
 
 Copying a device copies its parameters. When a line is split (a tap, or a busbar laid across it), the original
 piece keeps the parameters and the new piece starts empty.

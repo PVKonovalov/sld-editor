@@ -26,7 +26,7 @@ const ELEMENT_FIELDS: Record<string, ElectricalField[]> = {
   BusBarSection: ['ipMax'],
   Load: ['p', 'q'],
   NetworkInfeed: ['minP', 'maxP', 'minQ', 'maxQ'],
-  StaticVarCompensator: ['capacitiveRating', 'inductiveRating'],
+  StaticVarCompensator: ['capacitiveRating', 'inductiveRating', 'slope'],
   ...Object.fromEntries(
     [
       'Breaker',

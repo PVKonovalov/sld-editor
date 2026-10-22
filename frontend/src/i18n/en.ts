@@ -52,6 +52,9 @@ export const dictionary = {
   'cim.voltage': 'the name holds no voltage, so the nominal voltage is 0',
   'cim.noTerminal': 'no equipment terminal on its node to attach to',
   'cim.notExported': 'has no CIM equivalent and was not exported',
+  'cim.guessedVoltage': 'no voltage on it or around it; given the most common one of its substation or diagram',
+  'cim.windings': 'has 4 windings; valid CIM, but some tools (PowSyBl among them) read only 2 or 3',
+  'cim.shorted': 'both ends are on one node, so it was left out',
   'cim.openEnd': 'something is connected at its arrow end, which is left unconnected',
   'file.import': 'Import',
   'file.loadFromFile': 'Load from file…',
@@ -562,6 +565,7 @@ export const dictionary = {
   'electrical.q': 'Q, Mvar',
   'electrical.capacitiveRating': 'Capacitive rating, Ω',
   'electrical.inductiveRating': 'Inductive rating, Ω',
+  'electrical.slope': 'Slope, kV/Mvar',
   'properties.cimClass': 'CIM class',
   'properties.cimClassDefault': '{{name}} (default)',
 } as const

@@ -57,6 +57,9 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'cim.voltage': 'в названии нет напряжения, номинальное напряжение 0',
   'cim.noTerminal': 'на его узле нет вывода оборудования для привязки',
   'cim.notExported': 'нет аналога в CIM, не экспортирован',
+  'cim.guessedVoltage': 'нет напряжения ни у него, ни рядом; присвоено самое частое напряжение подстанции или схемы',
+  'cim.windings': '4 обмотки: это допустимо в CIM, но некоторые программы (например, PowSyBl) читают только 2 или 3',
+  'cim.shorted': 'оба конца в одном узле, поэтому не выгружен',
   'cim.openEnd': 'к концу со стрелкой что-то подключено, этот конец не выгружается',
   'file.import': 'Импорт',
   'file.loadFromFile': 'Загрузить из файла…',
@@ -558,6 +561,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'electrical.q': 'Q, Мвар',
   'electrical.capacitiveRating': 'Ёмкостное сопротивление, Ом',
   'electrical.inductiveRating': 'Индуктивное сопротивление, Ом',
+  'electrical.slope': 'Статизм, кВ/Мвар',
   'properties.cimClass': 'Класс CIM',
   'properties.cimClassDefault': '{{name}} (по умолчанию)',
 }

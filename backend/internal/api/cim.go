@@ -38,6 +38,9 @@ func (s *Server) exportDiagramCIM(c *gin.Context) {
 		base = "diagram"
 	}
 	created := time.Now()
+	// A voltage class still named after its colour is named after the configured voltage of that colour, so its
+	// equipment gets a real voltage.
+	s.applyPresetVoltageNames(&d)
 	out := slddoc.ExportCIM(&d, slddoc.CIMOptions{Name: name, Created: created})
 
 	var buf bytes.Buffer
