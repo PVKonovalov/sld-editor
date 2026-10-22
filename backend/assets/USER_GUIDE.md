@@ -259,7 +259,8 @@ edits are included.
 - Some symbols can stand for more than one CIM class: pick it in Properties' **CIM class** list (shown only for
   them). A breaker can be a disconnecting circuit breaker, a generator or motor an asynchronous machine, a shunt
   reactor a Petersen coil, a starter a load break switch, a **Load** a conform or non-conform load, and a **Network
-  infeed** an equivalent injection or energy source.
+  infeed** an equivalent injection or energy source. These choices, and every symbol's default, come from the
+  server's configuration (`cim.classes`, see [sld-editor.yaml](#configuration-editor)).
 - **Load**, **Network infeed** and **Static var compensator** (under Other equipment in the palette) are symbols for
   CIM equipment that classic diagrams have no symbol for: a consumer, a connection to an outside network, and an SVC.
 - Each overhead or cable line becomes an AC line segment in a line of its own name.
@@ -744,7 +745,7 @@ location / {
 
 The editor's own settings, read once at startup: restart the editor, then reload the page, after changing them. The
 exceptions are `user_guide` and the two `xsde` files, which are read again on every use. A mistake in `palette` or
-`hot_keys` stops the editor at startup with a message naming it.
+`hot_keys` or `cim.classes` stops the editor at startup with a message naming it.
 
 | Key | What it sets |
 |---|---|
@@ -764,6 +765,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `indicators.default_fpi_text` | Text a fault passage indicator shows when it has none of its own. |
 | `palette` | The Elements panel: groups (`name`, in display order) and their `items`, each an xsde2svg object type code. |
 | `hot_keys` | Placement keys: a letter or digit → a palette item code (`r` and `m` are taken by rotate and mirror). |
+| `cim.classes` | An element class (or `LinkToObject`) → the CIM classes it can stand for, its default first ([CIM export](#cim-export)); a class left out keeps the built-in list. Only CIM classes exported alike can be chosen: switches, machines, injections, shunts or auxiliary equipment (the file's comment lists them). |
 
 Most single values can also be set by an environment variable named after the key path in capitals, e.g.
 `SERVER_BIND`, `DIAGRAMS_DIR`, `XSDE_CONFIG`, `XSDE_WORKPLACE`, `EDITOR_GRID_SPACING` (lists comma-separated, e.g.

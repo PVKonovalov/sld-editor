@@ -13,6 +13,7 @@ import (
 	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
 
+	"github.com/PVKonovalov/slddoc"
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
 	"sld-editor/internal/presence"
@@ -39,6 +40,8 @@ type Server struct {
 	cfg    *config.Config
 	// presence tracks which tabs have which diagram open (POST /presence).
 	presence *presence.Registry
+	// cimClasses is the CIM class table: the built-in one with config.CIM.Classes put in.
+	cimClasses slddoc.CIMClassTable
 }
 
 // NewServer builds a ready-to-run Server. custom is the custom-elements
@@ -60,6 +63,11 @@ func NewServer(store, custom *storage.Store, lib *elements.Library, cfg *config.
 	_ = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
 
 	s := &Server{router: r, store: store, custom: custom, lib: lib, cfg: cfg, presence: presence.New(presenceTTL)}
+	// main.go has checked cfg.CIM.Classes; an invalid table here (tests) falls back to the built-in one.
+	s.cimClasses = slddoc.DefaultCIMClasses()
+	if t, err := s.cimClasses.With(cfg.CIM.Classes); err == nil {
+		s.cimClasses = t
+	}
 	s.routes()
 	return s
 }

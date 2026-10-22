@@ -232,6 +232,13 @@ func (l *Library) Terminals() map[string][]slddoc.Point {
 	return out
 }
 
+// ApplyCIMClasses sets every symbol's CIM classes from table (each symbol's CIM, default first).
+func (l *Library) ApplyCIMClasses(table slddoc.CIMClassTable) {
+	for i := range l.Symbols {
+		l.Symbols[i].CIM = table.Of(slddoc.Class(l.Symbols[i].Class))
+	}
+}
+
 // Classes maps each shape to its element class, for slddoc.ImportCIM.
 func (l *Library) Classes() map[string]slddoc.Class {
 	out := make(map[string]slddoc.Class, len(l.Symbols))

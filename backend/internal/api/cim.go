@@ -41,7 +41,7 @@ func (s *Server) exportDiagramCIM(c *gin.Context) {
 	// A voltage class still named after its colour is named after the configured voltage of that colour, so its
 	// equipment gets a real voltage.
 	s.applyPresetVoltageNames(&d)
-	out := slddoc.ExportCIM(&d, slddoc.CIMOptions{Name: name, Created: created})
+	out := slddoc.ExportCIM(&d, slddoc.CIMOptions{Name: name, Created: created, Classes: s.cimClasses})
 
 	var buf bytes.Buffer
 	zw := zip.NewWriter(&buf)
@@ -84,7 +84,8 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 		return
 	}
 	grid := s.cfg.Editor.GridSpacing
-	pages, err := slddoc.ImportCIM(docs, slddoc.CIMImportOptions{Terminals: s.lib.Terminals(), Classes: s.lib.Classes(), Grid: grid})
+	pages, err := slddoc.ImportCIM(docs, slddoc.CIMImportOptions{Terminals: s.lib.Terminals(), Classes: s.lib.Classes(), Grid: grid,
+		CIMClasses: s.cimClasses})
 	if err != nil {
 		errJSON(c, http.StatusBadRequest, err)
 		return

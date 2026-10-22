@@ -47,7 +47,7 @@ editor:
 # this list; it's only ever a starting point for a new one.
 voltage_colors:
   - name: "0.4 kV"
-    color: "#4a90d9"
+    color: "#d2d2d2"
   - name: "6 kV"
     color: "#326400"
   - name: "10 kV"
@@ -171,3 +171,26 @@ hot_keys:
   b: "24"    # Busbar section
   w: "21"    # Buswork
   g: "54"    # Grounder
+
+# CIM export and import. classes: an element class (or LinkToObject, a link to
+# object) → the CIM classes it can stand for, its default first; the others are
+# offered in Properties' CIM class list. A class left out keeps its built-in
+# list (each device exports as its usual CIM class). A device can only stand for
+# CIM classes the export writes alike: switches (Breaker,
+# DisconnectingCircuitBreaker, Disconnector, LoadBreakSwitch,
+# GroundDisconnector, Switch, Fuse, Jumper), machines (SynchronousMachine,
+# AsynchronousMachine), injections (EnergyConsumer, ConformLoad,
+# NonConformLoad, ExternalNetworkInjection, EquivalentInjection, EnergySource),
+# shunts (LinearShuntCompensator, PetersenCoil) or auxiliary equipment
+# (CurrentTransformer, PotentialTransformer, SurgeArrester, FaultIndicator,
+# WaveTrap). Mistakes stop the server at startup.
+cim:
+  classes:
+    Breaker: [ Breaker, DisconnectingCircuitBreaker ]
+    Starter: [ Switch, LoadBreakSwitch ]
+    Generator: [ SynchronousMachine, AsynchronousMachine ]
+    SynchronousMotor: [ SynchronousMachine, AsynchronousMachine ]
+    ReactorShunt: [ LinearShuntCompensator, PetersenCoil ]
+    Load: [ EnergyConsumer, ConformLoad, NonConformLoad ]
+    NetworkInfeed: [ ExternalNetworkInjection, EquivalentInjection, EnergySource ]
+    LinkToObject: [ EnergyConsumer, EnergySource ]

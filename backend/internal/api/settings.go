@@ -45,7 +45,7 @@ func (s *Server) getConfig(c *gin.Context) {
 		"hotKeys":               s.cfg.HotKeys,
 		// The CIM classes a connector kind exported as equipment can stand for, default first.
 		"cimConnectorClasses": map[slddoc.ConnectorKind][]string{
-			slddoc.KindLinkToObject: slddoc.ConnectorCIMClasses(slddoc.KindLinkToObject),
+			slddoc.KindLinkToObject: s.cimClasses.Of(slddoc.LinkToObjectCIM),
 		},
 	})
 }

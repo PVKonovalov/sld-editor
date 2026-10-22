@@ -67,7 +67,7 @@ Placing one from the palette works (see RELEASE.md, 2026-09-29). Still to do:
 
 ## CIM import - export
 - [x] Element Object link:28 should be used with CIM class EnergyConsumer or cim:EnergySource
-- [ ] CIM classes for elements should be configured in the yaml configuration file. Now its hardcoded.
+- [x] CIM classes for elements should be configured in the yaml configuration file. Now its hardcoded.
 
 ## Shapes not yet ported
 

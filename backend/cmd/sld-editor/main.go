@@ -65,6 +65,12 @@ func main() {
 	}
 	cfg.HotKeys = hotKeys
 
+	cimClasses, err := slddoc.DefaultCIMClasses().With(cfg.CIM.Classes)
+	if err != nil {
+		llog.Logger.Fatalf("validating cim configuration: %v", err)
+	}
+	lib.ApplyCIMClasses(cimClasses)
+
 	stateColors := make([]slddoc.StateColor, len(cfg.StateColors))
 	for i, sc := range cfg.StateColors {
 		stateColors[i] = slddoc.StateColor{State: sc.State, Label: sc.Label, Color: sc.Color}
