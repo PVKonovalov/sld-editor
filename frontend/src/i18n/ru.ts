@@ -20,7 +20,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'help.title': 'Руководство пользователя',
   'help.loading': 'Загрузка…',
   'help.loadError': 'Не удалось загрузить руководство пользователя: {{error}}',
-  'help.openTopic': 'Открыть руководство на этой теме',
+  'help.openTopic': 'Открыть руководство по этой теме',
   'help.filterPlaceholder': 'Фильтр содержания…',
   'help.noMatches': 'Нет подходящих разделов',
   'sidebar.about': 'О программе',
