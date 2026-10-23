@@ -25,6 +25,8 @@ SOFTWARE.
 package configuration
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -37,12 +39,75 @@ import (
 
 var (
 	EnvVarPrefix = ""
+	// EnvFile is an optional dotenv file (KEY=VALUE per line) consulted by ReadFromEnv between the
+	// yaml file and the process environment: yaml < EnvFile < os environment, each level overriding
+	// the previous one. A missing file is ignored; an empty EnvFile disables it.
+	EnvFile      = ".env"
 	ReadFromFile = ReadConfigFromYMLFile
 )
 
-// ReadFromEnv reads environment variables into struct fields based on `env` and `yaml` tags
+// ReadFromEnv reads environment variables (from EnvFile, then from the process environment, which
+// takes precedence) into struct fields based on `env` and `yaml` tags
 func ReadFromEnv(s any) error {
-	return readFromEnv(reflect.ValueOf(s).Elem(), "")
+	dotEnv, err := ReadEnvFile(EnvFile)
+	if err != nil {
+		return err
+	}
+	return readFromEnv(reflect.ValueOf(s).Elem(), "", dotEnv)
+}
+
+// ReadEnvFile parses a dotenv file into a map. Supports blank lines, # comments, an optional
+// "export " prefix and single/double-quoted values; no variable expansion. A missing file (or an
+// empty path) returns an empty map without error.
+func ReadEnvFile(path string) (map[string]string, error) {
+	vars := map[string]string{}
+	if path == "" {
+		return vars, nil
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return vars, nil
+		}
+		return nil, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for lineNo := 1; scanner.Scan(); lineNo++ {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		line = strings.TrimSpace(strings.TrimPrefix(line, "export "))
+
+		key, value, ok := strings.Cut(line, "=")
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			return nil, fmt.Errorf("%s:%d: expected KEY=VALUE", path, lineNo)
+		}
+		value = strings.TrimSpace(value)
+
+		if n := len(value); n >= 2 && (value[0] == '"' || value[0] == '\'') && value[n-1] == value[0] {
+			value = value[1 : n-1]
+		} else if i := strings.Index(value, " #"); i >= 0 {
+			value = strings.TrimSpace(value[:i])
+		}
+		vars[key] = value
+	}
+	if err = scanner.Err(); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return vars, nil
+}
+
+// lookupEnv returns the process environment value for name if non-empty, otherwise the dotenv one
+func lookupEnv(name string, dotEnv map[string]string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	return dotEnv[name]
 }
 
 // ListEnv lists all environment variables that can be used to override configuration values
@@ -51,7 +116,7 @@ func ListEnv(s any) []string {
 }
 
 // readFromEnv reads environment variables into struct fields based on `env` and `yaml` tags
-func readFromEnv(v reflect.Value, parentTag string) error {
+func readFromEnv(v reflect.Value, parentTag string, dotEnv map[string]string) error {
 	var err error
 
 	for i := 0; i < v.Type().NumField() && err == nil; i++ {
@@ -60,7 +125,7 @@ func readFromEnv(v reflect.Value, parentTag string) error {
 
 		switch field.Type.Kind() {
 		case reflect.Struct:
-			err = readFromEnv(val, field.Tag.Get("yaml"))
+			err = readFromEnv(val, field.Tag.Get("yaml"), dotEnv)
 		default:
 			if field.Tag.Get("env") == "true" {
 				ptg := strings.Split(parentTag, ",")
@@ -74,14 +139,14 @@ func readFromEnv(v reflect.Value, parentTag string) error {
 				}
 
 				envFullName := fmt.Sprintf("%s%s", EnvVarPrefix, envVar)
-				envVal := os.Getenv(envFullName)
+				envVal := lookupEnv(envFullName, dotEnv)
 
 				if envVal != "" {
 					switch val.Kind() {
 					case reflect.String:
 						val.SetString(envVal)
 					case reflect.Bool:
-						if strings.ToUpper(envVal) == "TRUE" || envVar == "1" || strings.ToUpper(envVal) == "Y" {
+						if strings.ToUpper(envVal) == "TRUE" || envVal == "1" || strings.ToUpper(envVal) == "Y" {
 							val.SetBool(true)
 						} else {
 							val.SetBool(false)
