@@ -252,7 +252,7 @@ editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file i
     The groups of one voltage class stay together, side by side on one row; each goes under the transformer it is
     fed from (a generator directly under its step-up transformer), and the row rises beside the band above where
     nothing is in the way. Transformers go under the bays feeding them, or over what they feed, so their leads come
-    out straight; where a lead must turn, it turns in a corridor of its own, so that leads never cross. A move is
+    out straight; where a lead must turn, it makes a single jog in a corridor of its own, so that leads never cross. A move is
     kept only when it lowers the number of crossings (of leads with each other, or with another voltage class), then
     the bends of the transformer leads (a bend under a transformer counting more) and their length. Groups and
     transformers never overlap, nor do their names (a voltage level's name moves right of its busbars when only it is
