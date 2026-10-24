@@ -61,6 +61,12 @@ export interface VoltageColorsPrompt {
   voltages: UnmatchedVoltage[]
 }
 
+// A CIM import whose layout was made by another tool (fileName: the imported file; diagrams: the pages it draws).
+export interface CimLayoutPrompt {
+  fileName: string
+  diagrams: number
+}
+
 // A recovery draft (lib/drafts.ts) offered by DraftRecoveryDialog.
 export interface DraftInfo {
   name: string
@@ -311,6 +317,10 @@ export interface DiagramContextValue {
   // presets to the server's voltage_colors, in its configuration file too.
   voltageColorsPrompt: VoltageColorsPrompt | null
   resolveVoltageColorsPrompt: (colors: Map<string, string>) => void
+  // Set while CimLayoutDialog asks whether a CIM import follows its model's layout or is laid out automatically (the
+  // import waits for it); resolveCimLayoutPrompt answers.
+  cimLayoutPrompt: CimLayoutPrompt | null
+  resolveCimLayoutPrompt: (choice: 'model' | 'auto') => void
   addVoltagePresets: (colors: VoltageColor[]) => Promise<void>
   // Recovery drafts to offer (on startup, or when their diagram is opened):
   // restoreDraft makes one the working diagram (still unsaved),

@@ -98,10 +98,14 @@ func TestCIMRoundTrip(t *testing.T) {
 		Pages []struct {
 			Diagram *slddoc.Diagram `json:"diagram"`
 		} `json:"pages"`
-		Messages []cimMessage `json:"messages"`
+		Messages      []cimMessage `json:"messages"`
+		ForeignLayout bool         `json:"foreignLayout"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &imported); err != nil {
 		t.Fatal(err)
+	}
+	if imported.ForeignLayout {
+		t.Error("an own export's layout is not foreign")
 	}
 	if len(imported.Pages) != 1 {
 		t.Fatalf("pages = %d", len(imported.Pages))
@@ -116,6 +120,24 @@ func TestCIMRoundTrip(t *testing.T) {
 	}
 	if !slices.Equal(a, b) {
 		t.Errorf("connections differ:\n%v\n%v", a, b)
+	}
+
+	// Laid out automatically instead of as drawn: the same connections.
+	req = httptest.NewRequest(http.MethodPost, "/api/import/cim?layout=auto", bytes.NewReader(exported.File))
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("auto import: status %d, body %s", rec.Code, rec.Body.String())
+	}
+	imported.Pages = nil
+	if err := json.Unmarshal(rec.Body.Bytes(), &imported); err != nil {
+		t.Fatal(err)
+	}
+	if len(imported.Pages) != 1 {
+		t.Fatalf("auto pages = %d", len(imported.Pages))
+	}
+	if auto := connections(t, imported.Pages[0].Diagram); !slices.Equal(a, auto) {
+		t.Errorf("auto layout connections differ:\n%v\n%v", a, auto)
 	}
 }
 

@@ -252,15 +252,20 @@ export async function addVoltageColors(colors: VoltageColor[]): Promise<VoltageC
   return data.voltageColors ?? []
 }
 
-/** Converts a CIM model (a zip of CGMES profiles, or one RDF/XML document) to a diagram per Diagram Layout diagram
- * (POST /api/import/cim), in the shape of importDiagramXSDE's answer plus the voltage classes no server preset
- * names. */
-export async function importDiagramCIM(bytes: ArrayBuffer): Promise<{
+/** Converts a CIM model (a zip of CGMES profiles, or one RDF/XML document) to a diagram per Diagram Layout diagram,
+ * or with auto (or no layout in it) a diagram per substation laid out automatically (POST /api/import/cim), in the
+ * shape of importDiagramXSDE's answer plus the voltage classes no server preset names and whether a page follows a
+ * layout made by another tool. */
+export async function importDiagramCIM(
+  bytes: ArrayBuffer,
+  auto = false,
+): Promise<{
   pages: { page: number; title: string; diagram: Diagram; report: ImportReport }[]
   messages: ConverterMessage[]
   unmatchedVoltages: UnmatchedVoltage[]
+  foreignLayout: boolean
 }> {
-  const res = await fetch(`${BASE}/import/cim`, {
+  const res = await fetch(`${BASE}/import/cim${auto ? '?layout=auto' : ''}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
     body: bytes,
@@ -269,11 +274,13 @@ export async function importDiagramCIM(bytes: ArrayBuffer): Promise<{
     pages: { page: number; title: string; diagram: DiagramWire; report: ImportReport }[]
     messages: ConverterMessage[] | null
     unmatchedVoltages: UnmatchedVoltage[] | null
+    foreignLayout?: boolean
   }>(res)
   return {
     pages: data.pages.map(p => ({ ...p, diagram: normalizeDiagram(p.diagram) })),
     messages: data.messages ?? [],
     unmatchedVoltages: data.unmatchedVoltages ?? [],
+    foreignLayout: data.foreignLayout ?? false,
   }
 }
 

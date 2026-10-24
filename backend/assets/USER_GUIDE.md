@@ -194,9 +194,67 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 - Diagrams imported before these two rules were added get them with **Repair diagram** (see
   [Repairing a diagram](#repair)).
 
+### CIM files: profiles and names {#cim-files}
+
+A CIM model in the European CGMES form (Common Grid Model Exchange Standard, versions 2.4.15 and 3.0) is not one
+file but a set of RDF/XML documents (IEC 61970-552), one per **profile**, usually packed in a `.zip`. Each profile
+describes one side of the same network; the documents refer to each other's objects by id (`rdf:ID` /
+`rdf:about="#…"`, the object's `mRID`). Each document starts with a header (`md:FullModel`) giving its own id,
+creation and scenario time, the profile(s) it holds (`md:Model.profile`, for example
+`http://iec.ch/TC57/ns/CIM/CoreEquipment-EU/3.0`) and the documents it depends on (`md:Model.DependentOn`); an SSH
+file, for example, depends on the EQ file of the same network.
+
+**File names.** The usual convention is `<date>T<time>Z_<process>_<area>_<profile>_<version>.xml`:
+
+- `<date>T<time>Z`: the scenario time in UTC, e.g. `20201202T1843Z`.
+- `<process>`: the business process: `1D` day-ahead, `2D` two days ahead, `ID` intraday, `YR` year-ahead…
+- `<area>`: who modelled it (a TSO such as `BE` or `NL`, a region, a model name) or `ASSEMBLED` for a merged model.
+- `<profile>`: the profile code below. `_BD` marks the common **boundary** set shared by all parties.
+- `<version>`: the file's version, e.g. `001`.
+
+So `20201202T1843Z_1D_Svedala Area_EQ_001.xml` is the equipment of the Svedala test model for the day-ahead process
+of 2 December 2020, 18:43 UTC. Names are a convention only: what a document holds is in its header, and the editor
+looks at the content, never at the name.
+
+| Code | Profile | Holds | Import | Export |
+|---|---|---|---|---|
+| EQ | Equipment (CGMES 3.0: Core Equipment) | The equipment and how it is connected: substations, voltage levels, base voltages, busbars, switches with their normal position, transformers and their ends, lines, loads, generators, terminals and connectivity nodes, ratings and impedances | Read: the network | Written (`<name>_EQ.xml`) |
+| OP, SC | Operation, Short Circuit (CGMES 3.0) | Parts of EQ split off in 3.0: measurements and limits; short-circuit data. Often in the same file as EQ (its header then lists several profiles) | Merged, not used | Not written |
+| EQ_BD | Boundary equipment (EQBD in 3.0) | The border points between areas: boundary connectivity nodes, their base voltages and lines to neighbours | Read with EQ when in the zip | Not written |
+| TP | Topology | Topological nodes (buses): which connectivity nodes are joined by closed switches; in a bus-branch model, the only nodes there are | Read: a bus-branch model's topological nodes stand in for connectivity nodes | Not written |
+| TP_BD | Boundary topology (2.4.15) | Topological nodes of the boundary | As TP | Not written |
+| SSH | Steady State Hypothesis | The operating point to compute: switch states now (`open`), load P and Q, generator set points, tap positions, regulation | Merged, not used (a switch's position comes from EQ's `normalOpen`) | Not written |
+| SV | State Variables | Results of a power flow: bus voltages and angles, flows, tap steps, which equipment is in service | Merged, not used | Not written |
+| DL | Diagram Layout (IEC 61970-453) | Drawings: diagrams, where each object is drawn (points, rotation), texts, visibility layers | Read: each diagram becomes a page; without a DL the layout is generated | Written (`<name>_DL.xml`) |
+| GL | Geographical Location | Coordinates of equipment on a map (locations, position points, coordinate system) | Merged, not used | Not written |
+| DY | Dynamics | Models for dynamic simulation (machines, exciters, governors) | Merged, not used | Not written |
+
+All `.xml` and `.rdf` files of a zip are read and merged, whatever their names; what the editor does not use simply
+has no effect. An EQ document alone is enough for a drawing (see [CIM import](#cim-import)).
+
+**`<NN>_<substation>_metadata.json`.** This file is not part of CIM. PowSyBl's single-line-diagram renderer writes it
+next to each SVG it draws, for example `tools/cim-tools render <model> out/` writes `out/00_<substation>.svg` and
+`out/00_<substation>_metadata.json` (see `docs/CIM_INTEROP.md`). It is a JSON object that ties the SVG to the
+network, so an application showing the SVG can make it interactive (highlight, open, switch the right equipment):
+
+- `metadataVersion`: the format version (for example `1.1`).
+- `components`: the symbol types used (`BUSBAR_SECTION`, `BREAKER`, `DISCONNECTOR`, `TWO_WINDINGS_TRANSFORMER`…),
+  with their size and CSS class.
+- `nodes`: every drawn symbol: its SVG element `id`, its voltage level (`vid`), its `componentType`, its
+  `equipmentId` in the network (the CIM mRID), whether a switch is `open`, and its labels.
+- `wires`: every drawn wire: its SVG `id` and the two node ids it joins.
+- `lines`, `feederInfos`, `busInfos`: line ends leaving the substation, the arrows and values drawn on feeders, the
+  bus legends.
+- `layoutParams`, `svgParams`: the settings PowSyBl drew with (cell sizes, spacing, padding; label and unit options).
+- `networkId`, `networkName`, `networkDate`: the network it was drawn from.
+
+The editor neither reads nor writes these files; import the CIM zip itself.
+
 ### CIM import {#cim-import}
 
-A CIM model, as a `.zip` of CGMES profile files (EQ and DL, other profiles are ignored) or one RDF/XML `.xml` file,
+A CIM model, as a `.zip` of CGMES profile files or one RDF/XML `.xml` file (the equipment from EQ, a bus-branch
+model's buses from TP, the drawings from DL; the other profiles are read but not used, see
+[CIM files](#cim-files)),
 is imported like an `.xsde`: each diagram of its Diagram Layout (DL) becomes a diagram. A single one is saved into the current folder as
 `<name>` and opens; several
 are saved into a folder of the current folder named after the file, each diagram named after its DL diagram (for a
@@ -205,6 +263,17 @@ bus-branch models alike (a bus-branch model's topological nodes stand in for con
 editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file is read, in any folder; hidden files
 (a name starting with a dot) and the `__MACOSX` folder that macOS **Compress** adds are skipped.
 
+When the model's layout was made by another tool, the import asks how to draw it (**Diagram layout of the model**):
+
+- **Use model layout**: each of its diagrams becomes a page, drawn where that tool placed everything. Such layouts
+  are often network overviews: one diagram for all substations, devices close together, no texts. A diagram that
+  writes no texts at all gets the equipment's names from EQ: beside an upright device, over a lying one (stepping
+  further away where names would overlap each other or a busbar), over a busbar's end and beside a line.
+- **Lay out automatically**: the layout is set aside and each substation gets a page of its own, laid out as for a
+  model without a layout (below), names included.
+
+A file this editor exported, or a model without a layout, is imported without asking.
+
 - Each device becomes the symbol of its CIM class at the point the layout gives it, rotated in steps of 90°, with its
   name, voltage class (one per base voltage, named like "110 kV" and coloured like the standard voltage of the same
   value, see [Voltage classes of a CIM import](#cim-voltage-colors)), the
@@ -212,8 +281,10 @@ editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file i
   it as its **CIM class** (an asynchronous machine becomes a motor with CIM class AsynchronousMachine). Loads,
   network infeeds and SVCs use the Load, Network infeed and Static var compensator symbols.
 - AC line segments become overhead lines along their layout points (cable lines when the layout says so), with their
-  parameters. Labels and visibility layers come along. A consumer or source this editor exported as a link to object
+  parameters. Labels (or, where a layout writes none, the names) and visibility layers come along. A consumer or source this editor exported as a link to object
   comes back as one.
+- Each device, line, terminal, transformer winding and connectivity node keeps its CIM identity (its mRID), saved in
+  the diagram file, so exporting it again writes the same identities (see [CIM export](#cim-export)).
 - What is connected comes from the model, never from the drawing: two items join only when they are on the same
   node, however the layout places them, and a CIM import is not run through **Repair diagram** (which joins what
   touches; better not used on one). Wire jumps and junction points follow the rules of drawing by hand
@@ -296,7 +367,8 @@ With nothing selected, the Properties panel shows the diagram itself:
 ### CIM export {#cim-export}
 
 **Export** with the **CIM, CGMES 3.0** format saves a zip of two CIM files (IEC 61970-552 RDF/XML, CGMES 3.0): `<name>_EQ.xml`, the
-equipment and how it is connected, and `<name>_DL.xml`, the diagram layout (IEC 61970-453) that places it. Unsaved
+equipment and how it is connected, and `<name>_DL.xml`, the diagram layout (IEC 61970-453) that places it, each with its header (the DL depending on the EQ). No other
+profile is written (see [CIM files](#cim-files)); tools such as PowSyBl derive the topology from EQ. Unsaved
 edits are included.
 
 - The diagram is split into substations by its connections: everything joined without passing through a line is one
@@ -331,7 +403,12 @@ edits are included.
   node.
 - Text labels become text objects, linked to their device; layers become visibility layers. Decorative shapes,
   digital devices and pictures of substations or power plants are not exported.
-- Identifiers are derived from the diagram's name and item ids, so exporting the same diagram again keeps them.
+- Identifiers (mRIDs): what came from a CIM import keeps its own (devices, lines, their terminals, transformer windings,
+  and a connectivity node whose wires and terminals all came from the same one). Everything else gets one derived from
+  the diagram's name and item ids, so exporting the same diagram again keeps them too: what is drawn here, a copy
+  (paste, duplicate, custom elements; a copy is new equipment), a node joining two imported ones, and the substations,
+  voltage levels and other containers the export builds. A line cut in two keeps its identity on the first piece. An
+  identity found twice (a file edited by hand) is kept once; the others get new ones, listed under the Export row.
 
 Values the files need but the diagram doesn't have (see [Electrical parameters](#electrical-parameters)) are written
 as 0, or as the voltage class's nominal voltage for a rated voltage (among them an SVC's slope and a network infeed's
@@ -693,6 +770,14 @@ A bar at the top of the canvas shows how many items the trace reached (and from 
 and a close button. The
 trace follows your edits (opening a breaker in Properties cuts it at once). Right-click → **Clear trace**, the bar's
 close button or **Esc** (with nothing selected) removes it. It is only a view: it isn't saved or undone.
+
+**Fix voltage class** (right-click a device or wire that has a voltage class; not a transformer) gives its class to
+everything electrically joined to it on its voltage level, as a trace with **Respect switch states** off and
+**Through transformers** off finds it: through every switch, open or closed, up to the transformers. Devices,
+busbars and wires it reaches take the class (things with no voltage class, such as decorative shapes, are left
+alone), and so does the winding of each transformer that faces them; the transformer's other windings keep theirs.
+Use it on a device whose class is right to fix a feeder imported or drawn with a wrong or unknown one. It is one
+edit: **Undo** reverts all of it.
 
 ## Custom elements {#custom-elements}
 

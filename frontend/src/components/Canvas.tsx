@@ -2954,6 +2954,25 @@ export function Canvas() {
               ]
             : []),
           ...(trace ? [{ label: t('contextMenu.clearTrace'), onSelect: () => setTrace(null) }] : []),
+          // Fix voltage class: everything joined to it, through open switches and up to the transformers, takes its
+          // class.
+          ...(diagramOps.fixableVoltage(diagram, {
+            elementId: contextMenu.elementId ?? undefined,
+            connectorId: contextMenu.connectorId ?? undefined,
+          }) !== undefined
+            ? [
+                {
+                  label: t('contextMenu.fixVoltageClass'),
+                  onSelect: () => {
+                    const item = {
+                      elementId: contextMenu.elementId ?? undefined,
+                      connectorId: contextMenu.connectorId ?? undefined,
+                    }
+                    updateDiagram(d => diagramOps.fixVoltageClass(d, item))
+                  },
+                },
+              ]
+            : []),
         ],
       ])
     : []

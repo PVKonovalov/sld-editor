@@ -32,6 +32,7 @@ import {
   type SelectionKind,
   type UnsavedChoice,
   type VoltageColorsPrompt,
+  type CimLayoutPrompt,
 } from './useDiagramContext'
 
 // importTargetName is the server path a dropped/picked file is imported
@@ -109,6 +110,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // A CIM import's voltage classes no preset names, asked about by VoltageColorsDialog (see askVoltageColors).
   const [voltageColorsPrompt, setVoltageColorsPrompt] = useState<VoltageColorsPrompt | null>(null)
   const voltageColorsResolverRef = useRef<((colors: Map<string, string>) => void) | null>(null)
+  // A CIM import with another tool's layout, asked about by CimLayoutDialog (see chooseCimLayout).
+  const [cimLayoutPrompt, setCimLayoutPrompt] = useState<CimLayoutPrompt | null>(null)
+  const cimLayoutResolverRef = useRef<((choice: 'model' | 'auto') => void) | null>(null)
 
   // The diagram exactly as openDiagram loaded it. Opening can already mark
   // a diagram dirty (a topology repair or id backfill that ought to reach
@@ -697,6 +701,23 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     return recolorVoltageClasses(prepared.pages, colors)
   }, [])
 
+  // Resolves to CimLayoutDialog's answer for a CIM model drawn by another tool (prepareImport's chooseLayout).
+  const chooseCimLayout = useCallback(
+    (fileName: string, diagrams: number) =>
+      new Promise<'model' | 'auto'>(resolve => {
+        cimLayoutResolverRef.current = resolve
+        setCimLayoutPrompt({ fileName, diagrams })
+      }),
+    [],
+  )
+
+  const resolveCimLayoutPrompt = useCallback((choice: 'model' | 'auto') => {
+    setCimLayoutPrompt(null)
+    const resolve = cimLayoutResolverRef.current
+    cimLayoutResolverRef.current = null
+    resolve?.(choice)
+  }, [])
+
   // VoltageColorsDialog's answer: class name → color (empty keeps the suggested ones).
   const resolveVoltageColorsPrompt = useCallback((colors: Map<string, string>) => {
     setVoltageColorsPrompt(null)
@@ -801,7 +822,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         }
         let pages: PreparedImport[]
         try {
-          pages = await choosePageVoltageColors(file.name, await prepareImport(file))
+          pages = await choosePageVoltageColors(file.name, await prepareImport(file, chooseCimLayout))
         } catch (e) {
           items.push({ fileName: file.name, name, status: 'failed', message: (e as Error).message })
           continue
@@ -810,7 +831,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       }
       return items
     },
-    [config, elements, saveImportedPages, choosePageVoltageColors],
+    [config, elements, saveImportedPages, choosePageVoltageColors, chooseCimLayout],
   )
 
   // importDiagramFile is what a single-file drop/pick calls. A multi-page
@@ -824,7 +845,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     async (file: File) => {
       if (!diagramFileKind(file.name)) throw new Error(t('file.invalidDiagramFile', { name: file.name }))
       await whileImporting(file.name, async () => {
-        const pages = await choosePageVoltageColors(file.name, await prepareImport(file))
+        const pages = await choosePageVoltageColors(file.name, await prepareImport(file, chooseCimLayout))
         if (pages.length > 1) {
           const dir = currentDir
           const items = await saveImportedPages(file, pages, dir, new ExistingNames(false))
@@ -847,6 +868,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       loadDiagramFromFile,
       saveImportedPages,
       choosePageVoltageColors,
+      chooseCimLayout,
       whileImporting,
       browseDir,
       currentDir,
@@ -1157,7 +1179,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       diagramName,
       diagram,
       loading: loadingState?.name ?? null,
-      importing: voltageColorsPrompt || unsavedPrompt ? null : importingName,
+      importing: voltageColorsPrompt || cimLayoutPrompt || unsavedPrompt ? null : importingName,
       documentVersion,
       preRendered,
       diagramShown,
@@ -1249,6 +1271,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       resolveUnsavedPrompt,
       voltageColorsPrompt,
       resolveVoltageColorsPrompt,
+      cimLayoutPrompt,
+      resolveCimLayoutPrompt,
       addVoltagePresets,
       recoverableDrafts,
       restoreDraft,
@@ -1351,6 +1375,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       resolveUnsavedPrompt,
       voltageColorsPrompt,
       resolveVoltageColorsPrompt,
+      cimLayoutPrompt,
+      resolveCimLayoutPrompt,
       addVoltagePresets,
       recoverableDrafts,
       restoreDraft,

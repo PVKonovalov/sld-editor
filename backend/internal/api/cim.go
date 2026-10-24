@@ -71,8 +71,9 @@ func (s *Server) exportDiagramCIM(c *gin.Context) {
 }
 
 // importDiagramCIM reads a CIM model, a zip of profile documents (e.g. CGMES EQ + DL) or one RDF/XML document, and
-// makes a diagram of each Diagram Layout diagram in it, repaired like an extracted import. Responds {pages, messages,
-// unmatchedVoltages}, the .xsde import's shape plus the voltage classes no voltage_colors preset names.
+// makes a diagram of each Diagram Layout diagram in it (with ?layout=auto, or with none, a diagram per substation
+// laid out automatically). Responds {pages, messages, unmatchedVoltages, foreignLayout}: the .xsde import's shape,
+// the voltage classes no voltage_colors preset names, and whether a page follows a layout made by another tool.
 func (s *Server) importDiagramCIM(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -86,7 +87,7 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 	}
 	grid := s.cfg.Editor.GridSpacing
 	pages, err := slddoc.ImportCIM(docs, slddoc.CIMImportOptions{Terminals: s.lib.Terminals(), Classes: s.lib.Classes(), Grid: grid,
-		CIMClasses: s.cimClasses})
+		CIMClasses: s.cimClasses, AutoLayout: c.Query("layout") == "auto"})
 	if err != nil {
 		errJSON(c, http.StatusBadRequest, err)
 		return
@@ -94,7 +95,9 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 	out := make([]importedPage, 0, len(pages))
 	messages := []cimMessage{}
 	unmatched := []unmatchedVoltage{}
+	foreign := false
 	for i, p := range pages {
+		foreign = foreign || p.Layout == slddoc.CIMLayoutForeign
 		for _, u := range s.applyPresetVoltageColors(p.Diagram) {
 			k := slices.IndexFunc(unmatched, func(v unmatchedVoltage) bool { return v.Name == u.Name })
 			if k < 0 {
@@ -114,7 +117,7 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 			messages = append(messages, cimMessage{Level: "INFO", Page: i + 1, Text: m})
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"pages": out, "messages": messages, "unmatchedVoltages": unmatched})
+	c.JSON(http.StatusOK, gin.H{"pages": out, "messages": messages, "unmatchedVoltages": unmatched, "foreignLayout": foreign})
 }
 
 // prepareCIM finishes an imported CIM diagram like prepareDiagram does an extracted one, except for the topology

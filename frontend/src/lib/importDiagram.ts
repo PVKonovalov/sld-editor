@@ -25,12 +25,16 @@ export interface PreparedFile {
   unmatchedVoltages: UnmatchedVoltage[]
 }
 
+/** Asked when a CIM model holds a layout made by another tool (diagrams: how many pages it draws): follow it
+ * ('model') or lay each substation out automatically ('auto'). */
+export type ChooseCimLayout = (fileName: string, diagrams: number) => Promise<'model' | 'auto'>
+
 /** Turns a picked/dropped file into one diagram per page: an .xsld as-is, an xsde2svg-style .svg through
  * slddoc.Extract, an .xsde through xsde2svg and then Extract, a CIM model through slddoc.ImportCIM (a page per DL
- * diagram). The server also repairs each diagram as opening one
+ * diagram, or per substation when chooseLayout picks the automatic layout over another tool's). The server also repairs each diagram as opening one
  * does, and gives an extracted one its most-used voltage class as the default voltage and its size steps.
  * Rejects for an unsupported extension or a file the backend can't read. */
-export async function prepareImport(file: File): Promise<PreparedFile> {
+export async function prepareImport(file: File, chooseLayout?: ChooseCimLayout): Promise<PreparedFile> {
   const kind = diagramFileKind(file.name)
   if (!kind) throw new Error(t('file.invalidDiagramFile', { name: file.name }))
   if (kind === 'xsld') {
@@ -42,8 +46,14 @@ export async function prepareImport(file: File): Promise<PreparedFile> {
     return { pages: [{ diagram, report, nameSuffix: '', messages: null }], unmatchedVoltages: [] }
   }
   const bytes = await file.arrayBuffer()
-  const { pages, messages, unmatchedVoltages } =
-    kind === 'xsde' ? { ...(await api.importDiagramXSDE(bytes)), unmatchedVoltages: [] } : await api.importDiagramCIM(bytes)
+  let answer =
+    kind === 'xsde'
+      ? { ...(await api.importDiagramXSDE(bytes)), unmatchedVoltages: [], foreignLayout: false }
+      : await api.importDiagramCIM(bytes)
+  if (answer.foreignLayout && chooseLayout && (await chooseLayout(file.name, answer.pages.length)) === 'auto') {
+    answer = await api.importDiagramCIM(bytes, true)
+  }
+  const { pages, messages, unmatchedVoltages } = answer
   const imported = new Set(pages.map(p => p.page))
   const cimNames = kind !== 'xsde' && pages.length > 1 ? folderPageNames(pages.map(p => p.title)) : null
   return {

@@ -19,6 +19,8 @@ export interface Point {
 export interface Port {
   name: string
   node: number
+  // The CIM Terminal it was imported from (see DiagramElement.mrid).
+  mrid?: string
 }
 
 export interface Layer {
@@ -39,6 +41,8 @@ export interface DiagramNode {
   id: number
   x: number
   y: number
+  // The CIM ConnectivityNode it was imported from (see DiagramElement.mrid).
+  mrid?: string
 }
 
 export interface EditorSettings {
@@ -164,6 +168,8 @@ export interface TransformerWinding {
   // transformer's own winding count (writePowerTransformer's own
   // defaultTerminal).
   terminal?: TerminalDirection
+  // The CIM PowerTransformerEnd it was imported from (see DiagramElement.mrid).
+  mrid?: string
   // Nameplate parameters (slddoc.TransformerWinding): kV, MVA, Ω, S, clock number.
   ratedU?: number
   ratedS?: number
@@ -380,6 +386,9 @@ export interface DiagramElement {
   electrical?: Electrical
   // The CIM class this element exports as, one of its symbol's cim list; unset means the default.
   cim?: string
+  // The mRID of the CIM equipment it was imported from, which a CIM export keeps; unset for items drawn here or
+  // copied (lib/diagramOps' placeCustomElement and extractSelection drop it).
+  mrid?: string
 }
 
 // Matches backend/internal/slddoc.TableCell — one real cell of a Table2
@@ -429,6 +438,10 @@ export interface Connector {
   electrical?: Electrical
   // The CIM class a LinkToObject exports as; unset means the default.
   cim?: string
+  // The CIM equipment it was imported from, and its Terminals at from and to (see DiagramElement.mrid).
+  mrid?: string
+  fromMrid?: string
+  toMrid?: string
 }
 
 export interface Label {
@@ -556,7 +569,7 @@ export interface Diagram {
 // fields name Electrical/TransformerWinding keys ("2:ratedU" = winding 2's)
 // or "connectionKind".
 export interface CIMWarning {
-  kind: 'missing' | 'voltage' | 'noTerminal' | 'notExported' | 'openEnd' | 'shorted' | 'guessedVoltage' | 'windings'
+  kind: 'missing' | 'voltage' | 'noTerminal' | 'notExported' | 'openEnd' | 'shorted' | 'guessedVoltage' | 'windings' | 'mrid'
   item: 'element' | 'connector' | 'voltageClass'
   id: number
   fields?: string[]

@@ -92,7 +92,9 @@ storage and the Gin API.
   (raw `.xsde` bytes → `xsde2svg.Convert` → `Extract` per page, returns `{pages: [{page, title, diagram, report}],
   messages}`; `messages` are the converter's INFO/WARN/ERROR diagnostics, shown in the import log),
   `import/cim` (a zip of CGMES profiles or one RDF/XML document → `slddoc.ImportCIM`, a page per DL diagram, same
-  `{pages, messages}` shape; an own export round-trips via its `shape-<code>` styles and glue points; a model without a
+  `{pages, messages}` shape plus `foreignLayout` (a page follows another tool's DL: the frontend's `CimLayoutDialog`
+  then offers re-posting with `?layout=auto`, `CIMImportOptions.AutoLayout`; such a DL without texts gets name labels,
+  `nameLabels`); an own export round-trips via its `shape-<code>` styles and glue points; a model without a
   DL is laid out by `slddoc` `cimlayout.go`; nodes are keyed by ConnectivityNode, so the topology is the model's and the
   import is not run through `slddoc.Repair` (`prepareCIM`); wire jumps mark foreign-layout crossings),
   `elements`, `custom-elements`, `config`, `presence` (`internal/api/presence.go` + `internal/presence`: an

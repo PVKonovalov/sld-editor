@@ -19,6 +19,7 @@ import type {
 import { t } from '../i18n'
 import { circularArcThrough, defaultArcBulge } from './arc'
 import { nearestPointOnSegment } from './geometry'
+import { traceNetwork, type TraceStart } from './trace'
 
 // Element classes whose own geometry is a drawn Points array (two or more
 // vertices) rather than a single x/y anchor+orient — BusBarSection (a real
@@ -435,6 +436,57 @@ const NO_VOLTAGE_CLASSES: ReadonlySet<ElementClass> = new Set<ElementClass>([
   'Circle',
   ...[...POINTS_BASED_CLASSES].filter(c => c !== 'BusBarSection'),
 ])
+
+/** The voltage class of a device or wire as "Fix voltage class" sees it (see fixVoltageClass): its own, unset for a
+ * transformer or anything that carries none. */
+export function fixableVoltage(diagram: Diagram, item: { elementId?: number; connectorId?: number }): number | undefined {
+  if (item.connectorId !== undefined) return diagram.connectors.find(c => c.id === item.connectorId)?.voltage || undefined
+  const el = diagram.elements.find(e => e.id === item.elementId)
+  if (!el || NO_VOLTAGE_CLASSES.has(el.class) || el.class === 'PowerTransformer' || el.class === 'Booster') return undefined
+  return el.voltage || undefined
+}
+
+/** Gives everything electrically joined to a device or wire its voltage class: a trace from it through every
+ * switch, open or not, up to the transformers, sets the class of each device, busbar and wire reached (but those
+ * carrying none) and of each transformer winding on a reached node. Returns the diagram unchanged when the item has
+ * no class to give (see fixableVoltage). */
+export function fixVoltageClass(diagram: Diagram, item: { elementId?: number; connectorId?: number }): Diagram {
+  const voltage = fixableVoltage(diagram, item)
+  if (voltage === undefined) return diagram
+  const starts: TraceStart[] =
+    item.connectorId !== undefined
+      ? diagram.connectors.filter(c => c.id === item.connectorId).map(c => ({ node: c.from }))
+      : (diagram.elements.find(e => e.id === item.elementId)?.ports ?? []).map(p => ({ node: p.node }))
+  if (starts.length === 0) starts.push({ element: item.elementId })
+  const traced = traceNetwork(diagram, starts, { respectStates: false, throughTransformers: false })
+  let changed = false
+  const elements = diagram.elements.map(e => {
+    if (traced.elements.has(e.id) && !NO_VOLTAGE_CLASSES.has(e.class) && e.voltage !== voltage) {
+      changed = true
+      return { ...e, voltage }
+    }
+    if (traced.stops.has(e.id) && e.windings && e.ports) {
+      let touched = false
+      const windings = e.windings.map((w, i) => {
+        const port = e.ports!.find(p => p.name === String(i + 1))
+        if (!port || !traced.nodes.has(port.node) || w.voltage === voltage) return w
+        touched = true
+        return { ...w, voltage }
+      })
+      if (touched) {
+        changed = true
+        return { ...e, windings }
+      }
+    }
+    return e
+  })
+  const connectors = diagram.connectors.map(c => {
+    if (!traced.connectors.has(c.id) || c.voltage === voltage) return c
+    changed = true
+    return { ...c, voltage }
+  })
+  return changed ? { ...diagram, elements, connectors } : diagram
+}
 
 export function placeElement(
   diagram: Diagram,
@@ -1317,9 +1369,11 @@ export function placeCustomElement(
       x: at.x,
       y: at.y,
       ...(e.points ? { points: e.points.map(shift) } : {}),
-      ...(e.ports ? { ports: e.ports.map(p => ({ ...p, node: mapNode(p.node, at) })) } : {}),
+      ...(e.ports ? { ports: e.ports.map(p => ({ ...p, node: mapNode(p.node, at), mrid: undefined })) } : {}),
       ...(electrical ? { voltage: mapVoltage(e.voltage) } : {}),
-      ...(e.windings ? { windings: e.windings.map(w => ({ ...w, voltage: mapVoltage(w.voltage) })) } : {}),
+      ...(e.windings ? { windings: e.windings.map(w => ({ ...w, voltage: mapVoltage(w.voltage), mrid: undefined })) } : {}),
+      // A copy is new equipment: no CIM identity of its own until exported.
+      mrid: undefined,
     }
   })
 
@@ -1338,6 +1392,9 @@ export function placeCustomElement(
       from: mapNode(c.from, start),
       to: mapNode(c.to, end),
       points,
+      mrid: undefined,
+      fromMrid: undefined,
+      toMrid: undefined,
     }
   })
 
@@ -1447,13 +1504,23 @@ export function extractSelection(
     editor: diagram.editor,
     layers: diagram.layers.filter(l => layerIds.has(l.id)),
     voltageClasses: diagram.voltageClasses.filter(v => voltageIds.has(v.id)),
-    nodes: diagram.nodes.filter(n => nodeIds.has(n.id)).map(n => ({ ...n, ...shift(n) })),
+    // Without CIM identities (mrid): a custom element or a clipboard copy is new equipment wherever it lands.
+    nodes: diagram.nodes.filter(n => nodeIds.has(n.id)).map(n => ({ ...n, ...shift(n), mrid: undefined })),
     elements: elements.map(e => ({
       ...e,
       ...shift(e),
       ...(e.points ? { points: e.points.map(shift) } : {}),
+      ...(e.ports ? { ports: e.ports.map(p => ({ ...p, mrid: undefined })) } : {}),
+      ...(e.windings ? { windings: e.windings.map(w => ({ ...w, mrid: undefined })) } : {}),
+      mrid: undefined,
     })),
-    connectors: connectors.map(c => ({ ...c, points: c.points.map(shift) })),
+    connectors: connectors.map(c => ({
+      ...c,
+      points: c.points.map(shift),
+      mrid: undefined,
+      fromMrid: undefined,
+      toMrid: undefined,
+    })),
     labels: labels.map(l => ({
       ...l,
       ...shift(l),
@@ -3185,7 +3252,9 @@ function splitWireAt(diagram: Diagram, c: Connector, k: number, at: Point, nodeI
     lastId: ids.lastId,
     connectors: [
       ...diagram.connectors.map(x =>
-        x.id === c.id ? { ...c, to: nodeId, points: simplifyOrthogonalPath([...c.points.slice(0, k + 1), at]) } : x,
+        x.id === c.id
+          ? { ...c, to: nodeId, toMrid: undefined, points: simplifyOrthogonalPath([...c.points.slice(0, k + 1), at]) }
+          : x,
       ),
       {
         ...c,
@@ -3194,6 +3263,8 @@ function splitWireAt(diagram: Diagram, c: Connector, k: number, at: Point, nodeI
         from: nodeId,
         points: simplifyOrthogonalPath([at, ...c.points.slice(k + 1)]),
         electrical: undefined,
+        mrid: undefined,
+        fromMrid: undefined,
       },
     ],
   }
@@ -3512,7 +3583,7 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
       if (isDegenerate(before) || isDegenerate(after)) continue
       const secondId = ids.take()
       split.push(
-        { ...c, to: node.id, points: before },
+        { ...c, to: node.id, toMrid: undefined, points: before },
         {
           ...c,
           id: secondId,
@@ -3520,6 +3591,8 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
           from: node.id,
           points: after,
           electrical: undefined,
+          mrid: undefined,
+          fromMrid: undefined,
         },
       )
       touched.add(c.id)
@@ -3593,7 +3666,7 @@ function cutWireThroughDevice(diagram: Diagram, el: DiagramElement): Diagram {
       ...diagram,
       lastId: ids.lastId,
       connectors: [
-        ...diagram.connectors.map(x => (x.id === c.id ? { ...c, to: first.id, points: head } : x)),
+        ...diagram.connectors.map(x => (x.id === c.id ? { ...c, to: first.id, toMrid: undefined, points: head } : x)),
         {
           ...c,
           id: tailId,
@@ -3601,6 +3674,8 @@ function cutWireThroughDevice(diagram: Diagram, el: DiagramElement): Diagram {
           from: second.id,
           points: tail,
           electrical: undefined,
+          mrid: undefined,
+          fromMrid: undefined,
         },
       ],
     }

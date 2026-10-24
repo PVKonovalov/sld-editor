@@ -68,6 +68,28 @@ Placing one from the palette works (see RELEASE.md, 2026-09-29). Still to do:
 ## CIM import - export
 - [x] Element Object link:28 should be used with CIM class EnergyConsumer or cim:EnergySource
 - [x] CIM classes for elements should be configured in the yaml configuration file. Now its hardcoded.
+- [ ] Keep everything a CIM model holds through import and export, not only what the editor draws (mRIDs of
+      equipment, terminals, windings and connectivity nodes are kept already). Planned in steps:
+  - [ ] Operational limits: `OperationalLimitSet` (on a Terminal, or on the equipment) with its `CurrentLimit`,
+        `VoltageLimit`, `ActivePowerLimit`, `ApparentPowerLimit` and their shared `OperationalLimitType` (PATL/TATL,
+        `acceptableDuration`, direction). A `<limits>` list per element and line (terminal, set, quantity, kind,
+        duration, direction, value: EQ's `normalValue`, else `value`), an editable Limits section in Properties, and
+        the export writing sets, limits and types back, the EQ header listing the Operation profile too.
+  - [ ] Pass-through of the rest of EQ (including CGMES 3.0's OP and SC data in the same file): every attribute
+        of a drawn equipment the import doesn't map (`normallyInService`, `aggregate`, `Switch.retained`, winding
+        `connectionKind`, shunt `nomU`…) as a `<cim>` block of name=value or references by mRID; the objects attached
+        to equipment but not drawn (tap changers and their tables, regulating and tap changer controls, generating
+        units and fuels, reactive capability curves and points, nonlinear shunt points, load response
+        characteristics, load groups and areas, regions, control areas, tie flows) kept per diagram as class + mRID +
+        attributes. The export writes its own values first, then the kept attributes it didn't write, and a kept
+        object only when everything it refers to is exported (noting the ones dropped). A "CIM attributes" section in
+        Properties to view and edit them.
+  - [ ] Containers: reuse the source's `Substation`, `VoltageLevel`, `Bay` and `Line` names and mRIDs (and
+        `BaseVoltage`, `GeneratingUnit`) when what the export derives matches them.
+  - [ ] A changeover knife switch keeping the mRIDs of its two Disconnectors.
+  - [ ] Other profiles: record which profile each attribute came from; keep SSH (operating point: switch states,
+        P/Q, set points, tap positions) and GL (coordinates) and write them as SSH and GL files on export. SV (power
+        flow results) is left out: it is stale after any edit.
 
 ## Shapes not yet ported
 
