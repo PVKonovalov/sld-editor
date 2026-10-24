@@ -7,8 +7,8 @@ import { GuideButton } from './GuideButton'
  * NewDiagramDialog/ImportLogDialog) shown when a dropped/picked .xsld/.svg
  * would take the name of a diagram that already exists on the server
  * (DiagramContext's pendingImport): Reload loads the file anyway — the
- * next Save then overwrites the server copy — Cancel leaves the currently
- * open diagram untouched. */
+ * next Save then overwrites the server copy, a CIM import's at once — Cancel
+ * leaves the currently open diagram untouched. */
 export function ConfirmReloadDialog() {
   const { pendingImport, confirmPendingImport, cancelPendingImport } = useDiagramContext()
   const [busy, setBusy] = useState(false)
@@ -46,7 +46,7 @@ export function ConfirmReloadDialog() {
             <GuideButton topic="import" />
           </h2>
           <p className="text-gray-300 break-words">
-            {t('reload.message', { name: pendingImport.name, file: pendingImport.fileName })}
+            {t(pendingImport.save ? 'reload.messageSave' : 'reload.message', { name: pendingImport.name, file: pendingImport.fileName })}
           </p>
           {error && <p className="text-red-400">{error}</p>}
           <div className="flex justify-end gap-2">

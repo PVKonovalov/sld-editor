@@ -167,8 +167,9 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 - A Modus `.xsde` diagram is converted with xsde2svg first, then imported like its `.svg`. A single-page `.xsde`
   opens in the editor; each page of a multi-page one is saved into the current folder as `<name>`, `<name>_1`,
   `<name>_2`…, like several files at once.
-- One file opens in the editor as an unsaved diagram. If a diagram of that name already exists in the current
-  folder, the editor asks before loading it (saving would overwrite it).
+- One file opens in the editor as an unsaved diagram; a CIM model is saved straight away as well. If a diagram of
+  that name already exists in the current folder, the editor asks before loading it (saving, or for a CIM model the
+  import itself, overwrites it).
 - Several files at once are saved straight into the current folder; existing names are skipped, and the summary
   dialog can overwrite them.
 - An `.svg` import (an xsde2svg drawing) shows an **import log**: what was recognised, the voltage classes found and
@@ -196,7 +197,8 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 ### CIM import {#cim-import}
 
 A CIM model, as a `.zip` of CGMES profile files (EQ and DL, other profiles are ignored) or one RDF/XML `.xml` file,
-is imported like an `.xsde`: each diagram of its Diagram Layout (DL) becomes a diagram. A single one opens; several
+is imported like an `.xsde`: each diagram of its Diagram Layout (DL) becomes a diagram. A single one is saved into the current folder as
+`<name>` and opens; several
 are saved into a folder of the current folder named after the file, each diagram named after its DL diagram (for a
 model laid out automatically, its substation), as in `<name>/AGGAN CT11`; a name already there is skipped. Both CGMES 3.0 and 2.4.15 are read, node-breaker and
 bus-branch models alike (a bus-branch model's topological nodes stand in for connectivity nodes), and a file this
@@ -214,9 +216,11 @@ editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file i
   comes back as one.
 - What is connected comes from the model, never from the drawing: two items join only when they are on the same
   node, however the layout places them, and a CIM import is not run through **Repair diagram** (which joins what
-  touches; better not used on one). Where a layout makes wires or terminals of different nodes cross or touch, a
-  **wire jump** is put into the wire there, so they don't look connected; the import log counts the jumps and any
-  spot too cramped for one.
+  touches; better not used on one). Wire jumps and junction points follow the rules of drawing by hand
+  ([Wiring](#wiring)): a buswork wire crossing a busbar, another buswork wire or a line of a different voltage class
+  gets one **wire jump** (one per crossing), and every busbar–buswork connection a junction point. A crossing of
+  the same voltage class stays a plain crossing, though the two are not connected. The import log counts the jumps
+  and any crossing too cramped for one.
 - Wires the layout draws for a connectivity node are kept. Whatever of a node they leave unconnected gets an
   orthogonal wire to the rest of it, to its busbar when it has one; the import log counts these.
 - Layouts made by other tools often draw less than this editor exports, and they are completed:
@@ -226,7 +230,7 @@ editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file i
     runs over another device or a terminal of another node; then the connection is routed instead.
   - Each device is turned so its terminals are where the layout draws them, a quarter or half turn when the symbol
     lies on the other axis (a transformer drawn upright); a device with no terminals drawn is turned so they face
-    what they connect to. No wire runs through a device to reach its far terminal, so no wire jump is put there.
+    what they connect to. No wire runs through a device to reach its far terminal.
   - A line the layout doesn't draw runs from its device to the marker of the substation at its other end (a
     Substation object), across to it when the way ahead is taken, or out as a short stub; it carries its name. The
     import log counts these line ends. A busbar or device the layout doesn't place on a diagram is not drawn there.
@@ -235,10 +239,10 @@ editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file i
 - Equipment without a symbol here (a DC line, for example) is listed under **Skipped** in the import log.
 - A model with equipment but no diagram layout (an EQ profile alone) is laid out automatically, on the model of
   PowSyBl's single-line layout: a diagram per substation (and one for equipment outside any), each voltage level a
-  band with the highest voltage on top.
+  band with the highest voltage on top, named at its top left (the voltage level's name, else its voltage).
   - Busbars that share a bay are parallel: full-width rows one under another. Busbars sharing none sit side by side.
   - Each bay (the devices between the busbars and what it feeds) takes columns of its own. Every device on a busbar
-    has a column and drops straight onto its row, with a **wire jump** over each busbar it crosses on the way; each
+    has a column and drops straight onto its row, with a junction point there, crossing the busbars before it; each
     other device stands over the devices below it, and what the bay feeds (a line, a transformer, a load or
     generator) lies beyond them, a line to another substation as a short stub with its name.
   - Bus couplers (bays feeding nothing), bays leading to a transformer of a higher voltage and, on the top band, bays

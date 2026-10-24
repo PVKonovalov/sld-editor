@@ -24,6 +24,8 @@ export interface PendingImport {
   prepared: PreparedImport
   fileName: string
   name: string
+  // A CIM import, saved as soon as it loads (over the server copy).
+  save: boolean
 }
 
 // One diagram's outcome in a multi-file (or multi-page .xsde) import: saved to the server as name
@@ -206,7 +208,7 @@ export interface DiagramContextValue {
   // the working diagram under name (the server path the next Save writes),
   // marked dirty. An .svg import also sets importLog and opens the import
   // log dialog. Rejects for an unsupported extension.
-  loadDiagramFromFile: (prepared: PreparedImport, fileName: string, name: string) => Promise<void>
+  loadDiagramFromFile: (prepared: PreparedImport, fileName: string, name: string, save?: boolean) => Promise<void>
   // What a single-file drop/pick calls: loads it as currentDir/<file name
   // minus extension> straight away, unless a diagram of that name already
   // exists on the server — then it sets pendingImport instead, for

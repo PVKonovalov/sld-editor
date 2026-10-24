@@ -121,6 +121,7 @@ export const dictionary = {
   'drafts.later': 'Decide later',
   'reload.title': 'Diagram already exists',
   'reload.message': 'Diagram "{{name}}" already exists on the server. Reload it from "{{file}}"? Saving will overwrite the server copy.',
+  'reload.messageSave': 'Diagram "{{name}}" already exists on the server. Replace it with "{{file}}"? The import is saved over the server copy at once.',
   'reload.reload': 'Reload',
   'misplacedPorts.title': 'Connection points off their terminals',
   'misplacedPorts.message': "{{count}} connection points lie off their device terminals (by up to {{distance}}), so the buswork stops short of or past the device's leads. Move them onto the terminals? The buswork ends follow; the devices stay where they are.",

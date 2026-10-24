@@ -718,17 +718,23 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // same upsert semantics saveDiagramAs already has. An .svg/.xsde import
   // also records its own report as importLog (and opens the import log dialog).
   const loadDiagramFromFile = useCallback(
-    async (prepared: PreparedImport, fileName: string, name: string) => {
-      const { diagram: d, report, messages } = prepared
+    async (prepared: PreparedImport, fileName: string, name: string, save = false) => {
+      const { report, messages } = prepared
+      let d = prepared.diagram
+      let warning: string | undefined
+      if (save) {
+        ;({ diagram: d, warning } = await api.saveDiagram(name, d))
+        void deleteDraft(name)
+      }
       const log: ImportLog | null = report ? { fileName, report, messages } : null
       startLoading(name)
       openedRef.current = null
       setDiagramName(name)
-      commitDiagram(d, { reset: true, clean: null })
-      setDirty(true)
+      commitDiagram(d, { reset: true, clean: save ? d : null })
+      setDirty(!save)
       setDefaultVoltage(d.editor?.defaultVoltage)
       clearSelection()
-      setError(null)
+      setError(warning ?? null)
       setImportLog(log)
       setImportLogOpen(log !== null)
       // An .svg import already gets a Default voltage picker in its own
@@ -828,12 +834,13 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         }
         if (!(await confirmLeave())) return
         const name = importTargetName(currentDir, file.name)
+        const save = diagramFileKind(file.name) === 'cim'
         const siblings = await api.listDiagrams(parentDir(name))
         if (siblings.some(e => !e.isDir && e.name === baseName(name))) {
-          setPendingImport({ prepared: pages[0], fileName: file.name, name })
+          setPendingImport({ prepared: pages[0], fileName: file.name, name, save })
           return
         }
-        await loadDiagramFromFile(pages[0], file.name, name)
+        await loadDiagramFromFile(pages[0], file.name, name, save)
       })
     },
     [
@@ -853,7 +860,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // succeeds, so a failure leaves ConfirmReloadDialog open to show it.
   const confirmPendingImport = useCallback(async () => {
     if (!pendingImport) return
-    await loadDiagramFromFile(pendingImport.prepared, pendingImport.fileName, pendingImport.name)
+    await loadDiagramFromFile(pendingImport.prepared, pendingImport.fileName, pendingImport.name, pendingImport.save)
     setPendingImport(null)
   }, [pendingImport, loadDiagramFromFile])
 
