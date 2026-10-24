@@ -4,7 +4,7 @@ import type { SelectionKind } from '../state/useDiagramContext'
 import { elementDisplayName } from './elementCatalogI18n'
 
 // The diagram Properties' Find section (components/panels/FindSection.tsx):
-// searches the open diagram in memory by name, text, id and type.
+// searches the open diagram in memory by name, text, id, type and CIM identity (mRID).
 
 /** One kind of item Find can filter on: an element shape ("el:41"), a wire
  * kind ("wire:CableLine"), text labels ("label") or digital devices ("dd"). */
@@ -39,6 +39,12 @@ function nodeUses(diagram: Diagram): Map<number, number> {
   return uses
 }
 
+/** An mRID as Find searches it: "#_<mrid>", so the bare mRID, its rdf:ID "_<mrid>" and its reference "#_<mrid>"
+ * all find it. */
+function cimId(mrid: string | undefined): string | undefined {
+  return mrid ? `#_${mrid}` : undefined
+}
+
 /** Every item of the diagram as Find sees it: its type, display name and
  * the text it can be found by. */
 function findItems(diagram: Diagram, symbols: ElementSymbol[]): (FindResult & { haystack: string })[] {
@@ -69,6 +75,10 @@ function findItems(diagram: Diagram, symbols: ElementSymbol[]): (FindResult & { 
       el.class,
       el.shape,
       el.propertyText,
+      // Its CIM identities: the equipment's, its terminals' and its windings'.
+      cimId(el.mrid),
+      ...(el.ports ?? []).map(p => cimId(p.mrid)),
+      ...(el.windings ?? []).map(w => cimId(w.mrid)),
     )
   }
   for (const c of diagram.connectors) {
@@ -76,7 +86,13 @@ function findItems(diagram: Diagram, symbols: ElementSymbol[]): (FindResult & { 
     // An object link points at something off the diagram: its ends are free
     // by design, so it never counts as not connected.
     const free = c.kind === 'LinkToObject' ? [] : (['from', 'to'] as const).filter(end => alone(c[end]))
-    add({ id: c.id, kind: 'connector', typeKey: `wire:${c.kind}`, typeLabel, name: c.name ?? '', layer: c.layer, free }, c.kind)
+    add(
+      { id: c.id, kind: 'connector', typeKey: `wire:${c.kind}`, typeLabel, name: c.name ?? '', layer: c.layer, free },
+      c.kind,
+      cimId(c.mrid),
+      cimId(c.fromMrid),
+      cimId(c.toMrid),
+    )
   }
   for (const l of diagram.labels) {
     add({ id: l.id, kind: 'label', typeKey: 'label', typeLabel: t('find.typeLabel'), name: l.text, layer: l.layer, free: [] })
@@ -102,7 +118,7 @@ export function findTypes(diagram: Diagram, symbols: ElementSymbol[]): FindType[
 }
 
 /** The items matching query (case-insensitive, in the name, label text,
- * type name or shape code, or the id, with or without a leading "#") and
+ * type name or shape code, CIM mRID, or the id, with or without a leading "#") and
  * typeKey ("" for all types), and with unconnectedOnly only those with a
  * connection point nothing else is attached to (FindResult.free). An exact
  * id match comes first, then items whose name starts with the query, then

@@ -586,5 +586,9 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'electrical.inductiveRating': 'Индуктивное сопротивление, Ом',
   'electrical.slope': 'Статизм, кВ/Мвар',
   'properties.cimClass': 'Класс CIM',
+  'properties.mrid': 'mRID',
+  'properties.mridHint': 'Идентификатор CIM, с которым объект импортирован; экспорт в CIM его сохраняет',
+  'properties.mridCopy': 'Копировать',
+  'properties.mridCopied': 'Скопировано',
   'properties.cimClassDefault': '{{name}} (по умолчанию)',
 }

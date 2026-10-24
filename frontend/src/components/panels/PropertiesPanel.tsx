@@ -8,6 +8,7 @@ import { HistorySection, LayersSection, VoltageClassesSection } from './DiagramS
 import { DiagramFileSection } from './DiagramFileSection'
 import { PictureSection } from './PictureSection'
 import { ConnectionsSection } from './ConnectionsSection'
+import { MridRow } from './MridRow'
 import { ElectricalSection } from './ElectricalSection'
 import {
   connectorElectricalFields,
@@ -705,6 +706,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               {t('properties.reverseDirection')}
             </button>
           )}
+          <MridRow key={connector.mrid} mrid={connector.mrid} />
           {(config?.cimConnectorClasses?.[connector.kind]?.length ?? 0) > 1 && (
             <label className="block text-xs">
               <span className="block text-gray-400 mb-1">{t('properties.cimClass')}</span>
@@ -1136,6 +1138,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
+        <MridRow key={el.mrid} mrid={el.mrid} />
         {(typeSymbol?.cim?.length ?? 0) > 1 && (
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.cimClass')}</span>

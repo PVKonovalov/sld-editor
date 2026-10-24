@@ -285,7 +285,9 @@ A file this editor exported, or a model without a layout, is imported without as
   parameters. Labels (or, where a layout writes none, the names) and visibility layers come along. A consumer or source this editor exported as a link to object
   comes back as one.
 - Each device, line, terminal, transformer winding and connectivity node keeps its CIM identity (its mRID), saved in
-  the diagram file, so exporting it again writes the same identities (see [CIM export](#cim-export)).
+  the diagram file, so exporting it again writes the same identities (see [CIM export](#cim-export)). Properties
+  shows a selected device's or line's **mRID** (read-only, with a **Copy** button), and [Find](#find) finds an item
+  by its mRID or one of its terminals'.
 - What is connected comes from the model, never from the drawing: two items join only when they are on the same
   node, however the layout places them, and a CIM import is not run through **Repair diagram** (which joins what
   touches; better not used on one). Wire jumps and junction points follow the rules of drawing by hand
@@ -560,6 +562,8 @@ With nothing selected, the **Find** section in Properties searches the diagram (
 
 - Type part of a name (`СВ-35`), a label's text, an id (`2138` or `#2138`) or a type (`breaker`, `capacitor`). The
   list updates as you type; an exact id comes first, then names starting with what you typed.
+- An item imported from CIM is also found by its mRID, or that of one of its terminals or transformer windings, as
+  it stands in a CIM file or a tool's message: `969f7caf-…`, `_969f7caf-…` or `#_969f7caf-…`, whole or in part.
 - The type list narrows the search to one kind of item (with how many the diagram has), or lists them all.
 - **Not connected only** lists just the items with a connection point nothing else is attached to: a device
   terminal with no wire or other device on it ("Port 1 free"), or a wire end left in mid-air ("Free end: To"),

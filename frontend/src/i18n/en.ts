@@ -590,6 +590,10 @@ export const dictionary = {
   'electrical.inductiveRating': 'Inductive rating, Ω',
   'electrical.slope': 'Slope, kV/Mvar',
   'properties.cimClass': 'CIM class',
+  'properties.mrid': 'mRID',
+  'properties.mridHint': 'The CIM identity this item was imported with; a CIM export keeps it',
+  'properties.mridCopy': 'Copy',
+  'properties.mridCopied': 'Copied',
   'properties.cimClassDefault': '{{name}} (default)',
 } as const
 
