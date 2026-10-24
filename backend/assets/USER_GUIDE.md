@@ -239,7 +239,7 @@ editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file i
 - Equipment without a symbol here (a DC line, for example) is listed under **Skipped** in the import log.
 - A model with equipment but no diagram layout (an EQ profile alone) is laid out automatically, on the model of
   PowSyBl's single-line layout: a diagram per substation (and one for equipment outside any), each voltage level a
-  band with the highest voltage on top, named at its top left (the voltage level's name, else its voltage).
+  band with the highest voltage on top, its name (the voltage level's name, else its voltage) left of its busbars.
   - Busbars that share a bay are parallel: full-width rows one under another. Busbars sharing none sit side by side.
   - Each bay (the devices between the busbars and what it feeds) takes columns of its own. Every device on a busbar
     has a column and drops straight onto its row, with a junction point there, crossing the busbars before it; each
@@ -248,6 +248,11 @@ editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file i
   - Bus couplers (bays feeding nothing), bays leading to a transformer of a higher voltage and, on the top band, bays
     leading to a line go above the busbars; the others below. Transformers sit on a row between the bands of their
     windings, connected through free corridors, as are connections closing a ring.
+  - Then the layout is tidied without changing its order: each busbar group with its bays moves only as a whole.
+    Transformers go under the bays feeding them, lower-voltage regions slide under their transformers and rise
+    beside the band above where nothing is in the way, so the transformer leads come out straight. A move is kept
+    only when it lowers the number of crossings between voltage classes, then the bends and length of the
+    transformer connections; regions never overlap and stay on the page.
   - A voltage level without a busbar hangs its bays from a wire at its busiest node. The import log says the layout
     was generated.
 - Not restored: a value the export wrote as 0 because it was unset comes back as a real 0; decorative shapes and
