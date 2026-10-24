@@ -510,6 +510,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'canvas.circleRadius': 'Радиус {{radius}}: перетащите, чтобы изменить',
   'canvas.noDiagram': 'Создайте или откройте схему на панели «Файл», чтобы начать.',
   'canvas.loading': 'Загрузка {{name}}…',
+  'canvas.importing': 'Импорт {{name}}…',
+  'canvas.filesCount': 'файлов: {{count}}',
   'canvas.undo': 'Отменить (Ctrl+Z / Cmd+Z)',
   'canvas.redo': 'Повторить (Ctrl+Shift+Z / Cmd+Shift+Z)',
   'canvas.zoomIn': 'Увеличить',

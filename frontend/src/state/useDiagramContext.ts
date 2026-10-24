@@ -88,6 +88,9 @@ export interface DiagramContextValue {
   // The name of the diagram being opened, imported, created or restored, until
   // the canvas has shown it (diagramShown); null otherwise.
   loading: string | null
+  // The file being imported (uploaded, converted, its pages saved) until its diagram starts loading; null otherwise,
+  // and while a dialog of the import waits for an answer.
+  importing: string | null
   // Counts every replacement of the open diagram (open, new, import, restore).
   documentVersion: number
   // Set when the open diagram came with the server's render (open).

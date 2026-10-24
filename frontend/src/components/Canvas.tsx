@@ -514,6 +514,7 @@ export function Canvas() {
     requestFind,
     diagramName,
     loading,
+    importing,
     documentVersion,
     preRendered,
     diagramShown,
@@ -1712,8 +1713,11 @@ export function Canvas() {
   })
 
   // Shown from the moment a diagram is opened (or imported, created, restored)
-  // until the canvas has drawn it; it takes every click meanwhile.
-  const loadingOverlay = loading !== null && (
+  // until the canvas has drawn it, and while a file is being imported; it
+  // takes every click meanwhile.
+  const loadingText =
+    loading !== null ? t('canvas.loading', { name: loading }) : importing !== null ? t('canvas.importing', { name: importing }) : null
+  const loadingOverlay = loadingText !== null && (
     <div
       role="status"
       className="absolute inset-0 z-50 flex items-center justify-center bg-surface-900/60"
@@ -1721,7 +1725,7 @@ export function Canvas() {
     >
       <div className="flex items-center gap-2 rounded border border-surface-500 bg-surface-700/95 px-4 py-2 text-sm text-gray-200 shadow">
         <Loader2 size={16} className="animate-spin shrink-0" />
-        <span className="truncate">{t('canvas.loading', { name: loading })}</span>
+        <span className="truncate">{loadingText}</span>
       </div>
     </div>
   )

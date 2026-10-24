@@ -145,7 +145,7 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 - **File → New folder** creates an empty folder in the folder the File panel shows. A name may contain `/` to
   create nested folders at once.
 - Hover a folder or diagram in the folder browser to show its **Rename or move** (pencil) and **Delete** (bin)
-  buttons.
+  buttons, and, after a moment, its full name when it is too long for the panel.
 - **Rename or move** asks for the new path from the top folder, filled in with the current one. Change the last
   part to rename it, or the folder part to move it (for example `region1/sub-5` → `archive/sub-5`). Missing folders
   are created. A folder moves with everything in it, and it can't be moved into itself. When the open diagram is
@@ -162,6 +162,8 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 ### Importing {#import}
 
 - Drop `.xsld`, `.svg`, `.xsde` or CIM (`.zip`, `.xml`) files anywhere on the window, or use **File → Load from file…**.
+  While a file is uploaded and converted (a big CIM model takes a few seconds), the canvas shows **Importing
+  <name>…** and the File panel waits.
 - A Modus `.xsde` diagram is converted with xsde2svg first, then imported like its `.svg`. A single-page `.xsde`
   opens in the editor; each page of a multi-page one is saved into the current folder as `<name>`, `<name>_1`,
   `<name>_2`…, like several files at once.

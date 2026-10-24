@@ -68,6 +68,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // The diagram being opened/imported/created/restored until the canvas shows
   // its document version (null while that is still unknown).
   const [loadingState, setLoadingState] = useState<{ name: string; version: number | null } | null>(null)
+  // The file (or "N files") being uploaded and converted, until its diagram starts loading or its pages are saved.
+  const [importingName, setImportingName] = useState<string | null>(null)
   const versionRef = useRef(0)
   const [documentVersion, setDocumentVersion] = useState(0)
   const [preRendered, setPreRendered] = useState<PreRendered | null>(null)
@@ -174,6 +176,15 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
 
   const startLoading = useCallback((name: string) => setLoadingState({ name, version: null }), [])
   const stopLoading = useCallback(() => setLoadingState(null), [])
+  // Runs work with importingName set to label.
+  const whileImporting = useCallback(async <T,>(label: string, work: () => Promise<T>): Promise<T> => {
+    setImportingName(label)
+    try {
+      return await work()
+    } finally {
+      setImportingName(null)
+    }
+  }, [])
   const diagramShown = useCallback(
     (version: number) => setLoadingState(l => (l && l.version === version ? null : l)),
     [],
@@ -807,25 +818,37 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const importDiagramFile = useCallback(
     async (file: File) => {
       if (!diagramFileKind(file.name)) throw new Error(t('file.invalidDiagramFile', { name: file.name }))
-      const pages = await choosePageVoltageColors(file.name, await prepareImport(file))
-      if (pages.length > 1) {
-        const dir = currentDir
-        const existing = new Set((await api.listDiagrams(dir)).filter(e => !e.isDir).map(e => e.name))
-        const items = await saveImportedPages(file, pages, dir, existing)
-        setBatchImport({ dir, files: [file], items })
-        await browseDir(dir)
-        return
-      }
-      if (!(await confirmLeave())) return
-      const name = importTargetName(currentDir, file.name)
-      const siblings = await api.listDiagrams(parentDir(name))
-      if (siblings.some(e => !e.isDir && e.name === baseName(name))) {
-        setPendingImport({ prepared: pages[0], fileName: file.name, name })
-        return
-      }
-      await loadDiagramFromFile(pages[0], file.name, name)
+      await whileImporting(file.name, async () => {
+        const pages = await choosePageVoltageColors(file.name, await prepareImport(file))
+        if (pages.length > 1) {
+          const dir = currentDir
+          const existing = new Set((await api.listDiagrams(dir)).filter(e => !e.isDir).map(e => e.name))
+          const items = await saveImportedPages(file, pages, dir, existing)
+          setBatchImport({ dir, files: [file], items })
+          await browseDir(dir)
+          return
+        }
+        if (!(await confirmLeave())) return
+        const name = importTargetName(currentDir, file.name)
+        const siblings = await api.listDiagrams(parentDir(name))
+        if (siblings.some(e => !e.isDir && e.name === baseName(name))) {
+          setPendingImport({ prepared: pages[0], fileName: file.name, name })
+          return
+        }
+        await loadDiagramFromFile(pages[0], file.name, name)
+      })
     },
-    [loadDiagramFromFile, saveImportedPages, choosePageVoltageColors, browseDir, currentDir, confirmLeave, config, elements],
+    [
+      loadDiagramFromFile,
+      saveImportedPages,
+      choosePageVoltageColors,
+      whileImporting,
+      browseDir,
+      currentDir,
+      confirmLeave,
+      config,
+      elements,
+    ],
   )
 
   // Loads the parked pendingImport ("Reload") — cleared only once that
@@ -839,11 +862,14 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const importDiagramFiles = useCallback(
     async (files: File[]) => {
       const dir = currentDir
-      const items = await runBatchImport(files, dir, false)
-      setBatchImport({ dir, files, items })
-      await browseDir(dir)
+      const label = files.length === 1 ? files[0].name : t('canvas.filesCount', { count: files.length })
+      await whileImporting(label, async () => {
+        const items = await runBatchImport(files, dir, false)
+        setBatchImport({ dir, files, items })
+        await browseDir(dir)
+      })
     },
-    [currentDir, runBatchImport, browseDir],
+    [currentDir, runBatchImport, browseDir, whileImporting],
   )
 
   // Re-runs just the skipped diagrams of the last batch, overwriting the
@@ -1126,6 +1152,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       diagramName,
       diagram,
       loading: loadingState?.name ?? null,
+      importing: voltageColorsPrompt || unsavedPrompt ? null : importingName,
       documentVersion,
       preRendered,
       diagramShown,
@@ -1225,6 +1252,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     }),
     [
       loadingState,
+      importingName,
       documentVersion,
       preRendered,
       diagramShown,

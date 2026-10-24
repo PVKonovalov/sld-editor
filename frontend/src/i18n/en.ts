@@ -514,6 +514,8 @@ export const dictionary = {
   'canvas.circleRadius': 'Radius {{radius}}: drag to resize',
   'canvas.noDiagram': 'Create or open a diagram from the File panel to get started.',
   'canvas.loading': 'Loading {{name}}…',
+  'canvas.importing': 'Importing {{name}}…',
+  'canvas.filesCount': '{{count}} files',
   'canvas.undo': 'Undo (Ctrl+Z / Cmd+Z)',
   'canvas.redo': 'Redo (Ctrl+Shift+Z / Cmd+Shift+Z)',
   'canvas.zoomIn': 'Zoom in',

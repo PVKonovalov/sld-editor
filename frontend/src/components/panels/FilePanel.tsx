@@ -21,6 +21,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
     error,
     clearError,
     loading,
+    importing,
   } = useDiagramContext()
   const [newDialogOpen, setNewDialogOpen] = useState(false)
   const [folderAction, setFolderAction] = useState<FolderAction | null>(null)
@@ -43,7 +44,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
 
   // Rename and Delete for one row, shown while the row is hovered or one of them has focus.
   function rowActions(path: string, isDir: boolean) {
-    const disabled = busy || loading !== null
+    const disabled = busy || loading !== null || importing !== null
     const cls =
       'p-1 text-gray-400 hover:text-gray-100 opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:hidden'
     return (
@@ -78,7 +79,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
           <div className="flex gap-2">
             <button
               type="button"
-              disabled={busy || loading !== null}
+              disabled={busy || loading !== null || importing !== null}
               onClick={() => setNewDialogOpen(true)}
               className="flex-1 px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
             >
@@ -86,7 +87,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
             </button>
             <button
               type="button"
-              disabled={busy || loading !== null}
+              disabled={busy || loading !== null || importing !== null}
               onClick={() => setFolderAction({ kind: 'newFolder' })}
               className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1 text-xs rounded border border-surface-600 hover:bg-surface-600 disabled:opacity-50 text-gray-200"
             >
@@ -109,7 +110,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
               <li>
                 <button
                   type="button"
-                  disabled={busy || loading !== null}
+                  disabled={busy || loading !== null || importing !== null}
                   onClick={() => run(() => browseDir(parentDir(currentDir)))}
                   className="w-full flex items-center gap-1.5 text-left px-2 py-1 rounded text-xs hover:bg-surface-600 text-gray-300"
                 >
@@ -123,12 +124,14 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
                 <li key={`dir:${d.name}`} className="group flex items-center rounded hover:bg-surface-600">
                   <button
                     type="button"
-                    disabled={busy || loading !== null}
+                    disabled={busy || loading !== null || importing !== null}
                     onClick={() => run(() => browseDir(joinDiagramPath(currentDir, d.name)))}
                     className="flex-1 min-w-0 flex items-center gap-1.5 text-left px-2 py-1 text-xs text-gray-300"
                   >
                     <Folder size={14} className="shrink-0" />
-                    <span className="truncate">{d.name}</span>
+                    <span className="truncate" title={d.name}>
+                      {d.name}
+                    </span>
                   </button>
                   {rowActions(joinDiagramPath(currentDir, d.name), true)}
                 </li>
@@ -141,9 +144,10 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
                 >
                   <button
                     type="button"
-                    disabled={busy || loading !== null}
+                    disabled={busy || loading !== null || importing !== null}
                     onClick={() => run(() => openDiagram(joinDiagramPath(currentDir, d.name)))}
                     className="flex-1 min-w-0 text-left px-2 py-1 text-xs truncate"
+                    title={d.name}
                   >
                     {d.name}
                   </button>
@@ -179,7 +183,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
           />
           <button
             type="button"
-            disabled={busy || loading !== null}
+            disabled={busy || loading !== null || importing !== null}
             onClick={() => fileInputRef.current?.click()}
             className="w-full px-2 py-1 text-xs rounded bg-accent hover:bg-accent-hover disabled:opacity-50 text-white"
           >
