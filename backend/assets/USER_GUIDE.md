@@ -249,10 +249,14 @@ editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file i
     leading to a line go above the busbars; the others below. Transformers sit on a row between the bands of their
     windings, connected through free corridors, as are connections closing a ring.
   - Then the layout is tidied without changing its order: each busbar group with its bays moves only as a whole.
-    Transformers go under the bays feeding them, lower-voltage regions slide under their transformers and rise
-    beside the band above where nothing is in the way, so the transformer leads come out straight. A move is kept
-    only when it lowers the number of crossings between voltage classes, then the bends and length of the
-    transformer connections; regions never overlap and stay on the page.
+    The groups of one voltage class stay together, side by side on one row; each goes under the transformer it is
+    fed from (a generator directly under its step-up transformer), and the row rises beside the band above where
+    nothing is in the way. Transformers go under the bays feeding them, or over what they feed, so their leads come
+    out straight; where a lead must turn, it turns in a corridor of its own, so that leads never cross. A move is
+    kept only when it lowers the number of crossings (of leads with each other, or with another voltage class), then
+    the bends of the transformer leads (a bend under a transformer counting more) and their length. Groups and
+    transformers never overlap, nor do their names (a voltage level's name moves right of its busbars when only it is
+    in the way), and everything stays on the page.
   - A voltage level without a busbar hangs its bays from a wire at its busiest node. The import log says the layout
     was generated.
 - Not restored: a value the export wrote as 0 because it was unset comes back as a real 0; decorative shapes and
