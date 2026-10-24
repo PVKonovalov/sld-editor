@@ -276,7 +276,8 @@ A file this editor exported, or a model without a layout, is imported without as
 
 - Each device becomes the symbol of its CIM class at the point the layout gives it, rotated in steps of 90°, with its
   name, voltage class (one per base voltage, named like "110 kV" and coloured like the standard voltage of the same
-  value, see [Voltage classes of a CIM import](#cim-voltage-colors)), the
+  value, see [Voltage classes of a CIM import](#cim-voltage-colors); a voltage level whose base voltage is missing,
+  often kept in a file not sent along, takes the voltage its name states, as in "ОРУ-110 кВ" or "6,3 kV"), the
   switch position (`normalOpen`) and its [electrical parameters](#electrical-parameters). A class with a choice keeps
   it as its **CIM class** (an asynchronous machine becomes a motor with CIM class AsynchronousMachine). Loads,
   network infeeds and SVCs use the Load, Network infeed and Static var compensator symbols.
@@ -318,7 +319,9 @@ A file this editor exported, or a model without a layout, is imported without as
     generator) lies beyond them, a line to another substation as a short stub with its name.
   - Bus couplers (bays feeding nothing), bays leading to a transformer of a higher voltage and, on the top band, bays
     leading to a line go above the busbars; the others below. Transformers sit on a row between the bands of their
-    windings, connected through free corridors, as are connections closing a ring.
+    windings, connected through free corridors, as are connections closing a ring. A lead never runs through another
+    band nor along any wire or device: where its straight way is blocked (a three-winding transformer's lead to the
+    band beyond the next one) it goes around, crossing a wire straight across only where there is no other way.
   - Then the layout is tidied without changing its order: each busbar group with its bays moves only as a whole.
     The groups of one voltage class stay together, side by side on one row; each goes under the transformer it is
     fed from (a generator directly under its step-up transformer), and the row rises beside the band above where
