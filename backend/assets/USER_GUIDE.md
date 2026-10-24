@@ -218,6 +218,17 @@ editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file i
   spot too cramped for one.
 - Wires the layout draws for a connectivity node are kept. Whatever of a node they leave unconnected gets an
   orthogonal wire to the rest of it, to its busbar when it has one; the import log counts these.
+- Layouts made by other tools often draw less than this editor exports, and they are completed:
+  - A busbar drawn only as its connectivity node (a line for the node, none for the BusbarSection) becomes that
+    busbar; a node drawn as a short bar shorter than two grid steps only marks a junction and is not drawn.
+  - A terminal drawn as a polyline from its device to its node becomes a wire from the symbol's terminal, unless it
+    runs over another device or a terminal of another node; then the connection is routed instead.
+  - Each device is turned so its terminals are where the layout draws them, a quarter or half turn when the symbol
+    lies on the other axis (a transformer drawn upright); a device with no terminals drawn is turned so they face
+    what they connect to. No wire runs through a device to reach its far terminal, so no wire jump is put there.
+  - A line the layout doesn't draw runs from its device to the marker of the substation at its other end (a
+    Substation object), across to it when the way ahead is taken, or out as a short stub; it carries its name. The
+    import log counts these line ends. A busbar or device the layout doesn't place on a diagram is not drawn there.
 - A layout in other units is scaled so neighbouring devices are about six grid steps apart, snapped to the grid, and
   turned the right way up when its y axis points up.
 - Equipment without a symbol here (a DC line, for example) is listed under **Skipped** in the import log.
