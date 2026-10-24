@@ -74,6 +74,8 @@ voltage_colors:
     color: "#965000"
   - name: "50 kV"
     color: "#965000"
+  - name: "33 kV"
+    color: "#965000"
 
 # How close (Euclidean distance in RGB, 0..441) a diagram's voltage class
 # color must be to a voltage_colors preset for the editor to offer replacing

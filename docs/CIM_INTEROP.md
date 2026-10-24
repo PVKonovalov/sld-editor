@@ -141,6 +141,7 @@ exporter and its own single-line diagram renderer. `tools/cim-tools` is a small 
 | `check [-v] <model>...` | Imports each model and prints what PowSyBl built (substations, voltage levels, switches, transformers, …) and the import warnings and errors (`-v`: the whole import report). Exit status 1 if any import failed. |
 | `render <model> <dir>` | Draws one SVG per substation (and per voltage level outside a substation) with PowSyBl's own layout. |
 | `to-cgmes <model> <out.zip>` | Writes any model PowSyBl can read as a CGMES 3.0 zip (EQ, TP, SSH, SV) for the SLD editor's import. Instead of a file, `ieee9`, `ieee14`, `ieee30`, `ieee57`, `ieee118` or `ieee300` writes PowSyBl's built-in IEEE test network. |
+| `layout <model> <out.zip>` | A developer reference: the model's documents plus a Diagram Layout of PowSyBl's own single-line layout, a diagram per substation named after it, spaced for the editor's symbols. Importing it shows PowSyBl's layout drawn with our symbols, to compare with the editor's own automatic layout of the same model. |
 
 A *model* is any file PowSyBl imports: a CGMES zip (such as our export), XIIDM, IEEE CDF (`.txt`) or MATPOWER
 (`.mat`).
@@ -191,6 +192,17 @@ It prints each SVG it writes (`out/00_<substation>.svg`, …); open them in a br
 layout of the network; they show that switches, transformers and feeders are connected as in the diagram, not how
 the diagram looks.
 
+### Compare the editor's automatic layout with PowSyBl's
+
+The editor lays out a model without a diagram layout itself (one executable, no Java). To see PowSyBl's layout of the
+same model drawn with the editor's symbols, write it as a diagram layout and import that:
+
+```
+java -jar target/cim-tools.jar layout <model> <name>_layout.zip     # → File → Import
+```
+
+`render` shows the same layout with PowSyBl's own symbols.
+
 ### Bring a PowSyBl network into the editor
 
 ```
@@ -199,8 +211,9 @@ java -jar target/cim-tools.jar to-cgmes my-network.xiidm my-network.zip
 ```
 
 Then in the SLD editor: **File → Import**, choose the zip. PowSyBl writes no diagram layout, so the import lays each
-substation out automatically (high voltage at the top, transformers in the middle, consumers at the bottom), one page
-per substation, and says so in the import log. A bus-branch model such as the IEEE networks has buses instead of
+substation out automatically on the model of PowSyBl's own layout (each voltage level's parallel busbars as stacked
+rows, each bay a column dropping onto them, high voltage at the top, transformers between the levels), one page per
+substation saved in a folder named after the file, and says so in the import log. A bus-branch model such as the IEEE networks has buses instead of
 busbars and switches, so each page is small: the bus, its injections, and the lines and transformers leaving it.
 
 A CGMES file from another tool can be imported the same way, directly; `to-cgmes` is only needed for other formats.
@@ -217,5 +230,6 @@ tools/cim-tools/fuseki.sh load <name>_CGMES.zip     # then Load diagram profiles
 (cd tools/cim-tools && ./mvnw package)              # once
 java -jar tools/cim-tools/target/cim-tools.jar check  <name>_CGMES.zip
 java -jar tools/cim-tools/target/cim-tools.jar render <name>_CGMES.zip out/
+java -jar tools/cim-tools/target/cim-tools.jar layout <model> <name>_layout.zip  # PowSyBl's layout → File → Import
 java -jar tools/cim-tools/target/cim-tools.jar to-cgmes ieee14 ieee14.zip   # → File → Import
 ```

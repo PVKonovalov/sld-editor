@@ -34,6 +34,8 @@ import java.util.zip.ZipOutputStream;
  *   <li>{@code check <model>...}: imports each model, prints what PowSyBl built and its import report; exit 1 if any failed.</li>
  *   <li>{@code render <model> <dir>}: one PowSyBl single-line SVG per substation (and per voltage level outside one).</li>
  *   <li>{@code to-cgmes <model|ieee9|ieee14|ieee30|ieee57|ieee118|ieee300> <out.zip>}: writes a CGMES 3.0 zip.</li>
+ *   <li>{@code layout <model> <out.zip>}: the model's documents plus a Diagram Layout of PowSyBl's own layout, a diagram per
+ *   substation (see {@link DlLayout}).</li>
  * </ul>
  * A model is any file PowSyBl can import: a CGMES zip (such as the editor's export), XIIDM, IEEE CDF or MATPOWER.
  */
@@ -55,6 +57,7 @@ public final class CimTools {
             case "check" -> check(Stream.of(args).skip(1).toList());
             case "render" -> args.length == 3 ? render(Path.of(args[1]), Path.of(args[2])) : usage();
             case "to-cgmes" -> args.length == 3 ? toCgmes(args[1], Path.of(args[2])) : usage();
+            case "layout" -> args.length == 3 ? layout(Path.of(args[1]), Path.of(args[2])) : usage();
             default -> usage();
         };
         System.exit(code);
@@ -64,7 +67,8 @@ public final class CimTools {
         System.err.println("""
                 usage: java -jar cim-tools.jar check [-v] <model>...
                        java -jar cim-tools.jar render <model> <output-dir>
-                       java -jar cim-tools.jar to-cgmes <model|ieee9|ieee14|ieee30|ieee57|ieee118|ieee300> <out.zip>""");
+                       java -jar cim-tools.jar to-cgmes <model|ieee9|ieee14|ieee30|ieee57|ieee118|ieee300> <out.zip>
+                       java -jar cim-tools.jar layout <model> <out.zip>""");
         System.exit(2);
         return 2;
     }
@@ -173,6 +177,13 @@ public final class CimTools {
         System.out.printf("%s: substations %d, voltage levels %d, lines %d, transformers %d -> %s%n", source,
                 n.getSubstationCount(), n.getVoltageLevelCount(), n.getLineCount(),
                 n.getTwoWindingsTransformerCount() + n.getThreeWindingsTransformerCount(), zip);
+        return 0;
+    }
+
+    /** layout writes zip: model's documents and a Diagram Layout from PowSyBl's single-line layout; returns 0. */
+    private static int layout(Path model, Path zip) throws IOException {
+        int diagrams = DlLayout.run(model, zip);
+        System.out.printf("%s: %d diagrams laid out by PowSyBl -> %s%n", model.getFileName(), diagrams, zip);
         return 0;
     }
 

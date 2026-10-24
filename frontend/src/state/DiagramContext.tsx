@@ -3,7 +3,7 @@ import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
 import { baseName, joinDiagramPath, parentDir } from '../lib/diagramPath'
 import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
-import { prepareImport, recolorVoltageClasses, type PreparedFile, type PreparedImport } from '../lib/importDiagram'
+import { ExistingNames, prepareImport, recolorVoltageClasses, type PreparedFile, type PreparedImport } from '../lib/importDiagram'
 import { deleteDraft, getDraft, listDrafts, putDraft, renameDrafts, type Draft } from '../lib/drafts'
 import { diagramFromAddress, setDiagramAddress } from '../lib/diagramAddress'
 import { presenceSession } from '../lib/presenceSession'
@@ -741,15 +741,16 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [clearSelection, browseDir, config, elements, startLoading],
   )
 
-  // Saves each prepared page of file into dir as importTargetName(dir, file, page suffix), skipping a name in
-  // existing (which collects every name saved) and, when only is set, any name not in it.
+  // Saves each prepared page of file into dir as importTargetName(dir, file, page suffix) (a CIM model's diagrams in
+  // a folder named after the file), skipping a name that exists (existing, which collects every name saved) and,
+  // when only is set, any name not in it.
   // Returns one BatchImportItem per page, in order.
   const saveImportedPages = useCallback(
     async (
       file: File,
       pages: PreparedImport[],
       dir: string,
-      existing: Set<string>,
+      existing: ExistingNames,
       only?: Set<string>,
     ): Promise<BatchImportItem[]> => {
       const items: BatchImportItem[] = []
@@ -757,13 +758,13 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         const name = importTargetName(dir, file.name, page.nameSuffix)
         if (only && !only.has(name)) continue
         const base = { fileName: file.name, name, messages: page.messages ?? undefined }
-        if (existing.has(baseName(name))) {
+        if (await existing.has(name)) {
           items.push({ ...base, status: 'skipped' })
           continue
         }
         try {
           const { warning } = await api.saveDiagram(name, page.diagram)
-          existing.add(baseName(name))
+          existing.add(name)
           items.push({ ...base, status: 'saved', message: warning })
         } catch (e) {
           items.push({ ...base, status: 'failed', message: (e as Error).message })
@@ -777,16 +778,14 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // Imports several files at once straight to the server, into dir (the
   // File panel's current folder), without opening any of them — the open
   // diagram stays untouched. Each file is prepared (prepareImport) and each of
-  // its pages saved as dir/<file name>[_N]; one that fails doesn't stop the
+  // its pages saved as dir/<file name>[_N] (a CIM model's as dir/<file name>/<diagram name>); one that fails doesn't stop the
   // rest. A name that already exists on the server (or was already taken by
   // an earlier file in this same batch) is skipped unless overwrite is set;
   // only, when set, limits the run to those names. Returns one
   // BatchImportItem per page, in order.
   const runBatchImport = useCallback(
     async (files: File[], dir: string, overwrite: boolean, only?: Set<string>): Promise<BatchImportItem[]> => {
-      const existing = new Set(
-        overwrite ? [] : (await api.listDiagrams(dir)).filter(e => !e.isDir).map(e => e.name),
-      )
+      const existing = new ExistingNames(overwrite)
       const items: BatchImportItem[] = []
       for (const file of files) {
         const name = importTargetName(dir, file.name)
@@ -822,8 +821,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         const pages = await choosePageVoltageColors(file.name, await prepareImport(file))
         if (pages.length > 1) {
           const dir = currentDir
-          const existing = new Set((await api.listDiagrams(dir)).filter(e => !e.isDir).map(e => e.name))
-          const items = await saveImportedPages(file, pages, dir, existing)
+          const items = await saveImportedPages(file, pages, dir, new ExistingNames(false))
           setBatchImport({ dir, files: [file], items })
           await browseDir(dir)
           return

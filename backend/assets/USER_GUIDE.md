@@ -196,8 +196,9 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 ### CIM import {#cim-import}
 
 A CIM model, as a `.zip` of CGMES profile files (EQ and DL, other profiles are ignored) or one RDF/XML `.xml` file,
-is imported like an `.xsde`: each diagram of its Diagram Layout (DL) becomes a diagram, the first opened, several
-saved into the current folder as `<name>`, `<name>_1`… Both CGMES 3.0 and 2.4.15 are read, node-breaker and
+is imported like an `.xsde`: each diagram of its Diagram Layout (DL) becomes a diagram. A single one opens; several
+are saved into a folder of the current folder named after the file, each diagram named after its DL diagram (for a
+model laid out automatically, its substation), as in `<name>/AGGAN CT11`; a name already there is skipped. Both CGMES 3.0 and 2.4.15 are read, node-breaker and
 bus-branch models alike (a bus-branch model's topological nodes stand in for connectivity nodes), and a file this
 editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file is read, in any folder; hidden files
 (a name starting with a dot) and the `__MACOSX` folder that macOS **Compress** adds are skipped.
@@ -232,14 +233,19 @@ editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file i
 - A layout in other units is scaled so neighbouring devices are about six grid steps apart, snapped to the grid, and
   turned the right way up when its y axis points up.
 - Equipment without a symbol here (a DC line, for example) is listed under **Skipped** in the import log.
-- A model with equipment but no diagram layout (an EQ profile alone) is laid out automatically: a diagram per
-  substation (and one for equipment outside any), each voltage level a band with the highest voltage on top, its
-  busbars on one row and its bays as columns hanging from them, transformers on a row between the bands of their
-  windings, and loads and other end devices at the bottom of their bays. Bays that lead to a transformer of a higher
-  voltage (or, on the top band, to a line) go up from their busbar, the rest down. A voltage level without a busbar
-  hangs its bays from a wire at its busiest node. Connections to a transformer, to another busbar (a bus coupler)
-  and those closing a ring run through free corridors between the bands, so they touch nothing else; a line to
-  another substation ends in a short stub with its name. The import log says the layout was generated.
+- A model with equipment but no diagram layout (an EQ profile alone) is laid out automatically, on the model of
+  PowSyBl's single-line layout: a diagram per substation (and one for equipment outside any), each voltage level a
+  band with the highest voltage on top.
+  - Busbars that share a bay are parallel: full-width rows one under another. Busbars sharing none sit side by side.
+  - Each bay (the devices between the busbars and what it feeds) takes columns of its own. Every device on a busbar
+    has a column and drops straight onto its row, with a **wire jump** over each busbar it crosses on the way; each
+    other device stands over the devices below it, and what the bay feeds (a line, a transformer, a load or
+    generator) lies beyond them, a line to another substation as a short stub with its name.
+  - Bus couplers (bays feeding nothing), bays leading to a transformer of a higher voltage and, on the top band, bays
+    leading to a line go above the busbars; the others below. Transformers sit on a row between the bands of their
+    windings, connected through free corridors, as are connections closing a ring.
+  - A voltage level without a busbar hangs its bays from a wire at its busiest node. The import log says the layout
+    was generated.
 - Not restored: a value the export wrote as 0 because it was unset comes back as a real 0; decorative shapes and
   digital devices were never exported; equipment the layout places on another diagram is not drawn on this one.
 
