@@ -197,10 +197,12 @@ A CIM model, as a `.zip` of CGMES profile files (EQ and DL, other profiles are i
 is imported like an `.xsde`: each diagram of its Diagram Layout (DL) becomes a diagram, the first opened, several
 saved into the current folder as `<name>`, `<name>_1`… Both CGMES 3.0 and 2.4.15 are read, node-breaker and
 bus-branch models alike (a bus-branch model's topological nodes stand in for connectivity nodes), and a file this
-editor exported comes back as it was drawn.
+editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file is read, in any folder; hidden files
+(a name starting with a dot) and the `__MACOSX` folder that macOS **Compress** adds are skipped.
 
 - Each device becomes the symbol of its CIM class at the point the layout gives it, rotated in steps of 90°, with its
-  name, voltage class (one per base voltage, named like "110 kV" and coloured like the matching standard voltage), the
+  name, voltage class (one per base voltage, named like "110 kV" and coloured like the standard voltage of the same
+  value, see [Voltage classes of a CIM import](#cim-voltage-colors)), the
   switch position (`normalOpen`) and its [electrical parameters](#electrical-parameters). A class with a choice keeps
   it as its **CIM class** (an asynchronous machine becomes a motor with CIM class AsynchronousMachine). Loads,
   network infeeds and SVCs use the Load, Network infeed and Static var compensator symbols.
@@ -227,6 +229,25 @@ editor exported comes back as it was drawn.
   another substation ends in a short stub with its name. The import log says the layout was generated.
 - Not restored: a value the export wrote as 0 because it was unset comes back as a real 0; decorative shapes and
   digital devices were never exported; equipment the layout places on another diagram is not drawn on this one.
+
+### Voltage classes of a CIM import {#cim-voltage-colors}
+
+A CIM voltage class takes the name and color of the standard voltage (`voltage_colors`) of the same value, so
+"110 kV", "110kV" and "110.0 kV" all match "110 kV". When a model uses voltages that none of them names (400 kV
+when the configuration stops at 330 kV, say), the **New voltage classes** dialog lists them before anything is
+opened or saved:
+
+- **Pages**: how many of the model's diagrams use the class.
+- **Nearest**: the standard voltage nearest to it, by ratio (400 kV → 330 kV, 17 kV → 10 kV, 135 kV → 110 kV). The
+  class is given its color; with no standard voltage to compare, it is grey.
+- **Color**: change the suggested color.
+- **Add** (ticked): adds the class with its color to `voltage_colors` in the server's configuration file, so the
+  next import matches it and it is offered for new classes, at once and without a restart. The file keeps its
+  comments; the entry is written after the last one of the list. A server whose configuration file can't be
+  written shows why and keeps the dialog open: untick **Add** to go on without it.
+
+**Apply** gives every imported diagram these colors and adds the ticked classes. **Keep suggested** (or Esc)
+imports with the suggested colors and adds nothing.
 
 ### Saving and exporting {#save-export}
 
@@ -762,7 +783,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `xsde.workplace` | `workplace.xml` used by `.xsde` import (see below). Empty: each file's own colors only. |
 | `elements.libraries` | Element-library XML files (shapes, terminals), merged in order; a later file overrides a shape of an earlier one. |
 | `editor.grid_spacing`, `snap`, `show_grid`, `background` | Defaults for a diagram that hasn't saved its own (see [Settings](#settings)). |
-| `voltage_colors` | Standard voltage classes (`name`, `color`) offered for new classes and by **Match preset colors…**. |
+| `voltage_colors` | Standard voltage classes (`name`, `color`) offered for new classes and by **Match preset colors…**. A CIM import can add to it ([Voltage classes of a CIM import](#cim-voltage-colors)). |
 | `voltage_color_tolerance` | How close (RGB distance, 0–441) a color must be to a standard one to be offered for replacement; 0 = exact only. |
 | `state_colors`, `fpi_state_colors` | Open / Close / Intermediate fill colors of switching devices and fault passage indicators. |
 | `position_states` | Labels of a withdrawable device's racking positions (Service / Normal / Test). |

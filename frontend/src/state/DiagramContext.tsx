@@ -3,7 +3,7 @@ import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
 import { baseName, joinDiagramPath, parentDir } from '../lib/diagramPath'
 import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
-import { prepareImport, type PreparedImport } from '../lib/importDiagram'
+import { prepareImport, recolorVoltageClasses, type PreparedFile, type PreparedImport } from '../lib/importDiagram'
 import { deleteDraft, getDraft, listDrafts, putDraft, renameDrafts, type Draft } from '../lib/drafts'
 import { diagramFromAddress, setDiagramAddress } from '../lib/diagramAddress'
 import { presenceSession } from '../lib/presenceSession'
@@ -18,6 +18,7 @@ import type {
   ConnectorKind,
   Point,
   Revision,
+  VoltageColor,
 } from '../types'
 import {
   DiagramContext,
@@ -30,6 +31,7 @@ import {
   type PreRendered,
   type SelectionKind,
   type UnsavedChoice,
+  type VoltageColorsPrompt,
 } from './useDiagramContext'
 
 // importTargetName is the server path a dropped/picked file is imported
@@ -102,6 +104,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [recoverableDrafts, setRecoverableDrafts] = useState<DraftInfo[]>([])
   const [unsavedPrompt, setUnsavedPrompt] = useState<{ diagramName: string } | null>(null)
   const unsavedResolverRef = useRef<((proceed: boolean) => void) | null>(null)
+  // A CIM import's voltage classes no preset names, asked about by VoltageColorsDialog (see askVoltageColors).
+  const [voltageColorsPrompt, setVoltageColorsPrompt] = useState<VoltageColorsPrompt | null>(null)
+  const voltageColorsResolverRef = useRef<((colors: Map<string, string>) => void) | null>(null)
 
   // The diagram exactly as openDiagram loaded it. Opening can already mark
   // a diagram dirty (a topology repair or id backfill that ought to reach
@@ -670,6 +675,31 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [confirmLeave, openDiagramNow],
   )
 
+  // Resolves to the pages of prepared with the colors VoltageColorsDialog settles for its unmatched voltage classes,
+  // or right away to its pages when it has none.
+  const choosePageVoltageColors = useCallback(async (fileName: string, prepared: PreparedFile) => {
+    if (prepared.unmatchedVoltages.length === 0) return prepared.pages
+    const colors = await new Promise<Map<string, string>>(resolve => {
+      voltageColorsResolverRef.current = resolve
+      setVoltageColorsPrompt({ fileName, voltages: prepared.unmatchedVoltages })
+    })
+    return recolorVoltageClasses(prepared.pages, colors)
+  }, [])
+
+  // VoltageColorsDialog's answer: class name → color (empty keeps the suggested ones).
+  const resolveVoltageColorsPrompt = useCallback((colors: Map<string, string>) => {
+    setVoltageColorsPrompt(null)
+    const resolve = voltageColorsResolverRef.current
+    voltageColorsResolverRef.current = null
+    resolve?.(colors)
+  }, [])
+
+  // Adds presets to the server's voltage_colors (and its configuration file) and takes the new list.
+  const addVoltagePresets = useCallback(async (colors: VoltageColor[]) => {
+    const voltageColors = await api.addVoltageColors(colors)
+    setConfig(c => (c ? { ...c, voltageColors } : c))
+  }, [])
+
   // Makes a prepared import (lib/importDiagram's prepareImport) the working
   // diagram under name — the server path the next Save writes, i.e. the File
   // panel's own current folder joined with the file's name minus its
@@ -755,7 +785,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         }
         let pages: PreparedImport[]
         try {
-          pages = await prepareImport(file)
+          pages = await choosePageVoltageColors(file.name, await prepareImport(file))
         } catch (e) {
           items.push({ fileName: file.name, name, status: 'failed', message: (e as Error).message })
           continue
@@ -764,7 +794,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       }
       return items
     },
-    [config, elements, saveImportedPages],
+    [config, elements, saveImportedPages, choosePageVoltageColors],
   )
 
   // importDiagramFile is what a single-file drop/pick calls. A multi-page
@@ -777,7 +807,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const importDiagramFile = useCallback(
     async (file: File) => {
       if (!diagramFileKind(file.name)) throw new Error(t('file.invalidDiagramFile', { name: file.name }))
-      const pages = await prepareImport(file)
+      const pages = await choosePageVoltageColors(file.name, await prepareImport(file))
       if (pages.length > 1) {
         const dir = currentDir
         const existing = new Set((await api.listDiagrams(dir)).filter(e => !e.isDir).map(e => e.name))
@@ -795,7 +825,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       }
       await loadDiagramFromFile(pages[0], file.name, name)
     },
-    [loadDiagramFromFile, saveImportedPages, browseDir, currentDir, confirmLeave, config, elements],
+    [loadDiagramFromFile, saveImportedPages, choosePageVoltageColors, browseDir, currentDir, confirmLeave, config, elements],
   )
 
   // Loads the parked pendingImport ("Reload") — cleared only once that
@@ -1185,6 +1215,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectFromFind,
       unsavedPrompt,
       resolveUnsavedPrompt,
+      voltageColorsPrompt,
+      resolveVoltageColorsPrompt,
+      addVoltagePresets,
       recoverableDrafts,
       restoreDraft,
       discardDraft,
@@ -1283,6 +1316,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectFromFind,
       unsavedPrompt,
       resolveUnsavedPrompt,
+      voltageColorsPrompt,
+      resolveVoltageColorsPrompt,
+      addVoltagePresets,
       recoverableDrafts,
       restoreDraft,
       discardDraft,

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -70,8 +71,8 @@ func (s *Server) exportDiagramCIM(c *gin.Context) {
 }
 
 // importDiagramCIM reads a CIM model, a zip of profile documents (e.g. CGMES EQ + DL) or one RDF/XML document, and
-// makes a diagram of each Diagram Layout diagram in it, repaired like an extracted import. Responds {pages, messages}
-// in the shape of the .xsde import.
+// makes a diagram of each Diagram Layout diagram in it, repaired like an extracted import. Responds {pages, messages,
+// unmatchedVoltages}, the .xsde import's shape plus the voltage classes no voltage_colors preset names.
 func (s *Server) importDiagramCIM(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -92,8 +93,16 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 	}
 	out := make([]importedPage, 0, len(pages))
 	messages := []cimMessage{}
+	unmatched := []unmatchedVoltage{}
 	for i, p := range pages {
-		s.applyPresetVoltageColors(p.Diagram)
+		for _, u := range s.applyPresetVoltageColors(p.Diagram) {
+			k := slices.IndexFunc(unmatched, func(v unmatchedVoltage) bool { return v.Name == u.Name })
+			if k < 0 {
+				k = len(unmatched)
+				unmatched = append(unmatched, u)
+			}
+			unmatched[k].Pages++
+		}
 		s.prepareCIM(p.Diagram)
 		report := newImportReport(p.Report)
 		// Skipped is keyed by CIM class, which names itself.
@@ -105,7 +114,7 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 			messages = append(messages, cimMessage{Level: "INFO", Page: i + 1, Text: m})
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"pages": out, "messages": messages})
+	c.JSON(http.StatusOK, gin.H{"pages": out, "messages": messages, "unmatchedVoltages": unmatched})
 }
 
 // prepareCIM finishes an imported CIM diagram like prepareDiagram does an extracted one, except for the topology
@@ -128,7 +137,9 @@ type cimMessage struct {
 	Text  string `json:"text"`
 }
 
-// cimDocuments returns the RDF/XML documents of a CIM upload: every .xml/.rdf file of a zip, or the body itself.
+// cimDocuments returns the RDF/XML documents of a CIM upload: every .xml/.rdf file of a zip, or the body itself. Hidden
+// files (a name starting with ".") and anything under __MACOSX/ are skipped: macOS Finder adds a binary "._<name>"
+// beside every file it compresses.
 func cimDocuments(body []byte) ([][]byte, error) {
 	if !bytes.HasPrefix(body, []byte("PK")) {
 		return [][]byte{body}, nil
@@ -140,7 +151,8 @@ func cimDocuments(body []byte) ([][]byte, error) {
 	var docs [][]byte
 	for _, f := range zr.File {
 		ext := strings.ToLower(path.Ext(f.Name))
-		if f.FileInfo().IsDir() || ext != ".xml" && ext != ".rdf" {
+		hidden := strings.HasPrefix(path.Base(f.Name), ".") || strings.HasPrefix(f.Name, "__MACOSX/")
+		if f.FileInfo().IsDir() || hidden || ext != ".xml" && ext != ".rdf" {
 			continue
 		}
 		r, err := f.Open()
@@ -160,26 +172,40 @@ func cimDocuments(body []byte) ([][]byte, error) {
 	return docs, nil
 }
 
-// applyPresetVoltageColors colours each uncoloured voltage class like the voltage_colors preset of the same
-// voltage, and any other one from a fixed set, so imported voltages are told apart.
-func (s *Server) applyPresetVoltageColors(d *slddoc.Diagram) {
-	fallback := []string{"#00a0f0", "#962896", "#965000", "#326400", "#d02020", "#4a90d9", "#c8a000"}
-	n := 0
+// unmatchedVoltage is a voltage class of a CIM import that no voltage_colors preset names. The import gave it the
+// color of Preset, the preset nearest to it in voltage ("" and a neutral grey when there is none); Pages counts the
+// pages using it.
+type unmatchedVoltage struct {
+	Name   string `json:"name"`
+	Preset string `json:"preset"`
+	Color  string `json:"color"`
+	Pages  int    `json:"pages"`
+}
+
+// unmatchedVoltageColor is an unmatched voltage class's color when no preset is near it.
+const unmatchedVoltageColor = "#808080"
+
+// applyPresetVoltageColors gives each uncoloured voltage class the name and color of the voltage_colors preset for it
+// (presetFor), or else the color of the preset nearest in voltage, and returns the latter classes.
+func (s *Server) applyPresetVoltageColors(d *slddoc.Diagram) []unmatchedVoltage {
+	presets := s.voltageColors()
+	var unmatched []unmatchedVoltage
 	for i := range d.VoltageClasses {
 		vc := &d.VoltageClasses[i]
 		if vc.Color != "" {
 			continue
 		}
-		kv, ok := slddoc.ParseVoltage(vc.Name)
-		for _, p := range s.cfg.VoltageColors {
-			if pkv, pok := slddoc.ParseVoltage(p.Name); ok && pok && pkv == kv {
-				vc.Name, vc.Color = p.Name, p.Color
-				break
-			}
-		}
-		if vc.Color == "" {
-			vc.Color = fallback[n%len(fallback)]
-			n++
+		p, nearest, ok := presetFor(presets, vc.Name)
+		switch {
+		case ok && !nearest:
+			vc.Name, vc.Color = p.Name, p.Color
+		case ok:
+			vc.Color = p.Color
+			unmatched = append(unmatched, unmatchedVoltage{Name: vc.Name, Preset: p.Name, Color: p.Color})
+		default:
+			vc.Color = unmatchedVoltageColor
+			unmatched = append(unmatched, unmatchedVoltage{Name: vc.Name, Color: vc.Color})
 		}
 	}
+	return unmatched
 }

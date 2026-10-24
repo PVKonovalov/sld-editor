@@ -5,7 +5,7 @@
 import * as api from './api'
 import { diagramFileKind, readFileAsText } from './fileTransfer'
 import { t } from '../i18n'
-import type { ConverterMessage, Diagram, ImportReport } from '../types'
+import type { ConverterMessage, Diagram, ImportReport, UnmatchedVoltage } from '../types'
 
 export interface PreparedImport {
   diagram: Diagram
@@ -18,30 +18,55 @@ export interface PreparedImport {
   messages: ConverterMessage[] | null
 }
 
+export interface PreparedFile {
+  pages: PreparedImport[]
+  // A CIM import's voltage classes no server preset names, colored like the nearest one (empty otherwise).
+  unmatchedVoltages: UnmatchedVoltage[]
+}
+
 /** Turns a picked/dropped file into one diagram per page: an .xsld as-is, an xsde2svg-style .svg through
  * slddoc.Extract, an .xsde through xsde2svg and then Extract, a CIM model through slddoc.ImportCIM (a page per DL
  * diagram). The server also repairs each diagram as opening one
  * does, and gives an extracted one its most-used voltage class as the default voltage and its size steps.
  * Rejects for an unsupported extension or a file the backend can't read. */
-export async function prepareImport(file: File): Promise<PreparedImport[]> {
+export async function prepareImport(file: File): Promise<PreparedFile> {
   const kind = diagramFileKind(file.name)
   if (!kind) throw new Error(t('file.invalidDiagramFile', { name: file.name }))
   if (kind === 'xsld') {
     const raw = await api.importDiagramXML(await readFileAsText(file))
-    return [{ diagram: raw, report: null, nameSuffix: '', messages: null }]
+    return { pages: [{ diagram: raw, report: null, nameSuffix: '', messages: null }], unmatchedVoltages: [] }
   }
   if (kind === 'svg') {
     const { diagram, report } = await api.importDiagramSVG(await readFileAsText(file))
-    return [{ diagram, report, nameSuffix: '', messages: null }]
+    return { pages: [{ diagram, report, nameSuffix: '', messages: null }], unmatchedVoltages: [] }
   }
   const bytes = await file.arrayBuffer()
-  const { pages, messages } = kind === 'xsde' ? await api.importDiagramXSDE(bytes) : await api.importDiagramCIM(bytes)
+  const { pages, messages, unmatchedVoltages } =
+    kind === 'xsde' ? { ...(await api.importDiagramXSDE(bytes)), unmatchedVoltages: [] } : await api.importDiagramCIM(bytes)
   const imported = new Set(pages.map(p => p.page))
-  return pages.map((p, i) => ({
-    diagram: p.diagram,
-    report: p.report,
-    nameSuffix: p.page > 1 ? `_${p.page - 1}` : '',
-    // Whole-document messages, and those of a page that didn't extract, go with the first page.
-    messages: messages.filter(m => m.page === p.page || (i === 0 && !imported.has(m.page))),
+  return {
+    pages: pages.map((p, i) => ({
+      diagram: p.diagram,
+      report: p.report,
+      nameSuffix: p.page > 1 ? `_${p.page - 1}` : '',
+      // Whole-document messages, and those of a page that didn't extract, go with the first page.
+      messages: messages.filter(m => m.page === p.page || (i === 0 && !imported.has(m.page))),
+    })),
+    unmatchedVoltages,
+  }
+}
+
+/** pages with each voltage class named in colors given that color. */
+export function recolorVoltageClasses(pages: PreparedImport[], colors: ReadonlyMap<string, string>): PreparedImport[] {
+  if (colors.size === 0) return pages
+  return pages.map(p => ({
+    ...p,
+    diagram: {
+      ...p.diagram,
+      voltageClasses: p.diagram.voltageClasses.map(vc => {
+        const color = colors.get(vc.name)
+        return color && color !== vc.color ? { ...vc, color } : vc
+      }),
+    },
   }))
 }

@@ -11,6 +11,8 @@ import type {
   OpenedDiagram,
   PresenceStatus,
   OpenTab,
+  UnmatchedVoltage,
+  VoltageColor,
 } from '../types'
 import { stripPictureHrefs } from './picture'
 
@@ -242,11 +244,21 @@ export async function importDiagramXSDE(bytes: ArrayBuffer): Promise<{
   }
 }
 
+/** Adds presets to the server's voltage_colors, in its configuration file too (POST /api/config/voltage-colors);
+ * one whose voltage or name a preset already has is left out. Resolves to the whole list now. */
+export async function addVoltageColors(colors: VoltageColor[]): Promise<VoltageColor[]> {
+  const res = await fetch(`${BASE}/config/voltage-colors`, await jsonBody('POST', colors))
+  const data = await asJSON<{ voltageColors: VoltageColor[] | null }>(res)
+  return data.voltageColors ?? []
+}
+
 /** Converts a CIM model (a zip of CGMES profiles, or one RDF/XML document) to a diagram per Diagram Layout diagram
- * (POST /api/import/cim), in the shape of importDiagramXSDE's answer. */
+ * (POST /api/import/cim), in the shape of importDiagramXSDE's answer plus the voltage classes no server preset
+ * names. */
 export async function importDiagramCIM(bytes: ArrayBuffer): Promise<{
   pages: { page: number; title: string; diagram: Diagram; report: ImportReport }[]
   messages: ConverterMessage[]
+  unmatchedVoltages: UnmatchedVoltage[]
 }> {
   const res = await fetch(`${BASE}/import/cim`, {
     method: 'POST',
@@ -256,10 +268,12 @@ export async function importDiagramCIM(bytes: ArrayBuffer): Promise<{
   const data = await asJSON<{
     pages: { page: number; title: string; diagram: DiagramWire; report: ImportReport }[]
     messages: ConverterMessage[] | null
+    unmatchedVoltages: UnmatchedVoltage[] | null
   }>(res)
   return {
     pages: data.pages.map(p => ({ ...p, diagram: normalizeDiagram(p.diagram) })),
     messages: data.messages ?? [],
+    unmatchedVoltages: data.unmatchedVoltages ?? [],
   }
 }
 

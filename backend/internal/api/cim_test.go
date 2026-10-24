@@ -188,3 +188,40 @@ func connections(t *testing.T, d *slddoc.Diagram) []string {
 	slices.Sort(out)
 	return out
 }
+
+// TestCIMDocumentsSkipsHidden reads a zip as macOS Finder makes it: the "._" files beside each document are skipped.
+func TestCIMDocumentsSkipsHidden(t *testing.T) {
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, data := range map[string]string{
+		"Model/EQ.xml":             "<rdf:RDF/>",
+		"Model/notes.txt":          "notes",
+		"Model/.hidden.xml":        "\x00",
+		"__MACOSX/Model/._EQ.xml":  "\x00\x05\x16\x07",
+		"__MACOSX/Model/other.xml": "\x00",
+		"Model/sub/DL.rdf":         "<rdf:RDF></rdf:RDF>",
+	} {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte(data)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	docs, err := cimDocuments(buf.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, d := range docs {
+		got = append(got, string(d))
+	}
+	slices.Sort(got)
+	if want := []string{"<rdf:RDF/>", "<rdf:RDF></rdf:RDF>"}; !slices.Equal(got, want) {
+		t.Errorf("documents = %q, want %q", got, want)
+	}
+}

@@ -640,6 +640,16 @@ export interface VoltageColor {
   color: string
 }
 
+// A voltage class of a CIM import that no voltageColors preset names (POST /api/import/cim's unmatchedVoltages):
+// the import gave it the color of preset, the preset nearest in voltage ("" and grey when none); pages counts the
+// pages using it.
+export interface UnmatchedVoltage {
+  name: string
+  preset: string
+  color: string
+  pages: number
+}
+
 // One entry of the install-wide Open/Close/Intermediate legend a switching
 // device's State dropdown (Properties) offers and its rendered fill color
 // is drawn from — global, not stored per diagram (see

@@ -98,6 +98,7 @@ func main() {
 	defer stop()
 
 	srv := api.NewServer(store, custom, lib, &cfg)
+	srv.SetConfigFile(*configFile)
 	llog.Logger.Infof("sld-editor %s listening on %s", version, cfg.Server.Bind)
 
 	if *openBrowser {

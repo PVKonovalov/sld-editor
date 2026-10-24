@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-contrib/gzip"
@@ -38,6 +39,10 @@ type Server struct {
 	custom *storage.Store
 	lib    *elements.Library
 	cfg    *config.Config
+	// cfgMu guards cfg.VoltageColors, which POST /config/voltage-colors extends.
+	cfgMu sync.RWMutex
+	// configFile is the YAML file cfg was read from ("" when unknown: nothing is written back).
+	configFile string
 	// presence tracks which tabs have which diagram open (POST /presence).
 	presence *presence.Registry
 	// cimClasses is the CIM class table per shape: the built-in lists with config.CIM.Classes put in.
@@ -139,6 +144,7 @@ func (s *Server) routes() {
 	grp.GET("/custom-elements", s.listCustomElements)
 	grp.PUT("/custom-elements", s.saveCustomElement)
 	grp.GET("/config", s.getConfig)
+	grp.POST("/config/voltage-colors", s.addVoltageColors)
 	grp.GET("/user-guide", s.getUserGuide)
 	grp.POST("/presence", s.touchPresence)
 	grp.GET("/presence/open", s.openTabs)

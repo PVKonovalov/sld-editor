@@ -17,6 +17,7 @@ import { MisplacedPortsDialog } from './components/MisplacedPortsDialog'
 import { DraftRecoveryDialog } from './components/DraftRecoveryDialog'
 import { UnsavedChangesDialog } from './components/UnsavedChangesDialog'
 import { VoltageMismatchDialog } from './components/VoltageMismatchDialog'
+import { VoltageColorsDialog } from './components/VoltageColorsDialog'
 import { diagramFileKind } from './lib/fileTransfer'
 import { t } from './i18n'
 import { GuideContext, type GuideApi } from './lib/guide'
@@ -192,6 +193,7 @@ function Shell() {
         <DraftRecoveryDialog />
         <UnsavedChangesDialog />
         <VoltageMismatchDialog />
+        <VoltageColorsDialog />
         {guide && <GuideWindow topic={guide.topic} requestId={guide.requestId} onClose={() => setGuide(null)} />}
         {dropError && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-red-900/90 text-red-100 text-xs rounded px-3 py-2 shadow">

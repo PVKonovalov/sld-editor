@@ -35,7 +35,7 @@ func (s *Server) getConfig(c *gin.Context) {
 			ShowGrid:    s.cfg.Editor.ShowGrid,
 			Background:  s.cfg.Editor.Background,
 		},
-		"voltageColors":         s.cfg.VoltageColors,
+		"voltageColors":         s.voltageColors(),
 		"voltageColorTolerance": s.cfg.ColorTolerance(),
 		"stateColors":           s.cfg.StateColors,
 		"positionStates":        s.cfg.PositionStates,

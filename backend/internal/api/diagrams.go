@@ -373,8 +373,9 @@ func (s *Server) importDiagramSVG(c *gin.Context) {
 
 // voltageHints maps each configured voltage color (lowercase) to its class name, for slddoc.Extract.
 func (s *Server) voltageHints() map[string]string {
-	hints := make(map[string]string, len(s.cfg.VoltageColors))
-	for _, vc := range s.cfg.VoltageColors {
+	presets := s.voltageColors()
+	hints := make(map[string]string, len(presets))
+	for _, vc := range presets {
 		hints[strings.ToLower(strings.TrimSpace(vc.Color))] = vc.Name
 	}
 	return hints

@@ -44,7 +44,9 @@ editor:
 
 # Default voltage-level -> color palette offered when adding a voltage
 # class to a diagram. Editing a diagram's own voltage classes never changes
-# this list; it's only ever a starting point for a new one.
+# this list; it's only ever a starting point for a new one. A CIM import
+# whose voltages no entry names offers to append them here (the server
+# rewrites this file then, keeping its comments).
 voltage_colors:
   - name: "0.4 kV"
     color: "#d2d2d2"

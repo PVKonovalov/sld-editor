@@ -35,7 +35,7 @@ func (s *Server) prepareDiagram(d *slddoc.Diagram, extracted bool) bool {
 // configured voltage_colors preset of the same color, compared case-insensitively. A class the user renamed, or a
 // preset name another class already carries, is left alone. Returns whether anything changed.
 func (s *Server) applyPresetVoltageNames(d *slddoc.Diagram) bool {
-	presets := s.cfg.VoltageColors
+	presets := s.voltageColors()
 	if len(presets) == 0 {
 		return false
 	}

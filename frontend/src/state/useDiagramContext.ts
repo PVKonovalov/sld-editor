@@ -11,6 +11,8 @@ import type {
   ImportReport,
   ConverterMessage,
   Revision,
+  UnmatchedVoltage,
+  VoltageColor,
 } from '../types'
 import type { PreparedImport } from '../lib/importDiagram'
 import type { MisplacedPort, VoltageMismatch } from '../lib/diagramOps'
@@ -49,6 +51,12 @@ export interface ImportLog {
   fileName: string
   report: ImportReport
   messages: ConverterMessage[] | null
+}
+
+// A CIM import's voltage classes that no server preset names (fileName: the imported file).
+export interface VoltageColorsPrompt {
+  fileName: string
+  voltages: UnmatchedVoltage[]
 }
 
 // A recovery draft (lib/drafts.ts) offered by DraftRecoveryDialog.
@@ -293,6 +301,12 @@ export interface DiagramContextValue {
   // edits before it is replaced; resolveUnsavedPrompt answers it.
   unsavedPrompt: { diagramName: string } | null
   resolveUnsavedPrompt: (choice: UnsavedChoice) => Promise<void>
+  // Set while VoltageColorsDialog asks which colors a CIM import's voltage classes no preset names get (the
+  // import waits for it); resolveVoltageColorsPrompt answers with class name → color. addVoltagePresets adds
+  // presets to the server's voltage_colors, in its configuration file too.
+  voltageColorsPrompt: VoltageColorsPrompt | null
+  resolveVoltageColorsPrompt: (colors: Map<string, string>) => void
+  addVoltagePresets: (colors: VoltageColor[]) => Promise<void>
   // Recovery drafts to offer (on startup, or when their diagram is opened):
   // restoreDraft makes one the working diagram (still unsaved),
   // discardDraft deletes it, closeDraftRecovery leaves them for later.
