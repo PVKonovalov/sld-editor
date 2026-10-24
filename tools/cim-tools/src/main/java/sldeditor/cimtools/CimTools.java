@@ -53,14 +53,44 @@ public final class CimTools {
         if (args.length < 2) {
             usage();
         }
-        int code = switch (args[0]) {
-            case "check" -> check(Stream.of(args).skip(1).toList());
-            case "render" -> args.length == 3 ? render(Path.of(args[1]), Path.of(args[2])) : usage();
-            case "to-cgmes" -> args.length == 3 ? toCgmes(args[1], Path.of(args[2])) : usage();
-            case "layout" -> args.length == 3 ? layout(Path.of(args[1]), Path.of(args[2])) : usage();
-            default -> usage();
-        };
+        int code;
+        try {
+            code = switch (args[0]) {
+                case "check" -> check(Stream.of(args).skip(1).toList());
+                case "render" -> args.length == 3 ? render(Path.of(args[1]), Path.of(args[2])) : usage();
+                case "to-cgmes" -> args.length == 3 ? toCgmes(args[1], Path.of(args[2])) : usage();
+                case "layout" -> args.length == 3 ? layout(Path.of(args[1]), Path.of(args[2])) : usage();
+                default -> usage();
+            };
+        } catch (ModelException e) {
+            System.err.println("cim-tools: " + e.getMessage());
+            System.err.println("  (java -jar cim-tools.jar check -v <model> prints PowSyBl's import report)");
+            code = 1;
+        }
         System.exit(code);
+    }
+
+    /** A model PowSyBl could not import: its message names the file and why. */
+    static final class ModelException extends RuntimeException {
+        ModelException(Path model, Exception cause) {
+            super("cannot import " + model + ": " + cause.getMessage(), cause);
+        }
+    }
+
+    /**
+     * readModel imports a model with PowSyBl.
+     *
+     * @param model the model file
+     * @return the network
+     * @throws ModelException when PowSyBl can't import it (a file that isn't a valid model, such as a busbar with
+     *                        several terminals or a voltage level of a substation it can't create)
+     */
+    static Network readModel(Path model) {
+        try {
+            return Network.read(model);
+        } catch (RuntimeException e) {
+            throw new ModelException(model, e);
+        }
     }
 
     private static int usage() {
@@ -133,7 +163,7 @@ public final class CimTools {
 
     /** render writes dir/NN_name.svg for each substation and each voltage level not inside one; returns 0. */
     private static int render(Path model, Path dir) throws IOException {
-        Network n = Network.read(model);
+        Network n = readModel(model);
         Files.createDirectories(dir);
         SldParameters params = new SldParameters().setSvgParameters(new SvgParameters().setUseName(true));
         int k = 0;
@@ -155,7 +185,7 @@ public final class CimTools {
 
     /** toCgmes writes the model (a file, or a built-in IEEE test network) as a CGMES 3.0 zip; returns 0. */
     private static int toCgmes(String source, Path zip) throws IOException {
-        Network n = SAMPLES.containsKey(source) ? SAMPLES.get(source).get() : Network.read(Path.of(source));
+        Network n = SAMPLES.containsKey(source) ? SAMPLES.get(source).get() : readModel(Path.of(source));
         Path tmp = Files.createTempDirectory("cim-tools");
         try {
             Properties p = new Properties();

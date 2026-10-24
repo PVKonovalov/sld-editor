@@ -82,7 +82,7 @@ final class DlLayout {
     static int run(Path model, Path zip) throws IOException {
         Map<String, byte[]> docs = documents(model);
         docs.values().removeIf(DlLayout::isDiagramLayout);
-        Network n = Network.read(model);
+        Network n = CimTools.readModel(model);
         DlLayout dl = new DlLayout(n, terminalNodes(docs.values()));
         int count = dl.write();
         String base = zip.getFileName().toString().replaceFirst("(?i)\\.zip$", "");

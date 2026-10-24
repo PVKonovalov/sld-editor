@@ -181,6 +181,12 @@ Compare the counts with the diagram: switches, transformers and loads should mat
 - **A 4-winding transformer**: PowSyBl supports 2 and 3 windings only; our export notes it.
 - **More substations than expected**: equipment that is not connected to the rest (a wire missing, a switch drawn
   next to a bus instead of on it) becomes a substation of its own, because substations follow the connections.
+- **A file made by another tool won't import** (`render`, `layout` and `to-cgmes` stop with
+  `cim-tools: cannot import <file>: <reason>` and exit code 1; `check` lists it as FAILED): the file breaks a rule
+  PowSyBl relies on. Typical reasons: a substation without `Substation.Region` (then none of its voltage levels is
+  created: "voltage level … has not been created in IIDM"), an `rdf:ID` starting with a digit (not an XML name), a
+  busbar section with several terminals (CIM allows one: "already contains an object 'BusbarSectionImpl'"). Fix the
+  file at its source; `check -v` prints PowSyBl's whole import report.
 
 ### Draw an export with PowSyBl's renderer
 
