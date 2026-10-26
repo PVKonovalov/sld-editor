@@ -373,8 +373,11 @@ With nothing selected, the Properties panel shows the diagram itself:
 
 **Export** with the **CIM, CGMES 3.0** format saves a zip of two CIM files (IEC 61970-552 RDF/XML, CGMES 3.0): `<name>_EQ.xml`, the
 equipment and how it is connected, and `<name>_DL.xml`, the diagram layout (IEC 61970-453) that places it, each with its header (the DL depending on the EQ). No other
-profile is written (see [CIM files](#cim-files)); tools such as PowSyBl derive the topology from EQ. Unsaved
-edits are included.
+profile is written (see [CIM files](#cim-files)); tools such as PowSyBl derive the topology from EQ. The EQ
+header also lists the ShortCircuit profile when the export holds short-circuit data (a line's zero-sequence values,
+a busbar's peak current). As in the CGMES conformity models, every equipment has `Equipment.aggregate` and every
+diagram object a name. The export is tested for import with PowSyBl but not validated against ENTSO-E's CGMES
+constraints, so it is not a full CGMES model (no SSH, TP or SV). Unsaved edits are included.
 
 - The diagram is split into substations by its connections: everything joined without passing through a line is one
   substation (transformers inside), named after its busbar with the most connections. A line end with no equipment
@@ -414,6 +417,8 @@ edits are included.
   (paste, duplicate, custom elements; a copy is new equipment), a node joining two imported ones, and the substations,
   voltage levels and other containers the export builds. A line cut in two keeps its identity on the first piece. An
   identity found twice (a file edited by hand) is kept once; the others get new ones, listed under the Export row.
+  A kept identity that is not a UUID (from a source that doesn't follow CGMES 3.0) is written as it is and listed
+  there too.
 
 Values the files need but the diagram doesn't have (see [Electrical parameters](#electrical-parameters)) are written
 as 0, or as the voltage class's nominal voltage for a rated voltage (among them an SVC's slope and a network infeed's

@@ -23,6 +23,22 @@ equipment are right, not how the sheet looks.
 
 The download is `<name>_CGMES.zip`, containing `<name>_EQ.xml` and `<name>_DL.xml`.
 
+### What the export conforms to
+
+The export is CIM in IEC 61970-552 RDF/XML using the CGMES 3.0 Equipment (CoreEquipment, plus ShortCircuit when
+it holds short-circuit data such as a line's zero-sequence values) and Diagram Layout profiles, and is tested for
+import with PowSyBl (`cim-tools check`) and with the editor's own import. Like the CGMES conformity models, every
+equipment carries `Equipment.aggregate` and every diagram object a name. That is not a claim of full CGMES
+conformity:
+
+- Only EQ and DL are written; a CGMES model for exchange also needs SSH, TP and SV.
+- Values the diagram doesn't hold are written as 0 (or the nominal voltage) and listed in the export notes, as are
+  mRIDs kept from an import that are not UUIDs (CGMES 3.0 requires UUIDs).
+- Substations are derived from the drawing's connections, a changeover knife switch becomes two disconnectors, and
+  the diagram styles (`shape-<code>`) are the editor's own.
+- The export has not been validated against ENTSO-E's CGMES constraints (SHACL) or with ENTSO-E's conformity
+  tools.
+
 ## CGMES DiagramLayout Editor
 
 A Svelte web app that edits CGMES diagram layouts (IEC 61970-453), for CGMES 2.4.15 and 3.0. It does not open files:

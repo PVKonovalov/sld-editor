@@ -569,7 +569,7 @@ export interface Diagram {
 // fields name Electrical/TransformerWinding keys ("2:ratedU" = winding 2's)
 // or "connectionKind".
 export interface CIMWarning {
-  kind: 'missing' | 'voltage' | 'noTerminal' | 'notExported' | 'openEnd' | 'shorted' | 'guessedVoltage' | 'windings' | 'mrid'
+  kind: 'missing' | 'voltage' | 'noTerminal' | 'notExported' | 'openEnd' | 'shorted' | 'guessedVoltage' | 'windings' | 'mrid' | 'mridFormat'
   item: 'element' | 'connector' | 'voltageClass'
   id: number
   fields?: string[]

@@ -52,6 +52,7 @@ export const dictionary = {
   'cim.voltage': 'the name holds no voltage, so the nominal voltage is 0',
   'cim.noTerminal': 'no equipment terminal on its node to attach to',
   'cim.notExported': 'has no CIM equivalent and was not exported',
+  'cim.mridFormat': 'its CIM identity (mRID), kept from an import, is not a UUID as CGMES 3.0 requires; written as it is',
   'cim.mrid': 'its CIM identity (mRID) is also another item\'s, or not a valid id; given a new one',
   'cim.guessedVoltage': 'no voltage on it or around it; given the most common one of its substation or diagram',
   'cim.windings': 'has 4 windings; valid CIM, but some tools (PowSyBl among them) read only 2 or 3',
