@@ -116,6 +116,9 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 		for _, m := range p.Messages {
 			messages = append(messages, cimMessage{Level: "INFO", Page: i + 1, Text: m})
 		}
+		for _, m := range p.Warnings {
+			messages = append(messages, cimMessage{Level: "WARN", Page: i + 1, Text: m})
+		}
 	}
 	c.JSON(http.StatusOK, gin.H{"pages": out, "messages": messages, "unmatchedVoltages": unmatched, "foreignLayout": foreign})
 }

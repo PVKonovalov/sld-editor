@@ -277,7 +277,9 @@ A file this editor exported, or a model without a layout, is imported without as
 - Each device becomes the symbol of its CIM class at the point the layout gives it, rotated in steps of 90°, with its
   name, voltage class (one per base voltage, named like "110 kV" and coloured like the standard voltage of the same
   value, see [Voltage classes of a CIM import](#cim-voltage-colors); a voltage level whose base voltage is missing,
-  often kept in a file not sent along, takes the voltage its name states, as in "ОРУ-110 кВ" or "6,3 kV"), the
+  often kept in a file not sent along, takes the voltage its name states, as in "ОРУ-110 кВ" or "6,3 kV"; a nominal
+  voltage above 2000 kV, which no grid has, is taken as it is with a warning in the import log, since CIM's
+  `nominalVoltage` is in kV and such a file has likely written volts), the
   switch position (`normalOpen`) and its [electrical parameters](#electrical-parameters). A class with a choice keeps
   it as its **CIM class** (an asynchronous machine becomes a motor with CIM class AsynchronousMachine). Loads,
   network infeeds and SVCs use the Load, Network infeed and Static var compensator symbols.
