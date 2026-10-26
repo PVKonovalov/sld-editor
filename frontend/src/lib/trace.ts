@@ -6,7 +6,7 @@ import type { Diagram, DiagramElement } from '../types'
 
 export interface TraceOptions {
   // A switching device (one with a state) passes only when Closed (1); Open,
-  // Intermediate and a withdrawable device not racked in (position other
+  // Intermediate, Faulty and a withdrawable device not racked in (position other
   // than Service, 0) stop the trace. Off: every switch passes.
   respectStates: boolean
   // A power transformer or booster joins its windings, so the trace goes on

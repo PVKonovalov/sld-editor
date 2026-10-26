@@ -20,6 +20,7 @@ import {
 import { elementDiagramBox } from '../../lib/elementBox'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
+import { SWITCHING_DEVICE_CLASSES } from '../../lib/switchingDevices'
 import { CONNECTOR_KIND_CODES, LABEL_SHAPE, DIGITAL_DEVICE_SHAPE } from '../../lib/paletteItem'
 import type { DiagramElement, ConnectorKind, ConnectorLineStyle, TransformerWinding, WindingScheme, TerminalDirection } from '../../types'
 
@@ -123,25 +124,7 @@ const TRANSFORMER_TERMINALS: { value: TerminalDirection; labelKey: TranslationKe
 // own first two windings with.
 const BLANK_WINDING: TransformerWinding = { scheme: 'wye' }
 
-// Classes whose base.xml template reacts to {state:...}/{fill} — every
-// switching device with an Open/Close/Intermediate position, and so the
-// only ones that get a State dropdown in Properties. Starter (76) also
-// reacts to {state:...} for its own moving-part orientation, but — unlike
-// every other class here — has no {fill}/data-fill color legend of its
-// own (the real source never gave it one); it's included anyway since the
-// dropdown itself is just "which of the three template variants to draw".
-const SWITCHING_DEVICE_CLASSES = new Set([
-  'Breaker',
-  'Disconnector',
-  'Sectionalizer',
-  'PowerCircuitBreaker',
-  'LoadBreakSwitch',
-  'GroundSwitch',
-  'ShortCircuiter',
-  'ShortCircuiterNoGround',
-  'DisconnectorFuse',
-  'Starter',
-])
+// SWITCHING_DEVICE_CLASSES (lib/switchingDevices.ts): the classes that get a State dropdown.
 
 // Sectionalizer (164), Power circuit breaker (399), the two
 // Short-circuiters (398, 163) and Disconnector-fuse (166) only have two

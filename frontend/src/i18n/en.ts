@@ -47,6 +47,9 @@ export const dictionary = {
   'file.formatSvg': 'SVG (.svg)',
   'file.formatCim': 'CIM, CGMES 3.0 (.zip)',
   'cim.done': 'CIM exported; nothing was missing.',
+  'svgExport.abnormalSwitches':
+    'SVG exported, but {{count}} switching devices are not Open or Close. rdss-dms draws a device\'s live state from the position it was exported in, so set each to its normal state and export again:',
+  'svgExport.noState': 'no state',
   'cim.notes': 'CIM exported with {{count}} notes:',
   'cim.missing': 'not set, written as 0 or the nominal voltage: {{fields}}',
   'cim.voltage': 'the name holds no voltage, so the nominal voltage is 0',

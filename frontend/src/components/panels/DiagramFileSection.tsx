@@ -5,7 +5,9 @@ import { t, type TranslationKey } from '../../i18n'
 import * as api from '../../lib/api'
 import { downloadBlob, downloadText } from '../../lib/fileTransfer'
 import { CimWarnings } from './CimWarnings'
-import type { CIMWarning } from '../../types'
+import { SwitchStateWarnings } from './SwitchStateWarnings'
+import { abnormalSwitchingDevices } from '../../lib/switchingDevices'
+import type { CIMWarning, DiagramElement } from '../../types'
 import { joinDiagramPath, parentDir } from '../../lib/diagramPath'
 import { GuideButton } from '../GuideButton'
 
@@ -50,6 +52,8 @@ export function DiagramFileSection() {
   const [repairNote, setRepairNote] = useState<string | null>(null)
   // The last CIM export's notes, cleared by any other action here.
   const [cimWarnings, setCimWarnings] = useState<CIMWarning[] | null>(null)
+  // The last SVG export's switching devices not in Open/Close, cleared by any other action here.
+  const [switchWarnings, setSwitchWarnings] = useState<DiagramElement[] | null>(null)
   // Set while Download's export runs, for its spinner.
   const [exporting, setExporting] = useState(false)
   const [format, setFormat] = useState<ExportFormat>(storedFormat)
@@ -71,6 +75,7 @@ export function DiagramFileSection() {
       downloadText(`${base}.xsld`, await api.exportDiagramXML(diagram), 'application/xml')
     } else if (f === 'svg') {
       downloadText(`${base}.svg`, await api.exportDiagramSVG(diagram), 'image/svg+xml')
+      setSwitchWarnings(abnormalSwitchingDevices(diagram))
     } else {
       const out = await api.exportDiagramCIM(diagram, base)
       downloadBlob(out.filename, out.file)
@@ -83,6 +88,7 @@ export function DiagramFileSection() {
     setLocalError(null)
     setRepairNote(null)
     setCimWarnings(null)
+    setSwitchWarnings(null)
     clearError()
     try {
       await action()
@@ -171,6 +177,7 @@ export function DiagramFileSection() {
           </button>
         </div>
         {cimWarnings && <CimWarnings warnings={cimWarnings} />}
+        {switchWarnings && <SwitchStateWarnings devices={switchWarnings} />}
       </div>
 
       <div>

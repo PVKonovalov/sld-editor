@@ -109,8 +109,14 @@ state_colors:
     color: "lawngreen"
   - state: 2
     label: "Intermediate"
-    color: "yellow"
+    color: "#c9a800"
+  # A double-point status reporting both/neither contact (rdss-dms maps the raw Error
+  # value here via dms.rdss_dms.transform.double_bit_to_element).
+  - state: 3
+    label: "Faulty"
+    color: "magenta"
 
+# Fault passage indicator colours
 fpi_state_colors:
   - state: 0
     label: "Open"
@@ -120,7 +126,10 @@ fpi_state_colors:
     color: "red"
   - state: 2
     label: "Intermediate"
-    color: "yellow"
+    color: "#c9a800"
+  - state: 3
+    label: "Faulty"
+    color: "magenta"
 
 # Global Service/Normal/Test legend a withdrawable device's own racking
 # position is labeled from (internal/slddoc.Render's data-trolley attribute)

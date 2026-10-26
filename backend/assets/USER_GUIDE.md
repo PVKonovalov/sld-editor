@@ -366,7 +366,10 @@ With nothing selected, the Properties panel shows the diagram itself:
 - **Save** writes the `.xsld` and its `.svg`. **Save As** saves a copy under a new name in the same folder.
 - **Export**: pick a format and press **Download** to save the diagram to your computer: **XSLD** (the diagram file),
   **SVG** (the picture), or **CIM, CGMES 3.0** for other power system tools (see [CIM export](#cim-export)). The
-  format you picked last is remembered in this browser.
+  format you picked last is remembered in this browser. An SVG for rdss-dms should have every switching device in
+  its normal position, **Open** or **Close**: rdss-dms draws a device's live state from the position it was exported
+  in. After an SVG export, any device that is Intermediate, Faulty or has no State is listed under **Download**
+  (click a name to find it on the canvas) — set each one and export again.
 - **Width**, **Height** and **Background color** of the page, and the **Layers** and **Voltage classes** of the
   diagram (see [Layers and voltage classes](#layers)).
 - **History**: when the diagram was saved and from which IP address (see [Several people on one diagram](#history)).
@@ -766,7 +769,7 @@ connection point nearest the click (on an open breaker, the side you clicked). W
 reaches are drawn orange; a device it can't pass is drawn red.
 
 - **Respect switch states** (on by default): a breaker, disconnector or other switching device passes only when
-  **Close**; **Open** and **Intermediate** stop the trace, and so does a withdrawable device not racked in (any
+  **Close**; **Open**, **Intermediate** and **Faulty** stop the trace, and so does a withdrawable device not racked in (any
   position but Service). It then shows what's energized from that point. Turn it off to see the whole network as
   drawn.
 - **Through transformers** (off by default): a power transformer stops the trace, so it stays on one voltage level.
@@ -916,7 +919,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `editor.grid_spacing`, `snap`, `show_grid`, `background` | Defaults for a diagram that hasn't saved its own (see [Settings](#settings)). |
 | `voltage_colors` | Standard voltage classes (`name`, `color`) offered for new classes and by **Match preset colors…**. A CIM import can add to it ([Voltage classes of a CIM import](#cim-voltage-colors)). |
 | `voltage_color_tolerance` | How close (RGB distance, 0–441) a color must be to a standard one to be offered for replacement; 0 = exact only. |
-| `state_colors`, `fpi_state_colors` | Open / Close / Intermediate fill colors of switching devices and fault passage indicators. |
+| `state_colors`, `fpi_state_colors` | Open / Close / Intermediate (and, for switching devices, Faulty) fill colors of switching devices and fault passage indicators. |
 | `position_states` | Labels of a withdrawable device's racking positions (Service / Normal / Test). |
 | `indicators.default_fpi_text` | Text a fault passage indicator shows when it has none of its own. |
 | `palette` | The Elements panel: groups (`name`, in display order) and their `items`, each an xsde2svg object type code. |
