@@ -1,28 +1,36 @@
 import { useState } from 'react'
+import { Check, Copy } from 'lucide-react'
 import { t } from '../../i18n'
 
-/** The CIM identity (mRID) an item was imported with, read-only, with a Copy button; nothing when it has none.
+/** The CIM identity (mRID) an item was imported with, read-only, with a Copy icon; nothing when it has none.
  * Keyed by the caller on the mRID, so "Copied" lasts until another item is shown. */
 export function MridRow({ mrid }: { mrid?: string }) {
   const [copied, setCopied] = useState(false)
   if (!mrid) return null
+  const hint = t(copied ? 'properties.mridCopied' : 'properties.mridCopy')
   return (
-    <div className="block text-xs">
-      <span className="block text-gray-400 mb-1" title={t('properties.mridHint')}>
-        {t('properties.mrid')}
-      </span>
-      <div className="flex items-center gap-1">
-        <span className="flex-1 min-w-0 truncate select-all font-mono text-gray-200" title={mrid}>
-          {mrid}
-        </span>
+    <div className="text-xs">
+      <div className="flex items-center justify-between mb-1">
+        <label htmlFor="item-mrid" className="text-gray-400" title={t('properties.mridHint')}>
+          {t('properties.mrid')}
+        </label>
         <button
           type="button"
-          className="shrink-0 rounded border border-surface-600 hover:bg-surface-600 text-gray-200 px-2 py-0.5"
+          title={hint}
+          aria-label={hint}
           onClick={() => navigator.clipboard.writeText(mrid).then(() => setCopied(true))}
+          className="text-gray-400 hover:text-white"
         >
-          {copied ? t('properties.mridCopied') : t('properties.mridCopy')}
+          {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
       </div>
+      <input
+        id="item-mrid"
+        className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1 font-mono opacity-50"
+        value={mrid}
+        title={mrid}
+        readOnly
+      />
     </div>
   )
 }

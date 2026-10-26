@@ -288,7 +288,7 @@ A file this editor exported, or a model without a layout, is imported without as
   comes back as one.
 - Each device, line, terminal, transformer winding and connectivity node keeps its CIM identity (its mRID), saved in
   the diagram file, so exporting it again writes the same identities (see [CIM export](#cim-export)). Properties
-  shows a selected device's or line's **mRID** (read-only, with a **Copy** button), and [Find](#find) finds an item
+  shows a selected device's or line's **mRID** (read-only, with a copy icon next to its label), and [Find](#find) finds an item
   by its mRID or one of its terminals'.
 - What is connected comes from the model, never from the drawing: two items join only when they are on the same
   node, however the layout places them, and a CIM import is not run through **Repair diagram** (which joins what

@@ -593,7 +593,7 @@ export const dictionary = {
   'properties.cimClass': 'CIM class',
   'properties.mrid': 'mRID',
   'properties.mridHint': 'The CIM identity this item was imported with; a CIM export keeps it',
-  'properties.mridCopy': 'Copy',
+  'properties.mridCopy': 'Copy mRID',
   'properties.mridCopied': 'Copied',
   'properties.cimClassDefault': '{{name}} (default)',
 } as const

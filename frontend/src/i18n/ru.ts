@@ -589,7 +589,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.cimClass': 'Класс CIM',
   'properties.mrid': 'mRID',
   'properties.mridHint': 'Идентификатор CIM, с которым объект импортирован; экспорт в CIM его сохраняет',
-  'properties.mridCopy': 'Копировать',
+  'properties.mridCopy': 'Копировать mRID',
   'properties.mridCopied': 'Скопировано',
   'properties.cimClassDefault': '{{name}} (по умолчанию)',
 }
