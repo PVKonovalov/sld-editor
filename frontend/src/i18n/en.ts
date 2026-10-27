@@ -561,6 +561,7 @@ export const dictionary = {
   'canvas.connectToHint': 'Click the terminal to connect to (joined without a wire) — Esc cancels',
   'canvas.createWireToHint': 'Click the terminal to draw a wire to — Esc cancels',
   'contextMenu.deleteSegment': 'Delete segment',
+  'contextMenu.mergeBuswork': 'Merge buswork',
   'electrical.title': 'Electrical parameters',
   'electrical.hint': 'Used by the CIM export. Leave a field empty when the value is unknown.',
   'electrical.length': 'Length, km',

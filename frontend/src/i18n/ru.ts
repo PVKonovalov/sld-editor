@@ -557,6 +557,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'canvas.connectToHint': 'Щёлкните вывод, с которым соединить (без провода) — Esc для отмены',
   'canvas.createWireToHint': 'Щёлкните вывод, к которому провести провод — Esc для отмены',
   'contextMenu.deleteSegment': 'Удалить сегмент',
+  'contextMenu.mergeBuswork': 'Объединить ошиновку',
   'electrical.title': 'Электрические параметры',
   'electrical.hint': 'Используются при экспорте в CIM. Оставьте поле пустым, если значение неизвестно.',
   'electrical.length': 'Длина, км',

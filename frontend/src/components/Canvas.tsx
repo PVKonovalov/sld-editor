@@ -222,7 +222,14 @@ type LabelDrag = { id: number; dx: number; dy: number }
 // The same drag convention as LabelDrag, for a selected DigitalDevice's own
 // anchor instead of a Label's.
 type DigitalDeviceDrag = { id: number; dx: number; dy: number }
-type ContextMenuState = { x: number; y: number; diagramPoint: Point; elementId: number | null; connectorId: number | null }
+type ContextMenuState = {
+  x: number
+  y: number
+  diagramPoint: Point
+  elementId: number | null
+  connectorId: number | null
+  mergeNodeId: number | null
+}
 // A valid place for a route to start or finish: either an element's own
 // terminal/busbar point ('element'), or a point along an already-drawn
 // connector's own line ('connector', tapping into it as a junction — see
@@ -1461,6 +1468,24 @@ export function Canvas() {
         bestDist = dist
         bestId = c.id
       }
+    }
+    return bestId
+  }
+
+  /** The node within CONNECTOR_HIT_PX screen pixels of point where two visible BusWork wires can be merged
+   * (diagramOps.mergeableBusworkAt), the nearest one; null if none. */
+  function findMergeableNodeNear(point: Point): number | null {
+    const rect = wrapperRef.current?.getBoundingClientRect()
+    if (!rect || rect.width === 0) return null
+    let bestId: number | null = null
+    let bestDist = (CONNECTOR_HIT_PX * diagram!.width) / rect.width
+    for (const n of diagram!.nodes) {
+      const dist = Math.hypot(n.x - point.x, n.y - point.y)
+      if (dist > bestDist) continue
+      const pair = diagramOps.mergeableBusworkAt(diagram!, n.id)
+      if (!pair || pair.some(isHidden)) continue
+      bestDist = dist
+      bestId = n.id
     }
     return bestId
   }
@@ -2774,7 +2799,8 @@ export function Canvas() {
         if (!keepsSelection(boxHit, 'element')) selectItem(boxHit, 'element')
       }
     }
-    setContextMenu({ x: e.clientX, y: e.clientY, diagramPoint, elementId, connectorId })
+    const mergeNodeId = findMergeableNodeNear(point)
+    setContextMenu({ x: e.clientX, y: e.clientY, diagramPoint, elementId, connectorId, mergeNodeId })
   }
 
   // The context menu's "Topology" submenu: both items start a pick of the
@@ -2838,6 +2864,18 @@ export function Canvas() {
                     if (!connector) return
                     const { index } = nearestSegmentOnPolyline(connector.points, contextMenu.diagramPoint)
                     updateDiagram(d => diagramOps.deleteConnectorSegment(d, contextMenu.connectorId!, index))
+                  },
+                },
+              ]
+            : []),
+          ...(contextMenu.mergeNodeId !== null
+            ? [
+                {
+                  label: t('contextMenu.mergeBuswork'),
+                  onSelect: () => {
+                    const keepId = diagramOps.mergeableBusworkAt(diagram, contextMenu.mergeNodeId!)?.[0].id
+                    updateDiagram(d => diagramOps.mergeBuswork(d, contextMenu.mergeNodeId!))
+                    if (keepId !== undefined) selectItem(keepId, 'connector')
                   },
                 },
               ]

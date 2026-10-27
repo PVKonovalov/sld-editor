@@ -3270,6 +3270,48 @@ function splitWireAt(diagram: Diagram, c: Connector, k: number, at: Point, nodeI
   }
 }
 
+/** The two BusWork wires meeting at nodeId when they can be merged into one: exactly two wire ends use the node, both
+ * BusWork of the same voltage class, two different wires, and no element port uses it. Otherwise null. */
+export function mergeableBusworkAt(diagram: Diagram, nodeId: number): [Connector, Connector] | null {
+  if (diagram.elements.some(el => (el.ports ?? []).some(p => p.node === nodeId))) return null
+  const ends = diagram.connectors.flatMap(c => [c.from, c.to].filter(n => n === nodeId).map(() => c))
+  if (ends.length !== 2) return null
+  const [a, b] = ends
+  if (a.id === b.id || a.kind !== 'BusWork' || b.kind !== 'BusWork' || (a.voltage ?? 0) !== (b.voltage ?? 0))
+    return null
+  return a.id < b.id ? [a, b] : [b, a]
+}
+
+/** Merges the two BusWork wires meeting at nodeId (see mergeableBusworkAt) into the one with the lower id, which keeps
+ * its own attributes and runs on through the other's points; the joint node is removed. Returns the diagram unchanged
+ * when the node can't be merged. */
+export function mergeBuswork(diagram: Diagram, nodeId: number): Diagram {
+  const pair = mergeableBusworkAt(diagram, nodeId)
+  if (!pair) return diagram
+  const [keep, other] = pair
+  const reversed = (c: Connector): Connector => ({
+    ...c,
+    from: c.to,
+    to: c.from,
+    fromMrid: c.toMrid,
+    toMrid: c.fromMrid,
+    points: [...c.points].reverse(),
+  })
+  const head = keep.to === nodeId ? keep : reversed(keep)
+  const tail = other.from === nodeId ? other : reversed(other)
+  const merged: Connector = {
+    ...head,
+    to: tail.to,
+    toMrid: tail.toMrid,
+    points: simplifyOrthogonalPath([...head.points, ...tail.points.slice(1)]),
+  }
+  return {
+    ...diagram,
+    nodes: diagram.nodes.filter(n => n.id !== nodeId),
+    connectors: diagram.connectors.flatMap(c => (c.id === keep.id ? [merged] : c.id === other.id ? [] : [c])),
+  }
+}
+
 /** Reverses wire connectorId's direction: from and to swap and its points run the other way, so an Object link's
  * arrowhead (always at the to end) moves to the other end. The geometry and connections are unchanged. */
 export function reverseConnector(diagram: Diagram, connectorId: number): Diagram {

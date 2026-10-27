@@ -60,12 +60,12 @@
 
 # VERSION is the build's own version, from the git tag it was built from
 # (e.g. v1.0.0, v1.0.0-3-gabc1234 for commits after it, a -dirty suffix
-# for uncommitted changes), "dev" without git. Override with
-# `make VERSION=v1.2.0`. Baked into both the frontend (APP_VERSION, read
-# by frontend/vite.config.ts) and the Go binary (-X main.version).
-ifeq ($(origin VERSION),undefined)
-VERSION      := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
-endif
+# for uncommitted changes), "dev" without git. The tag is its only source:
+# `override` ignores a `make VERSION=...`. safe.directory lets docker-build's
+# container read the mounted repo, owned by another user. Baked into both the
+# frontend (APP_VERSION, read by frontend/vite.config.ts) and the Go binary
+# (-X main.version).
+override VERSION := $(shell git -c safe.directory='*' describe --tags --always --dirty 2>/dev/null || echo dev)
 export VERSION
 GO_LDFLAGS   := -X main.version=$(VERSION)
 
@@ -147,7 +147,7 @@ frontend-ru:
 # from /workspace/sld-editor/backend.
 docker-build:
 	docker build -t $(DOCKER_IMAGE) -f Dockerfile.build .
-	docker run --rm -v "$(abspath ..)":/workspace -v "$(XSDE2SVG_DIR)":/EMA/xsde2svg -w /workspace/sld-editor $(DOCKER_IMAGE) make linux windows VERSION=$(VERSION)
+	docker run --rm -v "$(abspath ..)":/workspace -v "$(XSDE2SVG_DIR)":/EMA/xsde2svg -w /workspace/sld-editor $(DOCKER_IMAGE) make linux windows
 
 # Packs whatever binaries are in build/ (every OS/arch x locale built so
 # far; older archives and stray *.gz files are left out) into

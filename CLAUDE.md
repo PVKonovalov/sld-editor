@@ -1,6 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. It is an
+index plus what the code can't tell you; read the referenced files and their doc comments for how things work.
+History lives in RELEASE.md.
 
 ## Common requirements
 
@@ -17,222 +19,70 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A monorepo SCADA-style Single Line Diagram (SLD) editor for Power/Energy control engineers: a Go backend (diagram
-storage, SVG rendering, xsde2svg SVG import) and a React + Vite + TypeScript + Tailwind + lucide-react frontend
-(interactive canvas editing). Its diagram files follow the xsde2svg/slddoc conventions.
+SCADA-style Single Line Diagram editor: Go + Gin backend (diagram storage, SVG rendering, `.xsde`/SVG/CIM import, CIM
+export) and React + Vite + TS + Tailwind frontend (interactive canvas). No database, no login (users known by IP).
 
-Other docs in this repo: `README.md` (build/run/packaging), `backend/assets/USER_GUIDE.md` + `USER_GUIDE.ru.md`
-(end-user guide in English and Russian, shown in the app by the sidebar's Help button in the build's own locale; keep
-both in step with UI behaviour changes), `RELEASE.md` (dated changelog, where each feature's full
-history lives), `TODO.md` (planned work, incl. the "Reducing frontend/backend traffic" design), `elements.md` (the
-xsde2svg shape list being ported one shape at a time), `docs/CIM_INTEROP.md` (the CIM export with the CGMES DiagramLayout
-Editor and PowSyBl; its example tool is `tools/cim-tools`, a Maven project outside `make`).
+## Sibling repositories
+
+| Repo | Relationship |
+|---|---|
+| `PVKonovalov/slddoc` (`../slddoc`, `replace` in `backend/go.mod`) | **Required.** The diagram model: types, `.xsld` XML Load/Save (`XSLD_FORMAT.md`), SVG `Render`/`RenderFragments`, `Extract` (SVG → diagram), `Repair`, `EnsureIDs`, CIM export/import and layout. Its tests run there. |
+| `EMA/xsde2svg` (`~/repo/EMA/xsde2svg`, `replace` in `backend/go.mod`) | **Required.** Modus `.xsde` → SVG converter used in-process (`pkg/xsde2svg.Convert`). `backend/assets/xsde2svg.yml` and `workplace.xml` are copies of its files (shipped by `make package`); `make docker-build` mounts it from `XSDE2SVG_DIR`. |
+| `OrxaGridMicroservices/rdss-dms` (formerly `sld-viewer`) | Consumer of the exported `.svg`: reads `id`, `data-type`, `data-name`, `data-voltage`, `data-state`, `data-fill`, `data-event`. **SVG markup problems are fixed here, not worked around in rdss-dms.** Its `assets/sld/*.svg` are real xsde2svg corpus files — verify output against them. State colors (`data-fill`, states 0–3) must match its state mapping. |
+| `OrxaGridMicroservices/rdss-dms-nca` | Every symbol code (`data-type`, e.g. 6-digit `330001`) needs a `sld.sld_element_type` row (with its CIM class) in its `db/init/dms_schema_all.sql` + patch, or linking equipment in rdss-dms fails. |
+| `PVKonovalov/sld-svg` | Reference: canonical slddoc format and its `svg-sld` CLI. |
+| SOPTIM `CIMDiagramLayoutEditor`, PowSyBl (`tools/cim-tools`, Maven, outside `make`) | CIM export interop checks; see `docs/CIM_INTEROP.md`. |
 
 ## Commands
 
-Backend (from `backend/`):
-
 ```
-go run ./cmd/sld-editor -config config/sld-editor.yaml                 # binds 0.0.0.0:8090
-go run ./cmd/sld-editor -config config/sld-editor.yaml -open-browser   # also opens the UI
-go build ./... && go vet ./... && go test ./...
-go test ./internal/storage/... -run TestName                           # single test
+cd backend && go run ./cmd/sld-editor -config config/sld-editor.yaml [-open-browser]   # :8090
+cd backend && go build ./... && go vet ./... && go test ./...
+cd frontend && npm run dev | dev:ru     # :5173, proxies /api to :8090
+cd frontend && npm run build            # the only frontend check (no tests, no linter)
+make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|release|clean
 ```
 
-The diagram model lives in the sibling module `github.com/PVKonovalov/slddoc` (`replace` → `../../slddoc` in
-`backend/go.mod`). That repo must be checked out next to this one. Its own tests run from `../slddoc`
-(`go test ./... -run TestName`), and `../slddoc/FORMAT.md` documents the `.xsld` format.
+`make` builds one self-contained binary per OS/arch/locale with the frontend embedded (`backend/internal/webui`).
+`VERSION` from `git describe` → `__APP_VERSION__` and `-X main.version`. Never commit `frontend/src/i18n/active.ts` or
+`backend/internal/webui/dist/*` (only `.gitkeep`).
 
-Frontend (from `frontend/`): `npm install` once, then `npm run dev` (Vite on `:5173`, proxies `/api` to `:8090`; the
-backend must be running) or `npm run dev:ru` for the Russian UI. `npm run build` (`tsc` + `vite build`) is the only
-check: there are no frontend tests and no linter. `build:en`/`build:ru` write to `dist-en/`/`dist-ru/`.
+## Index
 
-Production (from the repo root): `make` cross-compiles one self-contained binary per (OS/arch, locale) with the
-frontend embedded (`backend/internal/webui`, `//go:embed all:dist`). Targets: `make linux|windows|macos`,
-`make linux-en`/`macos-arm64-ru`/…, `make docker-build` (linux+windows in a pinned container), `make package`
-(tarball of `build/` + config + assets), `make release`, `make clean`. `VERSION` comes from `git describe`
-(override with `make VERSION=…`), is passed to Vite as `APP_VERSION` (`__APP_VERSION__`, shown in the About dialog)
-and to Go as `-X main.version` (printed by `-version`).
+- Docs: `README.md` (build/run/packaging), `backend/assets/USER_GUIDE.md` + `.ru.md` (in-app guide), `TODO.md`,
+  `elements.md` (xsde2svg shapes being ported), `docs/CIM_INTEROP.md`.
+- Backend: `cmd/sld-editor/main.go`; `internal/config` (`config/sld-editor.yaml`: palette, hot keys, voltage/state
+  colors, `cim.classes`, `xsde:`), `internal/elements` (XML symbol libraries, `assets/elements/base.xml`,
+  palette/hot-key validation at startup), `internal/storage` (filesystem store, `.xsld` + rendered `.svg`, history),
+  `internal/api` (all routes; `repair.go`, `cim.go`, `folders.go`, `presence.go`, `custom_elements.go`,
+  `user_guide.go`), `internal/presence`, `pkg/configuration`, `pkg/llog`.
+- Custom elements: `custom-elements/` (tracked `.xsld` fragments, shipped by `make package`).
+- Frontend `src/`: `state/DiagramContext.tsx` (+ `useDiagramContext.ts`; single source of truth, undo/redo,
+  `confirmLeave`, drafts), `lib/api.ts` (only backend caller), `lib/diagramOps.ts` (pure `Diagram → Diagram` edits),
+  `components/Canvas.tsx` (pan/zoom, rendering transactions, hit-testing, drag, routing, copy/paste),
+  `components/panels/*`, `lib/paletteItem.ts`, `lib/drafts.ts`, `lib/picture.ts`, `lib/guide.ts`, `types/index.ts`
+  (hand-kept mirror of Go JSON), `i18n/`.
 
-Generated files are never committed: `frontend/src/i18n/active.ts` and `backend/internal/webui/dist/*` (only
-`dist/.gitkeep` is tracked; the Makefile recreates it).
+## Rules not derivable from code
 
-## Architecture
-
-### Backend (`backend/`)
-
-`cmd/sld-editor/main.go` loads the YAML config, loads the element libraries, validates the palette, and wires up
-storage and the Gin API.
-
-- `internal/config`: the `Config` struct (`config/sld-editor.yaml`), read by `pkg/configuration` (YAML plus `env:"true"`
-  env-var overrides). It holds editor defaults, `voltage_colors` presets, `state_colors`/FPI/position/indicator legends,
-  `palette`, `hot_keys` (placement keys: key → palette item, checked by `elements.ValidateHotKeys`), and `cim.classes`
-  (shape code, as in `palette`, `"28"` for a link to object → CIM classes, default first; `slddoc.NewCIMClassTable`
-  builds it from the library's shapes and checks it at startup; the server's table drives the CIM export/import,
-  `Symbol.CIM` and `/api/config`'s `cimConnectorClasses`).
-- `internal/elements`: merges the XML symbol libraries listed in `elements.libraries` (later files override shapes)
-  into the palette catalog and a `slddoc.SymbolLibrary`. `backend/assets/elements/base.xml` is the bundled one. A
-  symbol may declare `<terminals>`, real connection points in local coordinates, drawn by the canvas.
-  `Library.ValidatePalette` checks every `palette` item at startup, so a typo fails loudly.
-- `internal/storage`: filesystem store under `diagrams.dir`. `Save` always writes `.xsld` (source of truth) plus a
-  rendered `.svg`, each atomically (temp file + rename) under a store-wide lock. `SaveRevision` (used by
-  `diagrams/save`) also appends a `slddoc.Revision` (time, client IP) to the history already on disk, keeping the last
-  `MaxHistory`; the client's own history is used only for a new name. A missing symbol is a non-fatal render warning. Names are `/`-separated paths (subfolders), and
-  every segment is validated (`ErrInvalidName`). `List(dir)` returns one folder level only.
-- `internal/api`: routes under `/api` — `diagrams` (list/create), `diagrams/open` (only `slddoc.EnsureIDs`, never a
-  topology repair; renders it for the canvas; returns `{diagram, svg, repaired}`, so opening is one request), `repair`
-  (the client's "Repair diagram": `prepareDiagram` in `internal/api/repair.go`, i.e. `slddoc.EnsureIDs`, preset voltage
-  names, `slddoc.Repair`, on the posted diagram; `{diagram, repaired}`), `diagrams/save`, `diagrams/svg`,
-  `diagrams/rename` + `DELETE diagrams` and `folders` (create/`rename`/`DELETE`, empty folders only, a delete refused
-  with 409 while another tab (`session=`) has it open; `internal/api/folders.go`,
-  the File panel's `FolderActionDialog`),
-  `render`, `render/fragments`, `export/cim` (`internal/api/cim.go`: the posted diagram → `slddoc.ExportCIM` → a zip
-  of CGMES 3.0 EQ + DL RDF/XML, returned as `{filename, file, warnings}`; the frontend's `components/panels/CimWarnings.tsx`
-  lists the warnings), `import/xml`, `import/svg` (runs `slddoc.Extract`, returns `{diagram, report}`), `import/xsde`
-  (raw `.xsde` bytes → `xsde2svg.Convert` → `Extract` per page, returns `{pages: [{page, title, diagram, report}],
-  messages}`; `messages` are the converter's INFO/WARN/ERROR diagnostics, shown in the import log),
-  `import/cim` (a zip of CGMES profiles or one RDF/XML document → `slddoc.ImportCIM`, a page per DL diagram, same
-  `{pages, messages}` shape plus `foreignLayout` (a page follows another tool's DL: the frontend's `CimLayoutDialog`
-  then offers re-posting with `?layout=auto`, `CIMImportOptions.AutoLayout`; such a DL without texts gets name labels,
-  `nameLabels`); an own export round-trips via its `shape-<code>` styles and glue points; a model without a
-  DL is laid out by `slddoc` `cimlayout.go`; nodes are keyed by ConnectivityNode, so the topology is the model's and the
-  import is not run through `slddoc.Repair` (`prepareCIM`); wire jumps mark foreign-layout crossings),
-  `elements`, `custom-elements`, `config`, `presence` (`internal/api/presence.go` + `internal/presence`: an
-  in-memory registry of which tab has which diagram open; `{session, diagram}` → `{others: [{ip, since}], lastSave}`,
-  the other tabs (IP, when they opened it) and the diagram's last save; `GET presence/open?path=` lists the tabs with a
-  diagram or anything in a folder open, for the rename/delete dialogs; the router trusts `X-Forwarded-For` only from loopback,
-  so a same-machine nginx passes the real client IP; the frontend's `components/PresenceBanner.tsx` sends it every 60 s and
-  shows a one-line amber warning; users are known only by IP, there is no login), `user-guide` (`internal/api/user_guide.go`: the `user_guide` config file
-  converted from Markdown to an HTML fragment with goldmark on every request, tables on, raw HTML off; `?lang=xx`
-  picks `USER_GUIDE.xx.md` next to it when present, the frontend sending `i18n`'s `locale`; heading ids come from explicit `{#id}` anchors,
-  identical in both languages, via goldmark's attribute parser; shown by `components/GuideWindow.tsx`, a draggable
-  non-modal window with a filterable table of contents, styled by `.guide-content` in `styles/index.css`; dialogs and
-  panels link to a topic with `components/GuideButton.tsx` → `lib/guide.ts`'s `openGuide(topic)`, so keep those
-  anchor ids stable when editing the guides). **A diagram name/dir is always a query parameter, never a path segment**, because Gin params
-  can't carry `/`. Errors map as `ErrInvalidName`→400, `ErrNotFound`→404, `ErrExists`→409.
-- Custom elements: `custom_elements.dir` (`../custom-elements`, tracked in git; `CB.xsld` is the example) holds
-  ordinary `.xsld` diagrams used as predefined fragments. `main.go` opens it as a second `storage.Store`, and
-  `GET /api/custom-elements` (`internal/api/custom_elements.go`) returns every file directly inside it as
-  `[{name, diagram, svg}]`, where `svg` is a Static render used as the palette icon. `PUT /api/custom-elements?name=`
-  saves one (bare file name only; 409 on an existing name unless `&overwrite=1`). `make package` ships the folder.
-- `pkg/configuration`, `pkg/llog`: shared MIT-licensed utilities carried over from other projects.
-
-### The `slddoc` model (sibling module)
-
-- `Diagram`/`Layer`/`VoltageClass`/`Node`/`Element`/`Connector`/`Label`, XML `Load`/`Save`, SVG `Render`,
-  `RenderFragments`, and `Extract` (xsde2svg SVG → diagram).
-- **Ids are plain `int`s in one shared id space. 0 means "unset"**, since real ids start at 1. `Element.Shape` is the
-  exception: it's a symbol-library key string like `"41"`. The backend never assigns ids. The frontend's `IdSequence`
-  does, seeded from the round-tripped `Diagram.LastID`.
-- `History` (`<history><revision time ip/>`): the save history, appended only by the backend; the frontend shows it
-  from `DiagramContext.savedHistory` (outside undo/redo) in Properties' History section.
-- `Editor` block: grid, snap, show grid/nodes, background, defaultVoltage. It round-trips, but only the background
-  affects rendering.
-- `Load` rewrites legacy values: connector kind `"ObjectLink"` → BusWork, and shape `"71"` → `"162"`. See memory: the
-  71→162 rewrite must go once shape 71 is ported as its own type.
-- `RenderMode`: `Static` is a clean, xsde2svg-faithful document (the saved `.svg` and its downloads): absolute
-  coordinates, with `rotate(a,cx,cy)` on rotated symbols (`slddoc/absolute.go` converts each fragment). `Interactive`
-  keeps symbols in their local frame, placed by `translate(x,y) rotate(a)`, because the canvas drags by rewriting that
-  translate and measures `getBBox()` locally. It also adds `data-editor-kind="element|connector|label|digitaldevice"`
-  and wider hit targets, and is used only by the live canvas. `id`/`data-name`/`data-voltage`/`data-type`/
-  `data-fill`/`data-state` are emitted in both modes.
-- Connector kinds render with xsde2svg type codes `21`/`22`/`23`/`28` (BusWork/OverheadLine/CableLine/LinkToObject).
-  Overhead and cable lines are wrapped in a named `<g>`.
-- When matching xsde2svg output, verify against real corpus files (e.g. `sld-viewer/assets/sld/*.svg`).
-
-### Frontend (`frontend/src/`)
-
-- `state/DiagramContext.tsx` + `useDiagramContext.ts`: the single source of truth. It holds the open diagram, dirty
-  flag, folder browser (`currentDir`/`diagrams`, set together only via `browseDir`), catalog/config, and selection.
-  Selection and "armed" tools are mutually exclusive: selecting or arming any of element/connector/label/symbol/wire
-  kind clears the others. The exception is that selecting does *not* clear `armedWireKind`. Also here: import flows
-  (single file → `pendingImport` confirm when the name exists; multi-file → `batchImport`) and the default-voltage
-  prompt. Anything that replaces the open diagram (`openDiagram`, `newDiagram`, `importDiagramFile`, `restoreDraft`)
-  goes through `confirmLeave`, which asks Save / Don't save / Cancel when there are unsaved edits; an id fix made on
-  open doesn't count (`openedRef`). Unsaved edits are also copied to an IndexedDB recovery draft (`lib/drafts.ts`),
-  offered back on startup and on open. Undo/redo (`undo`/`redo`/`canUndo`/`canRedo`) keeps whole-`Diagram`
-  snapshots: `updateDiagram` applies its updater to `diagramRef` (not inside `setDiagram`) and pushes the old one, and
-  every edit first runs under `diagramOps.withVoltagePolicy(true)`: a join of different voltage classes is skipped and, if any was, the edit waits for `VoltageMismatchDialog` (Connect reruns it with joins; edits made meanwhile queue behind it), and every other diagram write must go through `commitDiagram` (`reset` on open/new/import/restore, `clean` = what is on
-  disk). Split into two files to keep Vite Fast Refresh working.
-- `lib/api.ts`: the only backend caller. It normalizes Go `null` slices to arrays.
-- `lib/diagramOps.ts`: pure, immutable `Diagram → Diagram` editing functions (place/move/connect/route/splice/
-  reshape/delete/copy-paste/voltage classes/layers). Every edit goes through these via `updateDiagram`. Untouched
-  entries keep their object reference, which `diffDiagramForRender` relies on. `placeCustomElement` copies a whole
-  custom element with fresh ids while keeping its node topology (unlike `pasteGroup`, which drops wire-to-wire
-  junctions), and maps voltages by class name, falling back to the default voltage. `extractSelection` is its
-  inverse, used by the canvas context menu's "Save as custom element…" (`SaveCustomElementDialog`). Copy/Paste
-  use the same pair: the clipboard is an `extractSelection` diagram, pasted with `placeCustomElement`.
-- **Ports are fixed per shape** (the "Fixed ports and node topology" section at the end of `diagramOps.ts`). A
-  device whose shape declares N terminals (`symbolTerminals`: base.xml `<terminals>`, or a transformer's windings)
-  always has exactly N ports, `"1"`…`"N"` in terminal order, each on its own node at the terminal. Wiring never adds
-  a port (`attachElementEnd` picks the terminal's port node, so wires on one terminal share it). A `BusBarSection`
-  is the exception by design: one port per connection point, each on its own node (the downstream topology
-  processor merges them). Any node lying exactly on a busbar's line becomes one of its ports (`joinBusbar`, run when
-  the busbar is drawn/moved/reshaped, on repair; `joinNodesToBusbars` for a wire end or terminal moved onto one). `placeElement` creates them (`fitElementPorts`), Properties edits
-  re-fit them with `moveNodes` (orientation/mirror/position/size carry port nodes and wire ends along), and
-  `moveSelection` joins a zero-length wire's ends (`removeDegenerateConnectors`) and a dropped terminal to whatever
-  lies exactly under it (`joinPortNodes`: merges a node, splits a wire, or taps a busbar). A whole diagram is repaired
-  on the server only right after an `.svg`/`.xsde` import is extracted, and on the client's explicit "Repair diagram"
-  (`POST /api/repair`); opening and `.xsld` import run only `EnsureIDs` (`slddoc.Repair` is a rule-for-rule Go port of
-  these functions, plus `splitBusbarNodes`, which turns an imported busbar's one shared node into a port node per
-  connection point, repeated until a pass changes nothing; `prepareDiagram` adds `InferSizeSteps` for an extracted
-  one), never moving an existing node (an imported
-  diagram may use one node for a whole busbar); `normalizeTopology` repairs only a copied group as it lands. Keep
-  the two in step when a rule changes.
-- `components/Canvas.tsx`: pan/zoom (`react-zoom-pan-pinch`, double-click zoom disabled) and all interaction.
-  - **Hit-testing:** reads `data-editor-kind` + `Number(id)` from the server-rendered SVG.
-  - **Rendering:** a sequence of transactions (`renderNext`): one request at a time, never cancelled, its answer
-    always applied; a change made meanwhile waits, and the next request covers the difference between what was just
-    drawn and the diagram then. No timers. Each step is diffed against the last render: `'patch'` fetches
-    `/api/render/fragments` and swaps just those DOM nodes, `'full'` refetches `/api/render`, `'none'` skips. A
-    just-opened diagram's first drawing is the SVG `diagrams/open` delivered (`preRendered`), and a replaced document
-    (`documentVersion`) is always rendered whole. While a diagram is being opened, imported, created or restored, a spinner covers the canvas (`loading`)
-    until the canvas reports that document drawn (`diagramShown`).
-    A Picture's (shape 11) embedded image (`href`, a data URI) is stripped from both requests (`lib/picture.ts`);
-    Interactive render writes its `<image>` without an href and the canvas fills it in from state after each render.
-  - **Dragging:** mutates the rendered DOM directly and commits to diagram state on mouseup.
-  - **Selection and panning:** a plain left press (on an item or empty canvas) goes through `startPanOrClick`:
-    dragging pans the whole view (`transformRef.setTransform`), releasing without moving selects the item (Shift
-    toggles) or, on empty canvas, clears the selection. Plain left-drag never moves an item. The move/frame
-    modifier is Ctrl/Cmd, Cmd only on macOS (`hasMoveModifier`, since Ctrl-click opens the context menu there):
-    Ctrl/Cmd on an item drags it or its whole selection (`startModifierDrag` → `startGroupDrag`, a release without
-    moving toggles it), Ctrl/Cmd from empty canvas draws an additive selection frame (`startMarquee`/`marqueeHits`:
-    left→right picks only what's fully inside, right→left anything it touches; set with the context's
-    `selectMany`), and Ctrl/Cmd inside a multi-selection's dashed group box (`selectionBox`, no handles) drags the
-    group. A press that misses every rendered node still hits a wire within `CONNECTOR_HIT_PX` screen pixels
-    (`findConnectorNearHit`) or an element's padded box (`findElementBoxHit`). Selection handles (wire bends/ends,
-    busbar/Road/Line points) drag plainly. Space+drag and the middle button pan through the `TransformWrapper`'s
-    own `panning` prop, also while a tool is armed.
-  - **Copy/duplicate:** Ctrl/Cmd+C/V (paste offset `PASTE_OFFSET_STEPS` grid steps from the original,
-    `selectionCentroid`), right-click Copy/Paste, and Alt-drag (`startDuplicateDrag`: cloned DOM preview, copy placed
-    on release). All place through `placeCustomElement` and select the copy (`placeCopy`/`addedItems`).
-  - **Layers:** `Render` draws layer groups in `Layer.Z` order and tags items with `data-layer` (plus `<metadata>`),
-    like xsde2svg; a layer hidden in the Layers section (`hiddenLayers`, session only) is hidden by CSS
-    (`hiddenLayerCss`) and skipped by every diagram-state hit test (`isHidden`).
-  - **Overlays:** selection marks, terminals, nodes, and the grid are separate `<svg>` layers drawn from diagram
-    state. The grid must sit above the server markup, which paints an opaque background.
-  - **Routing:** only starts while a wire kind is armed from the palette (or via right-click "Start buswork"). It
-    starts from a terminal, from Ctrl/Cmd-click on a busbar or connector, or from a double-click on empty canvas.
-    There is no instant Ctrl/Cmd-click connect any more (`connectElements` was removed). A tap on a connector splits it
-    into two halves sharing a junction Node.
-- `components/panels/*`: File (New/Open/Import, folder browser), Elements (renders `config.palette`; item
-  classification in `lib/paletteItem.ts` mirrors `ValidatePalette`; a final "Custom elements" group comes from
-  `DiagramContext.customElements`, armed via `armCustomElement`), Settings, and Properties (right-docked, can stay
-  open with the palette; its nothing-selected view holds the diagram's Save/Export, Layers and Voltage classes).
-- `types/index.ts`: hand-kept mirror of the Go JSON shapes. Update it whenever a backend shape changes.
-- `i18n/`: build-time locale, no runtime switcher. `en.ts` is canonical (`as const`), `ru.ts` is typed
-  `Record<keyof Dictionary, string>` (a missing translation fails to compile), and `index.ts`'s `t(key, params)`
-  imports only the generated `active.ts`. Every user-facing string goes through a key.
-
-## Reference repos (siblings on disk)
-
-- `slddoc`: the diagram model this backend depends on.
-- `../../EMA/xsde2svg` (module `xsde2svg`, `replace` → `../../../EMA/xsde2svg` in `backend/go.mod`): the Modus `.xsde`
-  → SVG converter, used in-process through its `pkg/xsde2svg` `Convert`. Config section `xsde:` (`config`,
-  `workplace`; empty = its built-in `xsde2svg.yml`) points at `backend/assets/xsde2svg.yml` and `workplace.xml`,
-  copies of that repo's files that `make package` ships; both are read on every import. `make docker-build` mounts
-  it from `XSDE2SVG_DIR`. Every `sld-editor.yaml` key and both converter files are documented for users in the
-  guides' "Configuration" section (`#configuration`): keep it in step when adding a config key.
-- `sld-svg`: the canonical slddoc format and its `svg-sld` CLI.
-- `sld-viewer`: the UI/UX and backend-stack reference (a heavier, DB-backed SCADA viewer), plus real xsde2svg corpus
-  SVGs under `assets/sld/`.
+- **Diagram name/dir is always a query parameter, never a path segment** (Gin params can't carry `/`).
+- `.xsld` is the source of truth; the `.svg` is rendered on save. Writes are atomic under a store-wide lock.
+- Ids are ints in one shared space, 0 = unset; only the frontend's `IdSequence` assigns them (seeded from
+  `Diagram.LastID`). `Element.Shape` is a string library key.
+- Opening and `.xsld` import run only `EnsureIDs`; topology repair runs only after `.svg`/`.xsde` import and on explicit
+  "Repair diagram". **`slddoc.Repair` is a rule-for-rule Go port of `diagramOps.ts`'s fixed-ports/topology
+  functions — keep the two in step.** Repair never moves an existing node.
+- Ports are fixed per shape (N terminals → ports `"1"…"N"`); a BusBarSection is the exception (one port per
+  connection point; downstream topology merges them).
+- `Load` rewrites shape `"71"` → `"162"`: drop that rewrite once shape 71 is ported as its own type.
+- `RenderMode.Static` (saved `.svg`, downloads) must stay xsde2svg-faithful (absolute coordinates); `Interactive` is
+  canvas-only (local frames, `data-editor-kind`, wider hit targets). Connector kinds use type codes 21/22/23/28.
+- Every edit goes through `updateDiagram` + `diagramOps`; untouched entries keep their object reference
+  (`diffDiagramForRender` relies on it). Other diagram writes go through `commitDiagram`. Selection and armed tools are
+  mutually exclusive, except selecting doesn't clear `armedWireKind`.
+- Canvas rendering is one request at a time, never cancelled, no timers. Plain left-drag pans and never moves items;
+  the move/frame modifier is Ctrl/Cmd (Cmd only on macOS). The grid overlay must sit above the server markup.
+- Guide heading ids (`{#id}`) must be identical in both languages and stable (dialogs link to them). Every config key
+  and the xsde2svg files are documented in the guides' `#configuration` section — keep it in step.
+- Router trusts `X-Forwarded-For` only from loopback.
+- `DiagramContext` is split into two files to keep Vite Fast Refresh working.

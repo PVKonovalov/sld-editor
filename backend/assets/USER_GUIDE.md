@@ -711,6 +711,7 @@ Select a wire to show its handles (a click within a few pixels of a wire counts 
 - Drag a round handle (the middle of a segment) to add a bend there, or double-click the wire.
 - Click a bend handle and press **Delete** to remove just that bend.
 - Right-click a wire → **Delete segment** removes only the segment under the cursor.
+- Right-click the node where exactly two buswork wires of the same voltage class meet, with no device or busbar on it → **Merge buswork** makes them one wire: the one with the lower id runs on through the other's points, and the node is removed. Undo reverses it.
 
 A wire end that is not attached to anything is allowed; you can connect it later by dragging its hollow square end handle
 exactly onto a device terminal, another wire's end, a busbar or another wire's line (that wire is split there into a
