@@ -316,11 +316,29 @@ A file this editor exported, or a model without a layout, is imported without as
 - A model with equipment but no diagram layout (an EQ profile alone) is laid out automatically, on the model of
   PowSyBl's single-line layout: a diagram per substation (and one for equipment outside any), each voltage level a
   band with the highest voltage on top, its name (the voltage level's name, else its voltage) left of its busbars.
+  - Bands go in rows, side by side, their busbars level, with the transformers on a row between: what a transformer
+    steps down to goes on the row under the band of its highest winding, so a three-winding transformer's two lower
+    voltages share a row. Its middle voltage moves up beside the highest when that makes the rows more even (HV and
+    MV over the LV, as hand-drawn diagrams often have them). A bay leading to a transformer goes towards its row: down
+    from the row above it, up from the row below. A voltage level no transformer reaches goes on the lowest row, and
+    empty rows take no room.
+  - A transformer reaching the page at one node only (an auxiliary transformer at the end of a cable) ends its bay
+    like a load instead of standing on the transformer row.
   - Busbars that share a bay are parallel: full-width rows one under another. Busbars sharing none sit side by side.
   - Each bay (the devices between the busbars and what it feeds) takes columns of its own. Every device on a busbar
     has a column and drops straight onto its row, with a junction point there, crossing the busbars before it; each
     other device stands over the devices below it, and what the bay feeds (a line, a transformer, a load or
     generator) lies beyond them, a line to another substation as a short stub with its name.
+  - The spacing follows hand-drawn diagrams: bays 9 grid steps apart on a busbar up to 20 kV and 12 above it, the
+    columns of one bay (its legs to parallel busbars) 6 apart, devices 6 steps apart down a bay (4 between their
+    terminals), a bay's first device terminal 2 steps from the busbar, and the busbar 2 steps past its outermost bays. Each device's name is right of it, on its own row; a name
+    too long for the gap to the next bay takes a height of its own, by column. A connection the import adds between
+    pieces of one node bends the way that runs over no device.
+  - A bay is one straight run from the busbar to what it feeds, its breakers and disconnectors on it. Earthing is
+    drawn off to the side: an earthing switch (or a disconnector followed by one, or a ground) on a node of the run is
+    turned sideways, 2 steps right of the run at that node, with its name over it; a second one on the same node goes
+    to the left. The bay gets the room its earthing needs. An earthing switch straight on a busbar keeps its own
+    column.
   - Bus couplers (bays feeding nothing), bays leading to a transformer of a higher voltage and, on the top band, bays
     leading to a line go above the busbars; the others below. Transformers sit on a row between the bands of their
     windings, connected through free corridors, as are connections closing a ring. A lead never runs through another

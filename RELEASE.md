@@ -5934,3 +5934,46 @@ diagram's name in the middle of the canvas (the overlay's `cursor-wait` removed)
 - Frontend: `api.importDiagramCIM(bytes, {auto, windings})`, `prepareImport`'s `chooseWindings`, `DiagramContext`'s `cimWindingsPrompt`.
 - Tests: `TestCIMWindingVoltages`, `TestImportCIMWindingVoltages`.
 - User guides: new section "Transformer winding voltages" (`#cim-winding-voltages`).
+
+2026-10-27: CIM auto-layout spacing taken from hand-drawn diagrams (sibling `slddoc`, `cimlayout.go`). The rules were measured on a corpus of 32 reference diagrams, with whole-diagram grid shifts and terminals a few units off treated as noise:
+- **Bay pitch:** bays are 9 grid steps apart on a busbar up to 20 kV, as most distribution busbars draw them, and 12 steps above 20 kV (`layoutColumns`, `layoutWideColumns`, `layoutWideKV`). The columns of one bay (its legs to parallel busbars) are 6 apart (`layoutLegColumns`), through a per-band table of column positions (`layBand.xs`, `columnXs`). Before, every column used 6. With 18 steps for every column, an HV substation with triple busbars came out about 2.7 times as wide as before; now, measured on 56 pages, the total width is about half of that.
+- **Device pitch:** devices are 6 steps apart down a bay, 4 between terminals (`layoutLevel`, was 8).
+- **Busbar extent:** a busbar runs exactly 2 steps past its outermost bays.
+- **Names:** a device's name sits on the device's own row, 2 steps right, with its baseline half a step below the centre. Long names are staggered by column only when they don't fit the gap to the next bay (before, all were staggered).
+- **Bay columns:** columns are recorded per region and follow its moves, replacing a fixed lattice that only held for one pitch and broke once a region moved by whole grid steps (`columnX`).
+- **Ring connections:** a connection closing a ring is checked like a transformer lead (`leadClear`) and falls back to the grid router, then to a warning.
+- **Blocked side runs:** a transformer lead whose side run is blocked and finds no way around goes to the grid router first.
+- **Joins between pieces of one node:** the joining wires the import adds (`wireNode`) take the nearest way, bending either way, that runs over no device. This applies to every CIM import.
+
+On the six public CGMES test models, wires drawn over a device dropped from 26 to 2 on RealGrid (the 2 left are leads the import log already warns about) and from 1 to 0 elsewhere. Test: `TestAutoLayoutSpacing`. User guides: the CIM import section.
+
+2026-10-27: CIM auto-layout draws earthing off to the side of a bay (sibling `slddoc`, `earthingChain`, `tapsAt`, `tap`, `deviceSide` in `cimlayout.go`). A bay is one straight run from the busbar to what it feeds, with its breakers and disconnectors on it.
+- **What counts as a tap:** an earthing switch (`GroundDisconnector`), a `Ground`, or a switch (`Disconnector`, `Switch`, `LoadBreakSwitch`, `Fuse`) that leads only to earthing. Such a branch on a node of the run is no longer a leg of the bay's tree. Before, it got a column of its own, so a long horizontal run went off to it, or it hung down to the busbar row like a load.
+- **How it is drawn:** the branch is turned sideways. It joins the run with a T at its node (halfway between the two devices' terminals, or on the run from the bay's top node), 2 steps to the right, with its name over it. A second branch on the same node goes to the left.
+- **Room:** the bay gets the width its earthing needs between it and the next bay.
+- **Unchanged:** an earthing switch straight on a busbar keeps its own column.
+- **Lead checks:** names no longer count as obstacles in the lead checks (`leadClear`). A lead that is in the way of something drawn but keeps the rules is drawn without a warning. Routing warnings on the RealGrid test model dropped from 18 to 6.
+- **Tests:** `TestAutoLayoutEarthingTaps`, and `TestAutoLayoutSpacing` (12 steps above 20 kV).
+- **User guides:** the CIM import section.
+
+2026-10-27: CIM auto-layout leaves less empty space (sibling `slddoc`, `cimlayout.go`, `cimlayoutopt.go`).
+- **Transformer bands:** a transformer whose node sits in no voltage level now takes its band from the devices on that node. Before, it fell into an empty pseudo-band drawn at the very bottom, with a lead running down the whole page.
+- **Empty bands:** bands with nothing in them are no longer drawn.
+- **Transformer rows:** a band reserves a transformer row under it only when a transformer stands there.
+- **End transformers:** a transformer that reaches the page at one node only (an auxiliary transformer at the end of a cable, its other side outside the model) ends its bay like a load (`endTransformer`, `inlineTransformer`), instead of a lead to a transformer row. A transformer reaching nothing drawn goes on the first transformer row.
+- **Page size:** `arrange` also counts the page's width and height in its score (`layoutPageWeight`).
+- **Result on two test models:** one went from 6250 × 1950 to 4790 × 1840, the other from 3960 × 2700 to 3930 × 1530.
+
+2026-10-27: CIM auto-layout puts bands in rows instead of one under another (sibling `slddoc`, `bandTiers`, `balanceTiers` in `cimlayout.go`; `placeBlocks` in `cimlayoutopt.go`).
+- **Rows:** bands sit side by side in rows, their busbars level, with the transformer row in between. What a transformer steps down to goes on the row under the band of its highest winding, so a three-winding transformer's two lower voltages share a row. Its middle voltage moves up beside the highest when that evens out the rows: HV and MV over the LV, as hand-drawn diagrams often have them. A voltage level no transformer reaches goes on the lowest row.
+- **Why:** before, every voltage level had a row of its own. A 110/35/10 kV transformer's 10 kV lead then had to cross the 35 kV band, so the layout slid the 10 kV block out to the side, leaving the page wide and half empty.
+- **Corridors:** the bands of one row share it, each with its own range of corridors (`upOff`, `downOff`).
+- **Bay direction:** a bay leading to a transformer goes towards that transformer's row: down from the row above it, up from the row below (`goesUp`, `tierOf`).
+- **Rearranging:** `arrange` keeps every block on its row and only moves it sideways, clear of what is already on that row.
+- **End transformers:** an end transformer whose node is drawn on another page goes on a transformer row after all, so its page is not lost.
+- **Results:**
+  - One 110/35/10 kV test model: 110 and 35 kV on top, 10 kV below, the two transformers between. It now measures 4130 × 1420; it was 6250 × 1950 this morning.
+  - The RealGrid test model keeps all 4875 pages. Wires over a device dropped from 34 to 5 and routing warnings from 16 to 6 compared with this morning, for 12 % more page area (the wider LV bay pitch).
+  - The Svedala pages are as wide as before.
+- **Test:** `TestAutoLayoutThreeWindings` now checks that 35 and 10 kV share a row under 110 kV.
+- **User guides:** the CIM import section.
