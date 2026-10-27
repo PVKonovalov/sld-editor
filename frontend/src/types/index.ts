@@ -663,6 +663,24 @@ export interface UnmatchedVoltage {
   pages: number
 }
 
+// A transformer of a CIM import whose windings all have one voltage (POST /api/import/cim's sameVoltageTransformers,
+// slddoc.CIMSameVoltageTransformer): asked by CimWindingsDialog before the import goes on.
+export interface CimSameVoltageTransformer {
+  mrid: string
+  name: string
+  windings: CimWindingVoltage[]
+}
+
+// One winding of a CimSameVoltageTransformer: its PowerTransformerEnd's mRID and end number, the voltage the model
+// gives it and its rated voltage (kV).
+export interface CimWindingVoltage {
+  mrid: string
+  end: number
+  name?: string
+  kv: number
+  ratedU?: number
+}
+
 // One entry of the install-wide Open/Close/Intermediate legend a switching
 // device's State dropdown (Properties) offers and its rendered fill color
 // is drawn from — global, not stored per diagram (see

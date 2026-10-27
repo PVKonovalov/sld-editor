@@ -3,6 +3,7 @@ package api
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -72,8 +73,11 @@ func (s *Server) exportDiagramCIM(c *gin.Context) {
 
 // importDiagramCIM reads a CIM model, a zip of profile documents (e.g. CGMES EQ + DL) or one RDF/XML document, and
 // makes a diagram of each Diagram Layout diagram in it (with ?layout=auto, or with none, a diagram per substation
-// laid out automatically). Responds {pages, messages, unmatchedVoltages, foreignLayout}: the .xsde import's shape,
-// the voltage classes no voltage_colors preset names, and whether a page follows a layout made by another tool.
+// laid out automatically). Responds {pages, messages, unmatchedVoltages, foreignLayout, sameVoltageTransformers}:
+// the .xsde import's shape, the voltage classes no voltage_colors preset names, and whether a page follows a layout
+// made by another tool. Without ?windings, a model holding transformers whose windings all have one voltage is not
+// imported: the answer lists them in sameVoltageTransformers, with no pages, to be posted again with
+// ?windings={"<end mRID>": kV, …} (an empty object keeps the model's voltages).
 func (s *Server) importDiagramCIM(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
@@ -85,9 +89,29 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 		errJSON(c, http.StatusBadRequest, err)
 		return
 	}
+	windings, asked := c.GetQuery("windings")
+	if !asked {
+		same, err := slddoc.CIMSameVoltageTransformers(docs)
+		if err != nil {
+			errJSON(c, http.StatusBadRequest, err)
+			return
+		}
+		if len(same) > 0 {
+			c.JSON(http.StatusOK, gin.H{"pages": []importedPage{}, "messages": []cimMessage{}, "unmatchedVoltages": []unmatchedVoltage{},
+				"foreignLayout": false, "sameVoltageTransformers": same})
+			return
+		}
+	}
+	var kvs map[string]float64
+	if asked {
+		if err := json.Unmarshal([]byte(windings), &kvs); err != nil {
+			errJSON(c, http.StatusBadRequest, fmt.Errorf("windings: %w", err))
+			return
+		}
+	}
 	grid := s.cfg.Editor.GridSpacing
 	pages, err := slddoc.ImportCIM(docs, slddoc.CIMImportOptions{Terminals: s.lib.Terminals(), Classes: s.lib.Classes(), Grid: grid,
-		CIMClasses: s.cimClasses, AutoLayout: c.Query("layout") == "auto"})
+		CIMClasses: s.cimClasses, AutoLayout: c.Query("layout") == "auto", WindingVoltages: kvs})
 	if err != nil {
 		errJSON(c, http.StatusBadRequest, err)
 		return
@@ -120,7 +144,8 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 			messages = append(messages, cimMessage{Level: "WARN", Page: i + 1, Text: m})
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"pages": out, "messages": messages, "unmatchedVoltages": unmatched, "foreignLayout": foreign})
+	c.JSON(http.StatusOK, gin.H{"pages": out, "messages": messages, "unmatchedVoltages": unmatched, "foreignLayout": foreign,
+		"sameVoltageTransformers": []slddoc.CIMSameVoltageTransformer{}})
 }
 
 // prepareCIM finishes an imported CIM diagram like prepareDiagram does an extracted one, except for the topology

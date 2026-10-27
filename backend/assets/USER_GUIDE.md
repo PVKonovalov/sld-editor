@@ -326,6 +326,9 @@ A file this editor exported, or a model without a layout, is imported without as
     windings, connected through free corridors, as are connections closing a ring. A lead never runs through another
     band nor along any wire or device: where its straight way is blocked (a three-winding transformer's lead to the
     band beyond the next one) it goes around, crossing a wire straight across only where there is no other way.
+    A lead into a transformer never crosses the transformer itself: it reaches a winding from outside, going around
+    the transformer when it comes from the other side, and it never crosses nor runs along a wire of its own node.
+    When no such way exists, the lead is drawn anyway and the import log warns about it, naming the transformer.
   - Then the layout is tidied without changing its order: each busbar group with its bays moves only as a whole.
     The groups of one voltage class stay together, side by side on one row; each goes under the transformer it is
     fed from (a generator directly under its step-up transformer), and the row rises beside the band above where
@@ -339,6 +342,22 @@ A file this editor exported, or a model without a layout, is imported without as
     was generated.
 - Not restored: a value the export wrote as 0 because it was unset comes back as a real 0; decorative shapes and
   digital devices were never exported; equipment the layout places on another diagram is not drawn on this one.
+
+### Transformer winding voltages {#cim-winding-voltages}
+
+A transformer whose windings all have the same voltage can't be right: the model most likely gives one base
+voltage to every end, and then everything beyond the transformer is drawn in the wrong voltage band. So before
+anything is laid out, the **Transformer winding voltages** dialog lists each such transformer with a field per
+winding. The field starts at the winding's rated voltage (`ratedU`), else the model's voltage, both shown beside it.
+
+- **Apply**: each changed winding takes its voltage, and so does everything connected to it up to the next
+  transformer: its busbars, devices and lines. They get a voltage class of that voltage (named "<kV> kV") and their
+  own voltage band in the automatic layout. A winding joined back to another winding of its own transformer, with no
+  transformer between, is the only thing that changes; the import log says so.
+- **Keep as in the model** (also Esc): the model's voltages are kept.
+
+It is asked for a model with its own diagram layout too (the voltage classes are just as wrong), and for each
+file of a multi-file import.
 
 ### Voltage classes of a CIM import {#cim-voltage-colors}
 

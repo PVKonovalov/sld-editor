@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import type {
+  CimSameVoltageTransformer,
   Diagram,
   DiagramEntry,
   CustomElement,
@@ -65,6 +66,13 @@ export interface VoltageColorsPrompt {
 export interface CimLayoutPrompt {
   fileName: string
   diagrams: number
+}
+
+// A CIM import's transformers whose windings all have one voltage (fileName: the imported file), asked about by
+// CimWindingsDialog.
+export interface CimWindingsPrompt {
+  fileName: string
+  transformers: CimSameVoltageTransformer[]
 }
 
 // A recovery draft (lib/drafts.ts) offered by DraftRecoveryDialog.
@@ -321,6 +329,10 @@ export interface DiagramContextValue {
   // import waits for it); resolveCimLayoutPrompt answers.
   cimLayoutPrompt: CimLayoutPrompt | null
   resolveCimLayoutPrompt: (choice: 'model' | 'auto') => void
+  // Set while CimWindingsDialog asks the voltages of transformers whose windings all have one voltage (the import
+  // waits for it, before anything is laid out); resolveCimWindingsPrompt answers with end mRID → kV ({} keeps them).
+  cimWindingsPrompt: CimWindingsPrompt | null
+  resolveCimWindingsPrompt: (windings: Record<string, number>) => void
   addVoltagePresets: (colors: VoltageColor[]) => Promise<void>
   // Recovery drafts to offer (on startup, or when their diagram is opened):
   // restoreDraft makes one the working diagram (still unsaved),

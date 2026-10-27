@@ -6,7 +6,7 @@ import * as api from './api'
 import { joinDiagramPath, parentDir } from './diagramPath'
 import { diagramFileKind, readFileAsText } from './fileTransfer'
 import { t } from '../i18n'
-import type { ConverterMessage, Diagram, ImportReport, UnmatchedVoltage } from '../types'
+import type { CimSameVoltageTransformer, ConverterMessage, Diagram, ImportReport, UnmatchedVoltage } from '../types'
 
 export interface PreparedImport {
   diagram: Diagram
@@ -29,12 +29,21 @@ export interface PreparedFile {
  * ('model') or lay each substation out automatically ('auto'). */
 export type ChooseCimLayout = (fileName: string, diagrams: number) => Promise<'model' | 'auto'>
 
+/** Asked when a CIM model holds transformers whose windings all have one voltage: the voltage (kV) for each winding
+ * by its end's mRID, only those to change ({} keeps the model's). */
+export type ChooseCimWindings = (fileName: string, transformers: CimSameVoltageTransformer[]) => Promise<Record<string, number>>
+
 /** Turns a picked/dropped file into one diagram per page: an .xsld as-is, an xsde2svg-style .svg through
  * slddoc.Extract, an .xsde through xsde2svg and then Extract, a CIM model through slddoc.ImportCIM (a page per DL
- * diagram, or per substation when chooseLayout picks the automatic layout over another tool's). The server also repairs each diagram as opening one
+ * diagram, or per substation when chooseLayout picks the automatic layout over another tool's; transformers whose
+ * windings all have one voltage are first put to chooseWindings, as layout depends on voltages). The server also repairs each diagram as opening one
  * does, and gives an extracted one its most-used voltage class as the default voltage and its size steps.
  * Rejects for an unsupported extension or a file the backend can't read. */
-export async function prepareImport(file: File, chooseLayout?: ChooseCimLayout): Promise<PreparedFile> {
+export async function prepareImport(
+  file: File,
+  chooseLayout?: ChooseCimLayout,
+  chooseWindings?: ChooseCimWindings,
+): Promise<PreparedFile> {
   const kind = diagramFileKind(file.name)
   if (!kind) throw new Error(t('file.invalidDiagramFile', { name: file.name }))
   if (kind === 'xsld') {
@@ -48,10 +57,15 @@ export async function prepareImport(file: File, chooseLayout?: ChooseCimLayout):
   const bytes = await file.arrayBuffer()
   let answer =
     kind === 'xsde'
-      ? { ...(await api.importDiagramXSDE(bytes)), unmatchedVoltages: [], foreignLayout: false }
+      ? { ...(await api.importDiagramXSDE(bytes)), unmatchedVoltages: [], foreignLayout: false, sameVoltageTransformers: [] }
       : await api.importDiagramCIM(bytes)
+  let windings: Record<string, number> | undefined
+  if (answer.sameVoltageTransformers.length > 0) {
+    windings = chooseWindings ? await chooseWindings(file.name, answer.sameVoltageTransformers) : {}
+    answer = await api.importDiagramCIM(bytes, { windings })
+  }
   if (answer.foreignLayout && chooseLayout && (await chooseLayout(file.name, answer.pages.length)) === 'auto') {
-    answer = await api.importDiagramCIM(bytes, true)
+    answer = await api.importDiagramCIM(bytes, { auto: true, windings })
   }
   const { pages, messages, unmatchedVoltages } = answer
   const imported = new Set(pages.map(p => p.page))

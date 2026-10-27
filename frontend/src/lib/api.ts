@@ -12,6 +12,7 @@ import type {
   PresenceStatus,
   OpenTab,
   UnmatchedVoltage,
+  CimSameVoltageTransformer,
   VoltageColor,
 } from '../types'
 import { stripPictureHrefs } from './picture'
@@ -255,17 +256,23 @@ export async function addVoltageColors(colors: VoltageColor[]): Promise<VoltageC
 /** Converts a CIM model (a zip of CGMES profiles, or one RDF/XML document) to a diagram per Diagram Layout diagram,
  * or with auto (or no layout in it) a diagram per substation laid out automatically (POST /api/import/cim), in the
  * shape of importDiagramXSDE's answer plus the voltage classes no server preset names and whether a page follows a
- * layout made by another tool. */
+ * layout made by another tool. windings gives transformer ends (by mRID) their voltage in kV ({} keeps the model's);
+ * without it, a model with transformers whose windings all have one voltage answers only sameVoltageTransformers,
+ * with no pages, to be asked and posted again. */
 export async function importDiagramCIM(
   bytes: ArrayBuffer,
-  auto = false,
+  opts: { auto?: boolean; windings?: Record<string, number> } = {},
 ): Promise<{
   pages: { page: number; title: string; diagram: Diagram; report: ImportReport }[]
   messages: ConverterMessage[]
   unmatchedVoltages: UnmatchedVoltage[]
   foreignLayout: boolean
+  sameVoltageTransformers: CimSameVoltageTransformer[]
 }> {
-  const res = await fetch(`${BASE}/import/cim${auto ? '?layout=auto' : ''}`, {
+  const query = new URLSearchParams()
+  if (opts.auto) query.set('layout', 'auto')
+  if (opts.windings) query.set('windings', JSON.stringify(opts.windings))
+  const res = await fetch(`${BASE}/import/cim${query.size ? `?${query}` : ''}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream' },
     body: bytes,
@@ -275,12 +282,14 @@ export async function importDiagramCIM(
     messages: ConverterMessage[] | null
     unmatchedVoltages: UnmatchedVoltage[] | null
     foreignLayout?: boolean
+    sameVoltageTransformers: CimSameVoltageTransformer[] | null
   }>(res)
   return {
-    pages: data.pages.map(p => ({ ...p, diagram: normalizeDiagram(p.diagram) })),
+    pages: (data.pages ?? []).map(p => ({ ...p, diagram: normalizeDiagram(p.diagram) })),
     messages: data.messages ?? [],
     unmatchedVoltages: data.unmatchedVoltages ?? [],
     foreignLayout: data.foreignLayout ?? false,
+    sameVoltageTransformers: data.sameVoltageTransformers ?? [],
   }
 }
 

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"slices"
 	"strings"
@@ -245,5 +246,69 @@ func TestCIMDocumentsSkipsHidden(t *testing.T) {
 	slices.Sort(got)
 	if want := []string{"<rdf:RDF/>", "<rdf:RDF></rdf:RDF>"}; !slices.Equal(got, want) {
 		t.Errorf("documents = %q, want %q", got, want)
+	}
+}
+
+// sameVoltageCIM is a substation whose transformer writes one base voltage for both its ends, each on a busbar.
+const sameVoltageCIM = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:cim="http://iec.ch/TC57/CIM100#">
+<cim:BaseVoltage rdf:ID="_bv"><cim:BaseVoltage.nominalVoltage>33</cim:BaseVoltage.nominalVoltage></cim:BaseVoltage>
+<cim:Substation rdf:ID="_s"><cim:IdentifiedObject.name>S</cim:IdentifiedObject.name></cim:Substation>
+<cim:VoltageLevel rdf:ID="_v"><cim:VoltageLevel.Substation rdf:resource="#_s"/><cim:VoltageLevel.BaseVoltage rdf:resource="#_bv"/></cim:VoltageLevel>
+<cim:ConnectivityNode rdf:ID="_n1"><cim:ConnectivityNode.ConnectivityNodeContainer rdf:resource="#_v"/></cim:ConnectivityNode>
+<cim:ConnectivityNode rdf:ID="_n2"><cim:ConnectivityNode.ConnectivityNodeContainer rdf:resource="#_v"/></cim:ConnectivityNode>
+<cim:BusbarSection rdf:ID="_b1"><cim:IdentifiedObject.name>B1</cim:IdentifiedObject.name><cim:Equipment.EquipmentContainer rdf:resource="#_v"/></cim:BusbarSection>
+<cim:Terminal rdf:ID="_tb1"><cim:Terminal.ConductingEquipment rdf:resource="#_b1"/><cim:Terminal.ConnectivityNode rdf:resource="#_n1"/></cim:Terminal>
+<cim:BusbarSection rdf:ID="_b2"><cim:IdentifiedObject.name>B2</cim:IdentifiedObject.name><cim:Equipment.EquipmentContainer rdf:resource="#_v"/></cim:BusbarSection>
+<cim:Terminal rdf:ID="_tb2"><cim:Terminal.ConductingEquipment rdf:resource="#_b2"/><cim:Terminal.ConnectivityNode rdf:resource="#_n2"/></cim:Terminal>
+<cim:PowerTransformer rdf:ID="_t"><cim:IdentifiedObject.name>T</cim:IdentifiedObject.name><cim:Equipment.EquipmentContainer rdf:resource="#_s"/></cim:PowerTransformer>
+<cim:Terminal rdf:ID="_tt1"><cim:Terminal.ConductingEquipment rdf:resource="#_t"/><cim:Terminal.ConnectivityNode rdf:resource="#_n1"/><cim:ACDCTerminal.sequenceNumber>1</cim:ACDCTerminal.sequenceNumber></cim:Terminal>
+<cim:Terminal rdf:ID="_tt2"><cim:Terminal.ConductingEquipment rdf:resource="#_t"/><cim:Terminal.ConnectivityNode rdf:resource="#_n2"/><cim:ACDCTerminal.sequenceNumber>2</cim:ACDCTerminal.sequenceNumber></cim:Terminal>
+<cim:PowerTransformerEnd rdf:ID="_e1"><cim:TransformerEnd.endNumber>1</cim:TransformerEnd.endNumber><cim:PowerTransformerEnd.PowerTransformer rdf:resource="#_t"/><cim:TransformerEnd.Terminal rdf:resource="#_tt1"/><cim:TransformerEnd.BaseVoltage rdf:resource="#_bv"/></cim:PowerTransformerEnd>
+<cim:PowerTransformerEnd rdf:ID="_e2"><cim:TransformerEnd.endNumber>2</cim:TransformerEnd.endNumber><cim:PowerTransformerEnd.PowerTransformer rdf:resource="#_t"/><cim:TransformerEnd.Terminal rdf:resource="#_tt2"/><cim:TransformerEnd.BaseVoltage rdf:resource="#_bv"/></cim:PowerTransformerEnd>
+</rdf:RDF>`
+
+func TestImportCIMWindingVoltages(t *testing.T) {
+	s := newTestServer(t)
+	post := func(query string) (int, struct {
+		Pages []struct {
+			Diagram *slddoc.Diagram `json:"diagram"`
+		} `json:"pages"`
+		Same []slddoc.CIMSameVoltageTransformer `json:"sameVoltageTransformers"`
+	}) {
+		req := httptest.NewRequest(http.MethodPost, "/api/import/cim"+query, strings.NewReader(sameVoltageCIM))
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		var out struct {
+			Pages []struct {
+				Diagram *slddoc.Diagram `json:"diagram"`
+			} `json:"pages"`
+			Same []slddoc.CIMSameVoltageTransformer `json:"sameVoltageTransformers"`
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &out)
+		return rec.Code, out
+	}
+	classes := func(d *slddoc.Diagram) []string {
+		var names []string
+		for _, vc := range d.VoltageClasses {
+			names = append(names, vc.Name)
+		}
+		slices.Sort(names)
+		return names
+	}
+
+	code, asked := post("")
+	if code != http.StatusOK || len(asked.Pages) != 0 || len(asked.Same) != 1 || len(asked.Same[0].Windings) != 2 {
+		t.Fatalf("ask: %d %+v", code, asked)
+	}
+	code, kept := post("?windings=%7B%7D")
+	if code != http.StatusOK || len(kept.Pages) != 1 || !slices.Equal(classes(kept.Pages[0].Diagram), []string{"33 kV"}) {
+		t.Fatalf("keep: %d %+v", code, kept)
+	}
+	code, set := post("?windings=" + url.QueryEscape(`{"e2": 11}`))
+	if code != http.StatusOK || len(set.Pages) != 1 || !slices.Equal(classes(set.Pages[0].Diagram), []string{"11 kV", "33 kV"}) {
+		t.Fatalf("set: %d %+v", code, set)
+	}
+	if code, _ := post("?windings=oops"); code != http.StatusBadRequest {
+		t.Errorf("bad windings: status %d", code)
 	}
 }
