@@ -632,7 +632,7 @@ export interface ElementSymbol {
   // per-instance length (DiagramElement.span): breakers, disconnectors and
   // similar two-terminal devices.
   leads?: boolean
-  // The CIM classes an element of this shape can export as, the default first (slddoc.CIMClasses);
+  // The CIM classes an element of this shape can export as, the default first (the cim.classes configuration);
   // absent for a shape that isn't exported as equipment.
   cim?: string[]
 }
@@ -752,6 +752,6 @@ export interface EditorConfig {
   // Placement hot keys (config hot_keys, lower-cased): key → palette item
   // code. Absent from an older server, or when none are configured.
   hotKeys?: Record<string, string>
-  // The CIM classes a connector kind exported as equipment can stand for, default first (slddoc.ConnectorCIMClasses).
+  // The CIM classes a connector kind exported as equipment can stand for, default first (cim.classes "28").
   cimConnectorClasses?: Partial<Record<ConnectorKind, string[]>>
 }

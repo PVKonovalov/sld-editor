@@ -298,7 +298,9 @@ A file this editor exported, or a model without a layout, is imported without as
   the same voltage class stays a plain crossing, though the two are not connected. The import log counts the jumps
   and any crossing too cramped for one.
 - Wires the layout draws for a connectivity node are kept. Whatever of a node they leave unconnected gets an
-  orthogonal wire to the rest of it, to its busbar when it has one; the import log counts these.
+  orthogonal wire to the rest of it, to its busbar when it has one; the import log counts these. A device whose
+  terminal lies over or under the busbar drops straight onto it, as drawn by hand, not across to a neighbour's
+  terminal.
 - Layouts made by other tools often draw less than this editor exports, and they are completed:
   - A busbar drawn only as its connectivity node (a line for the node, none for the BusbarSection) becomes that
     busbar; a node drawn as a short bar shorter than two grid steps only marks a junction and is not drawn.
@@ -306,13 +308,18 @@ A file this editor exported, or a model without a layout, is imported without as
     runs over another device or a terminal of another node; then the connection is routed instead.
   - Each device is turned so its terminals are where the layout draws them, a quarter or half turn when the symbol
     lies on the other axis (a transformer drawn upright); a device with no terminals drawn is turned so they face
-    what they connect to. No wire runs through a device to reach its far terminal.
+    what they connect to. No wire runs through a device to reach its far terminal. A one-terminal device (a load, a
+    network infeed, a generator) drawn with its symbol over its own wire is turned to point away from it.
   - A line the layout doesn't draw runs from its device to the marker of the substation at its other end (a
     Substation object), across to it when the way ahead is taken, or out as a short stub; it carries its name. The
     import log counts these line ends. A busbar or device the layout doesn't place on a diagram is not drawn there.
 - A layout in other units is scaled so neighbouring devices are about six grid steps apart, snapped to the grid, and
   turned the right way up when its y axis points up.
-- Equipment without a symbol here (a DC line, for example) is listed under **Skipped** in the import log.
+- Which symbol each CIM class is drawn with comes from the server's configuration (`cim.import`, see
+  [sld-editor.yaml](#configuration-editor)). Equipment of a class with no symbol there (a DC line, for example) is
+  drawn where the layout places it as a red box with its CIM class written in it, connected to nothing, so it can be
+  replaced by hand; it is listed under **Skipped** in the import log, with a warning. An automatic layout leaves it
+  out.
 - A model with equipment but no diagram layout (an EQ profile alone) is laid out automatically, on the model of
   PowSyBl's single-line layout: a diagram per substation (and one for equipment outside any), each voltage level a
   band with the highest voltage on top, its name (the voltage level's name, else its voltage) left of its busbars.
@@ -439,7 +446,8 @@ constraints, so it is not a full CGMES model (no SSH, TP or SV). Unsaved edits a
   them). A breaker can be a disconnecting circuit breaker, a generator or motor an asynchronous machine, a shunt
   reactor a Petersen coil, a starter a load break switch, a **Load** a conform or non-conform load, and a **Network
   infeed** an equivalent injection or energy source. These choices, and every symbol's default, come from the
-  server's configuration (`cim.classes`, see [sld-editor.yaml](#configuration-editor)).
+  server's configuration (`cim.classes`, see [sld-editor.yaml](#configuration-editor)). A symbol with no row there
+  is not exported, and the export's notes say so.
 - **Load**, **Network infeed** and **Static var compensator** (under Other equipment in the palette) are symbols for
   CIM equipment that classic diagrams have no symbol for: a consumer, a connection to an outside network, and an SVC.
 - Each overhead or cable line becomes an AC line segment in a line of its own name.
@@ -942,7 +950,7 @@ location / {
 
 The editor's own settings, read once at startup: restart the editor, then reload the page, after changing them. The
 exceptions are `user_guide` and the two `xsde` files, which are read again on every use. A mistake in `palette` or
-`hot_keys` or `cim.classes` stops the editor at startup with a message naming it.
+`hot_keys` or `cim` stops the editor at startup with a message naming it.
 
 | Key | What it sets |
 |---|---|
@@ -962,7 +970,8 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `indicators.default_fpi_text` | Text a fault passage indicator shows when it has none of its own. |
 | `palette` | The Elements panel: groups (`name`, in display order) and their `items`, each an xsde2svg object type code. |
 | `hot_keys` | Placement keys: a letter or digit → a palette item code (`r` and `m` are taken by rotate and mirror). |
-| `cim.classes` | A symbol shape code, as in `palette` (`"28"` is a link to object) → the CIM classes an element of that shape can stand for, its default first ([CIM export](#cim-export)); a shape left out keeps the built-in list of its element class. Only CIM classes exported alike can be chosen: switches, machines, injections, shunts or auxiliary equipment (the file's comment lists them). |
+| `cim.classes` | Export: a symbol shape code, as in `palette` (`"28"` is a link to object) → the CIM classes an element of that shape can stand for, its default first ([CIM export](#cim-export)). A symbol left out is not exported (the startup log names it). Only CIM classes exported alike can be chosen: switches, machines, injections, shunts, auxiliary equipment, or the symbol's own class (the file's comment lists them). |
+| `cim.import` | Import: a CIM class → the symbol shape it is drawn with. `Class.variant` picks a symbol by the object's attributes: `SynchronousMachine.condenser`, `SynchronousMachine.motor`, `AsynchronousMachine.generator`, `LinearShuntCompensator.reactor`, `NonlinearShuntCompensator.reactor` (the file's comment says when each applies). A class left out is drawn as a red box with its name ([CIM import](#cim-import)). |
 
 Most single values can also be set by an environment variable named after the key path in capitals, e.g.
 `SERVER_BIND`, `DIAGRAMS_DIR`, `XSDE_CONFIG`, `XSDE_WORKPLACE`, `EDITOR_GRID_SPACING` (lists comma-separated, e.g.

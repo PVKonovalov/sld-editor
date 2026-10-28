@@ -128,11 +128,13 @@ type Config struct {
 	// are reserved. elements.ValidateHotKeys checks it at startup.
 	HotKeys map[string]string `yaml:"hot_keys"`
 
-	// CIM configures the CIM export and import. Classes maps a symbol shape code (as in Palette; "28" is a link to
-	// object) to the CIM classes it can stand for, its default first; a shape left out keeps its element class's
-	// built-in list. Checked at startup.
+	// CIM is the whole mapping between symbols and CIM classes, checked at startup (slddoc.NewCIMClassTable).
+	// Classes (export) maps a symbol shape code (as in Palette; "28" is a link to object) to the CIM classes it can
+	// stand for, its default first; a shape left out is not exported. Import maps a CIM class, or "Class.variant",
+	// to the shape it is drawn with; a class left out is drawn as a placeholder.
 	CIM struct {
 		Classes map[string][]string `yaml:"classes"`
+		Import  map[string]string   `yaml:"import"`
 	} `yaml:"cim"`
 }
 

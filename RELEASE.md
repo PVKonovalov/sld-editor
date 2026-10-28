@@ -5977,3 +5977,19 @@ On the six public CGMES test models, wires drawn over a device dropped from 26 t
   - The Svedala pages are as wide as before.
 - **Test:** `TestAutoLayoutThreeWindings` now checks that 35 and 10 kV share a row under 110 kV.
 - **User guides:** the CIM import section.
+
+2026-10-28: CIM import with a layout from another tool (sibling `slddoc`) fixes two wiring faults seen on a layout that draws each device as a single point and no wires.
+- A one-terminal device (load, network infeed, generator) drawn with its symbol over its own wire is turned to point away from it. Before, the layout's rotation was taken as-is, so an infeed above its disconnector hung down over the wire.
+- A device whose terminal lies over or under its busbar drops straight onto it. Before, when a neighbour's terminal was exactly as far away as the busbar, the device was wired across to the neighbour.
+- A device placed off its column in the layout file stays where the file puts it; that is the exporter's to fix.
+- **Test:** `TestImportCIMPointLayoutFacesAndDrops` (slddoc).
+- **User guides:** the CIM import section.
+
+2026-10-28: The whole mapping between symbols and CIM classes now lives in one place, the `cim:` section of `backend/config/sld-editor.yaml`. It used to be split between that file and built-in tables in the sibling `slddoc`.
+- `cim.classes` (export) lists every exported symbol with the CIM classes it can stand for, default first. A symbol with no row is not exported: the startup log names it, and the export's notes report each such element.
+- `cim.import` (new) maps a CIM class to the symbol it is drawn with. A `Class.variant` row picks a symbol by the object's attributes: `SynchronousMachine.condenser` / `.motor`, `AsynchronousMachine.generator`, `LinearShuntCompensator.reactor` and `NonlinearShuntCompensator.reactor`.
+- Equipment of a CIM class with no `import` row is drawn where the layout places it as a red box, captioned in red with its CIM class and connected to nothing. Before, it was left out. It is still listed under Skipped, now with a warning. An automatic layout still leaves it out.
+- The shipped file lists exactly the old built-in mapping, so imports and exports are unchanged; a re-import of a test archive gave identical output.
+- Startup checks both lists (unknown shapes, classes or variants, classes the export can't write for a symbol).
+- **Tests:** `TestCIMRoundTrip` and `TestImportCIMWindingVoltages` run on the shipped element library and the shipped `cim` section (`newCIMTestServer`), which must validate with no symbol left out.
+- **User guides:** the CIM import and export sections, and the configuration table (`cim.classes`, `cim.import`).

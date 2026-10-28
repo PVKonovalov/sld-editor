@@ -19,6 +19,7 @@ import (
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
 	"sld-editor/internal/storage"
+	"sld-editor/pkg/configuration"
 )
 
 func TestExportDiagramCIM(t *testing.T) {
@@ -59,7 +60,9 @@ func TestExportDiagramCIM(t *testing.T) {
 
 // TestCIMRoundTrip exports the bundled custom element to CIM and imports it back: the same devices, by name and
 // class, come back with the same connections.
-func TestCIMRoundTrip(t *testing.T) {
+// newCIMTestServer is a server with the shipped element library and the shipped configuration's cim mapping.
+func newCIMTestServer(t *testing.T) (*Server, *elements.Library) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	lib, err := elements.LoadAll([]string{"../../assets/elements/base.xml"})
 	if err != nil {
@@ -69,9 +72,21 @@ func TestCIMRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	var shipped config.Config
+	if err := configuration.ReadConfigFromYMLFile("../../config/sld-editor.yaml", &shipped); err != nil {
+		t.Fatal(err)
+	}
+	if _, unlisted, err := slddoc.NewCIMClassTable(lib.Classes(), shipped.CIM.Classes, shipped.CIM.Import); err != nil || len(unlisted) > 0 {
+		t.Fatalf("shipped cim configuration: %v, unlisted %v", err, unlisted)
+	}
 	cfg := &config.Config{}
 	cfg.Editor.GridSpacing = 10
-	s := NewServer(store, store, lib, cfg)
+	cfg.CIM = shipped.CIM
+	return NewServer(store, store, lib, cfg), lib
+}
+
+func TestCIMRoundTrip(t *testing.T) {
+	s, lib := newCIMTestServer(t)
 
 	f, err := os.Open("../../../custom-elements/CB.xsld")
 	if err != nil {
@@ -115,7 +130,7 @@ func TestCIMRoundTrip(t *testing.T) {
 		t.Errorf("an own export should need no guessing: %+v", imported.Messages)
 	}
 	back := imported.Pages[0].Diagram
-	a, b := connections(t, orig), connections(t, back)
+	a, b := connections(t, s, orig), connections(t, s, back)
 	if len(a) < 3 {
 		t.Fatalf("too few connections to compare: %v", a)
 	}
@@ -137,16 +152,16 @@ func TestCIMRoundTrip(t *testing.T) {
 	if len(imported.Pages) != 1 {
 		t.Fatalf("auto pages = %d", len(imported.Pages))
 	}
-	if auto := connections(t, imported.Pages[0].Diagram); !slices.Equal(a, auto) {
+	if auto := connections(t, s, imported.Pages[0].Diagram); !slices.Equal(a, auto) {
 		t.Errorf("auto layout connections differ:\n%v\n%v", a, auto)
 	}
 }
 
 // connections lists, for each ConnectivityNode of d's CIM export, the sorted "name/class/terminal" of the devices
 // on it; the list itself is sorted.
-func connections(t *testing.T, d *slddoc.Diagram) []string {
+func connections(t *testing.T, s *Server, d *slddoc.Diagram) []string {
 	t.Helper()
-	eq := slddoc.ExportCIM(d, slddoc.CIMOptions{Name: "t"}).EQ
+	eq := slddoc.ExportCIM(d, slddoc.CIMOptions{Name: "t", Classes: s.cimClasses}).EQ
 	type object struct {
 		class string
 		props map[string]string
@@ -268,7 +283,7 @@ const sameVoltageCIM = `<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syn
 </rdf:RDF>`
 
 func TestImportCIMWindingVoltages(t *testing.T) {
-	s := newTestServer(t)
+	s, _ := newCIMTestServer(t)
 	post := func(query string) (int, struct {
 		Pages []struct {
 			Diagram *slddoc.Diagram `json:"diagram"`

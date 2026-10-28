@@ -207,27 +207,110 @@ hot_keys:
   w: "21"    # Buswork
   g: "54"    # Grounder
 
-# CIM export and import. classes: a symbol shape code, as in the palette above
-# ("28" is a link to object) → the CIM classes an element of that shape can
-# stand for, its default first; the others are offered in Properties' CIM
-# class list. A shape left out keeps its element class's built-in list (each
-# device exports as its usual CIM class). A device can only stand for CIM
-# classes the export writes alike: switches (Breaker,
-# DisconnectingCircuitBreaker, Disconnector, LoadBreakSwitch,
-# GroundDisconnector, Switch, Fuse, Jumper), machines (SynchronousMachine,
-# AsynchronousMachine), injections (EnergyConsumer, ConformLoad,
-# NonConformLoad, ExternalNetworkInjection, EquivalentInjection, EnergySource),
-# shunts (LinearShuntCompensator, PetersenCoil) or auxiliary equipment
-# (CurrentTransformer, PotentialTransformer, SurgeArrester, FaultIndicator,
-# WaveTrap). Mistakes stop the server at startup.
+# CIM export and import: the whole mapping between symbols and CIM classes.
+#
+# classes (export): a symbol shape code, as in the palette above ("28" is a
+# link to object) → the CIM classes an element of that shape can stand for,
+# its default first; the others are offered in Properties' CIM class list. A
+# symbol not listed here is not exported as equipment (logged at startup, and
+# reported in the export's notes). A symbol can only stand for CIM classes the
+# export writes alike: switches (Breaker, DisconnectingCircuitBreaker,
+# Disconnector, LoadBreakSwitch, GroundDisconnector, Switch, Fuse, Jumper),
+# machines (SynchronousMachine, AsynchronousMachine), injections
+# (EnergyConsumer, ConformLoad, NonConformLoad, ExternalNetworkInjection,
+# EquivalentInjection, EnergySource), shunts (LinearShuntCompensator,
+# PetersenCoil), auxiliary equipment (CurrentTransformer,
+# PotentialTransformer, SurgeArrester, FaultIndicator, WaveTrap), or its own
+# class (busbars BusbarSection, transformers PowerTransformer, Ground,
+# SeriesCompensator, StaticVarCompensator).
+#
+# import: a CIM class → the symbol shape it is drawn with. "Class.variant"
+# picks a symbol by the object's attributes: SynchronousMachine.condenser
+# (type condenser), SynchronousMachine.motor (type motor or
+# motorOrCondenser), AsynchronousMachine.generator (a generator type), and
+# LinearShuntCompensator.reactor / NonlinearShuntCompensator.reactor
+# (bPerSection < 0); without its row a variant takes its class's. A device of
+# a class not listed is drawn where the layout places it as a red box with its
+# CIM class written in it, connected to nothing (and listed under Skipped in
+# the import log). Lines (ACLineSegment) and links to object are not listed:
+# they are connectors. Mistakes stop the server at startup.
 cim:
   classes:
-    "41": [ Breaker, DisconnectingCircuitBreaker ]                            # Breaker
-    "43": [ Breaker, DisconnectingCircuitBreaker ]                            # Breaker (withdrawable)
-    "76": [ Switch, LoadBreakSwitch ]                                         # Starter
-    "173": [ SynchronousMachine, AsynchronousMachine ]                        # Generator
-    "39": [ SynchronousMachine, AsynchronousMachine ]                         # Synchronous motor
-    "397": [ LinearShuntCompensator, PetersenCoil ]                           # Reactor (shunt)
-    "330001": [ EnergyConsumer, ConformLoad, NonConformLoad ]                 # Load
-    "330002": [ ExternalNetworkInjection, EquivalentInjection, EnergySource ] # Network infeed
-    "28": [ EnergyConsumer, EnergySource ]                                    # Link to object
+    "24":     [ BusbarSection ]                                                    # Busbar section
+    "41":     [ Breaker, DisconnectingCircuitBreaker ]                             # Breaker
+    "43":     [ Breaker, DisconnectingCircuitBreaker ]                             # Breaker (withdrawable)
+    "399":    [ Breaker ]                                                          # Power circuit breaker
+    "42":     [ LoadBreakSwitch ]                                                  # Load-break switch
+    "162":    [ Disconnector ]                                                     # Disconnector
+    "49":     [ Disconnector ]                                                     # Disconnector (withdrawable)
+    "44":     [ Disconnector ]                                                     # Knife switch
+    "175":    [ Disconnector ]                                                     # 3-position knife switch
+    "164":    [ Switch ]                                                           # Sectionalizer
+    "50":     [ Switch ]                                                           # Sectionalizer (withdrawable)
+    "163":    [ Switch ]                                                           # Short-circuiter without ground
+    "51":     [ Switch ]                                                           # Chassis
+    "52":     [ Switch ]                                                           # Half-chassis
+    "76":     [ Switch, LoadBreakSwitch ]                                          # Starter
+    "54":     [ GroundDisconnector ]                                               # Ground switch
+    "398":    [ GroundDisconnector ]                                               # Short-circuiter
+    "203":    [ Fuse ]                                                             # Fuse
+    "154":    [ Fuse ]                                                             # Fuse (withdrawable)
+    "166":    [ Fuse ]                                                             # Disconnector-fuse
+    "31":     [ Ground ]                                                           # Ground terminal
+    "47":     [ PowerTransformer ]                                                 # Power transformer
+    "6":      [ PowerTransformer ]                                                 # Booster/voltage regulator
+    "173":    [ SynchronousMachine, AsynchronousMachine ]                          # Generator
+    "174":    [ SynchronousMachine ]                                               # Synchronous compensator
+    "39":     [ SynchronousMachine, AsynchronousMachine ]                          # Synchronous motor
+    "37":     [ SeriesCompensator ]                                                # Reactor
+    "33":     [ SeriesCompensator ]                                                # Choke coil
+    "156":    [ SeriesCompensator ]                                                # Resistor
+    "172":    [ LinearShuntCompensator ]                                           # Capacitor bank
+    "388":    [ LinearShuntCompensator ]                                           # Capacitor
+    "397":    [ LinearShuntCompensator, PetersenCoil ]                             # Reactor (shunt)
+    "34":     [ CurrentTransformer ]                                               # Current transformer
+    "55":     [ PotentialTransformer ]                                             # Voltage transformer
+    "168":    [ SurgeArrester ]                                                    # Surge arrester (grounded)
+    "35":     [ SurgeArrester ]                                                    # Surge arrester
+    "29":     [ SurgeArrester ]                                                    # Surge arrester
+    "320003": [ FaultIndicator ]                                                   # Fault passage indicator
+    "389":    [ WaveTrap ]                                                         # Blocking filter
+    "330001": [ EnergyConsumer, ConformLoad, NonConformLoad ]                      # Load
+    "330002": [ ExternalNetworkInjection, EquivalentInjection, EnergySource ]      # Network infeed
+    "330003": [ StaticVarCompensator ]                                             # Static var compensator
+    "28":     [ EnergyConsumer, EnergySource ]                                     # Link to object
+  import:
+    Breaker:                           "41"      # Breaker
+    DisconnectingCircuitBreaker:       "41"      # Breaker
+    Disconnector:                      "162"     # Disconnector
+    LoadBreakSwitch:                   "42"      # Load-break switch
+    Switch:                            "164"     # Sectionalizer
+    GroundDisconnector:                "54"      # Ground switch
+    Fuse:                              "203"     # Fuse
+    Ground:                            "31"      # Ground terminal
+    BusbarSection:                     "24"      # Busbar section
+    PowerTransformer:                  "47"      # Power transformer
+    SynchronousMachine:                "173"     # Generator
+    SynchronousMachine.condenser:      "174"     # Synchronous compensator
+    SynchronousMachine.motor:          "39"      # Synchronous motor
+    AsynchronousMachine:               "39"      # Synchronous motor
+    AsynchronousMachine.generator:     "173"     # Generator
+    SeriesCompensator:                 "37"      # Reactor
+    LinearShuntCompensator:            "172"     # Capacitor bank
+    LinearShuntCompensator.reactor:    "397"     # Reactor (shunt)
+    NonlinearShuntCompensator:         "172"     # Capacitor bank
+    NonlinearShuntCompensator.reactor: "397"     # Reactor (shunt)
+    PetersenCoil:                      "397"     # Reactor (shunt)
+    CurrentTransformer:                "34"      # Current transformer
+    PotentialTransformer:              "55"      # Voltage transformer
+    SurgeArrester:                     "168"     # Surge arrester (grounded)
+    FaultIndicator:                    "320003"  # Fault passage indicator
+    WaveTrap:                          "389"     # Blocking filter
+    Junction:                          "7"       # Junction point
+    EnergyConsumer:                    "330001"  # Load
+    ConformLoad:                       "330001"  # Load
+    NonConformLoad:                    "330001"  # Load
+    ExternalNetworkInjection:          "330002"  # Network infeed
+    EquivalentInjection:               "330002"  # Network infeed
+    EnergySource:                      "330002"  # Network infeed
+    StaticVarCompensator:              "330003"  # Static var compensator

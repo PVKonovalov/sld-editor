@@ -52,7 +52,7 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
 - Docs: `README.md` (build/run/packaging), `backend/assets/USER_GUIDE.md` + `.ru.md` (in-app guide), `TODO.md`,
   `elements.md` (xsde2svg shapes being ported), `docs/CIM_INTEROP.md`.
 - Backend: `cmd/sld-editor/main.go`; `internal/config` (`config/sld-editor.yaml`: palette, hot keys, voltage/state
-  colors, `cim.classes`, `xsde:`), `internal/elements` (XML symbol libraries, `assets/elements/base.xml`,
+  colors, `cim`, `xsde:`), `internal/elements` (XML symbol libraries, `assets/elements/base.xml`,
   palette/hot-key validation at startup), `internal/storage` (filesystem store, `.xsld` + rendered `.svg`, history),
   `internal/api` (all routes; `repair.go`, `cim.go`, `folders.go`, `presence.go`, `custom_elements.go`,
   `user_guide.go`), `internal/presence`, `pkg/configuration`, `pkg/llog`.
@@ -84,5 +84,7 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
   the move/frame modifier is Ctrl/Cmd (Cmd only on macOS). The grid overlay must sit above the server markup.
 - Guide heading ids (`{#id}`) must be identical in both languages and stable (dialogs link to them). Every config key
   and the xsde2svg files are documented in the guides' `#configuration` section — keep it in step.
+- The symbol ↔ CIM class mapping, both ways, lives only in the YAML's `cim:` (`classes` for export, `import` for
+  import); slddoc has no built-in table. A new exported symbol needs a `classes` row, a new CIM class an `import` row.
 - Router trusts `X-Forwarded-For` only from loopback.
 - `DiagramContext` is split into two files to keep Vite Fast Refresh working.

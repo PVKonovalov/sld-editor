@@ -55,8 +55,8 @@ type Symbol struct {
 	// per-instance length (slddoc.Element.Span, slddoc.HasLeads). Derived
 	// from Shape on Load.
 	Leads bool `xml:"-" json:"leads,omitempty"`
-	// CIM lists the CIM classes an element of this symbol can be exported as, the default first
-	// (slddoc.CIMClasses). Derived from Class on Load.
+	// CIM lists the CIM classes an element of this symbol can be exported as, the default first, from the cim
+	// configuration (ApplyCIMClasses).
 	CIM []string `xml:"-" json:"cim,omitempty"`
 }
 
@@ -86,7 +86,6 @@ func Load(data []byte) (*Library, error) {
 		}
 		s.Scalable = slddoc.UsesSizeStep(slddoc.Class(s.Class))
 		s.Leads = slddoc.HasLeads(s.Shape)
-		s.CIM = slddoc.CIMClasses(slddoc.Class(s.Class))
 		lib.Symbols = append(lib.Symbols, s)
 	}
 	return lib, nil

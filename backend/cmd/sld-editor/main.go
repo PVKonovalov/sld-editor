@@ -65,9 +65,12 @@ func main() {
 	}
 	cfg.HotKeys = hotKeys
 
-	cimClasses, err := slddoc.NewCIMClassTable(lib.Classes(), cfg.CIM.Classes)
+	cimClasses, unlisted, err := slddoc.NewCIMClassTable(lib.Classes(), cfg.CIM.Classes, cfg.CIM.Import)
 	if err != nil {
 		llog.Logger.Fatalf("validating cim configuration: %v", err)
+	}
+	if len(unlisted) > 0 {
+		llog.Logger.Warnf("cim.classes has no row for shape(s) %s: they are not exported to CIM", strings.Join(unlisted, ", "))
 	}
 	lib.ApplyCIMClasses(cimClasses)
 
