@@ -4908,6 +4908,27 @@ export function rotateElements(diagram: Diagram, ids: Iterable<number>, symbols:
   )
 }
 
+/** labelRotation keeps an angle in degrees in (-180, 180], as a label's rotate is stored. */
+export function labelRotation(angle: number): number {
+  let a = angle % 360
+  if (a > 180) a -= 360
+  else if (a <= -180) a += 360
+  return a
+}
+
+/** Turns each label of ids by 90° about its own anchor, clockwise or not. Returns diagram itself when ids holds no
+ * label. */
+export function rotateLabels(diagram: Diagram, ids: Iterable<number>, clockwise: boolean): Diagram {
+  const turn = new Set(ids)
+  if (!diagram.labels.some(l => turn.has(l.id))) return diagram
+  return {
+    ...diagram,
+    labels: diagram.labels.map(l =>
+      turn.has(l.id) ? { ...l, rotate: labelRotation((l.rotate ?? 0) + (clockwise ? 90 : -90)) || undefined } : l,
+    ),
+  }
+}
+
 /** Flips Mirror on each element of ids that canMirror, its ports and wire
  * ends following. Others are skipped. Returns diagram itself when none
  * flipped. */

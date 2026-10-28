@@ -875,12 +875,28 @@ export function Canvas() {
     }
     const node = renderedRef.current?.querySelector(`[data-editor-kind="${kind}"][id="${id}"]`) as SVGGraphicsElement | null
     if (!node) return null
+    let b: DOMRect
     try {
-      const b = node.getBBox()
-      return { x: b.x, y: b.y, width: b.width, height: b.height }
+      b = node.getBBox()
     } catch {
       return null
     }
+    // getBBox is before the node's transform: a turned label's box is its corners turned about its anchor.
+    const label = kind === 'label' ? diagram!.labels.find(l => l.id === id) : undefined
+    if (!label?.rotate) return { x: b.x, y: b.y, width: b.width, height: b.height }
+    const rad = (label.rotate * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
+    const corners = [
+      { x: b.x, y: b.y },
+      { x: b.x + b.width, y: b.y },
+      { x: b.x, y: b.y + b.height },
+      { x: b.x + b.width, y: b.y + b.height },
+    ].map(p => ({
+      x: label.x + (p.x - label.x) * cos - (p.y - label.y) * sin,
+      y: label.y + (p.x - label.x) * sin + (p.y - label.y) * cos,
+    }))
+    return pointsBox(corners)
   }
 
   // The mark of the item highlighted from the Connections section: an amber band along a wire, an amber box
@@ -1668,16 +1684,18 @@ export function Canvas() {
         if (!e.repeat) setSpaceHeld(true)
         return
       }
-      // R / Shift+R rotates the selected devices 90° clockwise / counter-
-      // clockwise and M mirrors them, each about its own anchor (r and m are
-      // never placement hot keys, see elements.ReservedHotKeys).
+      // R / Shift+R rotates the selected devices and labels 90° clockwise /
+      // counter-clockwise and M mirrors the devices, each about its own anchor
+      // (r and m are never placement hot keys, see elements.ReservedHotKeys).
       if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.code === 'KeyR' || e.code === 'KeyM')) {
-        if (elementSelection.size === 0 || pointerHeldRef.current || gestureInProgress) return
+        const turnsLabels = e.code === 'KeyR' && labelSelection.size > 0
+        if ((elementSelection.size === 0 && !turnsLabels) || pointerHeldRef.current || gestureInProgress) return
         e.preventDefault()
         const ids = [...elementSelection]
+        const labelIds = [...labelSelection]
         updateDiagram(d =>
           e.code === 'KeyR'
-            ? diagramOps.rotateElements(d, ids, elements, !e.shiftKey)
+            ? diagramOps.rotateLabels(diagramOps.rotateElements(d, ids, elements, !e.shiftKey), labelIds, !e.shiftKey)
             : diagramOps.mirrorElements(d, ids, elements),
         )
         return
@@ -2330,6 +2348,7 @@ export function Canvas() {
     const y = label.y + dy
     node.setAttribute('x', String(x))
     node.setAttribute('y', String(y))
+    if (label.rotate) node.setAttribute('transform', `rotate(${label.rotate},${x},${y})`)
     node.querySelectorAll('tspan').forEach(tspan => tspan.setAttribute('x', String(x)))
   }
 

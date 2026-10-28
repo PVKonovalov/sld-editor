@@ -73,9 +73,10 @@ func (s *Server) exportDiagramCIM(c *gin.Context) {
 
 // importDiagramCIM reads a CIM model, a zip of profile documents (e.g. CGMES EQ + DL) or one RDF/XML document, and
 // makes a diagram of each Diagram Layout diagram in it (with ?layout=auto, or with none, a diagram per substation
-// laid out automatically). Responds {pages, messages, unmatchedVoltages, foreignLayout, sameVoltageTransformers}:
-// the .xsde import's shape, the voltage classes no voltage_colors preset names, and whether a page follows a layout
-// made by another tool. Without ?windings, a model holding transformers whose windings all have one voltage is not
+// laid out automatically). Responds {pages, messages, unmatchedVoltages, layout, source, sameVoltageTransformers}:
+// the .xsde import's shape, the voltage classes no voltage_colors preset names, whose diagram layout the pages
+// follow ("own": this editor's export, "foreign": another tool's, empty: laid out automatically), and the header of
+// the layout document (else the first), null without one. Without ?windings, a model holding transformers whose windings all have one voltage is not
 // imported: the answer lists them in sameVoltageTransformers, with no pages, to be posted again with
 // ?windings={"<end mRID>": kV, …} (an empty object keeps the model's voltages).
 func (s *Server) importDiagramCIM(c *gin.Context) {
@@ -98,7 +99,7 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 		}
 		if len(same) > 0 {
 			c.JSON(http.StatusOK, gin.H{"pages": []importedPage{}, "messages": []cimMessage{}, "unmatchedVoltages": []unmatchedVoltage{},
-				"foreignLayout": false, "sameVoltageTransformers": same})
+				"layout": "", "source": nil, "sameVoltageTransformers": same})
 			return
 		}
 	}
@@ -119,9 +120,14 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 	out := make([]importedPage, 0, len(pages))
 	messages := []cimMessage{}
 	unmatched := []unmatchedVoltage{}
-	foreign := false
+	layout := ""
 	for i, p := range pages {
-		foreign = foreign || p.Layout == slddoc.CIMLayoutForeign
+		switch {
+		case p.Layout == slddoc.CIMLayoutForeign:
+			layout = string(p.Layout)
+		case p.Layout == slddoc.CIMLayoutOwn && layout == "":
+			layout = string(p.Layout)
+		}
 		for _, u := range s.applyPresetVoltageColors(p.Diagram) {
 			k := slices.IndexFunc(unmatched, func(v unmatchedVoltage) bool { return v.Name == u.Name })
 			if k < 0 {
@@ -144,8 +150,12 @@ func (s *Server) importDiagramCIM(c *gin.Context) {
 			messages = append(messages, cimMessage{Level: "WARN", Page: i + 1, Text: m})
 		}
 	}
-	c.JSON(http.StatusOK, gin.H{"pages": out, "messages": messages, "unmatchedVoltages": unmatched, "foreignLayout": foreign,
-		"sameVoltageTransformers": []slddoc.CIMSameVoltageTransformer{}})
+	var source *slddoc.CIMHeader
+	if h, ok := slddoc.CIMLayoutHeader(slddoc.CIMHeaders(docs)); ok {
+		source = &h
+	}
+	c.JSON(http.StatusOK, gin.H{"pages": out, "messages": messages, "unmatchedVoltages": unmatched, "layout": layout,
+		"source": source, "sameVoltageTransformers": []slddoc.CIMSameVoltageTransformer{}})
 }
 
 // prepareCIM finishes an imported CIM diagram like prepareDiagram does an extracted one, except for the topology

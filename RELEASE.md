@@ -5993,3 +5993,20 @@ On the six public CGMES test models, wires drawn over a device dropped from 26 t
 - Startup checks both lists (unknown shapes, classes or variants, classes the export can't write for a symbol).
 - **Tests:** `TestCIMRoundTrip` and `TestImportCIMWindingVoltages` run on the shipped element library and the shipped `cim` section (`newCIMTestServer`), which must validate with no symbol left out.
 - **User guides:** the CIM import and export sections, and the configuration table (`cim.classes`, `cim.import`).
+
+2026-10-28: The CIM import now asks how to draw the model whenever the file has a diagram layout. Before, it asked only when another tool made the layout, so a file exported by this editor always came back as drawn, with no way to choose the automatic layout.
+- **Use model layout** stays the default (also Esc). For this editor's own export, the dialog says so and the round trip stays 1:1.
+- The dialog shows who exported the file, as the layout document's header states it: the authority (`urn:sld-editor` for this editor), the description and the creation time. It says when the file states none of them.
+- API: `POST /api/import/cim` answers `layout` (`own`, `foreign`, or empty when laid out automatically) and `source` (the DL document's `md:FullModel` header, else the first document's; null without one), in place of `foreignLayout`. Callers updated: `lib/api.ts`, `lib/importDiagram.ts`, `TestCIMRoundTrip`.
+- slddoc: `CIMHeaders`, `CIMLayoutHeader`, `CIMAuthoritySet` (test `TestCIMHeaders`).
+- **User guides:** the CIM import section.
+
+2026-10-28: Text rotation is no longer lost on `.xsde` import (sibling `slddoc`). xsde2svg turns a Modus text by its orientation (VERTDOWN 90°, REVERSED 180°, VERTUP −90°) minus its tilt angle, as `transform="rotate(a,x,y)"` about the Modus origin. Extract dropped that transform, so every label came in level.
+- A label now keeps the turn (`rotate` in the `.xsld`, clockwise degrees in (−180, 180]). It is restated about the label's own anchor, which moves to where the turn takes it.
+- Saved `.svg` and canvas markup draw the label turned. Re-rendering a test sheet of every tilt angle × orientation matched xsde2svg's own drawing.
+- **R** / **Shift+R** turn selected labels by 90° as well as devices. Properties has a **Rotation** field for a label.
+- The canvas measures a turned label's box with its corners turned (marquee selection, focus, highlight), and a drag moves its pivot with it.
+- CIM export writes a turned label's `TextDiagramObject` rotation, and the import reads it back.
+- Diagrams imported before this keep their level labels until the `.xsde` is imported again.
+- **Test:** `TestExtract_RotatedLabel` (slddoc): extract, render and CIM round trip.
+- **User guides:** turning items, the hot-key table, `.xsde` import.

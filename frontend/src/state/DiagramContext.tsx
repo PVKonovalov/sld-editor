@@ -9,6 +9,7 @@ import { diagramFromAddress, setDiagramAddress } from '../lib/diagramAddress'
 import { presenceSession } from '../lib/presenceSession'
 import { t } from '../i18n'
 import type {
+  CimHeader,
   CimSameVoltageTransformer,
   Diagram,
   DiagramEntry,
@@ -112,7 +113,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // A CIM import's voltage classes no preset names, asked about by VoltageColorsDialog (see askVoltageColors).
   const [voltageColorsPrompt, setVoltageColorsPrompt] = useState<VoltageColorsPrompt | null>(null)
   const voltageColorsResolverRef = useRef<((colors: Map<string, string>) => void) | null>(null)
-  // A CIM import with another tool's layout, asked about by CimLayoutDialog (see chooseCimLayout).
+  // A CIM import with a diagram layout, asked about by CimLayoutDialog (see chooseCimLayout).
   const [cimLayoutPrompt, setCimLayoutPrompt] = useState<CimLayoutPrompt | null>(null)
   const cimLayoutResolverRef = useRef<((choice: 'model' | 'auto') => void) | null>(null)
   // A CIM import's transformers whose windings all have one voltage, asked about by CimWindingsDialog (see
@@ -707,12 +708,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     return recolorVoltageClasses(prepared.pages, colors)
   }, [])
 
-  // Resolves to CimLayoutDialog's answer for a CIM model drawn by another tool (prepareImport's chooseLayout).
+  // Resolves to CimLayoutDialog's answer for a CIM model with a diagram layout (prepareImport's chooseLayout).
   const chooseCimLayout = useCallback(
-    (fileName: string, diagrams: number) =>
+    (fileName: string, diagrams: number, own: boolean, source: CimHeader | null) =>
       new Promise<'model' | 'auto'>(resolve => {
         cimLayoutResolverRef.current = resolve
-        setCimLayoutPrompt({ fileName, diagrams })
+        setCimLayoutPrompt({ fileName, diagrams, own, source })
       }),
     [],
   )

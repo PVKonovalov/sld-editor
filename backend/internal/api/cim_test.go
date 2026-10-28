@@ -114,14 +114,15 @@ func TestCIMRoundTrip(t *testing.T) {
 		Pages []struct {
 			Diagram *slddoc.Diagram `json:"diagram"`
 		} `json:"pages"`
-		Messages      []cimMessage `json:"messages"`
-		ForeignLayout bool         `json:"foreignLayout"`
+		Messages []cimMessage      `json:"messages"`
+		Layout   string            `json:"layout"`
+		Source   *slddoc.CIMHeader `json:"source"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &imported); err != nil {
 		t.Fatal(err)
 	}
-	if imported.ForeignLayout {
-		t.Error("an own export's layout is not foreign")
+	if imported.Layout != "own" || imported.Source == nil || imported.Source.AuthoritySet != slddoc.CIMAuthoritySet {
+		t.Errorf("an own export's layout is own, with this editor as its authority: %q, %+v", imported.Layout, imported.Source)
 	}
 	if len(imported.Pages) != 1 {
 		t.Fatalf("pages = %d", len(imported.Pages))

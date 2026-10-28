@@ -12,6 +12,8 @@ import type {
   PresenceStatus,
   OpenTab,
   UnmatchedVoltage,
+  CimHeader,
+  CimLayoutKind,
   CimSameVoltageTransformer,
   VoltageColor,
 } from '../types'
@@ -255,8 +257,8 @@ export async function addVoltageColors(colors: VoltageColor[]): Promise<VoltageC
 
 /** Converts a CIM model (a zip of CGMES profiles, or one RDF/XML document) to a diagram per Diagram Layout diagram,
  * or with auto (or no layout in it) a diagram per substation laid out automatically (POST /api/import/cim), in the
- * shape of importDiagramXSDE's answer plus the voltage classes no server preset names and whether a page follows a
- * layout made by another tool. windings gives transformer ends (by mRID) their voltage in kV ({} keeps the model's);
+ * shape of importDiagramXSDE's answer plus the voltage classes no server preset names, whose layout the pages follow
+ * (this editor's export, another tool's, or none) and the layout document's header (who exported it). windings gives transformer ends (by mRID) their voltage in kV ({} keeps the model's);
  * without it, a model with transformers whose windings all have one voltage answers only sameVoltageTransformers,
  * with no pages, to be asked and posted again. */
 export async function importDiagramCIM(
@@ -266,7 +268,8 @@ export async function importDiagramCIM(
   pages: { page: number; title: string; diagram: Diagram; report: ImportReport }[]
   messages: ConverterMessage[]
   unmatchedVoltages: UnmatchedVoltage[]
-  foreignLayout: boolean
+  layout: CimLayoutKind
+  source: CimHeader | null
   sameVoltageTransformers: CimSameVoltageTransformer[]
 }> {
   const query = new URLSearchParams()
@@ -281,14 +284,16 @@ export async function importDiagramCIM(
     pages: { page: number; title: string; diagram: DiagramWire; report: ImportReport }[]
     messages: ConverterMessage[] | null
     unmatchedVoltages: UnmatchedVoltage[] | null
-    foreignLayout?: boolean
+    layout?: CimLayoutKind
+    source?: CimHeader | null
     sameVoltageTransformers: CimSameVoltageTransformer[] | null
   }>(res)
   return {
     pages: (data.pages ?? []).map(p => ({ ...p, diagram: normalizeDiagram(p.diagram) })),
     messages: data.messages ?? [],
     unmatchedVoltages: data.unmatchedVoltages ?? [],
-    foreignLayout: data.foreignLayout ?? false,
+    layout: data.layout ?? '',
+    source: data.source ?? null,
     sameVoltageTransformers: data.sameVoltageTransformers ?? [],
   }
 }

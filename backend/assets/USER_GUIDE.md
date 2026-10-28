@@ -57,6 +57,7 @@ See [Placing elements](#placing).
 3. To turn a device, select it and press **R** (90° clockwise; **Shift+R** counter-clockwise) or **M** (mirror), or
    change **Orientation** (or **Mirror**) in Properties; its terminals and the wires on them turn with it. With
    several items selected, each device turns about its own anchor; items without an orientation stay as they are.
+   **R** turns a selected label too, about its anchor (**Rotation** in Properties takes any angle; **M** leaves it).
 4. To move a device, hold **Ctrl** (**Cmd** on a Mac) and drag it. A plain drag pans the canvas.
 
 Tip: a device whose terminal is dropped exactly onto the busbar is connected to it without a wire. See
@@ -180,6 +181,8 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
   reported with the reason. The converter's colors and settings come from `xsde2svg.yml` and `workplace.xml`; see
   [Configuration](#configuration-xsde). A file whose header says UTF-8 but whose text is really Windows-1251 (as some Modus
   exports are) is read as Windows-1251, with a warning in the converter messages.
+- Texts keep their turn: a Modus text's tilt angle (counter-clockwise) and its orientation (vertical down, reversed,
+  vertical up) together turn the label as xsde2svg draws it, about the label's own anchor.
 - xsde2svg draws each device at its own size step (each step √2 larger). An `.svg` import recovers the step from where
   the device's connection points lie, so the symbol fills the gap between its wires. Devices whose leads also stretch
   per instance (breakers, disconnectors and similar) get their size from their drawn body and their **Leads** from
@@ -263,16 +266,18 @@ bus-branch models alike (a bus-branch model's topological nodes stand in for con
 editor exported comes back as it was drawn. In a zip, every `.xml`/`.rdf` file is read, in any folder; hidden files
 (a name starting with a dot) and the `__MACOSX` folder that macOS **Compress** adds are skipped.
 
-When the model's layout was made by another tool, the import asks how to draw it (**Diagram layout of the model**):
+When the model has a diagram layout, made by another tool or exported by this editor, the import asks how to draw it
+(**Diagram layout of the model**). The window says who exported the file, as its layout document's header states it: the
+authority (`urn:sld-editor` for this editor), the description and when it was created.
 
-- **Use model layout**: each of its diagrams becomes a page, drawn where that tool placed everything. Such layouts
-  are often network overviews: one diagram for all substations, devices close together, no texts. A diagram that
+- **Use model layout**: each of its diagrams becomes a page, drawn where that tool placed everything; a file this
+  editor exported comes back exactly as it was drawn. Other tools' layouts are often network overviews: one diagram for all substations, devices close together, no texts. A diagram that
   writes no texts at all gets the equipment's names from EQ: beside an upright device, over a lying one (stepping
   further away where names would overlap each other or a busbar), over a busbar's end and beside a line.
 - **Lay out automatically**: the layout is set aside and each substation gets a page of its own, laid out as for a
   model without a layout (below), names included.
 
-A file this editor exported, or a model without a layout, is imported without asking.
+A model without a layout is imported without asking.
 
 - Each device becomes the symbol of its CIM class at the point the layout gives it, rotated in steps of 90°, with its
   name, voltage class (one per base voltage, named like "110 kV" and coloured like the standard voltage of the same
@@ -1017,7 +1022,7 @@ import log. To match your Modus installation, replace `workplace.xml` with your 
 | **Ctrl+C** / **Cmd+C** | Copy the selection |
 | **Ctrl+V** / **Cmd+V** | Paste, offset from the original |
 | **Ctrl+F** / **Cmd+F** | Find items (Properties → Find) |
-| **R** / **Shift+R** | Rotate the selected devices 90° clockwise / counter-clockwise, each about its own anchor |
+| **R** / **Shift+R** | Rotate the selected devices and labels 90° clockwise / counter-clockwise, each about its own anchor |
 | **M** | Mirror the selected devices (on/off) |
 | **Ctrl+G** / **Cmd+G** | Group the selection |
 | **Ctrl+Shift+G** / **Cmd+Shift+G** | Ungroup the selected group(s) |

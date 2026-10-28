@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react'
 import type {
+  CimHeader,
   CimSameVoltageTransformer,
   Diagram,
   DiagramEntry,
@@ -62,10 +63,13 @@ export interface VoltageColorsPrompt {
   voltages: UnmatchedVoltage[]
 }
 
-// A CIM import whose layout was made by another tool (fileName: the imported file; diagrams: the pages it draws).
+// A CIM import with a diagram layout (fileName: the imported file; diagrams: the pages it draws; own: exported by this
+// editor; source: the layout document's header, null without one).
 export interface CimLayoutPrompt {
   fileName: string
   diagrams: number
+  own: boolean
+  source: CimHeader | null
 }
 
 // A CIM import's transformers whose windings all have one voltage (fileName: the imported file), asked about by

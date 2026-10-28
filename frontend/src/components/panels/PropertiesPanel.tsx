@@ -786,6 +786,16 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               <option value="bottom">{t('properties.vAlignBottom')}</option>
             </select>
           </label>
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.labelRotation')}</span>
+            <input
+              type="number"
+              step={90}
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={label.rotate ?? 0}
+              onChange={e => patchLabel({ rotate: diagramOps.labelRotation(Number(e.target.value) || 0) || undefined })}
+            />
+          </label>
           <label className="flex items-center gap-2 text-xs">
             <input type="checkbox" checked={!!label.bold} onChange={e => patchLabel({ bold: e.target.checked })} />
             <span className="text-gray-400">{t('properties.labelBold')}</span>

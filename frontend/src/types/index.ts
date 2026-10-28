@@ -457,6 +457,8 @@ export interface Label {
   color?: string
   valign?: string
   font?: string
+  // Clockwise turn in degrees about x/y, in (-180, 180]; absent = level (slddoc Label.Rotate).
+  rotate?: number
   text: string
 }
 
@@ -661,6 +663,18 @@ export interface UnmatchedVoltage {
   preset: string
   color: string
   pages: number
+}
+
+// Whose diagram layout a CIM import follows (POST /api/import/cim's layout): this editor's own export, another
+// tool's, or none (laid out automatically).
+export type CimLayoutKind = 'own' | 'foreign' | ''
+
+// The header of a CIM document (slddoc.CIMHeader, IEC 61970-552 md:FullModel): who made it and when, as it states.
+export interface CimHeader {
+  profiles?: string[]
+  description?: string
+  authoritySet?: string
+  created?: string
 }
 
 // A transformer of a CIM import whose windings all have one voltage (POST /api/import/cim's sameVoltageTransformers,
