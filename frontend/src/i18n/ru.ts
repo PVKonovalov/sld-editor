@@ -338,6 +338,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'diagram.activeLayer': 'Новые объекты помещаются в слой',
   'diagram.matchPresetColors': 'Привести к стандартным цветам…',
   'diagram.matchPresetColorsHint': 'Предложить стандартный цвет для каждого класса напряжения, чей цвет близок к нему',
+  'diagram.stateColors': 'Цвета состояний',
+  'diagram.stateColorConfigured': 'В конфигурации: {{color}}',
   'diagram.voltageClasses': 'Классы напряжения',
   'diagram.history': 'История',
   'diagram.noHistory': 'Сохранений пока нет.',

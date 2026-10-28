@@ -2,14 +2,8 @@ import { useEffect, useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import { t } from '../i18n'
 import { GuideButton } from './GuideButton'
+import { hexColor } from '../lib/color'
 
-// A color as <input type="color"> takes it: #rrggbb (a #rgb one expanded), else grey.
-function hexColor(color: string): string {
-  const c = color.trim().toLowerCase()
-  if (/^#[0-9a-f]{6}$/.test(c)) return c
-  if (/^#[0-9a-f]{3}$/.test(c)) return '#' + [...c.slice(1)].map(d => d + d).join('')
-  return '#808080'
-}
 
 /** Asked during a CIM import whose voltage classes no server preset names (DiagramContext's voltageColorsPrompt):
  * a row per class with the pages using it, the nearest preset whose color it was given, a color to change it and

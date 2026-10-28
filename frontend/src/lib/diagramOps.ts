@@ -5,6 +5,7 @@ import type {
   Connector,
   ConnectorKind,
   VoltageClass,
+  StateColor,
   Layer,
   ElementClass,
   Point,
@@ -225,7 +226,7 @@ function diffArrayIds<T extends { id: number }>(
  *   markup (api.renderPreviewFragments) and patch those DOM nodes
  *   directly, instead of replacing the whole injected SVG.
  * - 'full': anything was added or removed, or width/height/voltageClasses/
- *   editor/layers changed by reference — each of those can repaint
+ *   stateColors/editor/layers changed by reference — each of those can repaint
  *   arbitrarily many ids at once (a VoltageClass's own color change, e.g.,
  *   isn't itself one of "the ids that changed"), or (add/remove) raises the
  *   question of *where* in the DOM a brand-new node belongs relative to
@@ -237,6 +238,7 @@ export function diffDiagramForRender(previous: Diagram, next: Diagram): DiagramR
     previous.width !== next.width ||
     previous.height !== next.height ||
     previous.voltageClasses !== next.voltageClasses ||
+    previous.stateColors !== next.stateColors ||
     previous.editor !== next.editor ||
     previous.layers !== next.layers
   ) {
@@ -3372,6 +3374,21 @@ export function updateVoltageClass(diagram: Diagram, id: number, patch: Partial<
     ...diagram,
     voltageClasses: diagram.voltageClasses.map(vc => (vc.id === id ? { ...vc, ...patch } : vc)),
   }
+}
+
+/** The colors switching devices are filled with per state of legend (config.stateColors): the diagram's own, else
+ * the legend's. */
+export function stateColors(diagram: Diagram, legend: StateColor[]): StateColor[] {
+  return legend.map(sc => ({ ...sc, color: diagram.stateColors?.find(c => c.state === sc.state)?.color ?? sc.color }))
+}
+
+/** Sets the diagram's fill color for state, starting from legend when the diagram has no colors of its own. */
+export function setStateColor(diagram: Diagram, legend: StateColor[], state: number, color: string): Diagram {
+  const current = diagram.stateColors?.length ? diagram.stateColors : legend.map(sc => ({ state: sc.state, color: sc.color }))
+  const next = current.some(c => c.state === state)
+    ? current.map(c => (c.state === state ? { ...c, color } : c))
+    : [...current, { state, color }]
+  return { ...diagram, stateColors: next }
 }
 
 /** Removes a voltage class. Any element/connector still referencing it by

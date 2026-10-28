@@ -95,11 +95,12 @@ voltage_colors:
 # are 45 apart) still never share a color. 0 = exact only.
 voltage_color_tolerance: 60
 
-# Global Open/Close/Intermediate legend a switching device's state-driven
+# Global Open/Close/Intermediate/Faulty legend a switching device's state-driven
 # fill is drawn from (internal/slddoc.Render's data-fill/data-state
-# attributes) and the Properties panel's State dropdown offers. Unlike
-# voltage_colors, there's no per-diagram override for this — an element only
-# ever records a raw State value, never a color.
+# attributes) and the Properties panel's State dropdown offers. The colors
+# are only the starting point: a diagram saved without colors of its own
+# takes them into its .xsld (<stateColors>), where Properties > State colors
+# changes them for that diagram alone.
 state_colors:
   - state: 0
     label: "Open"

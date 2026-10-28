@@ -4,7 +4,7 @@ import * as diagramOps from '../../lib/diagramOps'
 import { FindSection } from './FindSection'
 import { SnapToGridSection } from './SnapToGridSection'
 import { PanelShell } from './PanelShell'
-import { HistorySection, LayersSection, VoltageClassesSection } from './DiagramSections'
+import { HistorySection, LayersSection, StateColorsSection, VoltageClassesSection } from './DiagramSections'
 import { DiagramFileSection } from './DiagramFileSection'
 import { PictureSection } from './PictureSection'
 import { ConnectionsSection } from './ConnectionsSection'
@@ -552,6 +552,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           <FindSection />
           <LayersSection />
           <VoltageClassesSection />
+          <StateColorsSection />
           <HistorySection />
         </div>
       </PanelShell>

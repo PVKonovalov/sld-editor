@@ -928,6 +928,15 @@ The saved SVG marks every item that is not on the base layer with `data-layer` a
 block, as xsde2svg does, so a viewer such as ctrlroom can switch layers on and off. Importing an xsde2svg SVG keeps its
 layers; a layer number the file uses without naming it is added as "Layer N".
 
+### State colors {#state-colors}
+
+**State colors**, after **Voltage classes**, sets the fill of switching devices in each state (Open, Close,
+Intermediate, Faulty) for this diagram. The colors are saved in the diagram and used on the canvas and in the saved SVG
+(`data-fill`). A diagram starts with the server's `state_colors` and takes a copy of them when it is first saved, so
+changing the configuration later does not recolor it. A color that differs from the configured one is outlined in
+amber; hovering it shows the configured color.
+Fault passage indicator colors stay in the configuration.
+
 ## Settings {#settings}
 
 Grid spacing, **Snap to grid**, **Show grid**, **Show nodes** and the diagram's default voltage. These are saved with
@@ -970,7 +979,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `editor.grid_spacing`, `snap`, `show_grid`, `background` | Defaults for a diagram that hasn't saved its own (see [Settings](#settings)). |
 | `voltage_colors` | Standard voltage classes (`name`, `color`) offered for new classes and by **Match preset colors…**. A CIM import can add to it ([Voltage classes of a CIM import](#cim-voltage-colors)). |
 | `voltage_color_tolerance` | How close (RGB distance, 0–441) a color must be to a standard one to be offered for replacement; 0 = exact only. |
-| `state_colors`, `fpi_state_colors` | Open / Close / Intermediate (and, for switching devices, Faulty) fill colors of switching devices and fault passage indicators. |
+| `state_colors`, `fpi_state_colors` | Open / Close / Intermediate (and, for switching devices, Faulty) fill colors of switching devices and fault passage indicators. `state_colors` is only the starting colors of a diagram: see [State colors](#state-colors). |
 | `position_states` | Labels of a withdrawable device's racking positions (Service / Normal / Test). |
 | `indicators.default_fpi_text` | Text a fault passage indicator shows when it has none of its own. |
 | `palette` | The Elements panel: groups (`name`, in display order) and their `items`, each an xsde2svg object type code. |

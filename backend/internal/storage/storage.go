@@ -204,7 +204,8 @@ func (s *Store) SaveRevision(name string, d *slddoc.Diagram, rev slddoc.Revision
 	return s.write(name, d)
 }
 
-// write saves d's .xsld and .svg, each replacing the old file atomically.
+// write saves d's .xsld and .svg, each replacing the old file atomically. A diagram with no state colors of its own
+// takes the store's legend.
 func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error) {
 	xmlPath, err := s.xmlPath(name)
 	if err != nil {
@@ -220,6 +221,7 @@ func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error)
 		return nil, fmt.Errorf("storage: creating directory for %s: %w", name, err)
 	}
 
+	slddoc.SeedStateColors(d, s.stateColors)
 	var xml bytes.Buffer
 	if err := d.Save(&xml); err != nil {
 		return nil, fmt.Errorf("storage: saving %s: %w", name, err)

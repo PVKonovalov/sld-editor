@@ -317,3 +317,36 @@ func TestFolderActions(t *testing.T) {
 		t.Errorf("List(x/y) = %v, %v; want empty", entries, err)
 	}
 }
+
+func TestSave_SeedsStateColorsFromLegend(t *testing.T) {
+	lib := slddoc.NewSymbolLibrary(nil)
+	legend := []slddoc.StateColor{{State: 0, Label: "Open", Color: "red"}, {State: 1, Label: "Close", Color: "lawngreen"}}
+	s, err := New(t.TempDir(), lib, "", nil, legend...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := s.Create("new", &slddoc.Diagram{Width: 10, Height: 10}); err != nil {
+		t.Fatal(err)
+	}
+	own := []slddoc.DiagramStateColor{{State: 0, Color: "#ff8800"}}
+	if _, err := s.Create("own", &slddoc.Diagram{Width: 10, Height: 10, StateColors: own}); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := s.Load("new")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []slddoc.DiagramStateColor{{State: 0, Color: "red"}, {State: 1, Color: "lawngreen"}}
+	if !slices.Equal(got.StateColors, want) {
+		t.Errorf("a diagram without state colors should take the legend's, got %+v", got.StateColors)
+	}
+	got, err = s.Load("own")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(got.StateColors, own) {
+		t.Errorf("a diagram's own state colors should be kept, got %+v", got.StateColors)
+	}
+}

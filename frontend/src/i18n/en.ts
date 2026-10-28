@@ -342,6 +342,8 @@ export const dictionary = {
   'diagram.activeLayer': 'New items go on',
   'diagram.matchPresetColors': 'Match preset colors…',
   'diagram.matchPresetColorsHint': 'Offer the standard color for each voltage class whose color is close to it',
+  'diagram.stateColors': 'State colors',
+  'diagram.stateColorConfigured': 'Configured: {{color}}',
   'diagram.voltageClasses': 'Voltage classes',
   'diagram.history': 'History',
   'diagram.noHistory': 'No saves recorded yet.',

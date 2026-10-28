@@ -5,9 +5,10 @@ import * as diagramOps from '../../lib/diagramOps'
 import { GroupHeader } from './GroupHeader'
 import { t } from '../../i18n'
 import { formatTimestamp } from '../../lib/revision'
+import { hexColor } from '../../lib/color'
 
 // The Properties panel's diagram-level groups (shown when nothing is
-// selected): the open diagram's own <layers> and <voltageClasses>, each
+// selected): the open diagram's own <layers>, <voltageClasses> and <stateColors>, each
 // collapsible and starting collapsed (see GroupHeader).
 
 /** Add/rename/delete the diagram's layers, with how many objects sit on
@@ -228,6 +229,52 @@ export function VoltageClassesSection() {
               {t('diagram.matchPresetColors')}
             </button>
           )}
+        </div>
+      )}
+    </section>
+  )
+}
+
+/** Edit the fill color of switching devices per state (config.stateColors gives the states, their labels and the
+ * starting colors). A color that differs from the configured one is outlined in amber. */
+export function StateColorsSection() {
+  const { diagram, config, updateDiagram } = useDiagramContext()
+  const [collapsed, setCollapsed] = useState(true)
+  const legend = config?.stateColors ?? []
+  if (!diagram || legend.length === 0) return null
+  const colors = diagramOps.stateColors(diagram, legend)
+
+  return (
+    <section>
+      <GroupHeader
+        label={t('diagram.stateColors')}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(c => !c)}
+        topic="state-colors"
+      />
+      {!collapsed && (
+        <div>
+          <div className="space-y-1 mb-2">
+            {colors.map((sc, i) => {
+              const changed = hexColor(sc.color) !== hexColor(legend[i].color)
+              return (
+                <label
+                  key={sc.state}
+                  className="flex items-center gap-1 text-xs"
+                  title={changed ? t('diagram.stateColorConfigured', { color: legend[i].color }) : undefined}
+                >
+                  <input
+                    type="color"
+                    value={hexColor(sc.color)}
+                    onChange={e => updateDiagram(d => diagramOps.setStateColor(d, legend, sc.state, e.target.value))}
+                    className={`w-6 h-6 shrink-0 bg-surface-800 border rounded ${changed ? 'border-amber-400 ring-1 ring-amber-400' : 'border-surface-600'}`}
+                  />
+                  <span className={`flex-1 min-w-0 truncate ${changed ? 'text-amber-300' : ''}`}>{sc.label}</span>
+                  <span className="shrink-0 text-gray-400 tabular-nums">{sc.state}</span>
+                </label>
+              )
+            })}
+          </div>
         </div>
       )}
     </section>

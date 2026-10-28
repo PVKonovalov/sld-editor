@@ -37,6 +37,12 @@ export interface VoltageClass {
   color: string
 }
 
+// A diagram's own fill color for a switching device in state (backend slddoc.DiagramStateColor).
+export interface DiagramStateColor {
+  state: number
+  color: string
+}
+
 export interface DiagramNode {
   id: number
   x: number
@@ -535,6 +541,7 @@ export interface DiagramWire {
   editor?: EditorSettings
   layers: Layer[] | null
   voltageClasses: VoltageClass[] | null
+  stateColors?: DiagramStateColor[]
   nodes: DiagramNode[] | null
   elements: DiagramElement[] | null
   connectors: Connector[] | null
@@ -556,6 +563,8 @@ export interface Diagram {
   editor?: EditorSettings
   layers: Layer[]
   voltageClasses: VoltageClass[]
+  // Absent until the diagram is first saved; the server then copies config.stateColors in.
+  stateColors?: DiagramStateColor[]
   nodes: DiagramNode[]
   elements: DiagramElement[]
   connectors: Connector[]
