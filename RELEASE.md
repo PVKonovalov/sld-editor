@@ -6010,3 +6010,9 @@ On the six public CGMES test models, wires drawn over a device dropped from 26 t
 - Diagrams imported before this keep their level labels until the `.xsde` is imported again.
 - **Test:** `TestExtract_RotatedLabel` (slddoc): extract, render and CIM round trip.
 - **User guides:** turning items, the hot-key table, `.xsde` import.
+
+2026-10-28: Two `.xsde` import faults found on a test sheet of surge arrester name positions (sibling `slddoc`).
+- Mirrored two-terminal devices came in unmirrored: the surge arrester's (29) diagonal arrow, the choke coil's (33) loops and the reactor's (37) loop were drawn on the wrong side. Mirror is now read from which side of the symbol's axis the drawing leans. Checked against xsde2svg on 105 devices of each shape, mirrored and not.
+- Names xsde2svg hangs below their point (`dominant-baseline:text-before-edge`, e.g. a name under or right of its device) lost that anchor and sat one text height too high. It now reads as the **Top** vertical anchor. **Top** is now drawn as `text-before-edge` (was `hanging`), so the saved `.svg` matches xsde2svg; labels already set to Top move by about a pixel.
+- After the fix, re-rendering the imported sheet matched xsde2svg's own drawing. Diagrams imported before need the `.xsde` imported again.
+- **Test:** `TestExtract_MirroredArresterAndHangingName` (slddoc).
