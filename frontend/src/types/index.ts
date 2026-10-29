@@ -106,6 +106,7 @@ export type ElementClass =
   | 'PowerPole'
   | 'Lamp'
   | 'LampOnPole'
+  | 'LED'
   | 'ConnectorPoint'
   | 'ConnectorArrow'
   | 'FaultPassageIndicator'

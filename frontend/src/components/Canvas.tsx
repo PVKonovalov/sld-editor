@@ -1814,6 +1814,7 @@ export function Canvas() {
     'Road',
     'PostPole',
     'LampOnPole',
+    'LED',
     'Line',
     'Polygon',
     'Container',

@@ -127,6 +127,7 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 - [+] 391 RTF text (imported as a plain Text label (5); not drawn or saved as 391)
 - [ ] 3206 Customer connection, disconnector, arc-extinguishing contacts
 - [+] 320002 Lamp on pole
+- [+] 320007 LED
 
 
 ## Gaps in already-ported shapes

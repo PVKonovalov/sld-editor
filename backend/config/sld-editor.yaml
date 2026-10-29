@@ -193,7 +193,7 @@ palette:
   - name: "Protection"
     items: [ "35", "29", "168", "203", "154", "166" ]
   - name: "Indicators"
-    items: [ "106", "320002", "134", "320003", "320001", "103" ]
+    items: [ "106", "320002", "320007", "134", "320003", "320001", "103" ]
 
 # Placement hot keys: pressing the key (without Ctrl/Cmd/Alt) arms that
 # palette item, the same as clicking its button; pressing it again disarms it.

@@ -233,6 +233,7 @@ export const dictionary = {
   'elementCatalog.name.32': 'Cable joint',
   'elementCatalog.name.146': 'Power pole',
   'elementCatalog.name.320002': 'Lamp on pole',
+  'elementCatalog.name.320007': 'LED',
   'elementCatalog.name.83': 'Connector arrow',
   'elementCatalog.name.10': 'Connector',
   'elementCatalog.name.41': 'Breaker',

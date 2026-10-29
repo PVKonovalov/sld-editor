@@ -1345,6 +1345,25 @@
 ]]></template>
   </symbol>
 
+  <!-- LED (xsde2svg element_320.go): a diode with two light
+       arrows inside a circle (the arrows drawn as two even 45° ones), in its voltage
+       class color. No terminals. -->
+  <symbol shape="320007" class="LED" name="LED">
+    <template><![CDATA[
+<circle cx="0" cy="0" r="8" style="fill:none;stroke:{color};stroke-width:1" />
+<polyline points="-10,0 -3,0" style="fill:none;stroke:{color};stroke-width:1" />
+<polyline points="4,-6 8,-10" style="fill:none;stroke:{color};stroke-width:1" />
+<polyline points="6,-10 8,-10 8,-8" style="fill:none;stroke:{color};stroke-width:1" />
+<polyline points="7,-3 11,-7" style="fill:none;stroke:{color};stroke-width:1" />
+<polyline points="9,-7 11,-7 11,-5" style="fill:none;stroke:{color};stroke-width:1" />
+<polyline points="-3,-3 -3,3" style="fill:none;stroke:{color};stroke-width:1" />
+<polyline points="2,-3 2,3" style="fill:none;stroke:{color};stroke-width:1" />
+<polyline points="-3,3 2,0" style="fill:none;stroke:{color};stroke-width:1" />
+<polyline points="-3,-3 2,0" style="fill:none;stroke:{color};stroke-width:1" />
+<polyline points="2,0 10,0" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
   <!-- Terminals sit at the default radius (10, diagramOps' own
        fpiDefaults, matching the default 10-unit grid) — a real instance's
        own Radius can differ, in which case these no longer land exactly on
