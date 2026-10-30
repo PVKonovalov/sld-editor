@@ -2,6 +2,8 @@
 // struct, loaded through the generic reader in pkg/configuration.
 package config
 
+import "fmt"
+
 // Config is sld-editor's top-level configuration, read from a YAML file
 // (see config/sld-editor.yaml) with per-field environment-variable
 // overrides (env:"true" tags, read by pkg/configuration).
@@ -60,6 +62,10 @@ type Config struct {
 		ShowGrid        bool    `yaml:"show_grid" env:"true"`
 		Background      string  `yaml:"background" env:"true"`
 		JumpSameVoltage bool    `yaml:"jump_same_voltage" env:"true"`
+		// VoltageOrder is the order of voltage lists, by the voltage a
+		// class name reads as: VoltageAscending (also when empty) or
+		// VoltageDescending. ValidateVoltageOrder checks it at startup.
+		VoltageOrder string `yaml:"voltage_order" env:"true"`
 	} `yaml:"editor"`
 
 	// VoltageColors is the default voltage-level -> color palette offered
@@ -144,6 +150,25 @@ type Config struct {
 const DefaultVoltageColorTolerance = 24
 
 // ColorTolerance is VoltageColorTolerance, or its default when unset.
+const (
+	VoltageAscending  = "ascending"
+	VoltageDescending = "descending"
+)
+
+// ValidateVoltageOrder checks editor.voltage_order and fills in
+// VoltageAscending when it is empty.
+// Returns an error naming the allowed values for any other value.
+func (c *Config) ValidateVoltageOrder() error {
+	switch c.Editor.VoltageOrder {
+	case "":
+		c.Editor.VoltageOrder = VoltageAscending
+	case VoltageAscending, VoltageDescending:
+	default:
+		return fmt.Errorf("editor.voltage_order %q: want %q or %q", c.Editor.VoltageOrder, VoltageAscending, VoltageDescending)
+	}
+	return nil
+}
+
 func (c *Config) ColorTolerance() float64 {
 	if c.VoltageColorTolerance == nil {
 		return DefaultVoltageColorTolerance

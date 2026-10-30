@@ -21,6 +21,7 @@ import { t } from '../i18n'
 import { circularArcThrough, defaultArcBulge } from './arc'
 import { nearestPointOnSegment } from './geometry'
 import { traceNetwork, type TraceStart } from './trace'
+import { sortByVoltage, voltageOrder } from './voltage'
 
 // Element classes whose own geometry is a drawn Points array (two or more
 // vertices) rather than a single x/y anchor+orient — BusBarSection (a real
@@ -69,14 +70,15 @@ export interface VoltageOption {
 
 /** Options for a voltage-class <select>: every voltage class already on
  * the diagram, plus any server-default preset not already present under
- * the same name (so an added-then-renamed preset doesn't show twice). */
+ * the same name (so an added-then-renamed preset doesn't show twice),
+ * together sorted by voltage in the configured order. */
 export function voltageClassOptions(diagram: Diagram, config: EditorConfig | null): VoltageOption[] {
   const existingNames = new Set(diagram.voltageClasses.map(vc => vc.name))
   const own = diagram.voltageClasses.map(vc => ({ value: String(vc.id), label: vc.name }))
   const presets = (config?.voltageColors ?? [])
     .filter(v => !existingNames.has(v.name))
     .map(v => ({ value: PRESET_PREFIX + v.name, label: v.name }))
-  return [...own, ...presets]
+  return sortByVoltage([...own, ...presets], o => o.label, voltageOrder(config))
 }
 
 /** Resolves a voltageClassOptions <select>'s raw string value into a
@@ -1838,7 +1840,7 @@ function nextPortName(e: DiagramElement): string {
 // BusWork/BusbarWire connector never does. For OverheadLine/CableLine
 // it's also what actually makes writeNamedLine's own data-name attribute
 // non-empty (confirmed against a real xsde2svg-exported line's own
-// data-name, e.g. sld-viewer/assets/sld/IEEE9bus.svg's "Line2" — see
+// data-name, e.g. a line named "Line2" in rdss-dms's assets/sld/ — see
 // slddoc internal/render/render.go). LinkToObject renders as one
 // <g id data-type="28"> wrapping its line and arrowhead (slddoc's
 // writeObjectLink, xsde2svg 1.4.21+), which carries this Name as data-name.
@@ -1872,7 +1874,8 @@ export function placeLocalPoint(el: DiagramElement, p: Point): Point {
 }
 
 // Power transformer (shape 47) geometry constants — mirrors
-// slddoc internal/render/render.go's constants of the same name
+// slddoc internal/render/render.go's TransformerRadius, transformerGridShift,
+// transformerTopShift, transformerSideShift and transformerVertShift
 // exactly (see writePowerTransformer's own doc comment for why these, not
 // real xsde2svg's own Size 11-24 table, are the only numbers this editor
 // ever uses). Kept in sync by hand, like every other JSON-shape mirror in
@@ -1883,8 +1886,8 @@ const TRANSFORMER_TOP_SHIFT = 30
 const TRANSFORMER_SIDE_SHIFT = 30
 const TRANSFORMER_VERT_SHIFT = 20
 
-/** Every winding's lead length past its circle edge — mirrors render.go's
- * transformerLeadLength. Every circle offset is a multiple of 10, so with
+/** Every winding's lead length past its circle edge — mirrors slddoc
+ * internal/render/render.go's TransformerLeadLength. Every circle offset is a multiple of 10, so with
  * the radius of 22 each lead tip lands on the 10-unit grid in any
  * direction. */
 const TRANSFORMER_LEAD_LENGTH = 8

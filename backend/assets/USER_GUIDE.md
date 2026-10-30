@@ -888,7 +888,9 @@ Select a single item to edit it in the Properties panel:
 - **Digital devices**: SCADA name, default value and unit.
 
 The voltage class list includes the server's standard voltages; choosing one that the diagram doesn't have yet adds
-it. The last voltage chosen becomes the default for new elements.
+it. The last voltage chosen becomes the default for new elements. Voltage lists are sorted by voltage, not
+alphabetically: a name is read as a number with its unit ("400 V" comes before "6 kV", "6,3 kV" after it), in the order
+`editor.voltage_order` sets ([sld-editor.yaml](#configuration-editor)). A name that isn't a voltage comes last.
 
 ### Electrical parameters {#electrical-parameters}
 
@@ -997,6 +999,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `xsde.workplace` | `workplace.xml` used by `.xsde` import (see below). Empty: each file's own colors only. |
 | `elements.libraries` | Element-library XML files (shapes, terminals), merged in order; a later file overrides a shape of an earlier one. |
 | `editor.grid_spacing`, `snap`, `show_grid`, `background` | Defaults for a diagram that hasn't saved its own (see [Settings](#settings)). |
+| `editor.voltage_order` | Order of voltage lists, by the voltage a class name reads as: `ascending` (also when absent) or `descending`. Names that aren't a voltage come last. Any other value stops the editor at startup. |
 | `editor.jump_same_voltage` | Default of **Wire jumps at same-voltage crossings** (see [Settings](#settings)), `false` if absent. A new diagram keeps its own copy; an older or imported one without its own uses this value. |
 | `voltage_colors` | Standard voltage classes (`name`, `color`) offered for new classes and by **Match preset colors…**. A CIM import can add to it ([Voltage classes of a CIM import](#cim-voltage-colors)). |
 | `voltage_color_tolerance` | How close (RGB distance, 0–441) a color must be to a standard one to be offered for replacement; 0 = exact only. |

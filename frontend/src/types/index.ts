@@ -734,7 +734,11 @@ export interface EditorDefaults {
   showGrid: boolean
   background: string
   jumpSameVoltage: boolean
+  // Order of voltage lists (dropdowns), by the voltage a class name reads as.
+  voltageOrder: VoltageOrder
 }
+
+export type VoltageOrder = 'ascending' | 'descending'
 
 // Matches backend/internal/config.PaletteGroup.Items — a bare xsde2svg
 // ObjectType code, the same vocabulary for every kind of palette entry,

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import * as diagramOps from '../lib/diagramOps'
+import { sortByVoltage, voltageOrder } from '../lib/voltage'
 import { t } from '../i18n'
 import { GuideButton } from './GuideButton'
 
@@ -108,7 +109,7 @@ export function DefaultVoltageDialog() {
             <section>
               <h3 className="uppercase tracking-wide text-gray-400 mb-1">{t('defaultVoltage.diagramClasses')}</h3>
               <ul className="space-y-0.5">
-                {diagram.voltageClasses.map(vc => (
+                {sortByVoltage(diagram.voltageClasses, vc => vc.name, voltageOrder(config)).map(vc => (
                   <li key={vc.id} className="flex items-center gap-2">
                     <span
                       className="inline-block w-3 h-3 rounded-sm border border-surface-600 shrink-0"

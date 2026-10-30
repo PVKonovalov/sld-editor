@@ -16,6 +16,8 @@ type editorDefaults struct {
 	// JumpSameVoltage: wire jumps where two buswork wires of the same
 	// voltage class cross, for a diagram that hasn't set it.
 	JumpSameVoltage bool `json:"jumpSameVoltage"`
+	// VoltageOrder: "ascending" or "descending" voltage lists.
+	VoltageOrder string `json:"voltageOrder"`
 }
 
 // getConfig serves the Settings panel's defaults: the editor preferences a
@@ -38,6 +40,7 @@ func (s *Server) getConfig(c *gin.Context) {
 			ShowGrid:        s.cfg.Editor.ShowGrid,
 			Background:      s.cfg.Editor.Background,
 			JumpSameVoltage: s.cfg.Editor.JumpSameVoltage,
+			VoltageOrder:    s.cfg.Editor.VoltageOrder,
 		},
 		"voltageColors":         s.voltageColors(),
 		"voltageColorTolerance": s.cfg.ColorTolerance(),

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import { joinDiagramPath } from '../lib/diagramPath'
+import { sortByVoltage, voltageOrder } from '../lib/voltage'
 import { t } from '../i18n'
 import { GuideButton } from './GuideButton'
 
@@ -98,7 +99,7 @@ export function NewDiagramDialog({ onClose }: { onClose: () => void }) {
               onChange={e => setDefaultVoltageName(e.target.value)}
             >
               <option value="">{t('common.none')}</option>
-              {config?.voltageColors.map(v => (
+              {sortByVoltage(config?.voltageColors ?? [], v => v.name, voltageOrder(config)).map(v => (
                 <option key={v.name} value={v.name}>
                   {v.name}
                 </option>

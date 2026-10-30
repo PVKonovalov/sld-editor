@@ -41,6 +41,7 @@ func newTestServer(t *testing.T) *Server {
 	cfg := &config.Config{}
 	cfg.Editor.GridSpacing = 20
 	cfg.Editor.JumpSameVoltage = true
+	cfg.Editor.VoltageOrder = config.VoltageDescending
 	cfg.Editor.Snap = true
 	cfg.Editor.Background = "#12161d"
 	cfg.VoltageColors = []config.VoltageColor{{Name: "10 kV", Color: "#962896"}}
@@ -645,7 +646,7 @@ func TestListElementsAndConfig(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &cfgResp); err != nil {
 		t.Fatal(err)
 	}
-	if cfgResp.Editor.GridSpacing != 20 || !cfgResp.Editor.Snap || !cfgResp.Editor.JumpSameVoltage {
+	if cfgResp.Editor.GridSpacing != 20 || !cfgResp.Editor.Snap || !cfgResp.Editor.JumpSameVoltage || cfgResp.Editor.VoltageOrder != config.VoltageDescending {
 		t.Errorf("editor defaults = %+v", cfgResp.Editor)
 	}
 	if len(cfgResp.VoltageColors) != 1 || cfgResp.VoltageColors[0].Color != "#962896" {

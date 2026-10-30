@@ -3,6 +3,7 @@ import { useDiagramContext } from '../state/useDiagramContext'
 import { t } from '../i18n'
 import { GuideButton } from './GuideButton'
 import { hexColor } from '../lib/color'
+import { sortByVoltage, voltageOrder } from '../lib/voltage'
 
 
 /** Asked during a CIM import whose voltage classes no server preset names (DiagramContext's voltageColorsPrompt):
@@ -10,7 +11,7 @@ import { hexColor } from '../lib/color'
  * an Add box (ticked) that puts it into the configuration's voltage_colors. Apply colors the imported pages and adds
  * the ticked classes; Keep suggested (also Esc or a backdrop click) imports them with the suggested colors. */
 export function VoltageColorsDialog() {
-  const { voltageColorsPrompt, resolveVoltageColorsPrompt, addVoltagePresets } = useDiagramContext()
+  const { voltageColorsPrompt, config, resolveVoltageColorsPrompt, addVoltagePresets } = useDiagramContext()
   const [colors, setColors] = useState<Map<string, string>>(new Map())
   const [skipAdd, setSkipAdd] = useState<ReadonlySet<string>>(new Set())
   const [busy, setBusy] = useState(false)
@@ -81,7 +82,7 @@ export function VoltageColorsDialog() {
               </tr>
             </thead>
             <tbody>
-              {voltages.map(v => (
+              {sortByVoltage(voltages, v => v.name, voltageOrder(config)).map(v => (
                 <tr key={v.name}>
                   <td className="py-0.5 text-gray-100">{v.name}</td>
                   <td className="py-0.5 text-right pr-3 text-gray-400 tabular-nums">{v.pages}</td>

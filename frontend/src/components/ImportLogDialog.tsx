@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import * as diagramOps from '../lib/diagramOps'
+import { sortByVoltage, voltageOrder } from '../lib/voltage'
 import { t } from '../i18n'
 import { GuideButton } from './GuideButton'
 import { ConverterMessages } from './ConverterMessages'
@@ -15,7 +16,7 @@ import { ConverterMessages } from './ConverterMessages'
  * by loadDiagramFromFile to the most-used one. Opened automatically after
  * each .svg import, and again from the File panel's "Show import log". */
 export function ImportLogDialog({ onClose }: { onClose: () => void }) {
-  const { importLog, diagram, updateDiagram, setDefaultVoltage } = useDiagramContext()
+  const { importLog, diagram, config, updateDiagram, setDefaultVoltage } = useDiagramContext()
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -28,7 +29,7 @@ export function ImportLogDialog({ onClose }: { onClose: () => void }) {
   if (!importLog) return null
   const { report, fileName, messages } = importLog
   const usage = diagram ? diagramOps.voltageUsage(diagram) : new Map<number, number>()
-  const voltageClasses = diagram?.voltageClasses ?? []
+  const voltageClasses = sortByVoltage(diagram?.voltageClasses ?? [], vc => vc.name, voltageOrder(config))
 
   function changeDefaultVoltage(raw: string) {
     const voltage = raw ? Number(raw) : undefined

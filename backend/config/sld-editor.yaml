@@ -47,6 +47,10 @@ editor:
   # (Settings → Wire jumps at same-voltage crossings); a new diagram keeps
   # its own copy.
   jump_same_voltage: false
+  # Order of voltage lists (dropdowns), by the voltage a class name reads as
+  # ("110 kV", "6,3 kV", "400 V"): ascending or descending. Names that aren't
+  # a voltage come last.
+  voltage_order: ascending
 
 # Default voltage-level -> color palette offered when adding a voltage
 # class to a diagram. Editing a diagram's own voltage classes never changes

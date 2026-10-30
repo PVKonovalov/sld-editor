@@ -59,6 +59,9 @@ func main() {
 	if err := lib.ValidatePalette(cfg.Palette); err != nil {
 		llog.Logger.Fatalf("validating palette configuration: %v", err)
 	}
+	if err := cfg.ValidateVoltageOrder(); err != nil {
+		llog.Logger.Fatalf("validating editor configuration: %v", err)
+	}
 	hotKeys, err := elements.ValidateHotKeys(cfg.HotKeys, cfg.Palette)
 	if err != nil {
 		llog.Logger.Fatalf("validating hot_keys configuration: %v", err)
