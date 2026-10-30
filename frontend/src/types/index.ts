@@ -1,4 +1,4 @@
-// Mirrors backend/internal/slddoc's JSON shape (see model.go) and the
+// Mirrors slddoc's JSON shape (see slddoc internal/model/model.go) and the
 // small API-only types layered on top of it in backend/internal/elements
 // and backend/internal/config.
 //
@@ -237,7 +237,7 @@ export interface DiagramElement {
   y: number
   orient?: number
   // Flips the symbol template horizontally in its own local frame, applied
-  // before orient's own rotation — matches backend/internal/slddoc's own
+  // before orient's own rotation — matches slddoc's own
   // Mirror field. Meaningless for a BusBarSection (its own drawn `points`
   // are already absolute geometry, no local template to flip).
   mirror?: boolean
@@ -251,7 +251,7 @@ export interface DiagramElement {
   span?: number
   // Also a PowerflowIndicator's (shape 320001) own two-way arrow direction:
   // nil/0 draws "→", any other value draws "←" — not a real switching
-  // status, matching backend/internal/slddoc's own Element.State doc
+  // status, matching slddoc's own Element.State doc
   // comment.
   state?: number | null
   position?: number | null
@@ -263,7 +263,7 @@ export interface DiagramElement {
   // Also a Circle's (shape 4) radius, its center being x/y.
   radius?: number
   // Rectangle (shape 3) or Circle (shape 4) only — its own interior
-  // color, matching backend/internal/slddoc's own Element.Fill. Not a
+  // color, matching slddoc's own Element.Fill. Not a
   // VoltageClass reference (a decorative annotation shape has no
   // electrical voltage of its own), the same free-text-color pattern
   // fillOff/fillOn already use for a Lamp. Also used by PackageSubstation
@@ -280,7 +280,7 @@ export interface DiagramElement {
   stroke?: string
   // A Rectangle's/Circle's own border thickness, an Arrow's/Road's/
   // Line's own line thickness, or a Button's own box border thickness,
-  // matching backend/internal/slddoc's own Element.StrokeWidth. Unset/0
+  // matching slddoc's own Element.StrokeWidth. Unset/0
   // means the real xsde2svg default of 1 for every one of these except
   // Road, whose own unset default is much thicker (see that field's own
   // Go doc comment). Unused by PostPole (292) — its own border is always
@@ -295,11 +295,11 @@ export interface DiagramElement {
   // regulated winding with TransformerWinding.tapChanger instead).
   tapChanger?: boolean
   // PostPole (shape 292) only — draws its own square marker instead of
-  // its default round one, matching backend/internal/slddoc's own
+  // its default round one, matching slddoc's own
   // Element.Square.
   square?: boolean
   // Line (shape 1) only — its own dash pattern, matching backend/
-  // internal/slddoc's own Element.LineStyle. Reuses ConnectorLineStyle
+  // slddoc's own Element.LineStyle. Reuses ConnectorLineStyle
   // (the same solid/dashed/dashDot choice a CableLine connector's own
   // lineStyle already offers), but resolved through its own real dash
   // values, distinct from CableLine's — see that Go field's own doc
@@ -307,14 +307,14 @@ export interface DiagramElement {
   // empty-means-dashed default.
   lineStyle?: ConnectorLineStyle
   // PackageSubstation (shape 385) only — selects between its own two real
-  // appearance variants, matching backend/internal/slddoc's own
+  // appearance variants, matching slddoc's own
   // Element.NType: 0/unset draws a box-in-box pictogram with a lead stub,
   // 1 draws a plain downward-pointing triangle instead.
   nType?: number
   // PackageSubstation (385) or EnclosedSubstation (386) — a short overlay
   // label (e.g. a transformer's own power rating, "160") drawn centered
   // on the shape, staying upright regardless of Orientation/Mirror.
-  // Matches backend/internal/slddoc's own Element.PropertyText — see its
+  // Matches slddoc's own Element.PropertyText — see its
   // own doc comment for why this is a fixed centered/white/17px style
   // rather than the real source's own generic position/font/color
   // options. Empty means no label for these two. Also used by
@@ -327,13 +327,13 @@ export interface DiagramElement {
   // no fixed style of its own; see textColor/bold.
   propertyText?: string
   // Button (shape 113) only — its own PropertyText color, matching
-  // backend/internal/slddoc's own Element.TextColor. Unset falls back to
+  // slddoc's own Element.TextColor. Unset falls back to
   // white, the more common real corpus case. Also used by
   // PowerflowIndicator (320001) for its own arrow glyph's fill color;
   // unset falls back to black there instead, matching Line's own default.
   textColor?: string
   // Button (shape 113) only — draws its own PropertyText in bold, matching
-  // backend/internal/slddoc's own Element.Bold.
+  // slddoc's own Element.Bold.
   bold?: boolean
   // Container (shape 310) only — its caption's font size (unset = 14),
   // anchor offset from the outline's top-left, and text-anchor/
@@ -373,12 +373,12 @@ export interface DiagramElement {
   // stored verbatim, not derived from the windings' own scheme.
   vectorGroupLabel?: string
   // Table2 (shape 313) only — its own row/column grid, matching backend/
-  // internal/slddoc's own Element.RowHeights/ColumnWidths/Cells. X/Y is
+  // slddoc's own Element.RowHeights/ColumnWidths/Cells. X/Y is
   // the grid's own top-left anchor (unlike every Points-based decorative
   // shape); rowHeights[i]/columnWidths[j] is row i's/column j's own real
   // size, cumulative-summed from that anchor to place each cell. A (row,
   // col) with no matching TableCell entry at all is simply not drawn —
-  // see backend/internal/slddoc's own ClassTable2/TableCell doc comments
+  // see slddoc's own ClassTable2/TableCell doc comments
   // for the full model (deliberately no cell-merging, no multi-paragraph
   // cell text).
   rowHeights?: number[]
@@ -401,7 +401,7 @@ export interface DiagramElement {
   mrid?: string
 }
 
-// Matches backend/internal/slddoc.TableCell — one real cell of a Table2
+// Matches slddoc.TableCell — one real cell of a Table2
 // (shape 313) grid. Row/Col are 0-based positions into the owning
 // DiagramElement's own rowHeights/columnWidths. fill/textColor are
 // optional per-cell overrides of the table's own fill/black default —
@@ -417,10 +417,10 @@ export interface TableCell {
   textColor?: string
 }
 
-// Matches backend/internal/slddoc.ConnectorKind.
+// Matches slddoc.ConnectorKind.
 export type ConnectorKind = 'BusbarWire' | 'OverheadLine' | 'CableLine' | 'BusWork' | 'LinkToObject'
 
-// Matches backend/internal/slddoc.ConnectorLineStyle — a CableLine
+// Matches slddoc.ConnectorLineStyle — a CableLine
 // connector's own dash pattern, mirroring xsde2svg's own line-style
 // switch (xsde2svg/internal/modus/element_23.go). Meaningless for every
 // other ConnectorKind; unset/empty resolves to 'dashed' server-side (see
@@ -432,7 +432,7 @@ export interface Connector {
   kind: ConnectorKind
   // Optional, like DiagramElement.name — most kinds render with no
   // data-name at all; a 'OverheadLine' connector's own <g> wrapper does
-  // (see backend/internal/slddoc.writeOverheadLine).
+  // (see slddoc internal/render/render.go writeNamedLine).
   name?: string
   voltage?: number
   layer: number

@@ -77,7 +77,7 @@ type Config struct {
 
 	// StateColors is the install-wide Open/Close/Intermediate legend a
 	// switching device's state-driven fill (and its data-fill/data-state
-	// attributes — see internal/slddoc.Render) are drawn from. Unlike
+	// attributes — see slddoc.Render) are drawn from. Unlike
 	// VoltageColors, this has no per-diagram override: a diagram's own
 	// elements only ever carry a raw State value (0/1/2/...), never a
 	// color, so there is nothing for a diagram to have "already saved"
@@ -85,7 +85,7 @@ type Config struct {
 	StateColors []StateColor `yaml:"state_colors"`
 
 	// FPIStateColors is the install-wide Open/Close/Intermediate legend a
-	// FaultPassageIndicator's own ring/text color (internal/slddoc.Render's
+	// FaultPassageIndicator's own ring/text color (slddoc.Render's
 	// {fpiColor}) is drawn from — a separate legend from StateColors since
 	// an FPI's Open/Close meaning is inverted from a switching device's own:
 	// a switching device defaults to Close/lawngreen (in service, current
@@ -95,7 +95,7 @@ type Config struct {
 
 	// PositionStates is the install-wide Service/Normal/Test legend a
 	// withdrawable device's own racking position (Element.Position, its own
-	// data-trolley attribute — see internal/slddoc.Render) is labeled from.
+	// data-trolley attribute — see slddoc.Render) is labeled from.
 	// Unlike State, position carries no color of its own — it only drives a
 	// geometric offset — so there's no Color field here, just a label.
 	PositionStates []PositionState `yaml:"position_states"`
@@ -103,7 +103,7 @@ type Config struct {
 	Indicators struct {
 		// DefaultFPIText is the label a FaultPassageIndicator (320003)
 		// draws centered on itself when its own Element.PropertyText is
-		// unset (internal/slddoc.Render's defaultFPIText) — this shape's
+		// unset (slddoc.Render's defaultFPIText) — this shape's
 		// own real source draws no text at all, so there's nothing to
 		// derive a default from; it's admin-configurable per install
 		// rather than hardcoded, the same reasoning VoltageColors/
@@ -160,7 +160,7 @@ type VoltageColor struct {
 // StateColor is one entry of the global state->color legend: State is the
 // raw value an Element's own State field records (0/1/2/...), Label is
 // what the Properties panel's State dropdown shows for it, and Color is
-// what internal/slddoc.Render fills a switching device's body with when
+// what slddoc.Render fills a switching device's body with when
 // State matches.
 type StateColor struct {
 	State int    `yaml:"state" json:"state"`

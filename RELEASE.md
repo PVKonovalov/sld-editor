@@ -1,5 +1,7 @@
 # Release notes
 
+2026-10-30: The sibling `slddoc` was split into internal packages (`internal/model`, `svgtree`, `render`, `extract`, `repair`, `cim`) behind an unchanged public API: the root package re-exports it (`slddoc.go`), so no code changes were needed here; build, vet and tests pass as before. Comments that pointed at slddoc files or identifiers, many still by the old in-repo path `backend/internal/slddoc`, are repointed (`slddoc.X` for the public API, e.g. `slddoc internal/render/render.go` for its unexported helpers), in Go, TS/TSX, `base.xml` and `sld-editor.yaml`; three that were already stale are fixed (`writeOverheadLine` → `writeNamedLine`, `writeTable2` → `WriteTable2`, `slddoc/FORMAT.md` → `XSLD_FORMAT.md`). CLAUDE.md: the slddoc row says the API is re-exported from internal packages, and the `Repair` rule names its file.
+
 2026-09-13: Stage 1 — backend core. Go 1.26 module (`backend/go.mod`) with
 a Gin HTTP API. Ported `internal/slddoc` from sld-svg's XML/SVG diagram
 format (Diagram/Layer/VoltageClass/Node/Element/Connector/Label, XML

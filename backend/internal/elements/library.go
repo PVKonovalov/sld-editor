@@ -1,7 +1,7 @@
 // Package elements loads the element libraries an sld-editor deployment is
 // configured with (see config/sld-editor.yaml's elements.libraries) into a
 // palette catalog for the frontend and a symbol library for
-// internal/slddoc.Render.
+// slddoc.Render.
 //
 // Each library file is XML in the same shape/template format sld-svg's
 // symbols.xml uses, extended with class/name attributes this editor needs
@@ -127,7 +127,7 @@ func LoadAll(paths []string) (*Library, error) {
 
 // PaletteConnectorKinds maps a wire-kind palette item's own xsde2svg
 // ObjectType code to the slddoc.ConnectorKind it arms — the same 4 codes
-// internal/slddoc/render.go's own connectorTypeCode maps the other
+// slddoc internal/render/render.go's own connectorTypeCode maps the other
 // direction for rendering ("21"/"22"/"23"/"28"), so a config.Palette item
 // and a rendered connector's own data-type agree on what these codes mean.
 // 'BusbarWire' is a real slddoc.ConnectorKind but was deliberately never
@@ -247,7 +247,7 @@ func (l *Library) Classes() map[string]slddoc.Class {
 	return out
 }
 
-// SymbolLibrary builds an internal/slddoc.SymbolLibrary from this Library's
+// SymbolLibrary builds an slddoc.SymbolLibrary from this Library's
 // templates, for rendering.
 func (l *Library) SymbolLibrary() *slddoc.SymbolLibrary {
 	templates := make(map[string]string, len(l.Symbols))

@@ -102,7 +102,7 @@ voltage_colors:
 voltage_color_tolerance: 60
 
 # Global Open/Close/Intermediate/Faulty legend a switching device's state-driven
-# fill is drawn from (internal/slddoc.Render's data-fill/data-state
+# fill is drawn from (slddoc.Render's data-fill/data-state
 # attributes) and the Properties panel's State dropdown offers. The colors
 # are only the starting point: a diagram saved without colors of its own
 # takes them into its .xsld (<stateColors>), where Properties > State colors
@@ -139,7 +139,7 @@ fpi_state_colors:
     color: "magenta"
 
 # Global Service/Normal/Test legend a withdrawable device's own racking
-# position is labeled from (internal/slddoc.Render's data-trolley attribute)
+# position is labeled from (slddoc.Render's data-trolley attribute)
 # and the Properties panel's Position status dropdown offers — only Breaker/
 # Disconnector (withdrawable), shapes 43/49, currently use it. Unlike
 # state_colors, position carries no color of its own, only a label — it
@@ -168,7 +168,7 @@ indicators:
 # kind of entry, never a mix of codes and names: a real equipment shape
 # (see elements.libraries), one of 21/22/23/28 (Buswork/Overhead line/
 # Cable line/Object link — arms the routing tool's next drawn connector,
-# same codes internal/slddoc.Render's own data-type attribute uses), or
+# same codes slddoc.Render's own data-type attribute uses), or
 # 5/134 (Текст/Text, Прибор цифровой/Digital instrument — this editor's
 # own two built-in non-equipment widgets, never a real element.Symbol
 # either). A group's own display name is looked up as

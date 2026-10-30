@@ -109,7 +109,7 @@ export function resolveVoltageSelection(
 
 // Hands out sequential integer ids starting after diagram.lastId, the
 // high-water mark the backend persists on Diagram (see
-// backend/internal/slddoc's LastID doc comment). One shared counter across
+// slddoc's LastID doc comment). One shared counter across
 // elements/nodes/connectors/voltage classes, not one per kind — simplest
 // way to guarantee every id in a diagram is unique regardless of what it
 // names. Callers must fold `.lastId` back into the diagram they return so
@@ -1839,7 +1839,7 @@ function nextPortName(e: DiagramElement): string {
 // it's also what actually makes writeNamedLine's own data-name attribute
 // non-empty (confirmed against a real xsde2svg-exported line's own
 // data-name, e.g. sld-viewer/assets/sld/IEEE9bus.svg's "Line2" — see
-// backend/internal/slddoc/render.go). LinkToObject renders as one
+// slddoc internal/render/render.go). LinkToObject renders as one
 // <g id data-type="28"> wrapping its line and arrowhead (slddoc's
 // writeObjectLink, xsde2svg 1.4.21+), which carries this Name as data-name.
 // Every other kind returns undefined, same as never setting Name at all.
@@ -1856,7 +1856,7 @@ function defaultConnectorName(kind: ConnectorKind, id: number): string | undefin
 
 /** Mirrors (if set), rotates, and translates a local (unrotated) point by
  * an element's own mirror/orient/anchor — matching exactly how
- * internal/slddoc.Render places a symbol's template, via
+ * slddoc.Render places a symbol's template, via
  * transform="translate(x,y) rotate(orient) scale(-1,1)" (mirror is the
  * innermost transform, applied to the point first, same as the backend's
  * own transform-attribute order). Exported for Canvas.tsx's own
@@ -1872,7 +1872,7 @@ export function placeLocalPoint(el: DiagramElement, p: Point): Point {
 }
 
 // Power transformer (shape 47) geometry constants — mirrors
-// backend/internal/slddoc's own render.go constants of the same name
+// slddoc internal/render/render.go's constants of the same name
 // exactly (see writePowerTransformer's own doc comment for why these, not
 // real xsde2svg's own Size 11-24 table, are the only numbers this editor
 // ever uses). Kept in sync by hand, like every other JSON-shape mirror in
@@ -3393,14 +3393,14 @@ export function setStateColor(diagram: Diagram, legend: StateColor[], state: num
 
 /** Removes a voltage class. Any element/connector still referencing it by
  * id keeps that (now-dangling) reference rather than being cleared —
- * internal/slddoc.Render already falls back to a neutral gray for a
+ * slddoc.Render already falls back to a neutral gray for a
  * voltage id it can't resolve, so this doesn't break rendering, just
  * leaves it unassigned in effect until reassigned to something real. */
 export function removeVoltageClass(diagram: Diagram, id: number): Diagram {
   return { ...diagram, voltageClasses: diagram.voltageClasses.filter(vc => vc.id !== id) }
 }
 
-// BASE_LAYER mirrors internal/slddoc's BaseLayer: the always-present layer
+// BASE_LAYER mirrors slddoc's BaseLayer: the always-present layer
 // every object falls back to, which can't be deleted.
 export const BASE_LAYER = 0
 

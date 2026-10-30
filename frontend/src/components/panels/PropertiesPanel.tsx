@@ -157,7 +157,7 @@ const LAMP_STATE_ON = 1
 // An Automation device's (103) default label size (render.go).
 const AUTOMATION_DEVICE_FONT_SIZE = 12
 
-// PackageSubstation's own State (backend/internal/slddoc's own
+// PackageSubstation's own State (slddoc's own
 // Element.State, reused rather than a dedicated field) isn't an
 // Open/Close/Intermediate switching-device concept — it's the real
 // xsde2svg source's own Tech.Closed, a plain solid-vs-dashed outline
@@ -169,13 +169,13 @@ const AUTOMATION_DEVICE_FONT_SIZE = 12
 const SUBSTATION_STATE_SOLID = 1
 const SUBSTATION_STATE_DASHED = 0
 
-// PackageSubstation's own NType (backend/internal/slddoc's own
+// PackageSubstation's own NType (slddoc's own
 // Element.NType) selects between its two real appearance variants — see
 // that field's own doc comment.
 const SUBSTATION_NTYPE_BOX = 0
 const SUBSTATION_NTYPE_TRIANGLE = 1
 
-// PowerflowIndicator's own State (backend/internal/slddoc's own
+// PowerflowIndicator's own State (slddoc's own
 // Element.State, reused rather than a dedicated field) isn't an
 // Open/Close/Intermediate switching-device concept either — it's a plain
 // two-way arrow direction, so it gets its own small Forward/Backward
@@ -184,7 +184,7 @@ const SUBSTATION_NTYPE_TRIANGLE = 1
 const POWERFLOW_DIRECTION_FORWARD = 0
 const POWERFLOW_DIRECTION_BACKWARD = 1
 
-// KnifeSwitch3's own State (backend/internal/slddoc's own Element.State,
+// KnifeSwitch3's own State (slddoc's own Element.State,
 // reused rather than a dedicated field) is the blade's position, not an
 // Open/Close/Intermediate one, so it gets its own dropdown. 1/unset is the
 // middle (off) position, the only one the real source draws, matching
@@ -1622,7 +1622,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 already-placed/-saved junction point's look doesn't change;
                 real xsde2svg usually draws a filled dot at a varying
                 radius instead, which Extract captures explicitly (see
-                Element.Radius/Fill's own doc comments, slddoc/model.go). */}
+                Element.Radius/Fill's own doc comments, slddoc internal/model/model.go). */}
             <label className="block text-xs">
               <span className="flex items-center justify-between mb-1">
                 <span className="text-gray-400">{t('properties.junctionFill')}</span>

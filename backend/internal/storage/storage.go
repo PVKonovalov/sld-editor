@@ -1,6 +1,6 @@
 // Package storage persists diagrams as a pair of files on disk: a
-// <name>.xsld source of truth (internal/slddoc's XML format, see
-// slddoc/FORMAT.md) and a companion
+// <name>.xsld source of truth (slddoc's XML format, see
+// slddoc XSLD_FORMAT.md) and a companion
 // <name>.svg rendering, kept alongside it for anything that just wants to
 // display the diagram without understanding the XML.
 package storage
@@ -68,7 +68,7 @@ type Store struct {
 // (config.Config.FPIStateColors, converted); stateColors, when given, is the
 // install-wide switching-device state->color legend (config.Config.
 // StateColors, converted) — all three are carried through to every
-// internal/slddoc.Render call. Pass "" for defaultFPIText, nil for
+// slddoc.Render call. Pass "" for defaultFPIText, nil for
 // fpiColors, or omit stateColors entirely, for a store that doesn't need
 // one (e.g. a test not exercising that state).
 func New(dir string, lib *slddoc.SymbolLibrary, defaultFPIText string, fpiColors []slddoc.StateColor, stateColors ...slddoc.StateColor) (*Store, error) {

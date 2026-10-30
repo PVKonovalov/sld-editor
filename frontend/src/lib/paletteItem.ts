@@ -7,7 +7,7 @@ import type { ConnectorKind, PaletteItem } from '../types'
 // vocabulary for every kind of palette entry, never a name for some kinds
 // and a code for others (see PaletteItem's own doc comment in
 // types/index.ts). These 4 wire-kind codes are the same ones
-// internal/slddoc.Render's own data-type attribute uses for a rendered
+// slddoc.Render's own data-type attribute uses for a rendered
 // connector (see that package's connectorTypeCode).
 const WIRE_KIND_CODES: Record<string, ConnectorKind> = {
   '21': 'BusWork',
@@ -20,7 +20,7 @@ const WIRE_KIND_CODES: Record<string, ConnectorKind> = {
 // code, for display (e.g. PropertiesPanel's own "Object link:28" type
 // line). 'BusbarWire' is deliberately absent, same as WIRE_KIND_CODES
 // itself never maps a code to it — it was removed as a palette choice and
-// internal/slddoc.Render's own connectorTypeCode has no entry for it
+// slddoc.Render's own connectorTypeCode has no entry for it
 // either, so a real instance of that legacy kind has no code to show.
 export const CONNECTOR_KIND_CODES: Partial<Record<ConnectorKind, string>> = Object.fromEntries(
   Object.entries(WIRE_KIND_CODES).map(([code, kind]) => [kind, code]),

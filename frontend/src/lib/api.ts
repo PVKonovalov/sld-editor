@@ -155,8 +155,8 @@ export async function renderPreview(diagram: Diagram): Promise<{ svg: string; wa
  * returns only those ids' own fresh markup — keyed by id, JSON's own object
  * keys always strings even though these started as numbers on both ends —
  * for Canvas.tsx to patch its existing DOM nodes in place instead of
- * replacing its whole injected SVG. See backend/internal/slddoc.
- * RenderFragments' own doc comment for the full contract (an id no longer
+ * replacing its whole injected SVG. See slddoc.RenderFragments' own doc
+ * comment for the full contract (an id no longer
  * in diagram at all is silently skipped, not an error). */
 export async function renderPreviewFragments(
   diagram: Diagram,

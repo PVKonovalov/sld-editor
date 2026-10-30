@@ -3,7 +3,7 @@
   Default element library bundled with sld-editor: one reusable,
   local-coordinate SVG <template> per equipment shape, drawn around the
   origin (0,0) in the shape's native (unrotated) orientation. The renderer
-  (internal/slddoc.Render) places it with transform="translate(x,y)
+  (slddoc.Render) places it with transform="translate(x,y)
   rotate(orient)".
 
   Geometry and shape codes are ported from sld-svg's symbols.xml
@@ -76,7 +76,7 @@
   <symbol shape="24" class="BusBarSection" name="Busbar section">
     <!-- A busbar has no fixed template: its geometry is the element's own
          drawn Points (two or more vertices), rendered as a polyline
-         directly by internal/slddoc.Render before this library is
+         directly by slddoc.Render before this library is
          consulted. This entry exists only so the Elements palette can
          offer "Busbar section" alongside every templated shape. -->
     <template></template>
@@ -87,7 +87,7 @@
          arbitrary multi-vertex polyline, and it isn't real electrical
          equipment at all (no terminals, no voltage, no state — see
          slddoc's own ClassLine doc comment), so it's drawn straight from
-         its own Points by internal/slddoc.Render, not template
+         its own Points by slddoc.Render, not template
          substitution. This entry exists only so the Elements palette can
          offer "Line" the same drag-two-points way it already offers
          "Busbar section"/"Road" (this editor can only draw a fresh Line
@@ -103,7 +103,7 @@
          arc command stored as-is (start/end Points plus rx/ry/largeArc/
          sweep — see slddoc's own ClassArc doc comment), not real
          electrical equipment, drawn straight from those fields by
-         internal/slddoc.Render. This entry exists only so the Elements
+         slddoc.Render. This entry exists only so the Elements
          palette can offer it: a fresh one is drawn by dragging from its
          start to its end point (a circular arc bulging a quarter of the
          chord out), then reshaped with its start/end/bulge handles. -->
@@ -114,7 +114,7 @@
     <!-- Like Line above, a Polygon has no fixed template: it's an
          arbitrary closed vertex list, not real electrical equipment (see
          slddoc's own ClassPolygon doc comment), drawn straight from its
-         own Points by internal/slddoc.Render. This entry exists only so
+         own Points by slddoc.Render. This entry exists only so
          the Elements palette can offer it: a fresh one is drawn pen-tool
          style (Canvas — one click per vertex, click the first vertex or
          press Enter to close, Backspace removes the last vertex, Esc
@@ -136,7 +136,7 @@
          size varies per instance, and it isn't real electrical equipment
          at all (no terminals, no voltage, no state — see slddoc's own
          ClassRectangle doc comment), so it's drawn straight from its own
-         two Points (opposite corners) by internal/slddoc.Render, not
+         two Points (opposite corners) by slddoc.Render, not
          template substitution. This entry exists only so the Elements
          palette can offer "Rectangle" the same drag-two-corners way it
          already offers "Busbar section". -->
@@ -149,7 +149,7 @@
          at all (no terminals, no voltage, no state — see slddoc's own
          ClassArrow doc comment), so it's drawn straight from its own two
          Points (start, then end — order matters, unlike Rectangle's) by
-         internal/slddoc.Render, not template substitution. This entry
+         slddoc.Render, not template substitution. This entry
          exists only so the Elements palette can offer "Arrow" the same
          drag-two-points way it already offers "Rectangle"/"Busbar
          section". -->
@@ -162,7 +162,7 @@
          all (no terminals, no voltage, no state — see slddoc's own
          ClassCircle doc comment), so it's drawn straight from its own two
          Points (opposite bounding-box corners, the exact same convention
-         Rectangle uses) by internal/slddoc.Render, not template
+         Rectangle uses) by slddoc.Render, not template
          substitution. This entry exists only so the Elements palette can
          offer "Circle" the same drag-two-corners way it already offers
          "Rectangle". -->
@@ -175,7 +175,7 @@
          (no terminals, no voltage, no state — see slddoc's own ClassButton
          doc comment), so it's drawn straight from its own two Points
          (opposite corners, the exact same convention Rectangle uses) plus
-         its own PropertyText/TextColor/Bold label by internal/slddoc.Render,
+         its own PropertyText/TextColor/Bold label by slddoc.Render,
          not template substitution. This entry exists only so the Elements
          palette can offer "3D button" the same drag-two-corners way it
          already offers "Rectangle"/"Circle". -->
@@ -216,7 +216,7 @@
          single static template substitution can't express, and it isn't
          real electrical equipment at all (no terminals, no voltage, no
          state — see slddoc's own ClassPostPole doc comment), so it's
-         drawn directly by internal/slddoc.Render (writePole), not
+         drawn directly by slddoc.Render (internal/render/render.go writePole), not
          template substitution. This entry exists only so the Elements
          palette can offer "Post-type pole" the same click-to-place way it
          already offers Lamp/JunctionPoint (a single anchor, not a
@@ -229,7 +229,7 @@
          arbitrary multi-vertex polyline, and it isn't real electrical
          equipment at all (no terminals, no voltage, no state — see
          slddoc's own ClassRoad doc comment), so it's drawn straight from
-         its own Points by internal/slddoc.Render, not template
+         its own Points by slddoc.Render, not template
          substitution. This entry exists only so the Elements palette can
          offer "Road" the same drag-two-points way it already offers
          "Busbar section"/"Arrow" (this editor can only draw a fresh Road
@@ -245,8 +245,8 @@
        instance with neither field set keeps this schema's own
        long-standing look (radius 3, unfilled), even though real xsde2svg
        usually draws a filled dot at a varying radius instead — see
-       Element.Radius/Fill's own doc comments (slddoc/model.go) for the
-       real corpus evidence and internal/slddoc/render.go's own
+       Element.Radius/Fill's own doc comments (slddoc internal/model/model.go) for the
+       real corpus evidence and slddoc internal/render/render.go's own
        junctionRadius/junctionFill for the fallback logic itself. -->
   <symbol shape="7" class="JunctionPoint" name="Junction point">
     <template><![CDATA[
@@ -1276,7 +1276,7 @@
        box's top edge; the real source's stub is 4 units). Its geometry varies per instance
        (two structurally different real appearance variants, not just a
        {state:...}-style tweak within one static shape — see
-       internal/slddoc.writePackageSubstation) so, like Rectangle/Circle/
+       slddoc internal/render/render.go writePackageSubstation) so, like Rectangle/Circle/
        Arrow/PowerTransformer above, it bypasses this file's own template
        substitution entirely — this entry exists only so the palette can
        offer it and declare its own terminal. NType (0/unset, the common
@@ -1305,7 +1305,7 @@
        above, but with a single fixed appearance instead of two real
        variants: a 36-unit square outline with a downward-pointing
        triangle always drawn inside it (see
-       internal/slddoc.writeEnclosedSubstation), so it bypasses this
+       slddoc internal/render/render.go writeEnclosedSubstation), so it bypasses this
        file's own template substitution the same way that shape does —
        this entry exists only so the palette can offer it and declare its
        own terminals. It has four, one at the middle of each side of the
@@ -1394,7 +1394,7 @@
   <symbol shape="320001" class="PowerflowIndicator" name="Powerflow direction">
     <!-- Like PostPole above, a PowerflowIndicator has no fixed template: it's
          a single rotated arrow glyph ("→"/"←", selected by State) drawn
-         directly by internal/slddoc.Render (writePowerflowIndicator), not
+         directly by slddoc.Render (internal/render/render.go writePowerflowIndicator), not
          template substitution — it isn't real electrical equipment at all
          (no terminals, no voltage — see slddoc's own ClassPowerflowIndicator
          doc comment). This entry exists only so the Elements palette can
@@ -1409,7 +1409,7 @@
          electrical equipment at all (no terminals, no voltage — see
          slddoc's own ClassTable doc comment), so it's drawn straight from
          those Points plus its own PropertyText/TextColor/Orient label by
-         internal/slddoc.Render (writeTable), not template substitution.
+         slddoc.Render (internal/render/render.go writeTable), not template substitution.
          This entry exists only so the Elements palette can offer "Table"
          the same drag-two-corners way it already offers "Rectangle"/
          "3D button". -->
@@ -1422,7 +1422,7 @@
          varies per instance and it isn't real electrical equipment at all
          (no terminals, no voltage — see slddoc's own ClassTable2 doc
          comment), so it's drawn straight from those fields by
-         internal/slddoc.Render (writeTable2), not template substitution.
+         slddoc.Render (internal/render/render.go WriteTable2), not template substitution.
          This entry exists only so the Elements palette can offer
          "Table 2" the same click-to-place way it already offers
          PostPole/Lamp/JunctionPoint — a freshly placed one starts as a

@@ -318,7 +318,7 @@ function appendOrthogonalPoint(path: Point[], end: Point): Point[] {
 // top-level SVG node — a <g>, or a bare <rect>/<circle>/<ellipse>/
 // <polyline>/<path>/<text>, matching whichever of those the element/
 // connector/label/digital device in question renders as — see
-// internal/slddoc.Render's own doc comment on RenderMode/bare-tag shapes)
+// slddoc.Render's own doc comment on RenderMode/bare-tag shapes)
 // into a real, detached DOM node ready to swap in for its own stale one.
 // Can't use a plain <div>.innerHTML for this — the HTML parser doesn't
 // namespace bare SVG tags correctly — so the fragment is parsed as XML
@@ -465,7 +465,7 @@ function ZoomControls({
 }
 
 // Renders the current in-memory diagram by asking the backend to render it,
-// rendered in sequence (renderNext), rather than reimplementing internal/slddoc's symbol-template
+// rendered in sequence (renderNext), rather than reimplementing slddoc's symbol-template
 // rendering in the browser. Selection (click, Shift/Ctrl/Cmd-click, the
 // selection frame), drag, Alt-drag duplicate, copy/paste, click-to-place
 // and wire routing are all handled here by hit-testing a click against the
@@ -1318,7 +1318,7 @@ export function Canvas() {
   // own getBBox() returns its geometry in local, pre-transform coordinates
   // (the same space a shape's template/Terminals are authored in), so its
   // 4 corners are pushed through diagramOps.placeLocalPoint — the same
-  // rotate-by-orient-then-translate-by-anchor math internal/slddoc.Render
+  // rotate-by-orient-then-translate-by-anchor math slddoc.Render
   // itself used to place that same geometry — to get the element's real
   // diagram-space footprint. BusBarSection is skipped entirely: it renders
   // as a bare <polyline> with no fill at all, and its own thin line is

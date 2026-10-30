@@ -26,7 +26,7 @@ export) and React + Vite + TS + Tailwind frontend (interactive canvas). No datab
 
 | Repo | Relationship |
 |---|---|
-| `PVKonovalov/slddoc` (`../slddoc`, `replace` in `backend/go.mod`) | **Required.** The diagram model: types, `.xsld` XML Load/Save (`XSLD_FORMAT.md`), SVG `Render`/`RenderFragments`, `Extract` (SVG → diagram), `Repair`, `EnsureIDs`, CIM export/import and layout. Its tests run there. |
+| `PVKonovalov/slddoc` (`../slddoc`, `replace` in `backend/go.mod`) | **Required.** The diagram model: types, `.xsld` XML Load/Save (`XSLD_FORMAT.md`), SVG `Render`/`RenderFragments`, `Extract` (SVG → diagram), `Repair`, `EnsureIDs`, CIM export/import and layout. The root package re-exports the API of `internal/{model,svgtree,render,extract,repair,cim}` (`slddoc.go`); `internal/` can't be imported from here. Its tests run there. |
 | `EMA/xsde2svg` (`~/repo/EMA/xsde2svg`, `replace` in `backend/go.mod`) | **Required.** Modus `.xsde` → SVG converter used in-process (`pkg/xsde2svg.Convert`). `backend/assets/xsde2svg.yml` and `workplace.xml` are copies of its files (shipped by `make package`); `make docker-build` mounts it from `XSDE2SVG_DIR`. |
 | `OrxaGridMicroservices/rdss-dms` (formerly `sld-viewer`) | Consumer of the exported `.svg`: reads `id`, `data-type`, `data-name`, `data-voltage`, `data-state`, `data-fill`, `data-event`. **SVG markup problems are fixed here, not worked around in rdss-dms.** Its `assets/sld/*.svg` are real xsde2svg corpus files — verify output against them. State colors (`data-fill`, states 0–3) must match its state mapping. |
 | `OrxaGridMicroservices/rdss-dms-nca` | Every symbol code (`data-type`, e.g. 6-digit `330001`) needs a `sld.sld_element_type` row (with its CIM class) in its `db/init/dms_schema_all.sql` + patch, or linking equipment in rdss-dms fails. |
@@ -70,7 +70,7 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
 - Ids are ints in one shared space, 0 = unset; only the frontend's `IdSequence` assigns them (seeded from
   `Diagram.LastID`). `Element.Shape` is a string library key.
 - Opening and `.xsld` import run only `EnsureIDs`; topology repair runs only after `.svg`/`.xsde` import and on explicit
-  "Repair diagram". **`slddoc.Repair` is a rule-for-rule Go port of `diagramOps.ts`'s fixed-ports/topology
+  "Repair diagram". **`slddoc.Repair` (slddoc `internal/repair/repair.go`) is a rule-for-rule Go port of `diagramOps.ts`'s fixed-ports/topology
   functions — keep the two in step.** Repair never moves an existing node.
 - Ports are fixed per shape (N terminals → ports `"1"…"N"`); a BusBarSection is the exception (one port per
   connection point; downstream topology merges them).

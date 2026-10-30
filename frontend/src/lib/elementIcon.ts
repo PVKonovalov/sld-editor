@@ -1,6 +1,6 @@
 import type { ElementSymbol } from '../types'
 
-// Mirrors the placeholder substitution backend/internal/slddoc.Render does
+// Mirrors the placeholder substitution slddoc.Render does
 // for a real placed element, but with static values that make sense for a
 // state-less palette preview instead of a real instance's voltage/state:
 // {state:a|b|c} always shows the first (closed/parallel) variant, {color}
@@ -13,7 +13,7 @@ const STATE_RE = /\{state:([^|}]*)\|([^|}]*)\|([^}]*)\}/g
 // icon; the fragment may itself contain other placeholders.
 const TAP_CHANGER_RE = /\{tapChanger:([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g
 
-// BusBarSection (shape 24) has no template — internal/slddoc.Render draws
+// BusBarSection (shape 24) has no template — slddoc.Render draws
 // its own Points as a polyline instead — so the palette shows a plain
 // line as a stand-in for "you drag this one instead of clicking it".
 const BUSBAR_ICON = '<line x1="-28" y1="0" x2="28" y2="0" stroke="currentColor" stroke-width="3" />'
