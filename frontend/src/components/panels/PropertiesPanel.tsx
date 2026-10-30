@@ -1,4 +1,4 @@
-import { Captions, Trash2 } from 'lucide-react'
+import { Bold, Captions, Italic, Trash2, Underline } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { FindSection } from './FindSection'
@@ -797,27 +797,33 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               onChange={e => patchLabel({ rotate: diagramOps.labelRotation(Number(e.target.value) || 0) || undefined })}
             />
           </label>
-          <div className="flex items-center gap-4 text-xs">
-            <label className="flex items-center gap-2">
-              <input type="checkbox" checked={!!label.bold} onChange={e => patchLabel({ bold: e.target.checked })} />
-              <span className="text-gray-400">{t('properties.labelBold')}</span>
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={!!label.italic}
-                onChange={e => patchLabel({ italic: e.target.checked || undefined })}
-              />
-              <span className="text-gray-400 italic">{t('properties.labelItalic')}</span>
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={!!label.underline}
-                onChange={e => patchLabel({ underline: e.target.checked || undefined })}
-              />
-              <span className="text-gray-400 underline">{t('properties.labelUnderline')}</span>
-            </label>
+          <div className="text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.labelFontStyle')}</span>
+            <div className="flex gap-1">
+              {(
+                [
+                  ['bold', Bold, 'properties.labelBold'],
+                  ['italic', Italic, 'properties.labelItalic'],
+                  ['underline', Underline, 'properties.labelUnderline'],
+                ] as const
+              ).map(([key, Icon, title]) => (
+                <button
+                  key={key}
+                  type="button"
+                  title={t(title)}
+                  aria-label={t(title)}
+                  aria-pressed={!!label[key]}
+                  onClick={() => patchLabel({ [key]: !label[key] || undefined })}
+                  className={`p-1.5 rounded border ${
+                    label[key]
+                      ? 'bg-accent border-accent text-white'
+                      : 'bg-surface-800 border-surface-600 text-gray-400 hover:text-white hover:bg-surface-600'
+                  }`}
+                >
+                  <Icon size={14} />
+                </button>
+              ))}
+            </div>
           </div>
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.labelColor')}</span>

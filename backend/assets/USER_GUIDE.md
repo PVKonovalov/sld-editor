@@ -885,7 +885,8 @@ Select a single item to edit it in the Properties panel:
   The current spacing is always listed, as its own entry when it matches none of them), and shape-specific fields
   (for example a transformer's windings or a lamp's colours).
 - **Wires**: name and voltage class.
-- **Text labels**: text, size, anchors, **Bold**, **Italic**, **Underline**, colour, font, and the element it belongs to.
+- **Text labels**: text, size, anchors, **Font style** (bold, italic and underline buttons, lit when on), colour, font,
+  and the element it belongs to.
   An `.xsde`/`.svg` import keeps a caption's bold, italic and underline.
 - **Digital devices**: SCADA name, default value and unit.
 

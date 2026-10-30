@@ -442,6 +442,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'properties.anchorMiddle': 'По центру',
   'properties.anchorEnd': 'По правому краю',
   'properties.labelBold': 'Жирный',
+  'properties.labelFontStyle': 'Начертание',
   'properties.labelItalic': 'Курсив',
   'properties.labelUnderline': 'Подчёркнутый',
   'properties.labelColor': 'Цвет',

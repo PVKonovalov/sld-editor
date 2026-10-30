@@ -446,6 +446,7 @@ export const dictionary = {
   'properties.anchorMiddle': 'Middle',
   'properties.anchorEnd': 'End',
   'properties.labelBold': 'Bold',
+  'properties.labelFontStyle': 'Font style',
   'properties.labelItalic': 'Italic',
   'properties.labelUnderline': 'Underline',
   'properties.labelColor': 'Color',
