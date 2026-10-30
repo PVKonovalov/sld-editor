@@ -797,10 +797,28 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
               onChange={e => patchLabel({ rotate: diagramOps.labelRotation(Number(e.target.value) || 0) || undefined })}
             />
           </label>
-          <label className="flex items-center gap-2 text-xs">
-            <input type="checkbox" checked={!!label.bold} onChange={e => patchLabel({ bold: e.target.checked })} />
-            <span className="text-gray-400">{t('properties.labelBold')}</span>
-          </label>
+          <div className="flex items-center gap-4 text-xs">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={!!label.bold} onChange={e => patchLabel({ bold: e.target.checked })} />
+              <span className="text-gray-400">{t('properties.labelBold')}</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={!!label.italic}
+                onChange={e => patchLabel({ italic: e.target.checked || undefined })}
+              />
+              <span className="text-gray-400 italic">{t('properties.labelItalic')}</span>
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={!!label.underline}
+                onChange={e => patchLabel({ underline: e.target.checked || undefined })}
+              />
+              <span className="text-gray-400 underline">{t('properties.labelUnderline')}</span>
+            </label>
+          </div>
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.labelColor')}</span>
             <input

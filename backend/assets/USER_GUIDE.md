@@ -176,7 +176,8 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
   <name>…** and the File panel waits.
 - A Modus `.xsde` diagram is converted with xsde2svg first, then imported like its `.svg`. A single-page `.xsde`
   opens in the editor; each page of a multi-page one is saved into the current folder as `<name>`, `<name>_1`,
-  `<name>_2`…, like several files at once.
+  `<name>_2`…, like several files at once, and the first page saved opens in the editor. The summary says the file
+  holds several diagrams and which one is open; open the others from the File panel.
 - One file opens in the editor as an unsaved diagram; a CIM model is saved straight away as well. If a diagram of
   that name already exists in the current folder, the editor asks before loading it (saving, or for a CIM model the
   import itself, overwrites it).
@@ -884,7 +885,8 @@ Select a single item to edit it in the Properties panel:
   The current spacing is always listed, as its own entry when it matches none of them), and shape-specific fields
   (for example a transformer's windings or a lamp's colours).
 - **Wires**: name and voltage class.
-- **Text labels**: text, size, anchors, bold, colour, font, and the element it belongs to.
+- **Text labels**: text, size, anchors, **Bold**, **Italic**, **Underline**, colour, font, and the element it belongs to.
+  An `.xsde`/`.svg` import keeps a caption's bold, italic and underline.
 - **Digital devices**: SCADA name, default value and unit.
 
 The voltage class list includes the server's standard voltages; choosing one that the diagram doesn't have yet adds

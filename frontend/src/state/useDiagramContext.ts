@@ -48,6 +48,8 @@ export interface BatchImport {
   dir: string
   files: File[]
   items: BatchImportItem[]
+  // Set when one dropped/picked file held several diagrams: the one opened after saving them, if any.
+  opened?: string
 }
 
 // One .svg/.xsde import's own record, for the import log dialog (messages: .xsde only).

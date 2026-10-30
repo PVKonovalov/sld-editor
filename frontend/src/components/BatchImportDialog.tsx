@@ -34,7 +34,8 @@ export function BatchImportDialog() {
   }, [closeBatchImport])
 
   if (!batchImport) return null
-  const { dir, items } = batchImport
+  const { dir, files, items, opened } = batchImport
+  const severalDiagrams = files.length === 1 && items.length > 1
   const count = (status: keyof typeof STATUS_CLASS) => items.filter(i => i.status === status).length
   const skipped = count('skipped')
 
@@ -61,6 +62,14 @@ export function BatchImportDialog() {
               <GuideButton topic="import" />
             </h2>
             <p className="text-[11px] text-gray-500 break-all">{t('batchImport.folder', { dir: dir || '/' })}</p>
+            {severalDiagrams && (
+              <p className="text-amber-300 mt-1">
+                {t('batchImport.severalDiagrams', { file: files[0].name, count: items.length })}{' '}
+                {opened
+                  ? t('batchImport.openedFirst', { name: opened.split('/').pop() ?? opened })
+                  : t('batchImport.noneOpened')}
+              </p>
+            )}
             <p className="text-gray-400 mt-1">
               {t('batchImport.summary', { saved: count('saved'), skipped, failed: count('failed') })}
             </p>

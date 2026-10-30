@@ -464,6 +464,8 @@ export interface Label {
   size: number
   anchor?: string
   bold?: boolean
+  underline?: boolean
+  italic?: boolean
   color?: string
   valign?: string
   font?: string

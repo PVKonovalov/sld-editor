@@ -863,7 +863,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
 
   // importDiagramFile is what a single-file drop/pick calls. A multi-page
   // .xsde is saved page by page into the current folder, like
-  // importDiagramFiles. Otherwise it checks whether a diagram already exists
+  // importDiagramFiles, and its first saved page opens; BatchImportDialog
+  // says the file held several diagrams and which one is open. Otherwise it checks whether a diagram already exists
   // on the server under the name the import would take (importTargetName —
   // inside the File panel's current folder) and, if so, parks the prepared
   // file as pendingImport, with that name fixed, for ConfirmReloadDialog to
@@ -876,8 +877,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
         if (pages.length > 1) {
           const dir = currentDir
           const items = await saveImportedPages(file, pages, dir, new ExistingNames(false))
-          setBatchImport({ dir, files: [file], items })
-          await browseDir(dir)
+          const first = items.find(i => i.status === 'saved')
+          const opened = first && (await confirmLeave()) ? first.name : undefined
+          if (opened) await openDiagramNow(opened)
+          else await browseDir(dir)
+          setBatchImport({ dir, files: [file], items, opened })
           return
         }
         if (!(await confirmLeave())) return
@@ -901,6 +905,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       browseDir,
       currentDir,
       confirmLeave,
+      openDiagramNow,
       config,
       elements,
     ],

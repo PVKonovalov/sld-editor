@@ -184,10 +184,11 @@ function Shell() {
         )}
         {pendingImport && <ConfirmReloadDialog />}
         {importLogOpen && <ImportLogDialog onClose={() => setImportLogOpen(false)} />}
-        {defaultVoltagePromptOpen && !pendingImport && !importLogOpen && <DefaultVoltageDialog />}
+        {defaultVoltagePromptOpen && !pendingImport && !importLogOpen && !batchImport && <DefaultVoltageDialog />}
         {misplacedPorts.length > 0 &&
           !pendingImport &&
           !importLogOpen &&
+          !batchImport &&
           !defaultVoltagePromptOpen &&
           recoverableDrafts.length === 0 && <MisplacedPortsDialog />}
         {aboutOpen && <AboutDialog onClose={() => setAboutOpen(false)} />}
