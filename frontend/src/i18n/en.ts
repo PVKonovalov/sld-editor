@@ -318,6 +318,8 @@ export const dictionary = {
   'settings.snapToGrid': 'Snap to grid',
   'settings.showGrid': 'Show grid',
   'settings.showNodes': 'Show nodes',
+  'settings.jumpSameVoltage': 'Wire jumps at same-voltage crossings',
+  'settings.jumpSameVoltageHint': 'Also put a wire jump where two buswork wires of the same voltage class cross without a connection',
   'properties.background': 'Background color',
   'settings.defaultVoltage': 'Default voltage',
   'find.title': 'Find',

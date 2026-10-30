@@ -65,6 +65,8 @@ func (s *Server) createDiagram(c *gin.Context) {
 			GridSpacing: s.cfg.Editor.GridSpacing,
 			Snap:        s.cfg.Editor.Snap,
 			Background:  s.cfg.Editor.Background,
+			// Copied, so a later configuration change doesn't change this diagram's crossings.
+			JumpSameVoltage: new(s.cfg.Editor.JumpSameVoltage),
 		},
 		Layers:  []slddoc.Layer{{ID: slddoc.BaseLayer, Name: "Base"}},
 		History: []slddoc.Revision{newRevision(c)},

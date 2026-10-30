@@ -11,6 +11,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const snap = diagram?.editor?.snap ?? defaults?.snap ?? true
   const showGrid = diagram?.editor?.showGrid ?? defaults?.showGrid ?? true
   const showNodes = diagram?.editor?.showNodes ?? true
+  const jumpSameVoltage = diagram?.editor?.jumpSameVoltage ?? defaults?.jumpSameVoltage ?? false
   const disabled = !diagram
   const voltageOptions = diagram ? diagramOps.voltageClassOptions(diagram, config) : []
 
@@ -66,6 +67,16 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
             onChange={e => updateEditorSettings({ showNodes: e.target.checked })}
           />
           <span>{t('settings.showNodes')}</span>
+        </label>
+
+        <label className="flex items-center gap-2 text-xs" title={t('settings.jumpSameVoltageHint')}>
+          <input
+            type="checkbox"
+            disabled={disabled}
+            checked={jumpSameVoltage}
+            onChange={e => updateEditorSettings({ jumpSameVoltage: e.target.checked })}
+          />
+          <span>{t('settings.jumpSameVoltage')}</span>
         </label>
 
         {diagram && (

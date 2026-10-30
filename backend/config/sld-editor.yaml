@@ -43,6 +43,10 @@ editor:
   snap: true
   show_grid: true
   background: "#12161d"
+  # Wire jumps also where two buswork wires of the same voltage class cross
+  # (Settings → Wire jumps at same-voltage crossings); a new diagram keeps
+  # its own copy.
+  jump_same_voltage: false
 
 # Default voltage-level -> color palette offered when adding a voltage
 # class to a diagram. Editing a diagram's own voltage classes never changes

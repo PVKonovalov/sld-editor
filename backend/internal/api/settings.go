@@ -13,6 +13,9 @@ type editorDefaults struct {
 	Snap        bool    `json:"snap"`
 	ShowGrid    bool    `json:"showGrid"`
 	Background  string  `json:"background"`
+	// JumpSameVoltage: wire jumps where two buswork wires of the same
+	// voltage class cross, for a diagram that hasn't set it.
+	JumpSameVoltage bool `json:"jumpSameVoltage"`
 }
 
 // getConfig serves the Settings panel's defaults: the editor preferences a
@@ -30,10 +33,11 @@ type editorDefaults struct {
 func (s *Server) getConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"editor": editorDefaults{
-			GridSpacing: s.cfg.Editor.GridSpacing,
-			Snap:        s.cfg.Editor.Snap,
-			ShowGrid:    s.cfg.Editor.ShowGrid,
-			Background:  s.cfg.Editor.Background,
+			GridSpacing:     s.cfg.Editor.GridSpacing,
+			Snap:            s.cfg.Editor.Snap,
+			ShowGrid:        s.cfg.Editor.ShowGrid,
+			Background:      s.cfg.Editor.Background,
+			JumpSameVoltage: s.cfg.Editor.JumpSameVoltage,
 		},
 		"voltageColors":         s.voltageColors(),
 		"voltageColorTolerance": s.cfg.ColorTolerance(),

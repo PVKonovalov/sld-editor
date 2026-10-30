@@ -314,6 +314,8 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'settings.snapToGrid': 'Привязка к сетке',
   'settings.showGrid': 'Показывать сетку',
   'settings.showNodes': 'Показывать узлы',
+  'settings.jumpSameVoltage': 'Перемычки на пересечениях одного напряжения',
+  'settings.jumpSameVoltageHint': 'Ставить перемычку и там, где две ошиновки одного класса напряжения пересекаются без соединения',
   'properties.background': 'Цвет фона',
   'settings.defaultVoltage': 'Напряжение по умолчанию',
   'find.title': 'Поиск',

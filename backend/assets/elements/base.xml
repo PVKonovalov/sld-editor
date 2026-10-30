@@ -1384,9 +1384,9 @@
       <terminal x="0" y="10"/>
     </terminals>
     <template><![CDATA[
-<circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:{fpiColor};stroke-width:0.80" />
+<circle cx="0" cy="0" r="{radius}" style="fill:{color};stroke:{fpiColor};stroke-width:0.80"{fpiStrokeAttr} />
 <g transform="rotate({counterRotate})">
-<text x="0" y="0" style="fill:{fpiColor};text-anchor:middle;dominant-baseline:middle;font-size:8px;font-family:Arial" >{fpiText}</text>
+<text x="0" y="0" style="fill:{fpiColor};text-anchor:middle;dominant-baseline:middle;font-size:8px;font-family:Arial"{fpiFillAttr} >{fpiText}</text>
 </g>
 ]]></template>
   </symbol>

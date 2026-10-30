@@ -51,13 +51,15 @@ type Config struct {
 	} `yaml:"elements"`
 
 	Editor struct {
-		// GridSpacing/Snap/ShowGrid/Background are the Settings panel's
-		// defaults for a diagram that hasn't saved its own (Diagram.Editor is
-		// nil).
-		GridSpacing float64 `yaml:"grid_spacing" env:"true"`
-		Snap        bool    `yaml:"snap" env:"true"`
-		ShowGrid    bool    `yaml:"show_grid" env:"true"`
-		Background  string  `yaml:"background" env:"true"`
+		// GridSpacing/Snap/ShowGrid/Background/JumpSameVoltage are the
+		// Settings panel's defaults for a diagram that hasn't saved its own
+		// (Diagram.Editor is nil). JumpSameVoltage is also copied into a new
+		// diagram.
+		GridSpacing     float64 `yaml:"grid_spacing" env:"true"`
+		Snap            bool    `yaml:"snap" env:"true"`
+		ShowGrid        bool    `yaml:"show_grid" env:"true"`
+		Background      string  `yaml:"background" env:"true"`
+		JumpSameVoltage bool    `yaml:"jump_same_voltage" env:"true"`
 	} `yaml:"editor"`
 
 	// VoltageColors is the default voltage-level -> color palette offered

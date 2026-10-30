@@ -4980,11 +4980,17 @@ function segmentCrossing(a: Point, b: Point, p: Point, q: Point): { at: Point; a
 }
 
 /** Puts a Wire jump (shape 14) into the new buswork wire connectorId wherever it crosses a busbar, another
- * buswork wire, an overhead or cable line or a link to object of a different voltage class: the wire is cut around the crossing and its pieces end on the jump's
+ * buswork wire, an overhead or cable line or a link to object of a different voltage class (another buswork wire of
+ * the same class too with the diagram's editor.jumpSameVoltage, else jumpSameVoltageDefault): the wire is cut around the crossing and its pieces end on the jump's
  * two ports, so it hops over the other line without joining it. A jump over a busbar is size step 1. A crossing too
  * close to a bend or end of the wire, or to the previous jump, for the jump to fit on one straight run is left as a
  * plain crossing. Returns diagram unchanged when there is nothing to do. */
-export function addCrossingJumps(diagram: Diagram, connectorId: number, symbols: ElementSymbol[]): Diagram {
+export function addCrossingJumps(
+  diagram: Diagram,
+  connectorId: number,
+  symbols: ElementSymbol[],
+  jumpSameVoltageDefault = false,
+): Diagram {
   const wire = diagram.connectors.find(c => c.id === connectorId)
   const symbol = symbols.find(s => s.shape === WIRE_JUMP_SHAPE)
   if (!wire || !symbol || wire.kind !== 'BusWork' || wire.voltage == null || wire.points.length < 2) return diagram
@@ -4995,9 +5001,11 @@ export function addCrossingJumps(diagram: Diagram, connectorId: number, symbols:
       others.push({ points: e.points, step: WIRE_JUMP_BUSBAR_STEP })
     }
   }
+  const sameVoltage = diagram.editor?.jumpSameVoltage ?? jumpSameVoltageDefault
   for (const c of diagram.connectors) {
     const jumped = c.kind === 'BusWork' || JUMPED_LINE_KINDS.has(c.kind)
-    if (c.id !== wire.id && jumped && c.voltage != null && c.voltage !== wire.voltage) {
+    const otherVoltage = c.voltage !== wire.voltage || (sameVoltage && c.kind === 'BusWork')
+    if (c.id !== wire.id && jumped && c.voltage != null && otherVoltage) {
       others.push({ points: c.points, step: 0 })
     }
   }
@@ -5098,7 +5106,12 @@ function samePoints(a: Point[] | undefined, b: Point[] | undefined): boolean {
 /** Applies addCrossingJumps after the edit prev → next to every buswork wire it touched: one that is new or whose
  * points or voltage changed, and one crossed by a busbar, overhead or cable line or link to object that is new or
  * whose points or voltage changed. Lines the edit left alone keep their crossings as they are. */
-export function jumpChangedCrossings(prev: Diagram, next: Diagram, symbols: ElementSymbol[]): Diagram {
+export function jumpChangedCrossings(
+  prev: Diagram,
+  next: Diagram,
+  symbols: ElementSymbol[],
+  jumpSameVoltageDefault = false,
+): Diagram {
   if (next === prev || (next.connectors === prev.connectors && next.elements === prev.elements)) return next
   const oldWires = new Map(prev.connectors.map(c => [c.id, c]))
   const oldElements = new Map(prev.elements.map(e => [e.id, e]))
@@ -5133,7 +5146,7 @@ export function jumpChangedCrossings(prev: Diagram, next: Diagram, symbols: Elem
     }
   }
   let d = next
-  for (const id of wires) d = addCrossingJumps(d, id, symbols)
+  for (const id of wires) d = addCrossingJumps(d, id, symbols, jumpSameVoltageDefault)
   return d
 }
 

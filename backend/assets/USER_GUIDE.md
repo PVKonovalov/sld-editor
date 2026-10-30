@@ -743,7 +743,8 @@ the wire, dragging its end or a bend, moving it or the device it is attached to,
 drawing or moving a busbar, an overhead or cable line or a link to object across it. The buswork wire is always the
 one cut, never the busbar or the line; of two buswork wires,
 the one you changed. A crossing at the same voltage, or too close to a bend or an end of the wire for the jump to fit,
-stays a plain crossing, and crossings on lines an edit didn't touch are left as they are. The jumps are part of the
+stays a plain crossing (two buswork wires of the same voltage get a jump too with **Wire jumps at same-voltage
+crossings** in [Settings](#settings)), and crossings on lines an edit didn't touch are left as they are. The jumps are part of the
 same edit, so **Ctrl+Z** undoes them together; a jump left behind when its wire is moved away stays until deleted.
 
 ### Different voltage classes {#voltage-mismatch}
@@ -944,12 +945,20 @@ Intermediate, Faulty) for this diagram. The colors are saved in the diagram and 
 (`data-fill`). A diagram starts with the server's `state_colors` and takes a copy of them when it is first saved, so
 changing the configuration later does not recolor it. A color that differs from the configured one is outlined in
 amber; hovering it shows the configured color.
-Fault passage indicator colors stay in the configuration.
+Fault passage indicator colors stay in the configuration. The saved SVG carries them for each state too, and a
+power flow direction indicator carries its arrow for each direction, so a viewer such as rdss-dms can show their live
+state.
 
 ## Settings {#settings}
 
 Grid spacing, **Snap to grid**, **Show grid**, **Show nodes** and the diagram's default voltage. These are saved with
 the diagram.
+
+**Wire jumps at same-voltage crossings** (its default is `editor.jump_same_voltage` in
+[sld-editor.yaml](#configuration-editor), off unless set) puts a **Wire jump** also where two buswork wires of the
+same voltage class cross without a connection (see [Wiring](#wiring)). It applies to buswork drawn or changed from
+then on: switching it on or off doesn't change anything already on the diagram.
+Busbars, overhead and cable lines and links to object of the same voltage stay plain crossings.
 
 ![Settings panel](images/EditorSettings.png "The Settings panel")
 
@@ -988,6 +997,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `xsde.workplace` | `workplace.xml` used by `.xsde` import (see below). Empty: each file's own colors only. |
 | `elements.libraries` | Element-library XML files (shapes, terminals), merged in order; a later file overrides a shape of an earlier one. |
 | `editor.grid_spacing`, `snap`, `show_grid`, `background` | Defaults for a diagram that hasn't saved its own (see [Settings](#settings)). |
+| `editor.jump_same_voltage` | Default of **Wire jumps at same-voltage crossings** (see [Settings](#settings)), `false` if absent. A new diagram keeps its own copy; an older or imported one without its own uses this value. |
 | `voltage_colors` | Standard voltage classes (`name`, `color`) offered for new classes and by **Match preset colors…**. A CIM import can add to it ([Voltage classes of a CIM import](#cim-voltage-colors)). |
 | `voltage_color_tolerance` | How close (RGB distance, 0–441) a color must be to a standard one to be offered for replacement; 0 = exact only. |
 | `state_colors`, `fpi_state_colors` | Open / Close / Intermediate (and, for switching devices, Faulty) fill colors of switching devices and fault passage indicators. `state_colors` is only the starting colors of a diagram: see [State colors](#state-colors). |

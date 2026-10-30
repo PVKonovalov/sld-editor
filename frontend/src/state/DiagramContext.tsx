@@ -154,6 +154,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const pendingEditRef = useRef<((d: Diagram) => Diagram)[] | null>(null)
   const elementsRef = useRef(elements)
   elementsRef.current = elements
+  const configRef = useRef(config)
+  configRef.current = config
   const [canRedo, setCanRedo] = useState(false)
   const [savedHistory, setSavedHistory] = useState<Revision[]>([])
 
@@ -1038,7 +1040,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           ? edit
           : (d: Diagram) => {
               const symbols = elementsRef.current
-              return diagramOps.addJunctionPoints(d, diagramOps.jumpChangedCrossings(d, edit(d), symbols), symbols)
+              const jumpSameVoltage = configRef.current?.editor.jumpSameVoltage ?? false
+              return diagramOps.addJunctionPoints(
+                d,
+                diagramOps.jumpChangedCrossings(d, edit(d), symbols, jumpSameVoltage),
+                symbols,
+              )
             }
       const pending = pendingEditRef.current
       if (pending) {

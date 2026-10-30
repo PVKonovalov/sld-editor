@@ -40,6 +40,7 @@ func newTestServer(t *testing.T) *Server {
 
 	cfg := &config.Config{}
 	cfg.Editor.GridSpacing = 20
+	cfg.Editor.JumpSameVoltage = true
 	cfg.Editor.Snap = true
 	cfg.Editor.Background = "#12161d"
 	cfg.VoltageColors = []config.VoltageColor{{Name: "10 kV", Color: "#962896"}}
@@ -105,6 +106,9 @@ func TestDiagramLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := opened.Diagram
+	if d.Editor == nil || d.Editor.JumpSameVoltage == nil || !*d.Editor.JumpSameVoltage {
+		t.Errorf("new diagram's editor = %+v, want a copy of editor.jump_same_voltage", d.Editor)
+	}
 	d.Elements = append(d.Elements, slddoc.Element{ID: 1, Class: slddoc.ClassBreaker, Shape: "41", Layer: slddoc.BaseLayer, X: 5, Y: 5})
 
 	rec = doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=sub-1", d)
@@ -641,7 +645,7 @@ func TestListElementsAndConfig(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &cfgResp); err != nil {
 		t.Fatal(err)
 	}
-	if cfgResp.Editor.GridSpacing != 20 || !cfgResp.Editor.Snap {
+	if cfgResp.Editor.GridSpacing != 20 || !cfgResp.Editor.Snap || !cfgResp.Editor.JumpSameVoltage {
 		t.Errorf("editor defaults = %+v", cfgResp.Editor)
 	}
 	if len(cfgResp.VoltageColors) != 1 || cfgResp.VoltageColors[0].Color != "#962896" {

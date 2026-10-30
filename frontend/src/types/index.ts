@@ -65,6 +65,9 @@ export interface EditorSettings {
   showNodes?: boolean
   // The Layer.id newly placed items go on (absent = the base layer, 0).
   activeLayer?: number
+  // Also a wire jump where two buswork wires of the same voltage class cross
+  // (absent = EditorDefaults.jumpSameVoltage).
+  jumpSameVoltage?: boolean
 }
 
 // Matches the shared slddoc module's Class (github.com/PVKonovalov/slddoc).
@@ -730,6 +733,7 @@ export interface EditorDefaults {
   snap: boolean
   showGrid: boolean
   background: string
+  jumpSameVoltage: boolean
 }
 
 // Matches backend/internal/config.PaletteGroup.Items — a bare xsde2svg
