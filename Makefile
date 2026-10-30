@@ -153,7 +153,7 @@ docker-build:
 # far; older archives and stray *.gz files are left out) into
 # build/sld-editor-<VERSION>.tar.gz, under one top-level
 # sld-editor-<VERSION>/ folder, together with what they need at runtime:
-# config/sld-editor.yaml, assets/elements/, the assets/USER_GUIDE*.md guides and the .xsde converter's
+# config/sld-editor.yaml, assets/elements/, the assets/USER_GUIDE*.md guides and their assets/images/, the .xsde converter's
 # assets/xsde2svg.yml + assets/workplace.xml fresh from backend/ (the
 # config's diagrams dir rewritten from "../diagrams" — relative to
 # backend/ during development — to "diagrams", next to the binaries) and
@@ -170,6 +170,7 @@ package:
 	done
 	cp -R $(BACKEND_DIR)/assets/elements $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets/
 	cp $(BACKEND_DIR)/assets/USER_GUIDE*.md $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets/
+	cp -R $(BACKEND_DIR)/assets/images $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets/
 	mkdir -p $(PACKAGE_DIR)/$(PACKAGE_NAME)/custom-elements
 	cp custom-elements/*.xsld $(PACKAGE_DIR)/$(PACKAGE_NAME)/custom-elements/ 2>/dev/null || true
 	cp $(BACKEND_DIR)/assets/xsde2svg.yml $(BACKEND_DIR)/assets/workplace.xml $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets/

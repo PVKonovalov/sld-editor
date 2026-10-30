@@ -17,6 +17,15 @@ New to the editor? Start with [How to: draw a diagram step by step](#how-to).
 The browser tab shows the open diagram's name, with `*` when it has unsaved changes. The editor guards them against
 being lost: see [Unsaved changes](#unsaved).
 
+### The user guide {#user-guide}
+
+**Help** opens this guide in a window you can keep beside the canvas; the **?** button of a dialog or panel opens it
+at that topic. The field above the contents filters the headings. A picture is shown as a numbered figure; click it
+to see it full size in a new tab.
+
+The printer button (top right) prints the guide: choose **Save as PDF** as the printer to get a PDF file. The
+printout starts with a table of contents, and its links work inside the PDF.
+
 ## How to: draw a diagram step by step {#how-to}
 
 This walk-through builds a simple feeder bay: a busbar, a disconnector and a breaker below it, a ground switch between
@@ -942,6 +951,8 @@ Fault passage indicator colors stay in the configuration.
 Grid spacing, **Snap to grid**, **Show grid**, **Show nodes** and the diagram's default voltage. These are saved with
 the diagram.
 
+![Settings panel](images/EditorSettings.png "The Settings panel")
+
 ## Configuration {#configuration}
 
 These files are for whoever installs and runs the editor. `sld-editor.yaml` lives in the `config/` folder, the
@@ -972,7 +983,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `logging.level` | Server log detail: `trace`, `debug`, `info`, `warn` or `error`. |
 | `diagrams.dir` | Folder where diagrams are stored (the File panel's root). |
 | `custom_elements.dir` | Folder whose `.xsld` files make the palette's **Custom elements** group. |
-| `user_guide` | This guide's Markdown file; the Russian build shows `USER_GUIDE.ru.md` next to it. Empty hides **Help**. |
+| `user_guide` | This guide's Markdown file; the Russian build shows `USER_GUIDE.ru.md` next to it. Empty hides **Help**. Pictures live in the `images/` folder next to it and are written `![alt](images/x.png "Caption")` (png, jpg, gif, webp or svg); the caption is optional. A translated guide shows `x.ru.png` in place of `x.png` when it exists, otherwise the shared picture. |
 | `xsde.config` | `xsde2svg.yml` used by `.xsde` import (see below). Empty uses the converter's built-in copy. |
 | `xsde.workplace` | `workplace.xml` used by `.xsde` import (see below). Empty: each file's own colors only. |
 | `elements.libraries` | Element-library XML files (shapes, terminals), merged in order; a later file overrides a shape of an earlier one. |

@@ -16,7 +16,9 @@ custom_elements:
   dir: "../custom-elements"
 
 # Markdown file shown by the sidebar's Help button (converted to HTML on
-# every request, so edits show without a restart). Empty disables it.
+# every request, so edits show without a restart). Empty disables it. Its
+# pictures are served from the images/ folder next to it; a translated guide
+# shows x.ru.png in place of x.png when it exists.
 user_guide: "assets/USER_GUIDE.md"
 
 xsde:

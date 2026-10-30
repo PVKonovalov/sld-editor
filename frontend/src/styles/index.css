@@ -36,7 +36,8 @@ body {
 }
 
 /* The user guide window's rendered guide (GuideWindow): plain Markdown HTML
-   from the backend, styled for the dark theme. */
+   from the backend, styled for the dark theme, on a reading pane lighter than
+   the editor's surfaces. */
 .guide-content {
   @apply text-sm text-gray-300 leading-relaxed;
 }
@@ -44,7 +45,7 @@ body {
   @apply text-xl font-semibold text-gray-100 mb-3;
 }
 .guide-content h2 {
-  @apply text-base font-semibold text-gray-100 mt-6 mb-2 pb-1 border-b border-surface-600;
+  @apply text-base font-semibold text-gray-100 mt-6 mb-2 pb-1 border-b border-surface-500;
 }
 .guide-content h3 {
   @apply text-sm font-semibold text-gray-100 mt-4 mb-2;
@@ -72,10 +73,23 @@ body {
 }
 .guide-content th,
 .guide-content td {
-  @apply border border-surface-600 px-2 py-1 text-left align-top;
+  @apply border border-surface-500 px-2 py-1 text-left align-top;
 }
 .guide-content th {
   @apply bg-surface-800 text-gray-100 font-semibold;
+}
+/* A picture (GET /api/user-guide/images, wrapped by lib/guideHtml.ts
+   withFigures): a card with a mat lighter than the window, so a screenshot of
+   the dark editor doesn't merge into the guide's own dark background. Full
+   size on click. */
+.guide-content figure {
+  @apply my-4 mx-auto w-fit max-w-full rounded-md border border-slate-400/40 bg-[#3b4559] p-2 shadow-lg shadow-black/50;
+}
+.guide-content figure img {
+  @apply block max-w-[min(100%,40rem)] h-auto rounded-sm ring-1 ring-black/60 cursor-zoom-in;
+}
+.guide-content figcaption {
+  @apply mt-2 px-1 text-xs text-gray-300 text-center;
 }
 
 /* A guide heading just scrolled to from a topic link or the table of

@@ -142,6 +142,7 @@ func (s *Server) routes() {
 	grp.GET("/config", s.getConfig)
 	grp.POST("/config/voltage-colors", s.addVoltageColors)
 	grp.GET("/user-guide", s.getUserGuide)
+	grp.GET("/user-guide/images/:name", s.getUserGuideImage)
 	grp.POST("/presence", s.touchPresence)
 	grp.GET("/presence/open", s.openTabs)
 

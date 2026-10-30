@@ -1,7 +1,8 @@
-import { BookOpen, X } from 'lucide-react'
+import { BookOpen, Printer, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useDraggableDialog } from '../hooks/useDraggableDialog'
 import * as api from '../lib/api'
+import { printGuide, withFigures } from '../lib/guideHtml'
 import { locale, t } from '../i18n'
 
 interface Props {
@@ -27,7 +28,8 @@ let guideCache: string | null = null
  * beside the canvas and the dialog it explains. A filterable table of
  * contents built from the rendered h2/h3 headings sits beside the text;
  * picking an entry or a topic scrolls to it with a brief highlight. "#id"
- * links inside the guide scroll within it. The HTML (GET /api/user-guide,
+ * links inside the guide scroll within it; a picture opens full size in a
+ * new tab; the printer button prints it (Save as PDF). The HTML (GET /api/user-guide,
  * goldmark with raw HTML disabled) is safe to inject; styled by
  * .guide-content (styles/index.css). Ported from sld-viewer's GuideWindow. */
 export function GuideWindow({ topic, requestId, onClose }: Props) {
@@ -50,6 +52,7 @@ export function GuideWindow({ topic, requestId, onClose }: Props) {
     let cancelled = false
     api
       .getUserGuide(locale)
+      .then(withFigures)
       .then(h => {
         guideCache = h
         if (!cancelled) setHtml(h)
@@ -109,6 +112,10 @@ export function GuideWindow({ topic, requestId, onClose }: Props) {
   }
 
   function handleContentClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.target instanceof HTMLImageElement) {
+      window.open(e.target.src, '_blank', 'noopener')
+      return
+    }
     const href = (e.target as HTMLElement).closest('a')?.getAttribute('href')
     if (!href) return
     if (href.startsWith('#')) {
@@ -140,19 +147,31 @@ export function GuideWindow({ topic, requestId, onClose }: Props) {
           <BookOpen size={16} />
           <h2 className="text-sm font-semibold text-gray-100">{t('help.title')}</h2>
         </div>
-        <button
-          type="button"
-          title={t('common.close')}
-          aria-label={t('common.close')}
-          onClick={onClose}
-          className="p-1 rounded text-gray-400 hover:bg-surface-600 hover:text-white"
-        >
-          <X size={16} />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            title={t('help.print')}
+            aria-label={t('help.print')}
+            disabled={html === null}
+            onClick={() => html !== null && printGuide(html, t('help.title'))}
+            className="p-1 rounded text-gray-400 hover:bg-surface-600 hover:text-white disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            <Printer size={16} />
+          </button>
+          <button
+            type="button"
+            title={t('common.close')}
+            aria-label={t('common.close')}
+            onClick={onClose}
+            className="p-1 rounded text-gray-400 hover:bg-surface-600 hover:text-white"
+          >
+            <X size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 min-h-0">
-        <nav className="w-60 shrink-0 flex flex-col min-h-0 border-r border-surface-600">
+        <nav className="w-60 shrink-0 flex flex-col min-h-0 border-r border-surface-600 bg-surface-800">
           <input
             className="m-2 bg-surface-800 border border-surface-600 rounded px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-accent"
             placeholder={t('help.filterPlaceholder')}
@@ -184,7 +203,7 @@ export function GuideWindow({ topic, requestId, onClose }: Props) {
             )}
           </ul>
         </nav>
-        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-w-0 overflow-y-auto px-6 py-4">
+        <div ref={scrollRef} onScroll={handleScroll} className="flex-1 min-w-0 overflow-y-auto px-6 py-4 bg-[#262f42]">
           {error ? (
             <p className="text-xs text-red-400">{t('help.loadError', { error })}</p>
           ) : html === null ? (

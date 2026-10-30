@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Builds (make linux-ru) and deploys the Russian-locale Linux build to the
-# ctrlroom server. The binary, the bundled element library and the user
-# guides (backend/assets/USER_GUIDE*.md, shown by the Help button) are
+# ctrlroom server. The binary, the bundled element library, the user
+# guides (backend/assets/USER_GUIDE*.md, shown by the Help button) and their
+# pictures (backend/assets/images/) are
 # uploaded under temporary *.new names while the sld-editor systemd service
 # keeps running, then the service is stopped, the files are moved into
 # place, the executable bit restored, and the service started again. The
@@ -50,6 +51,10 @@ REPLACE=(
 for guide in "$ASSETS"/USER_GUIDE*.md; do
   REPLACE+=("$guide" "assets/$(basename "$guide")")
 done
+# The guides' pictures, every language's (x.png, x.ru.png, ...).
+for image in "$ASSETS"/images/*; do
+  if [ -f "$image" ]; then REPLACE+=("$image" "assets/images/$(basename "$image")"); fi
+done
 # Local file -> path under REMOTE_DIR, copied only when missing there.
 IF_MISSING=(
   "$ASSETS/xsde2svg.yml" "assets/xsde2svg.yml"
@@ -67,7 +72,7 @@ ssh_cmd() { ssh -i "$SSH_KEY" "$HOST" "$@"; }
 scp_cmd() { scp -i "$SSH_KEY" "$@"; }
 
 echo "==> Preparing $REMOTE_DIR on $HOST"
-ssh_cmd "mkdir -p '$REMOTE_DIR/assets/elements'"
+ssh_cmd "mkdir -p '$REMOTE_DIR/assets/elements' '$REMOTE_DIR/assets/images'"
 
 # Remote paths (under REMOTE_DIR) uploaded as <path>.new, moved into place
 # while the service is stopped.

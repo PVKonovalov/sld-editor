@@ -773,6 +773,60 @@ func TestGetUserGuide(t *testing.T) {
 	}
 }
 
+// TestUserGuideImages: relative image paths point at the image endpoint
+// (absolute URLs are left alone), and the endpoint serves only plain picture
+// file names from the images folder next to the guide. A translated guide
+// links its pictures with ?lang, which picks x.ru.png over x.png when it exists.
+func TestUserGuideImages(t *testing.T) {
+	s := newTestServer(t)
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "images"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	s.cfg.UserGuide = filepath.Join(dir, "guide.md")
+	md := "![Canvas](images/canvas.png \"The canvas\") ![Plain](plain.PNG) ![Ext](https://example.com/x.png) ![Up](../guide.md)\n"
+	files := map[string]string{
+		"guide.md": md, "guide.ru.md": "![Холст](images/canvas.png)\n",
+		"images/canvas.png": "PNG", "images/canvas.ru.png": "PNG-RU", "images/notes.txt": "x",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	body := doJSON(t, s, http.MethodGet, "/api/user-guide", nil).Body.String()
+	for _, want := range []string{
+		`src="/api/user-guide/images/canvas.png"`, `title="The canvas"`, `src="/api/user-guide/images/plain.PNG"`,
+		`src="https://example.com/x.png"`, `src="../guide.md"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("guide HTML lacks %s: %s", want, body)
+		}
+	}
+
+	if body := doJSON(t, s, http.MethodGet, "/api/user-guide?lang=ru", nil).Body.String(); !strings.Contains(body, `src="/api/user-guide/images/canvas.png?lang=ru"`) {
+		t.Errorf("translated guide lacks ?lang=ru: %s", body)
+	}
+	if body := doJSON(t, s, http.MethodGet, "/api/user-guide?lang=de", nil).Body.String(); strings.Contains(body, "?lang=") {
+		t.Errorf("fallback guide links a translated picture: %s", body)
+	}
+
+	for _, c := range []struct{ query, want string }{
+		{"", "PNG"}, {"?lang=ru", "PNG-RU"}, {"?lang=de", "PNG"}, {"?lang=..", "PNG"},
+	} {
+		rec := doJSON(t, s, http.MethodGet, "/api/user-guide/images/canvas.png"+c.query, nil)
+		if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "image/png" || rec.Body.String() != c.want {
+			t.Errorf("canvas.png%s = %d %q %q, want %q", c.query, rec.Code, rec.Header().Get("Content-Type"), rec.Body.String(), c.want)
+		}
+	}
+	for _, name := range []string{"missing.png", "notes.txt", "..%2Fguide.md", "..png", ".hidden.png"} {
+		if rec := doJSON(t, s, http.MethodGet, "/api/user-guide/images/"+name, nil); rec.Code != http.StatusNotFound {
+			t.Errorf("%q = %d, want 404", name, rec.Code)
+		}
+	}
+}
+
 func TestClientIP(t *testing.T) {
 	for remote, want := range map[string]string{
 		"[::1]:5000":              "127.0.0.1",
