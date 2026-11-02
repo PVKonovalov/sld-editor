@@ -175,7 +175,7 @@ package:
 	cp custom-elements/*.xsld $(PACKAGE_DIR)/$(PACKAGE_NAME)/custom-elements/ 2>/dev/null || true
 	cp $(BACKEND_DIR)/assets/xsde2svg.yml $(BACKEND_DIR)/assets/workplace.xml $(PACKAGE_DIR)/$(PACKAGE_NAME)/assets/
 	sed -e 's|dir: "\.\./diagrams"|dir: "diagrams"|' -e 's|dir: "\.\./custom-elements"|dir: "custom-elements"|' $(BACKEND_DIR)/config/sld-editor.yaml > $(PACKAGE_DIR)/$(PACKAGE_NAME)/config/sld-editor.yaml
-	COPYFILE_DISABLE=1 tar -czf $(BUILD_DIR)/$(PACKAGE_NAME).tar.gz -C $(PACKAGE_DIR) $(PACKAGE_NAME)
+	COPYFILE_DISABLE=1 tar --no-xattrs -czf $(BUILD_DIR)/$(PACKAGE_NAME).tar.gz -C $(PACKAGE_DIR) $(PACKAGE_NAME)
 	rm -rf $(PACKAGE_DIR)
 	@echo "created $(BUILD_DIR)/$(PACKAGE_NAME).tar.gz"
 
