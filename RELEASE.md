@@ -134,6 +134,7 @@ this schema has no separate id for one on a bare polyline), and `data-type`
 parameters for this; connectors keep the previous 1px/no-extra-attrs
 behavior.
 
+
 2026-09-13: Voltage-class management, default element names, and ids
 matching real xsde2svg conventions.
 
