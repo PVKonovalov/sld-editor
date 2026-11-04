@@ -1,10 +1,41 @@
 # Release notes
 
-2026-10-30: Text labels (element 5) get **Italic** and **Underline** next to **Bold** in Properties, as one **Font style** row of three icon toggle buttons (lucide `Bold`/`Italic`/`Underline`, lit when on, with tooltips) in place of the Bold checkbox, saved as `<label italic="true" underline="true">` (sibling `slddoc` `Label.Italic`/`Underline`) and drawn as xsde2svg draws Modus `fontStyle` `ITALIC`/`UNDERLINE` (`font-style:italic`, `text-decoration: underline`). An `.xsde`/`.svg` import now keeps them; before, only bold came through. Checked on a two-page `.xsde`: its 3 bold underlined headings and 7 italic captions come back, and the canvas draws them underlined. Italic text inside a table keeps being read with the table. - Dropping or picking a single multi-page `.xsde` saved its pages and opened none, so nothing seemed to happen. Now the first saved page opens (after the unsaved-changes check), and the import summary says, in amber, that the file holds several diagrams and which one is open (`DiagramContext.importDiagramFile`, `BatchImportDialog`, `BatchImport.opened`). The default-voltage and connection-point dialogs of the opened diagram wait until the summary is closed. - **Test:** `TestExtract_LabelUnderlineItalic` (slddoc). - **User guides:** the Properties label line and the `.xsde` import paragraph.
+2026-10-30: Text labels (element 5) get **Italic** and **Underline** next to **Bold** in Properties, as one **Font
+style** row of three icon toggle buttons (lucide `Bold`/`Italic`/`Underline`, lit when on, with tooltips) in place of
+the Bold checkbox, saved as `<label italic="true" underline="true">` (sibling `slddoc` `Label.Italic`/`Underline`) and
+drawn as xsde2svg draws Modus `fontStyle` `ITALIC`/`UNDERLINE` (`font-style:italic`, `text-decoration: underline`). An
+`.xsde`/`.svg` import now keeps them; before, only bold came through. Checked on a two-page `.xsde`: its 3 bold
+underlined headings and 7 italic captions come back, and the canvas draws them underlined. Italic text inside a table
+keeps being read with the table. - Dropping or picking a single multi-page `.xsde` saved its pages and opened none, so
+nothing seemed to happen. Now the first saved page opens (after the unsaved-changes check), and the import summary says,
+in amber, that the file holds several diagrams and which one is open (`DiagramContext.importDiagramFile`,
+`BatchImportDialog`, `BatchImport.opened`). The default-voltage and connection-point dialogs of the opened diagram wait
+until the summary is closed. - **Test:** `TestExtract_LabelUnderlineItalic` (slddoc). - **User guides:** the Properties
+label line and the `.xsde` import paragraph.
 
-2026-10-30: Voltage lists are sorted by voltage, not as text or in creation order. A class name is read as kV, the same way slddoc's `ParseVoltage` reads it ("110 kV", "6,3 kV", "400 V", "1 MV", Cyrillic units, a bare number as kV; new `frontend/src/lib/voltage.ts` `parseVoltageKV`/`sortByVoltage`), and a name that isn't a voltage (e.g. a color left by an import) comes last in its own order. Sorted: Properties **Voltage** and Settings **Default voltage** (`diagramOps.voltageClassOptions`, now with the diagram's classes and the not-yet-added presets in one list), the New diagram and Default voltage dialogs, the import log's class list and picker, and the voltage colors dialog of a CIM import. The editable **Voltage classes** list keeps the diagram's order, so a row doesn't jump while its name is typed. The stored order of classes and of `voltage_colors` is unchanged. New setting `editor.voltage_order` (`ascending`, the default, or `descending`; anything else stops the editor at startup, `Config.ValidateVoltageOrder`), served by `GET /api/config` as `editor.voltageOrder` (callers updated: `types/index.ts` `EditorDefaults`, `TestGetConfig`). - **Tests:** `TestValidateVoltageOrder`, `TestGetConfig`. - **User guides:** the Properties voltage paragraph and the `#configuration` table.
+2026-10-30: Voltage lists are sorted by voltage, not as text or in creation order. A class name is read as kV, the same
+way slddoc's `ParseVoltage` reads it ("110 kV", "6,3 kV", "400 V", "1 MV", Cyrillic units, a bare number as kV; new
+`frontend/src/lib/voltage.ts` `parseVoltageKV`/`sortByVoltage`), and a name that isn't a voltage (e.g. a color left by
+an import) comes last in its own order. Sorted: Properties **Voltage** and Settings **Default voltage**
+(`diagramOps.voltageClassOptions`, now with the diagram's classes and the not-yet-added presets in one list), the New
+diagram and Default voltage dialogs, the import log's class list and picker, and the voltage colors dialog of a CIM
+import. The editable **Voltage classes** list keeps the diagram's order, so a row doesn't jump while its name is typed.
+The stored order of classes and of `voltage_colors` is unchanged. New setting `editor.voltage_order` (`ascending`, the
+default, or `descending`; anything else stops the editor at startup, `Config.ValidateVoltageOrder`), served by
+`GET /api/config` as `editor.voltageOrder` (callers updated: `types/index.ts` `EditorDefaults`, `TestGetConfig`). -
+**Tests:** `TestValidateVoltageOrder`, `TestGetConfig`. - **User guides:** the Properties voltage paragraph and the
+`#configuration` table.
 
-2026-10-30: The sibling `slddoc` was split into internal packages (`internal/model`, `svgtree`, `render`, `extract`, `repair`, `cim`) behind an unchanged public API: the root package re-exports it (`slddoc.go`), so no code changes were needed here; build, vet and tests pass as before. Comments that pointed at slddoc files or identifiers, many still by the old in-repo path `backend/internal/slddoc`, are repointed (`slddoc.X` for the public API, e.g. `slddoc internal/render/render.go` for its unexported helpers), in Go, TS/TSX, `base.xml` and `sld-editor.yaml`; several that were already stale are fixed (`writeOverheadLine` → `writeNamedLine`, `writeTable2` → `WriteTable2`, `slddoc/FORMAT.md` → `XSLD_FORMAT.md`, `transformerLeadLength` → `TransformerLeadLength`, and `diagramOps.ts`'s transformer constants now name their Go counterparts instead of "constants of the same name"); a comment that named a real diagram file is made generic. CLAUDE.md: the slddoc row says the API is re-exported from internal packages, and the `Repair` rule names its file.
+2026-10-30: The sibling `slddoc` was split into internal packages (`internal/model`, `svgtree`, `render`, `extract`,
+`repair`, `cim`) behind an unchanged public API: the root package re-exports it (`slddoc.go`), so no code changes were
+needed here; build, vet and tests pass as before. Comments that pointed at slddoc files or identifiers, many still by
+the old in-repo path `backend/internal/slddoc`, are repointed (`slddoc.X` for the public API, e.g.
+`slddoc internal/render/render.go` for its unexported helpers), in Go, TS/TSX, `base.xml` and `sld-editor.yaml`; several
+that were already stale are fixed (`writeOverheadLine` → `writeNamedLine`, `writeTable2` → `WriteTable2`,
+`slddoc/FORMAT.md` → `XSLD_FORMAT.md`, `transformerLeadLength` → `TransformerLeadLength`, and `diagramOps.ts`'s
+transformer constants now name their Go counterparts instead of "constants of the same name"); a comment that named a
+real diagram file is made generic. CLAUDE.md: the slddoc row says the API is re-exported from internal packages, and the
+`Repair` rule names its file.
 
 2026-09-13: Stage 1 — backend core. Go 1.26 module (`backend/go.mod`) with
 a Gin HTTP API. Ported `internal/slddoc` from sld-svg's XML/SVG diagram
@@ -52,10 +83,10 @@ all), plus a wider invisible hit-target (a circle around small symbols, a
 thicker transparent line under thin polylines) so the editor can reliably
 hit-test and select them by clicking the rendered SVG. Frontend: `Canvas`
 hit-tests clicks against those ids to support select (click; highlighted
-with a dashed/solid overlay drawn from diagram state, not the DOM), drag-move
-(grid-snapped, with an instant local "ghost" overlay so dragging doesn't wait
-on the debounced server re-render), click-to-place from the Elements palette
-(click a palette entry to "arm" it, then click the canvas — drag instead for
+with a dashed/solid overlay drawn from diagram state, not the DOM), drag-move (grid-snapped, with an instant local
+"ghost" overlay so dragging doesn't wait
+on the debounced server re-render), click-to-place from the Elements palette (click a palette entry to "arm" it, then
+click the canvas — drag instead for
 a busbar, which has no single anchor), click-to-connect (Ctrl/Cmd-click a
 second element while one is selected, wiring up a new Node/Ports/Connector
 between them — a simplified stand-in for real port geometry, which the
@@ -77,21 +108,21 @@ risking a collision. The frontend (`lib/diagramOps.ts`'s new `IdSequence`)
 is still the only thing that actually assigns an id (the backend never
 does), now as a plain incrementing integer shared across
 elements/nodes/connectors instead of the previous session-local
-timestamp-ish string; `ensureLastId` backfills a sensible starting value
-(the highest existing numeric id already in the file) for a diagram saved
+timestamp-ish string; `ensureLastId` backfills a sensible starting value (the highest existing numeric id already in the
+file) for a diagram saved
 before this existed, so opening one of those never reuses or collides with
 an id already on disk. Also exposed each element library symbol's SVG
 `template` through `/api/elements` and used it in the Elements panel to
-render each palette button's actual symbol shape as a small icon
-(`lib/elementIcon.ts` substitutes placeholder values sensible for a
+render each palette button's actual symbol shape as a small icon (`lib/elementIcon.ts` substitutes placeholder values
+sensible for a
 static, state-less preview) instead of text-only buttons.
 
 2026-09-13: Canvas alignment grid. `Canvas` now draws a subtle grid overlay
 at the diagram's own (or config-default) grid spacing, live-updating as
 the Settings panel's Grid spacing field changes. Drawn as an SVG `<pattern>`
 layered *above* the server-rendered content rather than behind it — the
-backend's rendered SVG paints its own opaque background rect
-(`Diagram.Editor.Background`), which would otherwise hide a grid placed
+backend's rendered SVG paints its own opaque background rect (`Diagram.Editor.Background`), which would otherwise hide a
+grid placed
 underneath it entirely.
 
 2026-09-13: Busbar rendering matches real xsde2svg conventions. A rendered
@@ -133,8 +164,8 @@ the wrapping `<g>` + duplicate invisible hit-target polyline around a
 busbar/connector — a real xsde2svg busbar is a single flat `<polyline>`
 with its own bare id, so ours is now too. The frontend's canvas hit-testing
 no longer depends on that prefix scheme; every selectable element now
-carries a `data-editor-kind="element"` or `"connector"` attribute instead
-(this editor's own addition, not part of the xsde2svg format), and
+carries a `data-editor-kind="element"` or `"connector"` attribute instead (this editor's own addition, not part of the
+xsde2svg format), and
 `Canvas.tsx` reads the plain `id` attribute as the bare integer id
 directly. A symbol element's outer `<g>` also gained `data-voltage`/
 `data-type` (alongside the existing `data-name`), matching a real
@@ -202,8 +233,8 @@ with no `data-type`, same as before this existed.
 2026-09-13: Right-click context menu with Copy/Delete/Paste.
 
 New `components/ContextMenu.tsx` (generic, reusable) and `Canvas`'s own
-`onContextMenu` handler: right-clicking an element or connector selects it
-(same as a left click) and opens a menu positioned at the cursor; right-
+`onContextMenu` handler: right-clicking an element or connector selects it (same as a left click) and opens a menu
+positioned at the cursor; right-
 clicking empty canvas leaves the current selection alone. `diagramOps`
 gained `copyElement`/`pasteElement`: Copy captures an element's own data
 minus its `id` and `Ports` (a pasted copy starts unconnected — its old
@@ -265,8 +296,8 @@ symbol instead of an abstract ghost.
 
 `DiagramContext` gained `selectedElementIds` (a `Set<number>`, always a
 superset of `selectedElementId`) and `toggleElementSelection` — shift-click
-an element to add/remove it from the selection instead of replacing it
-(Ctrl/Cmd-click stays reserved for click-to-connect). Dragging any element
+an element to add/remove it from the selection instead of replacing it (Ctrl/Cmd-click stays reserved for
+click-to-connect). Dragging any element
 already part of a multi-selection moves the whole set together;
 right-clicking one preserves the set (so Copy/Delete act on all of it)
 unless the click lands outside it. New `diagramOps.copyElements`/
@@ -337,7 +368,7 @@ selection.
 
 The red "X" at each of a shape's own terminal positions is now a third its
 original size and drawn at 0.5px instead of 1px, and — rather than every
-element in the diagram all the time — only for whichever element(s) are
+element in the diagram all the time — only for whichever element (s) are
 currently selected, matching what "am I about to Ctrl/Cmd-click-connect
 this thing" actually needs: you always have something selected first, so
 this loses no information for that flow while cutting a lot of clutter
@@ -378,8 +409,8 @@ mid-air.
 
 A plain click on an element's own terminal (or a shape with none, its
 bare anchor — busbars excluded, see below) now starts a proper routing
-mode instead of the instant anchor-to-anchor Ctrl/Cmd-click-connect
-(unchanged, still available): the cursor shows a live orthogonal
+mode instead of the instant anchor-to-anchor Ctrl/Cmd-click-connect (unchanged, still available): the cursor shows a
+live orthogonal
 rubber-band preview (`Canvas`'s `appendOrthogonalPoint`, auto-picking
 H-then-V or V-then-H by whichever axis moves further, no manual toggle
 yet) from the last anchored point to the grid-snapped cursor; a further
@@ -424,8 +455,8 @@ unrelated to any voltage), so this is what makes a drawn wire keep a
 color after finishing at all, not just an appearance carried over from
 the preview.
 
-2026-09-13: "Piece A" — editing an already-drawn connector's own geometry
-(vertex/midpoint handles, add/remove a bend point).
+2026-09-13: "Piece A" — editing an already-drawn connector's own geometry (vertex/midpoint handles, add/remove a bend
+point).
 
 Selecting a connector now shows a filled square handle at each of its
 interior bend points and a smaller semi-transparent circle at each
@@ -468,8 +499,8 @@ rest of the selection model already works.
 Also fixed along the way: `internal/slddoc.Render`'s type-comment for an
 ObjectLink connector read `<!-- Object link -->` with no code, unlike an
 element's own `<!-- Breaker:41 -->` convention — it's now `<!-- Buswork:21
--->`, matching both the requested name and the existing name:code pattern
-(`connectorTypeCode`'s "21" was already computed for the `data-type`
+-->`, matching both the requested name and the existing name:code pattern (`connectorTypeCode`'s "21" was already
+computed for the `data-type`
 attribute but never passed into the comment). And: `Canvas`'s
 `appendOrthogonalPoint` now treats a delta under `ALIGNMENT_EPSILON` (1
 diagram unit) as exactly zero — a route completed onto a busbar lands via
@@ -510,15 +541,15 @@ Deferred (see CLAUDE.md's Project state): re-routing when an element
 moves, a 45°/manual-bend-axis mode.
 
 2026-09-13: "Piece C" — a connector re-routes to follow whichever
-element(s) it's attached to when they're dragged, endpoint-follows-only
-(the simplest useful version, approved over full accordion re-layout).
+element (s) it's attached to when they're dragged, endpoint-follows-only (the simplest useful version, approved over
+full accordion re-layout).
 
 New `diagramOps.moveElements(diagram, ids, dx, dy)` replaces the plain
 per-id `moveElement` reduce Canvas's own element-drag mouseup handler used
-to call. Beyond translating the moved element(s) themselves exactly as
+to call. Beyond translating the moved element (s) themselves exactly as
 before, it now also re-routes every connector with a Port on one of them:
-if *both* its ends belong to elements moving together in the same drag
-(e.g. two elements in a multi-selection joined by a wire), the whole
+if *both* its ends belong to elements moving together in the same drag (e.g. two elements in a multi-selection joined by
+a wire), the whole
 connector translates as a rigid whole — every point keeps the same
 relative position, so nothing about its shape needs to change; if only
 one end is attached to a moving element, just that end is dragged to its
@@ -547,8 +578,8 @@ two-point wire correctly grew a new bend at the still-fixed end when its
 other end's breaker was dragged diagonally.
 
 2026-09-13: Fixed a wire connecting a breaker to a busbar sometimes
-rendering black instead of the voltage color both were already carrying
-(reported directly: a breaker-to-busbar jumper drawn with the routing tool
+rendering black instead of the voltage color both were already carrying (reported directly: a breaker-to-busbar jumper
+drawn with the routing tool
 showed "Voltage class — none —" in Properties even though both endpoints
 already had one), and renamed the connector kind the routing tool and
 Ctrl/Cmd-click-connect both produce from `ObjectLink` to `BusWork`.
@@ -570,8 +601,8 @@ Buswork:21 -->`) was already fixed to read that way earlier, but the
 underlying stored value the frontend/backend/XML file itself all still
 used was untouched. `ConnectorKind`'s `KindObjectLink = "ObjectLink"` is
 now `KindBusWork = "BusWork"` (`backend/internal/slddoc/model.go`, mirrored
-in `frontend/src/types/index.ts`), and every place that creates one
-(`drawConnectorPath`, `drawDanglingConnectorPath`, `connectElements`) was
+in `frontend/src/types/index.ts`), and every place that creates one (`drawConnectorPath`, `drawDanglingConnectorPath`,
+`connectElements`) was
 updated to match. This changes what's actually persisted in a saved
 diagram's XML, so `slddoc.Load` now transparently rewrites any connector
 still carrying the old `"ObjectLink"` value to `"BusWork"` the moment it's
@@ -593,8 +624,8 @@ BusBarSection as a valid endpoint; an ordinary drawn connector (e.g. a
 buswork jumper already running to the bus) had no way to accept a new
 wire joining it partway along its length. `findConnectionTarget` now also
 searches every connector's own points polyline (`nearestSegmentOnPolyline`)
-when `includeBusbars` is set, reported as a new `ConnectTarget` variant
-(`kind: 'connector'`, carrying the target connector's id and the segment
+when `includeBusbars` is set, reported as a new `ConnectTarget` variant (`kind: 'connector'`, carrying the target
+connector's id and the segment
 index the tap point falls on) alongside the existing `'element'` variant.
 Completing a route onto one now calls a new
 `diagramOps.drawConnectorPathToConnector`: it splits the target connector
@@ -615,8 +646,8 @@ in the shared voltage color.
 
 2026-09-16: The click-to-route tool can now also *start* a route from a
 point along a busbar or an already-drawn connector, not just finish one
-there — closing the other half of the tap-into-buswork feature above
-(reported directly: a route could tap into an existing wire to finish,
+there — closing the other half of the tap-into-buswork feature above (reported directly: a route could tap into an
+existing wire to finish,
 but couldn't be drawn starting from the bus/wire itself).
 
 A plain click on a busbar or connector still means select/drag or
@@ -661,8 +692,8 @@ elements involved at either end at all. Both rendered cleanly with every
 segment meeting exactly at its shared junction node.
 
 2026-09-16: A route's tap point onto a busbar or an existing connector is
-now grid-aligned when snapping is on, at both its start and its finish
-(reported directly: the very first point of a route tapped from the bus
+now grid-aligned when snapping is on, at both its start and its finish (reported directly: the very first point of a
+route tapped from the bus
 wasn't landing on the grid).
 
 Previously `Canvas.findConnectionTarget`'s busbar/connector branches used
@@ -682,8 +713,8 @@ it has to land exactly on the real pin, not wherever the nearest grid
 line happens to be.
 
 2026-09-16: Removed a duplicate "Disconnector" palette entry, and gave the
-remaining one real `<terminals>` matching the Breaker's own convention
-(reported directly: two identical-looking "Disconnector" buttons in the
+remaining one real `<terminals>` matching the Breaker's own convention (reported directly: two identical-looking
+"Disconnector" buttons in the
 Elements palette, and separately, a Disconnector's terminal not lining up
 with its actual drawn pins).
 
@@ -702,8 +733,8 @@ with the right label.
 Shape `162`'s own template draws its stems ending at exactly `(0,-10)`/
 `(0,10)` in local coordinates — the same two points the Breaker (shape
 `41`) already declares as its own `<terminals>` — but had no `<terminals>`
-block of its own, so it fell back to a single terminal at its bare anchor
-(its own center) rather than its two real drawn pins. It now declares the
+block of its own, so it fell back to a single terminal at its bare anchor (its own center) rather than its two real
+drawn pins. It now declares the
 same `<terminals>` pair the Breaker does, so routing/connecting to a
 Disconnector snaps to its actual pins instead of its center.
 
@@ -718,8 +749,8 @@ this up, same as the earlier Disconnector-duplicate fix.
 2026-09-16: Fixed `slddoc: symbol library missing shape(s): 71`, hit after
 the shape-71 removal above — an already-saved diagram (`diagrams/test
 7.xml`, element id 61) still had a Disconnector on shape `71`, and once
-`base.xml` no longer carried that shape, every render of that diagram
-(the debounced `POST /api/render` the live canvas depends on) failed with
+`base.xml` no longer carried that shape, every render of that diagram (the debounced `POST /api/render` the live canvas
+depends on) failed with
 this error.
 
 `slddoc.Load` already had exactly this kind of fixup for a renamed stored
@@ -741,8 +772,8 @@ diagram being reopened) to pick this up, not just a backend restart alone.
 Verified against the real file: loading `diagrams/test 7.xml` in a
 scratch Go test now reports element 61 as `shape="162"` instead of `"71"`.
 
-2026-09-16: Removed the "dangling connector end" indicator entirely
-(reported directly: double-clicking to end a route in mid-air produced a
+2026-09-16: Removed the "dangling connector end" indicator entirely (reported directly: double-clicking to end a route
+in mid-air produced a
 jarring red dashed outline down the whole wire plus a big red dot at the
 end, and clicking that dot to "clean it up" felt like it deleted more
 than intended). Leaving a wire's end unconnected — to finish routing it
@@ -774,8 +805,8 @@ size and this default voltage up front, instead of just a name.
 like `Diagram.LastID` (never assigned or interpreted by the backend
 itself). Mirrored on the frontend's own `EditorSettings` type.
 
-New `frontend/src/components/NewDiagramDialog.tsx` — a centered modal
-(File panel's "New" button now opens it instead of a bare name field)
+New `frontend/src/components/NewDiagramDialog.tsx` — a centered modal (File panel's "New" button now opens it instead of
+a bare name field)
 collecting name, width, height, and a default voltage picked from the
 server's voltage-color presets (`config.voltageColors`, the same list
 Settings' "Voltage classes" section already offers). `DiagramProvider`'s
@@ -809,8 +840,8 @@ Verified: a Go round-trip test (JSON → `Diagram` → XML `Save` → XML
 
 2026-09-16: Added a "Show nodes" toggle to Settings (a small red X, 0.25
 stroke width, at every `Diagram.Node`'s own position, regardless of
-selection) — a debug overlay showing the diagram's real electrical graph
-(wherever a connector end or an element's Port actually lands) rather
+selection) — a debug overlay showing the diagram's real electrical graph (wherever a connector end or an element's Port
+actually lands) rather
 than just a symbol's own drawn geometry or declared Terminals.
 
 `slddoc.EditorSettings` gained `ShowNodes bool` (XML/JSON `showNodes`,
@@ -885,8 +916,7 @@ and `dist-ru/` were added to `.gitignore` alongside the existing
 
 2026-09-16: Added real support for `KindOverheadLine` ("Overhead line"),
 a `ConnectorKind` the model already declared but never fully wired up —
-prompted by the user supplying a real xsde2svg snippet
-(`<!-- Overhead line:22 --><g id="302" data-type="22" data-name="Line2"
+prompted by the user supplying a real xsde2svg snippet (`<!-- Overhead line:22 --><g id="302" data-type="22" data-name="Line2"
 data-voltage="#962896"><polyline .../></g>`) and clarifying it should
 draw like buswork, but only accept a connection at its own begin/end.
 
@@ -919,8 +949,8 @@ special-cases `'OverheadLine'` connectors — instead of
 `nearestSegmentOnPolyline`'s "anywhere along the line" search every other
 connector kind gets, it only offers the connector's own two true
 endpoints, within the same tight `TERMINAL_HIT_RADIUS` an element's own
-terminal uses. This applies uniformly to both ends of a route (starting
-*or* finishing on an overhead line), since both funnel through the same
+terminal uses. This applies uniformly to both ends of a route (starting *or* finishing on an overhead line), since both
+funnel through the same
 function. Landing exactly on an endpoint this way is also, correctly, not
 really a "tap" at all: `diagramOps.spliceConnectorAt` gained a
 short-circuit — tapPoint landing exactly on a connector's own from/to
@@ -997,8 +1027,8 @@ wasn't panning at all. `armedWireKind` was correctly locking pan/zoom the
 whole time; the real problem was that arming a wire kind was far too
 fragile to use in the first place.
 
-Starting a route is a tight-radius hit on a terminal specifically
-(`findConnectionTarget`, `TERMINAL_HIT_RADIUS`), much smaller than an
+Starting a route is a tight-radius hit on a terminal specifically (`findConnectionTarget`, `TERMINAL_HIT_RADIUS`), much
+smaller than an
 element's own wider click target — so a click meant to start a route very
 commonly lands a few pixels off the terminal and instead selects the
 whole element, exactly as a plain click would. `selectElement`/
@@ -1056,8 +1086,8 @@ end, not orphaned. `deleteConnectorSegment` deliberately keeps using a
 plain filter instead of the updated `removeConnector`, since it reuses
 the same connector's own from/to for whichever side keeps the original
 endpoint — pruning first would leave that side pointing at a node that no
-longer exists. Verified live: drew a mid-air-to-mid-air wire, saved
-(`<nodes>` had both), deleted it, saved again (`<nodes/>` empty).
+longer exists. Verified live: drew a mid-air-to-mid-air wire, saved (`<nodes>` had both), deleted it, saved again
+(`<nodes/>` empty).
 
 **The browser tab title now follows the open diagram** — `${name}${dirty
 ? ' *' : ''} — SLD Editor`, the same "*" convention FilePanel's own Save
@@ -1101,8 +1131,8 @@ restarted yet to pick up the Go-side changes, so this was confirmed via a
 direct render call rather than the live SVG, which was still on the old
 binary).
 
-**"Busbar wire" removed from the Wires palette** — it had no rendering
-(or other) distinction from an ordinary `BusWork` wire to justify its own
+**"Busbar wire" removed from the Wires palette** — it had no rendering (or other) distinction from an ordinary `BusWork`
+wire to justify its own
 button, unlike Overhead line/Cable line, which now have real
 xsde2svg-catalog identity (kind, data-type code, auto-name). Removed from
 `wireKindIcon.ts`'s `WIRE_KIND_ICONS`/`WIRE_KINDS` and
@@ -1174,8 +1204,7 @@ covers a click landing on one).
 Frontend: a new "Text" section in the Elements palette (armed the same
 click-to-arm way a wire kind is — `armedLabel`/`armLabel`, mutually
 exclusive with `armedSymbol`/`armedWireKind`/selection); clicking the
-canvas places a standalone `"Label"` text at that point
-(`diagramOps.placeLabel`). Clicking an existing label selects it
+canvas places a standalone `"Label"` text at that point (`diagramOps.placeLabel`). Clicking an existing label selects it
 (`selectedLabelId`/`selectLabel`) — Properties auto-opens the same way it
 already does for a first element/connector selection — and dragging it
 moves its own anchor (`diagramOps.moveLabel`), following the same
@@ -1186,8 +1215,8 @@ circle drawn at its own anchor point, not a measured text bounding box —
 the same minimal-marker convention a connector/busbar's own highlight
 already uses. Delete/Backspace and Properties' own delete button both
 remove it (`diagramOps.removeLabel`). Properties' new label section:
-a multi-line Text field, numeric Size, an Anchor dropdown
-(start/middle/end), a Bold checkbox, and a For dropdown listing every
+a multi-line Text field, numeric Size, an Anchor dropdown (start/middle/end), a Bold checkbox, and a For dropdown
+listing every
 element in the diagram (default "— none —") — For is saved as a plain
 reference (`Label.for`, an element id), not a live link: dragging the
 referenced element does not move the label along with it, and this is
@@ -1264,8 +1293,8 @@ live; saved and confirmed the `.xml` on disk now reads
 2026-09-16: A label's own font-family is now editable too. `Label`
 gained `Font` (empty means the original hardcoded Arial, same
 already-saved-label-keeps-rendering-as-before convention `Color`/
-`VAlign` already use); Properties' Label section gained a Font dropdown
-(`LABEL_FONTS`: Arial/Times New Roman/Courier New/Verdana/Georgia — a
+`VAlign` already use); Properties' Label section gained a Font dropdown (`LABEL_FONTS`: Arial/Times New Roman/Courier
+New/Verdana/Georgia — a
 handful of common web-safe SVG fonts, Arial first so it maps back to
 "unset" the same way Vertical anchor's own "Bottom" does).
 
@@ -1313,8 +1342,8 @@ click.
 
 2026-09-17: A `KindCableLine` connector ("Cable line", data-type 23) now
 renders dashed by default (`stroke-dasharray: 6,5`, `render.go`'s new
-`cableLineDash`), matching the real xsde2svg cable-line renderer
-(`xsde2svg/internal/modus/element_23.go`'s own "штриховая" dash pattern)
+`cableLineDash`), matching the real xsde2svg cable-line renderer (`xsde2svg/internal/modus/element_23.go`'s own
+"штриховая" dash pattern)
 instead of the plain solid stroke it shared with `KindOverheadLine`
 before this — overhead line itself is untouched and still renders solid
 unless the general `Connector.Dashed` flag is set. The Elements panel's
@@ -1346,8 +1375,8 @@ now use a 10%-tighter padding around each preview icon (`p-1` → the
 Tailwind arbitrary value `p-[3.6px]`) so the icon sits a little closer
 to its button's border.
 
-2026-09-17: A selected element's own type line in Properties
-(`PropertiesPanel.tsx`) now reads "Name:shape" (e.g. "Breaker:41",
+2026-09-17: A selected element's own type line in Properties (`PropertiesPanel.tsx`) now reads "Name:shape" (e.g.
+"Breaker:41",
 "Load-break switch:42") for every element, not just the ones — Breaker,
 Disconnector — whose palette name already happened to distinguish a
 withdrawable variant from a plain one. Matches render.go's own
@@ -1371,8 +1400,8 @@ via the same projection-lock rule `moveConnectorVertex` already uses for
 an interior vertex, just with a single neighbor: that neighbor slides to
 match when it's itself free to move, or gets a new bend inserted next to
 it when it's the connector's other true endpoint (a straight two-point
-wire) and can't. Canvas shows the new handle as an unfilled square
-(`handleEndpointMouseDown`), distinct from an interior vertex's filled
+wire) and can't. Canvas shows the new handle as an unfilled square (`handleEndpointMouseDown`), distinct from an
+interior vertex's filled
 one and a segment midpoint's translucent circle, appearing only on a
 dangling end.
 
@@ -1395,8 +1424,8 @@ sat on top of it instead: the Elements panel's own preview icon for
 Ground switch is now spun 180° just for display (`elementIcon.ts`'s new
 `ICON_ROTATION`, keyed by shape, wraps the icon body in a `rotate(180)`
 group — doesn't touch the real render template), and a freshly placed
-Ground switch now defaults to `orient: 180` instead of unset/0
-(`diagramOps.placeElement`), so it already reads the conventional way —
+Ground switch now defaults to `orient: 180` instead of unset/0 (`diagramOps.placeElement`), so it already reads the
+conventional way —
 stub up toward whatever it taps off of, earth symbol dangling below —
 without a separate trip to Properties' Orientation field.
 
@@ -1405,12 +1434,12 @@ already offered a State dropdown for it, but `base.xml`'s shape-54
 template never consumed the value, so nothing visually changed when it
 was set. Its moving-blade path now uses the same `{state:a|b|c}`/
 `{stateAttr}` mechanism Breaker/Disconnector already use, reusing
-Disconnector's own Close(vertical)/Open(horizontal)/Intermediate(diagonal)
-convention — Open is the template's own existing fixed line
-(`M 6 -8 h -12`), Close (`M 0 -2 v -12`) was cross-checked byte-for-byte
+Disconnector's own Close (vertical)/Open (horizontal)/Intermediate (diagonal)
+convention — Open is the template's own existing fixed line (`M 6 -8 h -12`), Close (`M 0 -2 v -12`) was cross-checked
+byte-for-byte
 against real corpus exports actually carrying `data-state="1"` for this
-shape (`PS_110kV_Lubnisa.svg`, `Shema PO VES.svg`), and Intermediate
-(`M -4.6 -12.6 l 9.2 9.2`) borrows Disconnector's own diagonal
+shape (`PS_110kV_Lubnisa.svg`, `Shema PO VES.svg`), and Intermediate (`M -4.6 -12.6 l 9.2 9.2`) borrows Disconnector's
+own diagonal
 proportions, recentered to Ground switch's blade pivot, since no real
 corpus example of that state exists for this shape. Since an unset State
 now renders as Close (`applyStateLine`'s own nil-maps-to-first-option
@@ -1426,15 +1455,15 @@ saved.
 
 Ground switch also gained a real `<terminals>` entry — `<terminal x="0"
 y="10"/>` — the first it's ever had; previously the click-to-route tool
-and Ctrl/Cmd-click-to-connect could only fall back to its bare anchor
-(`el.x`/`el.y`), which sits in the middle of the switch mechanism, not
+and Ctrl/Cmd-click-to-connect could only fall back to its bare anchor (`el.x`/`el.y`), which sits in the middle of the
+switch mechanism, not
 where a wire actually belongs. Only one terminal, not two like Breaker/
 Disconnector: a real xsde2svg corpus diagram's own Ground switch elements
 each carry exactly one `<port>`, since the symbol's other end is the
 earth/ground-plate symbol — a dead end representing "connected to the
 physical earth", not a node anything else can attach to. The terminal is
-placed at the grid-aligned y=10 rather than the drawn stub's own true tip
-(y=12), so a wire landing on it stays exactly on a 10-unit grid, matching
+placed at the grid-aligned y=10 rather than the drawn stub's own true tip (y=12), so a wire landing on it stays exactly
+on a 10-unit grid, matching
 Breaker/Disconnector's own ±10 terminals.
 
 2026-09-17: The default grid spacing is now 10 units (was 20) — the
@@ -1465,11 +1494,11 @@ are proper wiring targets.
 
 2026-09-17: Breaker/Disconnector (withdrawable) — shapes 43/49 — gained a
 second, independent status axis: Position status (Service/Normal/Test),
-their own racking position, alongside their existing Operational Status
-(open/closed/intermediate — the Properties State dropdown, now relabeled
+their own racking position, alongside their existing Operational Status (open/closed/intermediate — the Properties State
+dropdown, now relabeled
 "Operational Status" for these two shapes specifically so it isn't
-confused with the new field). Modeled on `sld-viewer`'s own Pattern D
-(`applyTrolleyState`/`data-trolley`), not the real xsde2svg exporter's own
+confused with the new field). Modeled on `sld-viewer`'s own Pattern D (`applyTrolleyState`/`data-trolley`), not the real
+xsde2svg exporter's own
 per-shape behavior — a deliberate choice: the real source only offsets the
 body for "Service" and leaves "Test" at the same x-origin (a per-element
 `xMirror`-aware nuance), where this editor (and sld-viewer's own live
@@ -1491,8 +1520,7 @@ chevron tips, which the file's own preexisting comment already identified
 as the true connection points (the gap out to them is "the isolating
 throw distance," not a missing connector) — previously neither had any
 terminals at all. Shape 49's own `{state:...}` blade options were
-re-derived from the real xsde2svg source
-(`xsde2svg/internal/modus/element_49.go`): the symbol's pre-existing
+re-derived from the real xsde2svg source (`xsde2svg/internal/modus/element_49.go`): the symbol's pre-existing
 geometry turned out to already be that source's exact "Normal position,
 Closed" output, confirmed byte-for-byte by re-deriving the formula from
 the source's own constants; Open was derived the same way, and
@@ -1518,8 +1546,8 @@ Operational Status animation is now the plain Disconnector's (162) own
 diagonal, verbatim — `l 9.2 9.2`, the exact same segment 162 itself uses —
 instead of a separately-invented diagonal shape. The surrounding
 "m -8.6 5.4"/"m -8.6 5.4" stubs are shape 49's own (its contact gap is
-bigger than 162's), chosen so that diagonal still runs from (-4.6,-4.6) to
-(4.6,4.6) relative to the switch's own gap center, exactly like 162's own
+bigger than 162's), chosen so that diagonal still runs from (-4.6,-4.6) to (4.6,4.6) relative to the switch's own gap
+center, exactly like 162's own
 diagonal does relative to its center, while still meeting the fixed
 contact bars on either side.
 
@@ -1563,8 +1591,8 @@ way the switching-device legend already was. Gained two real `<terminals>`
 at `(0,-10)`/`(0,10)` and, in Properties, its own State dropdown (sourced
 from `fpiStateColors`, not `stateColors`) — previously not shown at all,
 since FaultPassageIndicator wasn't in `SWITCHING_DEVICE_CLASSES`. A
-freshly placed one now also defaults to State 0 (Open) and Radius 10
-(`diagramOps`'s `FPI_DEFAULTS`, matching the terminals above and the
+freshly placed one now also defaults to State 0 (Open) and Radius 10 (`diagramOps`'s `FPI_DEFAULTS`, matching the
+terminals above and the
 default 10-unit grid) instead of leaving both unset — an unset Radius
 rendered as an invisible `r="0"` circle, the same gap Lamp had before its
 own defaults were added; existing saved diagrams with an already-placed,
@@ -1575,8 +1603,8 @@ shrank from 13px to 8px, so it fits inside a ring this size. Also stopped
 offering a Voltage class field for it in Properties, matching Lamp's own
 treatment (neither reads a voltage color) — but, unlike Lamp, it keeps
 Orientation: Lamp's template has no terminals at all, so rotating it does
-nothing either way, while a FaultPassageIndicator's own two real terminals
-(top/bottom by default) do need Orientation to land on a horizontal wire
+nothing either way, while a FaultPassageIndicator's own two real terminals (top/bottom by default) do need Orientation
+to land on a horizontal wire
 instead of only ever a vertical one. Rotating it would have carried its
 own "FPI" text sideways too, so that text is now wrapped in its own `<g
 transform="rotate({counterRotate})">` — a new `render.go` placeholder,
@@ -1588,11 +1616,11 @@ while the ring and its terminals still rotate normally.
 `GRID_TILE_FACTOR` (10) grid cells per side into one SVG `<pattern>` tile
 instead of one dot per tile — same dots, same spacing, identical static
 appearance, just ~100x fewer pattern-tile boundaries for a diagram at the
-default 10-unit spacing. A single-dot-per-tile pattern this densely tiled
-(tens of thousands of tiles for a diagram thousands of units across) hit a
+default 10-unit spacing. A single-dot-per-tile pattern this densely tiled (tens of thousands of tiles for a diagram
+thousands of units across) hit a
 real Chromium rendering quirk: stray hairline seams at scattered tile
-boundaries while the whole canvas is under a live CSS scale
-(`react-zoom-pan-pinch`'s own zoom mechanism), worst while actively
+boundaries while the whole canvas is under a live CSS scale (`react-zoom-pan-pinch`'s own zoom mechanism), worst while
+actively
 zooming since the scale changes every frame. Batching dots into fewer,
 bigger tiles doesn't eliminate the underlying quirk, but cuts how often a
 seam has a boundary to appear on by roughly `GRID_TILE_FACTOR²`.
@@ -1610,8 +1638,8 @@ legends, `positionAttr`/`positionOffset`/`{counterRotate}`, and
 `writeNamedLine` for `OverheadLine`/`CableLine` — became the shared
 module's own model/render code verbatim, since it was already a strict
 superset of `sld-svg`'s simpler, corpus-fidelity-only version; `sld-svg`'s
-own `extract.go` picked up the one real rename this required
-(`KindObjectLink` → `KindBusWork`) and its CLI (`cmd/svg-sld`) now passes
+own `extract.go` picked up the one real rename this required (`KindObjectLink` → `KindBusWork`) and its CLI
+(`cmd/svg-sld`) now passes
 an explicit `RenderMode`/`StateColor` legend to `Render` instead of
 relying on that behavior being hardcoded in the package. Nothing about
 this editor's own behavior changes — every caller (`internal/storage`,
@@ -1649,9 +1677,9 @@ were previously silently counted in `Report.Skipped`, which is why
 `svg-sld extract` never picked them up from a real corpus SVG even
 though `sld-editor` could already draw them. Reactor drops straight
 into the existing generic `parseTwoPortDevice` (its two ports are just
-the extremes along its own dominant axis, same as Choke coil); Reactor
-(shunt) got its own new one-port parser, `parseReactorShunt`, mirroring
-`parseGround`'s own fallback convention (rotate() center when present,
+the extremes along its own dominant axis, same as Choke coil); Reactor (shunt) got its own new one-port parser,
+`parseReactorShunt`, mirroring
+`parseGround`'s own fallback convention (rotate () center when present,
 else the combined path's own first point) since real instances appear
 both rotated and unrotated. That surfaced a real anchor mismatch in
 `base.xml`'s own Reactor (shunt) template, fixed here: it had been
@@ -1671,15 +1699,15 @@ regress against a diagram containing either.
 2026-09-17: Added 7 more equipment shapes to the palette, all stateless
 except Starter — Surge arrester (29, a body-box-with-diagonal variant of
 35), Starter (76, uses the existing `{state:...}` mechanism for its own
-moving contact, no `{fill}`/data-fill legend of its own), Fuse
-(withdrawable) (154, reuses the existing Service/Normal/Test Position
+moving contact, no `{fill}`/data-fill legend of its own), Fuse (withdrawable) (154, reuses the existing
+Service/Normal/Test Position
 mechanism built for Breaker (43)/Disconnector (49) — `WITHDRAWABLE_SHAPES`
 in both `PropertiesPanel.tsx` and `diagramOps.ts` now include it), Surge
 arrester (grounded) (168, a one-port variant of 29/35 with the same
 three-bar earth fan as Ground terminal/Ground switch/Reactor shunt),
 Capacitor bank (172, one-port, the "БСК" default-CustomView geometry only
-— this schema doesn't model that per-instance variant switch), Generator
-(173, one-port, a circle-and-sine-wave symbol), and Non-intersection /
+— this schema doesn't model that per-instance variant switch), Generator (173, one-port, a circle-and-sine-wave symbol),
+and Non-intersection /
 "Wire jump" (14, a purely decorative wire-crossing hop mark — modeled with
 two real ports anyway, one on each side, since each is still a genuine
 node a wire can land on). All of them also picked up `Extract` support in
@@ -1729,8 +1757,8 @@ several real rotated instances (a Generator, a Reactor shunt) by hand
 against the fixed anchor math and confirmed exact agreement.
 
 2026-09-18: Digital device (shape 134) — a live SCADA-style analog readout,
-distinct from both a plain equipment symbol and a Label. Backend
-(`slddoc` module): a new `DigitalDevice` entity (`Diagram.DigitalDevices`)
+distinct from both a plain equipment symbol and a Label. Backend (`slddoc` module): a new `DigitalDevice` entity
+(`Diagram.DigitalDevices`)
 shares Label's own text-styling fields (Anchor/Bold/Color/VAlign/Font/Size)
 but adds `Name` (the SCADA tag, written as `data-name`), `Value` (a
 placeholder/default display value, e.g. `"0.00"` — this editor has no live
@@ -1773,8 +1801,8 @@ Element, since only a busbar populates `Points`) for every "parent>child"
 xml-tagged slice field whenever it was empty — a long-standing
 `encoding/xml` limitation where `omitempty` is silently ignored for such
 chained tags (Go issue #4256), affecting `Element.Points`
-("geometry>point") and every one of `Diagram`'s own list wrappers
-(`layers`/`voltageClasses`/`nodes`/`elements`/`connectors`/`labels`/
+("geometry>point") and every one of `Diagram`'s own list wrappers (`layers`/`voltageClasses`/`nodes`/`elements`/
+`connectors`/`labels`/
 `digitalDevices`). Added `emptyPathWrapperLine`, a second regex pass in
 `Save` (before the existing empty-tag-to-self-closing collapse) that
 strips these specific always-attribute-less wrapper lines entirely when
@@ -1818,8 +1846,8 @@ color picker now shows yellow instead of white.
 
 2026-09-18: Voltage transformer (shape 55) added to the palette —
 `ClassVoltageTransformer` (`slddoc` module). Ported from xsde2svg's own
-`element_55.go`, 2-winding case only: a real instance's own winding count
-(2, 3, or 4 circles) is a source-config detail the rendered SVG doesn't
+`element_55.go`, 2-winding case only: a real instance's own winding count (2, 3, or 4 circles) is a source-config detail
+the rendered SVG doesn't
 otherwise distinguish by shape/data-type code, so this picks the classic
 2-circle look (user's own choice over the 3-circle alternative), the same
 simplification already made for Power transformer's own 2-winding-only
@@ -1843,15 +1871,15 @@ from where its actual body is drawn) but a real gap for any shape that's
 large, small, or off-center from its own anchor, since a single global
 circle radius can't fit all of them. Backend (`slddoc`): removed the
 invisible `<circle r="18">` `Render` used to add around every symbol
-element in Interactive mode as a click-target workaround. Frontend
-(`Canvas.tsx`): after each render, computes and caches a real diagram-space
+element in Interactive mode as a click-target workaround. Frontend (`Canvas.tsx`): after each render, computes and
+caches a real diagram-space
 bounding box per symbol element from the backend-rendered `<g>`'s own
 `getBBox()` (local, pre-transform geometry) pushed through
 `diagramOps.placeLocalPoint`'s existing rotate-then-translate math (now
 exported — the same math a shape's own declared `Terminals` already use);
 BusBarSection is skipped since it already has its own points-based
-highlight. This real box now drives both the selection-highlight rect
-(replacing the old fixed `r=24` circle centered on the raw anchor) and a
+highlight. This real box now drives both the selection-highlight rect (replacing the old fixed `r=24` circle centered on
+the raw anchor) and a
 click-tolerance fallback (`findElementBoxHit`, smallest-box-wins on
 overlap, both `handleMouseDown` and the right-click context menu) for a
 plain click that lands within a shape's own real footprint but not on any
@@ -1885,8 +1913,8 @@ same path whose first point already served as the anchor), covered by a
 new `TestParseVoltageTransformer` using the exact real markup that
 surfaced this. Re-extracted `diagrams/Examples.xml`/`.svg` from the real
 source (`sld-svg/examples/sld/Examples.svg`) to pick up the fix: all 10 of
-its own Voltage transformers now resolve to their real voltage class
-(previously all unset) and render in their true color instead of gray.
+its own Voltage transformers now resolve to their real voltage class (previously all unset) and render in their true
+color instead of gray.
 
 2026-09-18: Half-chassis (shape 52) added to the palette —
 `ClassHalfChassis` (`slddoc` module). Ported from xsde2svg's own
@@ -1898,8 +1926,8 @@ second chevron floating disconnected further down with no drawn line
 reaching it, representing the coupling's other half now racked out.
 Unlike Voltage transformer, a real instance does carry a normal
 `data-voltage` attribute, so `Extract`'s shape-52 case reuses the shared
-`parseOnePortDevice` unchanged. Verified against the real corpus
-(`sld-svg/examples/sld/PS_110kV_Valdai.svg`): the anchor `parseOnePortDevice`
+`parseOnePortDevice` unchanged. Verified against the real corpus (`sld-svg/examples/sld/PS_110kV_Valdai.svg`): the
+anchor `parseOnePortDevice`
 computes for a real rotated instance (`id="4346"`, `x="782" y="1340"
 orient="180"`) was hand-derived and confirmed to exactly match this
 symbol's own local template coordinates before choosing them, and a full
@@ -1911,12 +1939,11 @@ to `^4.2.0`, to fix an intermittent bug where ordinary zoom/pan/select
 interaction could suddenly push the whole diagram far off-screen (a wildly
 wrong `translate()`, appearing as a black/blank canvas — Reset View
 recovers it, confirming nothing was actually lost). Root cause: a known
-class of gesture/position bug in the pre-4.x library — GitHub issue #408
-("rapid interaction causes the element to pan to a random position",
+class of gesture/position bug in the pre-4.x library — GitHub issue #408 ("rapid interaction causes the element to pan
+to a random position",
 closed as Released) and the v4.0.x changelog's own "prevented NaN
 propagation from invalid mouse/touch positions" among 30+ other
-gesture/bounds/pointer fixes. `Canvas.tsx`'s own usage
-(`useControls()`'s `zoomIn`/`zoomOut`/`setTransform`/`instance.
+gesture/bounds/pointer fixes. `Canvas.tsx`'s own usage (`useControls()`'s `zoomIn`/`zoomOut`/`setTransform`/`instance.
 wrapperComponent`, `TransformWrapper`'s `disabled`/`doubleClick={{disabled:
 true}}`) needed no changes — it already type-checked and built cleanly
 against v4's only named breaking change (a `wheel` options restructuring
@@ -1931,19 +1958,18 @@ pre-4.x version.
 2026-09-18: Chassis (shape 51) added to the palette — `ClassChassis`
 (`slddoc` module), Half-chassis's (52) own full-sized sibling: both ends of
 the same withdrawable racking-carriage symbol connected by a continuous
-stem, instead of one end left disconnected. Own two terminals sit at ±30
-(confirmed against two real corpus instances, one rotated one not — the
+stem, instead of one end left disconnected. Own two terminals sit at ±30 (confirmed against two real corpus instances,
+one rotated one not — the
 true anchor always lands exactly at the midpoint between the two outer
-marker chevrons), matching Breaker (withdrawable)/Disconnector
-(withdrawable)'s own convention exactly. Reuses the same
+marker chevrons), matching Breaker (withdrawable)/Disconnector (withdrawable)'s own convention exactly. Reuses the same
 `{positionOffset}`/`{positionAttr}` withdrawable-racking mechanism those
 two shapes already have (the real xsde2svg source's own "trolley" concept
 these placeholders were originally named after) — the movable body (the
 inner chevron-stem-chevron path, carrying the real source's own
 `data-trolley` attribute) slides sideways while the two outer marker
 chevrons stay fixed. Added `'51'` to `WITHDRAWABLE_SHAPES` in both
-`PropertiesPanel.tsx` (shows "Position status", no State — matching Fuse
-(withdrawable)'s (154) own precedent, since a real instance never carries
+`PropertiesPanel.tsx` (shows "Position status", no State — matching Fuse (withdrawable)'s (154) own precedent, since a
+real instance never carries
 `data-state`) and `diagramOps.ts` (defaults a freshly placed one to
 Position "Normal"). Wired into `Extract` via the shared `parseTwoPortDevice`
 the same way as every other two-port withdrawable shape. Verified live:
@@ -1970,8 +1996,8 @@ rather than silently downgrading it. Renders (`render.go`'s new
 `writeObjectLink`) as the same flat, un-wrapped `<polyline>` convention as
 Buswork, just at a heavier 2px stroke, plus a separate triangular arrowhead
 `<path>` at the connector's own final point, rotated to continue pointing
-in the direction its last segment was travelling
-(`atan2(from.X-to.X, dy)`, reverse-engineered from the real instance's own
+in the direction its last segment was travelling (`atan2(from.X-to.X, dy)`, reverse-engineered from the real instance's
+own
 effective angle — computed as `from.X-to.X` rather than the more obvious
 `-(to.X-from.X)` specifically so IEEE754's sign-of-zero doesn't flip a
 straight run into the wrong 180° twin of the correct angle). The arrowhead
@@ -2031,8 +2057,8 @@ against 105 real Power transformer instances across 9 `sld-viewer` corpus
 files, plus a dedicated `xsde2svg/examples/test/{xsde,svg}` test suite
 covering autotransformer/4-winding/connection-scheme/size variants with
 real input-XML/output-SVG pairs — this is what made confidently
-implementing the autotransformer and 4-winding cases possible at all
-(0 of the 105 corpus instances were autotransformers, so without that
+implementing the autotransformer and 4-winding cases possible at all (0 of the 105 corpus instances were
+autotransformers, so without that
 second test suite they'd have shipped unverified). Old v1 support (a
 single hardcoded 2-winding wye/wye base.xml template, `parsePowerTransformer`
 capped at exactly 2 leads) is replaced by a fully procedural renderer,
@@ -2052,6 +2078,7 @@ grounding/tapChanger/terminal) — `Element.Windings []TransformerWinding`
 `Element.VectorGroupLabel string` round out `Element`. Several of these
 are this editor's own deliberate simplifications over the real source,
 each a considered tradeoff rather than an oversight:
+
 - `TerminalDirection` replaces real xsde2svg's own opaque `Chassis` 1-7
   switch (leg direction tied combinatorially to winding index/count/
   mirroring) with a clean per-winding "pick a side" control — every leg
@@ -2060,8 +2087,8 @@ each a considered tradeoff rather than an oversight:
   constants per position.
 - The real `Size` 11-24 magic lookup table (named presets silently
   overriding baseRadius/hLegs/hLegsTop) isn't ported at all — every
-  transformer always uses the true `sde.Size==0` default geometry
-  (confirmed against the source directly, since most of the real corpus
+  transformer always uses the true `sde.Size==0` default geometry (confirmed against the source directly, since most of
+  the real corpus
   turned out to use non-default Size presets and so couldn't serve as a
   default-path reference — one corpus instance was traced to Size 24's own
   override to explain why its own hLegs/hLegsTop didn't match the naive
@@ -2100,8 +2127,8 @@ A real regression was caught during live verification and fixed before
 this shipped: `Windings`' own `xml:"windings>winding,omitempty"` tag hit
 the same long-standing `encoding/xml` limitation `Element.Points`
 ("geometry>point") was already worked around for (golang/go#4256 —
-omitempty is silently ignored for a chained "parent>child" tag) — every
-*non*-transformer element was briefly saving a meaningless empty
+omitempty is silently ignored for a chained "parent>child" tag) — every *non*-transformer element was briefly saving a
+meaningless empty
 `<windings></windings>` wrapper (caught by opening a saved diagram's own
 XML and finding it on a plain `Breaker`). Fixed by adding `windings` to
 `model.go`'s existing `emptyPathWrapperLine` regex (the same mechanism
@@ -2112,8 +2139,7 @@ Frontend: `frontend/src/types/index.ts` mirrors the new slddoc types;
 `diagramOps.ts` gets `powerTransformerDefaults` (a freshly placed
 transformer starts 2-winding wye/wye, matching the palette icon's own
 static preview) and a from-scratch TypeScript port of the backend's own
-winding-offset/default-terminal/leg-endpoint math
-(`transformerWindingOffset`/`defaultTransformerTerminal`/
+winding-offset/default-terminal/leg-endpoint math (`transformerWindingOffset`/`defaultTransformerTerminal`/
 `transformerLegEndpoint`, hand-kept in sync with render.go's own constants
 of the same name) — `symbolTerminals` now special-cases
 `ClassPowerTransformer` to compute its own per-instance terminal positions
@@ -2124,8 +2150,8 @@ without this, the click-to-route tool would only ever find a
 transformer's own bare center anchor as a connection target. The
 Properties panel gets a full winding editor (Autotransformer checkbox,
 Number-of-windings selector that grows/shrinks the Windings array, one
-`WindingEditor` block per winding with Voltage class/Connection scheme/
-(wyeN-only) Neutral grounding/Terminal orientation/Regulation checkbox,
+`WindingEditor` block per winding with Voltage class/Connection scheme/ (wyeN-only) Neutral grounding/Terminal
+orientation/Regulation checkbox,
 and the vector-group checkbox+text field) plus matching i18n keys in both
 `en.ts` and `ru.ts`.
 
@@ -2154,6 +2180,7 @@ the user against a real corpus diagram (`diagrams/PS_110kV_Valdai.xml`,
 whose own already-extracted `PowerTransformer` elements carry 2 or 3
 `<port>` entries each but no `<windings>` tag at all — exactly what these
 fixes address):
+
 - **`parsePowerTransformer` never populated `Element.Windings` at all**,
   only `Ports` — and `writePowerTransformer` derives its own drawn circle
   count from `len(Windings)`, not `len(Ports)`, defaulting to 2 whenever
@@ -2191,8 +2218,8 @@ fixes address):
   reversing `transformerWindingOffset` against the first circle's own
   absolute center once the real winding count is known.
 - **Properties' own per-winding Voltage class `<select>` was silently
-  broken** for any option that was a server preset not yet on the diagram
-  (`voltageClassOptions`' own `"preset:<name>"` values) — `WindingEditor`
+  broken** for any option that was a server preset not yet on the diagram (`voltageClassOptions`' own `"preset:<name>"`
+  values) — `WindingEditor`
   called `Number(e.target.value)` directly instead of going through
   `diagramOps.resolveVoltageSelection` the way the plain Element/Connector
   Voltage class selects already do, so picking a preset silently stored
@@ -2213,16 +2240,16 @@ Known remaining gap, not fixable by better geometry-matching alone (see
 `parsePowerTransformer`'s own doc comment): which winding has TapChanger
 set, and a wye-with-neutral winding's own NeutralGrounding, aren't
 recovered from rendered markup at all — genuinely closing these would mean
-adding dedicated `data-*` attributes to xsde2svg's own SVG output
-(`data-autotransformer`, `data-tap-changer`, `data-winding-type`), a
+adding dedicated `data-*` attributes to xsde2svg's own SVG output (`data-autotransformer`, `data-tap-changer`,
+`data-winding-type`), a
 cross-repo change discussed but not yet started.
 
 2026-09-18: `parsePowerTransformer` extraction made robust against real
 document-order quirks, found by the user comparing a real xsde2svg
 rendering byte-for-byte against this package's own extract-then-render
-round trip on the same source file
-(`xsde2svg/examples/test/svg/Test_47_AutoTransformer3Text.svg`) and
+round trip on the same source file (`xsde2svg/examples/test/svg/Test_47_AutoTransformer3Text.svg`) and
 noticing a visibly different third winding:
+
 - **A strict "circle, then its own trailing lead" document-order grouping
   was wrong.** Real xsde2svg's own `element_47.go` (its case-3 branch, the
   last real winding of a `WindingNo==4` autotransformer) draws that one
@@ -2233,8 +2260,8 @@ noticing a visibly different third winding:
   instead — exactly the "different autowinding curve" the user spotted.
   Replaced with a two-pass, distance-based match instead: every
   lead-shaped candidate `<path>` in the whole element is collected first,
-  then assigned to whichever `<circle>` its own start point is closest to
-  (a lead always starts within about one radius of its own circle's own
+  then assigned to whichever `<circle>` its own start point is closest to (a lead always starts within about one radius
+  of its own circle's own
   edge) — correct regardless of document order, not just for this one
   known quirk.
 - That same distance-based matcher initially mis-bound leads on some real
@@ -2269,8 +2296,8 @@ winding's own extracted lead tip are now snapped to this editor's own
 10-unit default grid (`EditorSettings.GridSpacing`'s own default).
 Real xsde2svg source diagrams place an element's own anchor on a grid
 this fine almost universally already, but a lead tip's own position is
-derived from that anchor by fixed, non-grid-multiple internal offsets
-(`transformerRadius`, the leg-length/shift constants, ...), so it
+derived from that anchor by fixed, non-grid-multiple internal offsets (`transformerRadius`, the leg-length/shift
+constants, ...), so it
 essentially never lands on the grid on its own even when the anchor does.
 The resulting shift (at most half the grid spacing, so ≤5 units here) is
 well within `topology.go`'s own existing `snapTolerance` — its own doc
@@ -2294,7 +2321,7 @@ non-orthogonal jog right at the transformer's own terminal, since its
 anchor was grid-snapped (the editor's own generic click-to-place snap,
 same as every other shape) but the lead tip itself wasn't: it's computed
 as anchor + a fixed offset (transformerXShift/TopShift/SideShift/
-VertShift) + transformerRadius(22) + one shared leg length (13), and
+VertShift) + transformerRadius (22) + one shared leg length (13), and
 none of that combination was a multiple of 10.
 
 `transformerLegLength` (`render.go`) replaces the old flat 13-unit
@@ -2302,12 +2329,11 @@ constant with a value chosen *per winding position* (8, 9, 10, or 13,
 depending on winding count and index) so that
 offset+transformerRadius+length is always an exact multiple of 10 for
 that winding's own default TerminalDirection — e.g. a 2-winding
-transformer's own legs now measure 10 units (18+22+10=50) instead of 13
-(18+22+13=53); a 3-winding one's own top winding still measures 13
-(25+22+13=60, already a coincidental multiple of 10) while its own
+transformer's own legs now measure 10 units (18+22+10=50) instead of 13 (18+22+13=53); a 3-winding one's own top winding
+still measures 13 (25+22+13=60, already a coincidental multiple of 10) while its own
 side windings drop to 10; a 4-winding one uses 8/10/9/9 for its own
-top/bottom/left/right windings. `diagramOps.ts`'s own TypeScript mirror
-(`transformerLegLength`) was updated to match by hand, the same way its
+top/bottom/left/right windings. `diagramOps.ts`'s own TypeScript mirror (`transformerLegLength`) was updated to match by
+hand, the same way its
 sibling functions already are. A winding whose own Terminal is
 explicitly overridden away from its own default direction can still land
 off-grid on the axis perpendicular to its own chosen direction (that axis
@@ -2318,8 +2344,8 @@ matching the same caveat already noted for extraction's own grid-snap.
 While auditing every shape's own base.xml `<terminals>` for the user's
 own broader "every element's connectors, regardless of source, should
 land on the grid" request, found that every other shape's own declared
-terminal offsets already are exact multiples of 10 — except Fuse
-(withdrawable, shape 154), whose own terminals sit at y=±31 to match a
+terminal offsets already are exact multiples of 10 — except Fuse (withdrawable, shape 154), whose own terminals sit at
+y=±31 to match a
 real xsde2svg chevron-tip position exactly (documented in base.xml's own
 comment there). Left as-is rather than rounding to ±30, since unlike
 PowerTransformer's own from-scratch geometry, base.xml's declared value
@@ -2390,7 +2416,7 @@ Autotransformer on a fresh 2-winding transformer, confirmed a real red
 terminal marker now renders at the tap's own stub tip (matching the
 reference screenshot's own convention), drew a Buswork route from it,
 and confirmed the saved XML carries a real `<port>`/`<node>` at exactly
-anchor+(0,-50) with a real `<connector>` attached — not just a
+anchor+ (0,-50) with a real `<connector>` attached — not just a
 decoration.
 
 2026-09-18: Tap arc visual polish, from the user's own hand-annotated
@@ -2426,8 +2452,8 @@ leads/circles still rotate normally — only the Y/Δ/Yn glyph itself now
 stays visually upright, the same `{counterRotate}` idea already used
 elsewhere in this codebase (a FaultPassageIndicator's own "FPI" label
 inside its base.xml template), reimplemented directly in `writePowerTransformer`
-since a transformer has no template to add a placeholder to: the glyph
-(plus its own grounding mark, when present) is now wrapped in a
+since a transformer has no template to add a placeholder to: the glyph (plus its own grounding mark, when present) is
+now wrapped in a
 `<g transform="rotate(-Orient,cx,cy)">`, canceling the outer `<g>`'s own
 `rotate(Orient)` for anything drawn at an offset from the winding's own
 circle center, while the center itself — the rotation's own pivot — is
@@ -2501,8 +2527,8 @@ ended up embedding whichever locale's frontend build had run *last*
 `frontend-en` prerequisite was considered "already satisfied" from
 `linux-en`'s earlier run in the same invocation. Caught by grepping the
 compiled binaries for a locale-exclusive UI string and finding English
-and Russian text in the *same* binary — first with a flawed check
-(`strings`, which doesn't reliably extract multi-byte UTF-8 like
+and Russian text in the *same* binary — first with a flawed check (`strings`, which doesn't reliably extract multi-byte
+UTF-8 like
 Cyrillic, and an English marker that turned out to also appear in the
 Russian bundle), then confirmed properly with a byte-safe `grep -a`
 against a marker independently verified absent from the *other* locale's
@@ -2544,8 +2570,8 @@ import XML end to end and checks both export content types; live browser
 verification against an isolated instance (the user's own dev servers
 untouched) confirmed the File panel's buttons render/enable correctly,
 Download XML/SVG each fire their own request and return 200 with no
-console errors, and picking a file through the hidden file input
-(drag-and-drop's own event simulation isn't reachable through the
+console errors, and picking a file through the hidden file input (drag-and-drop's own event simulation isn't reachable
+through the
 available browser automation tools, but it shares the same
 `loadDiagramFromXML` code path the file-picker button already exercised)
 correctly loads it as a new, dirty, correctly-named working diagram with
@@ -2565,8 +2591,8 @@ stop (SIGTERM) now shut the process down cleanly instead of the OS just
 tearing down open connections. `Run` had exactly one caller (`main.go`),
 so this was a contained signature change. New test:
 `TestRun_GracefulShutdown` starts the real server on a free port, confirms
-a request succeeds, cancels the context, and asserts `Run` returns
-(without error) within the shutdown timeout and the port stops accepting
+a request succeeds, cancels the context, and asserts `Run` returns (without error) within the shutdown timeout and the
+port stops accepting
 new connections afterward. Also manually verified against a real built
 binary: sent it a real `SIGTERM` and confirmed the "sld-editor shut down"
 log line and a clean process exit, on an isolated port, the user's own dev
@@ -2591,16 +2617,16 @@ already has. A new `lib/elementCatalogI18n.ts`
 `tOrFallback` helper look these up by a runtime-built key (not a literal
 `TranslationKey`, since the shape comes from server data) and fall back to
 the server's own raw string unchanged when no key matches — which is what
-happens for anything from a site's own config-added element library file
-(`elements.libraries` in config): this app's own translations were only
+happens for anything from a site's own config-added element library file (`elements.libraries` in config): this app's
+own translations were only
 ever going to cover the bundled default catalog, and a site adding its own
 equipment shapes gets its own raw label rather than a build error. Wired
 into `ElementsPanel.tsx` (category headings, each palette button's own
 label/tooltip, and the "click the canvas to place a {{name}}" armed hint)
 and `PropertiesPanel.tsx` (the "TypeName:shape" label shown above a
 selected element's own editable Name field) — deliberately *not* into
-`diagramOps.placeElement`'s own default-name generator
-(`` `${symbol.name}-${id}` ``, which stays the raw English catalog name),
+`diagramOps.placeElement`'s own default-name generator (`` `${symbol.name}-${id}` ``, which stays the raw English
+catalog name),
 since that becomes the persisted `Element.Name` written to the diagram's
 own XML, and a diagram saved under one locale's build should read
 identically when later opened under the other's, not have its actual data
@@ -2617,8 +2643,8 @@ underlying persisted `Name` field correctly stays the raw English
 2026-09-21: Sectionalizer (shape 164) added to the Switching
 devices palette — a two-terminal device drawn as a fixed pivot rod plus a
 small pointer arm+arrowhead that swings between Open and Close, geometry
-initially reverse-derived from the real xsde2svg source
-(`internal/modus/element_164.go`) and cross-checked against a real
+initially reverse-derived from the real xsde2svg source (`internal/modus/element_164.go`) and cross-checked against a
+real
 corpus-rendered instance, but Open's own final look was changed at the
 user's own explicit request/reference icons: the real source's own rod
 replaced by a short stub near the top terminal (rather than the same
@@ -2628,8 +2654,7 @@ bottom terminal — this template's own original Intermediate option, before
 the device was found to have no real Intermediate state at all (below).
 The bottom terminal's own fixed tick — present for Closed — is replaced by
 a small circle marking that pivot point for Open, since the blade
-physically rotates around it; this part *is* kept from the real source
-(top tick unaffected either way). The real
+physically rotates around it; this part *is* kept from the real source (top tick unaffected either way). The real
 source's Closed/Open toggle is a pair of visibility-swapped `<g>` groups, a
 mechanism this project doesn't use elsewhere — folded instead into the
 existing single-path `{state:closed|open|other}` convention every other
@@ -2653,12 +2678,12 @@ offsets from the element's own anchor rather than from raw path-point
 extremes, since this shape's two states draw too differently from each
 other (a full-length rod vs. a short swung-open stub plus an
 open-contact circle) for a reliable "extreme points" source the way most
-other two-port shapes get one — when a rotate() transform is present
-(Orient != 0) its own center is that anchor, same as every other two-port
+other two-port shapes get one — when a rotate () transform is present (Orient != 0) its own center is that anchor, same
+as every other two-port
 shape; when it's absent (Orient 0 — confirmed to be the common real-world
 case, both of `PS_110kV_Lubnisa.svg`'s own Sectionalizer instances are
-unrotated) a first attempt punted on this the same way Ground switch
-(54)'s own `Extract` support does, but that turned out to drop both real
+unrotated) a first attempt punted on this the same way Ground switch (54)'s own `Extract` support does, but that turned
+out to drop both real
 instances entirely (`Report.Failed`) — so `sectionalizerAnchorFromTick`
 was added instead, deriving the anchor from the shape's own "top tick", a
 fixed 10-unit segment identical in both states and always the topmost
@@ -2676,7 +2701,7 @@ Verified live in the browser (placed from the palette, defaulted to Close,
 Open/Close render distinctly correct, Intermediate now correctly renders
 identical to Open) and via a direct `Extract` test against the real
 corpus-example markup (both a Closed and an Open instance correctly
-recover State and identical (1560,505)/(1560,525) terminal Nodes).
+recover State and identical (1560,505)/ (1560,525) terminal Nodes).
 
 2026-09-21: A new `Mirror` property (shared `slddoc` module, a separate
 sibling repo) — every ordinary templated element (everything `internal/
@@ -2687,14 +2712,14 @@ render.go's own `mirrorScale`: an extra ` scale(-1,1)` in the outer `<g
 transform="translate(x,y) rotate(orient)...">`, applied before Orient's
 own rotation via ordinary SVG transform composition order, the same way
 real xsde2svg's own xMirror flips local x before its own Orient-driven
-rotate()). `PowerTransformer` (shape 47), which renders through its own
+rotate ()). `PowerTransformer` (shape 47), which renders through its own
 separate path (`writePowerTransformer`) rather than template substitution,
 gets the same `scale(-1,1)` on its own outer `<g>` too — mirroring the
-whole transformer including its per-winding connection-scheme glyphs
-(Y/Δ/Yn), a deliberate choice (simpler than preserving glyph orientation
+whole transformer including its per-winding connection-scheme glyphs (Y/Δ/Yn), a deliberate choice (simpler than
+preserving glyph orientation
 under mirroring the way they already stay upright under rotation) rather
-than an oversight. `BusBarSection` (shape 24) has no template of its own
-(its geometry is its own drawn Points, already absolute) — Mirror is a
+than an oversight. `BusBarSection` (shape 24) has no template of its own (its geometry is its own drawn Points, already
+absolute) — Mirror is a
 no-op there, same as Orient already is. Unlike Orient, `Extract` never
 sets Mirror: a real xsde2svg-exported SVG bakes xMirror straight into
 absolute path coordinates with no attribute of its own preserved in the
@@ -2819,8 +2844,8 @@ now. Frontend: `placeRectangle` (drag-to-draw, same as `placeBusbar`);
 BusBarSection-specific points-editing helper (`moveElement`,
 `pasteElement`, `updateBusbarPoint`) to cover Rectangle too, so dragging a
 corner handle resizes it the same way it repositions a busbar endpoint;
-Canvas.tsx's own drag-to-draw dispatch, live corner-drag preview
-(an actual rect outline, not a diagonal line), selection highlight, and
+Canvas.tsx's own drag-to-draw dispatch, live corner-drag preview (an actual rect outline, not a diagonal line),
+selection highlight, and
 DOM-direct drag-move all got a Rectangle-specific branch alongside their
 existing BusBarSection one. New "Annotations" palette category (not forced
 into an electrical one); Properties gets fill/border color pickers + a
@@ -2832,23 +2857,23 @@ silently missed it; fixed by giving Rectangle a real entry in Canvas.tsx's
 own `elementBoxes` (computed from its diagram-state Points directly,
 unlike every other shape's DOM-`getBBox()`-derived one), which the
 existing click-tolerance fallback (`findElementBoxHit`) already knew how
-to use. Verified live in the browser end to end: drag-place, select
-(inside the shape, not just its border), resize via corner handle, move
+to use. Verified live in the browser end to end: drag-place, select (inside the shape, not just its border), resize via
+corner handle, move
 the whole shape, recolor both fill and border, Ctrl/Cmd-click-to-connect
 correctly refuses to wire it to a Breaker, right-click Copy/Delete, and
 Paste — all correct, no console errors.
 
 2026-09-21: Rectangle (shape 3) gets a real, editable border width — new
-`Element.StrokeWidth` (shared `slddoc` module), 0/unset falling back to 1
-(the fixed value every other shape's own template hardcodes, and the real
+`Element.StrokeWidth` (shared `slddoc` module), 0/unset falling back to 1 (the fixed value every other shape's own
+template hardcodes, and the real
 xsde2svg source's own minimum), same convention Radius already uses for a
 Lamp/FaultPassageIndicator. `writeRectangle` now emits the resolved value
 instead of a hardcoded `stroke-width:1`; `Extract`'s `parseRectangle` reads
 it from a real `<rect>`'s own style. Frontend: `strokeWidth` added to
 `DiagramElement` and `RECTANGLE_DEFAULTS` (1, so Properties' own new
 number field — "Border width", alongside the existing fill/border color
-pickers — shows a real value immediately); no Canvas.tsx changes needed
-(its own selection-highlight/corner-drag-preview strokes are a fixed UI
+pickers — shows a real value immediately); no Canvas.tsx changes needed (its own selection-highlight/corner-drag-preview
+strokes are a fixed UI
 convention, unrelated to the element's own real one). Verified live: the
 field defaults to 1, and setting it to 8 visibly thickens the rendered
 border; a direct `/api/render` check confirmed both the explicit value and
@@ -2906,8 +2931,8 @@ literal "-" with an already-negative value, producing invalid SVG path
 syntax ("l --7 -3") whenever DoubleHeaded was set — the whole element
 silently failed to render (no console error). Fixed by computing the
 signed x-delta as a real number before formatting, not string-level sign
-juggling. Verified live in the browser end to end: drag-place, select
-(inside/near the thin line, via the click-tolerance box — the exact
+juggling. Verified live in the browser end to end: drag-place, select (inside/near the thin line, via the
+click-tolerance box — the exact
 click-tolerance gap Rectangle's own fill:none fix already addressed
 applies even more to a stroke-only shape), single- and double-headed
 render correctly, corner-drag reshape keeps both arrowheads correct, no
@@ -2954,20 +2979,20 @@ color change plus the Transparent button resetting it back to a hollow
 outline, copy/paste via the right-click menu, delete — all against a
 disposable scratch diagram, cleaned up afterward; a stale `go run`
 backend process left over from before this session's backend changes was
-caught (it reported a false "symbol library missing shape(s): 4" render
+caught (it reported a false "symbol library missing shape (s): 4" render
 warning) and restarted.
 
 2026-09-21: Cable connector (shape 56) implemented. Unlike
 Rectangle/Arrow/Circle, this is a real two-terminal electrical device (a
-cable termination/splice symbol), decoded from the real xsde2svg source
-(`element_56.go`)'s own relative-path formula into an open two-line
+cable termination/splice symbol), decoded from the real xsde2svg source (`element_56.go`)'s own relative-path formula
+into an open two-line
 chevron flaring outward from each end of a fixed vertical stem — visually
 similar to Arrow's own open chevron, just unconditionally at both ends
 rather than gated by DoubleHeaded. Implemented as a plain fixed-geometry
 template symbol, the same pattern Junction point (7)/Wire jump (14)
 already use: new `ClassCableConnector` (shared `slddoc` module),
 `shapeName["56"]`, a new `base.xml` entry in the "Wiring" category with
-real terminals at (0,-10)/(0,10) (same convention as Breaker/
+real terminals at (0,-10)/ (0,10) (same convention as Breaker/
 Disconnector), and `Extract` support wired straight into the existing
 `parseTwoPortDevice` helper (`elementDataTypes`/`twoPortShapes`) — no new
 parse function needed, since its own geometry's dominant-axis extremes
@@ -3005,8 +3030,8 @@ geometry formulas for the mirrored case, was not ported — this schema's
 generic Mirror property already flips any symbol's template the same way,
 making a second explicit geometry unnecessary. Backend: new
 ClassShortCircuiter (shared slddoc module), shapeName entry, a new
-base.xml symbol in the Switching devices category with one terminal at
-(0,10) (grid-aligned the same way Ground switch's own terminal is, with
+base.xml symbol in the Switching devices category with one terminal at (0,10) (grid-aligned the same way Ground switch's
+own terminal is, with
 the lead stub shortened to match), and Extract support via a new
 parseShortCircuiter mirroring parseGroundSwitch exactly (same known gap:
 an unrotated instance is not yet supported). Frontend: added to
@@ -3086,8 +3111,8 @@ xMirror==0 orientation (the rod above it stays on xMirror==1, from the
 previous entry) — the previous fix only got this half right, since the
 default 180-degree placement orientation flips which way an xMirror==0
 arrowhead reads, and that flip hadn't been accounted for. Second, the
-arrowhead's own position was moved off the rod itself onto a short arm
-(matching Sectionalizer's own arm+arrowhead-at-the-tip composition — see
+arrowhead's own position was moved off the rod itself onto a short arm (matching Sectionalizer's own
+arm+arrowhead-at-the-tip composition — see
 that symbol's own template), replacing the small tick that used to sit
 directly on the rod; this is a deliberate departure from
 element_398.go's own compact arrowhead-near-the-rod placement, at the
@@ -3103,10 +3128,10 @@ Sectionalizer, both in Open state, shows matching rod/circle/arm/
 arrowhead composition and arrowhead direction.
 
 2026-09-21: Short-circuiter (shape 398)'s Open rod deflection angle
-corrected, at the user's own explicit request, to match Sectionalizer
-(164)'s own deflection exactly: dx:dy of 6:18 (from Sectionalizer's own
-"M -6 -9 l 6 18"), replacing element_398.go's own h2:y6 constants
-(7:16) — the real source's own angle read too steep next to
+corrected, at the user's own explicit request, to match Sectionalizer (164)'s own deflection exactly: dx:dy of 6:18
+(from Sectionalizer's own
+"M -6 -9 l 6 18"), replacing element_398.go's own h2:y6 constants (7:16) — the real source's own angle read too steep
+next to
 Sectionalizer's shallower one. The rod's own overall length also grew to
 match (both Closed and Open now span the full 18 units from the pivot
 circle at the earth-symbol end down to the terminal-adjacent end,
@@ -3122,8 +3147,8 @@ user's own request, reversing an earlier decision that had marked shapes
 It is a facility-level pictogram, not switchgear in the usual sense, but
 the real xsde2svg source still gives it a genuine voltage-driven color
 and exactly one real electrical terminal, so it was implemented as real
-equipment with a single Port. It has two real appearance variants
-(NType): 0 draws a 36-unit outer square, an 18-unit inner rectangle, and
+equipment with a single Port. It has two real appearance variants (NType): 0 draws a 36-unit outer square, an 18-unit
+inner rectangle, and
 a short lead stub above the top edge (the terminal's own position); 1
 draws a plain downward-pointing triangle instead. Since NType leaves no
 other trace in a real export, an explicit data-ntype attribute was added
@@ -3172,25 +3197,26 @@ triangle variant, whenever no `rotate()` is present. Verified against the
 user's exact reported element.
 
 2026-09-21: Implemented Enclosed transformer substation (ZTP, shape
-386) — the same facility-level-pictogram family as Package substation
-(385), a fixed 36-unit outer square around an always-drawn downward
-triangle (apex at local (0,18), the same corrected formula 385's own
-triangle variant uses), but with only one appearance (no NType) and no
-drawn lead stub (confirmed against the real source, element_id386.go: no
-`canvas.Line` call anywhere). Reuses Fill (the triangle's own interior)
-and State (dashes the outline) identically to 385, and the same
-`substationAnchorFromGeometry` unrotated-instance fallback added above.
-Backend: new ClassEnclosedSubstation and a bespoke
-writeEnclosedSubstation render function, Extract support via
-parseEnclosedSubstation. Frontend: Properties gets the same State
-(Solid/Dashed) dropdown and Fill color picker 385 has, but no Appearance
-dropdown (there's no variant to pick); a new palette icon (outer square
-plus the same triangle). Terminal placed at local (0,-20), confirmed by
-direct user answer (one real electrical terminal, same as 385). Verified
-live in the browser: placement, interior-click selection (confirming the
-385 elementBoxes fix also covers this shape's own `<g>`-wrapped
-rendering), all Properties controls, and Ctrl/Cmd-click-connecting to a
-nearby Breaker.
+
+386) — the same facility-level-pictogram family as Package substation (385), a fixed 36-unit outer square around an
+     always-drawn downward
+     triangle (apex at local (0,18), the same corrected formula 385's own
+     triangle variant uses), but with only one appearance (no NType) and no
+     drawn lead stub (confirmed against the real source, element_id386.go: no
+     `canvas.Line` call anywhere). Reuses Fill (the triangle's own interior)
+     and State (dashes the outline) identically to 385, and the same
+     `substationAnchorFromGeometry` unrotated-instance fallback added above.
+     Backend: new ClassEnclosedSubstation and a bespoke
+     writeEnclosedSubstation render function, Extract support via
+     parseEnclosedSubstation. Frontend: Properties gets the same State (Solid/Dashed) dropdown and Fill color picker 385
+     has, but no Appearance
+     dropdown (there's no variant to pick); a new palette icon (outer square
+     plus the same triangle). Terminal placed at local (0,-20), confirmed by
+     direct user answer (one real electrical terminal, same as 385). Verified
+     live in the browser: placement, interior-click selection (confirming the
+     385 elementBoxes fix also covers this shape's own `<g>`-wrapped
+     rendering), all Properties controls, and Ctrl/Cmd-click-connecting to a
+     nearby Breaker.
 
 2026-09-21: Added an optional overlay label (Element.PropertyText) to
 Package substation (385) and Enclosed substation (386), matching a real
@@ -3200,14 +3226,14 @@ transformer's own power rating, "160") drawn in white/17px/Arial, staying
 upright and centered on the shape regardless of its own Orientation/
 Mirror — confirmed against real corpus instances carrying both a
 non-zero rotation and a label at once. This editor's own Render keeps
-every symbol element's translate+rotate+mirror as one combined transform
-(relied on by Canvas.tsx's own click-tolerance box and drag-in-DOM logic)
+every symbol element's translate+rotate+mirror as one combined transform (relied on by Canvas.tsx's own click-tolerance
+box and drag-in-DOM logic)
 rather than splitting it into nested groups the way the real source now
 does, so the label is instead given its own local counter-transform that
 cancels the parent's rotation/mirror to the same visual effect. Also fixed
 a real Extract bug uncovered while wiring this up: `parsePackageSubstation`/
 `parseEnclosedSubstation` only checked the outer node's own `transform`
-attribute for Orientation, but the real source now nests its rotate()
+attribute for Orientation, but the real source now nests its rotate ()
 transform one level inside (matching how `parseTwoPortDevice` already
 handles other shapes that can do the same) — every real rotated instance
 was silently losing its Orientation. Fixed by searching descendants for
@@ -3229,7 +3255,7 @@ CustomView appearance and optional phase-color fill on the triangle have
 no real corpus instance to confirm against and were left unmodeled, a
 real instance using either extracts with this same plain look instead.
 Drawn from a plain fixed local-coordinate template, the same way Cable
-connector (56) already is; terminals sit at (0,-12)/(0,14), asymmetric
+connector (56) already is; terminals sit at (0,-12)/ (0,14), asymmetric
 around the anchor by design, matching the real source's own geometry
 exactly (its own default branch shifts its drawn geometry one unit below
 the element's true anchor before drawing). Fits the shared `slddoc`
@@ -3272,8 +3298,8 @@ disk) and the new wrapped one. Verified live in the browser: a custom
 Fill color and Radius render correctly, and the Transparent button
 correctly clears back to a hollow look.
 
-2026-09-21: Fixed two real Extract bugs on Package/Enclosed substation
-(385/386), reported directly against real production elements. First:
+2026-09-21: Fixed two real Extract bugs on Package/Enclosed substation (385/386), reported directly against real
+production elements. First:
 Fill (the real source's own Abonent flag, filling the inner rectangle/
 triangle solid) was wired into rendering from the start but never
 actually recovered by Extract, so a real filled instance (id 148788827)
@@ -3289,8 +3315,8 @@ being wired into rendering. The older, single-purpose `data-ntype` is
 still read as a fallback, since a real, independently-generated xsde2svg
 v1.4.12 corpus export was found to already carry it before this change.
 
-2026-09-21: Gave Lamp (106) the same attached-label fix Junction point
-(7) got earlier today, for the identical reason — the user pointed out a
+2026-09-21: Gave Lamp (106) the same attached-label fix Junction point (7) got earlier today, for the identical reason —
+the user pointed out a
 real corpus instance with a `<circle data-type="106">` followed by an
 unlinked `<text>` sibling Extract couldn't associate with it.
 `internal/modus/element_106.go` got the same shared-`<g>` restructuring
@@ -3388,16 +3414,16 @@ standalone `Extract` check against both the app's own saved output and the
 two real corpus files — all extract back byte-for-byte matching Fill/
 Stroke/TextColor/Bold/text, no skipped/failed shapes.
 
-Also fixed an unrelated stale build in the sibling `sld-svg` repo
-(`cmd/svg-sld/svg-sld.go`), discovered while testing: its own call to
+Also fixed an unrelated stale build in the sibling `sld-svg` repo (`cmd/svg-sld/svg-sld.go`), discovered while testing:
+its own call to
 `slddoc.Render` hadn't been updated for the `defaultFPIText`/
 `fpiStateColorLegend` parameters the shape-320003/FPI work added — see that
 repo's own `RELEASE.md`.
 
 2026-09-22: Fixed `Extract`'s own `parseGroundSwitch` (`slddoc` module):
 it unconditionally required a real GroundSwitch (shape 54) instance to
-carry a `rotate()` transform, so a real instance placed at the default
-(unrotated) orientation — a completely normal case, not an edge case —
+carry a `rotate()` transform, so a real instance placed at the default (unrotated) orientation — a completely normal
+case, not an edge case —
 silently failed to extract (`no rotate() transform (unrotated ground
 switches are not yet supported)`), reported by the user against two real
 instances (ids 2509/2550, "2ЗР СВ-35"/"1ЗР СВ-35") in
@@ -3411,12 +3437,12 @@ their ratio (0.75) holds regardless of a given diagram's own scale, so
 needing to know that scale factor. Verified the ratio holds byte-for-byte
 against all 2856 real corpus instances found carrying a `rotate()` (whose
 true anchor is independently knowable from that transform's own center),
-confirming no real instance uses the source's other two draw variants
-(ShortDraw/CustomView "ЗОН-10_7", whose own yx/tail ratios differ) instead
+confirming no real instance uses the source's other two draw variants (ShortDraw/CustomView "ЗОН-10_7", whose own
+yx/tail ratios differ) instead
 of the modeled plain one; re-extracting the full ~4200-instance corpus now
 shows zero failed shape-54 extractions (previously 7 silently unrecovered
 unrotated instances across it), and the two ids the user reported now
-extract at (738,781)/(821,778) — matching by hand-derivation from their
+extract at (738,781)/ (821,778) — matching by hand-derivation from their
 own state-indicator sub-path too.
 
 2026-09-22: Added shape 335 (Road) — a purely decorative geographic
@@ -3579,8 +3605,8 @@ source counterpart for this shape). `slddoc`: `ClassLine`, `writeLine`/
 `parseLine` (no wrapping `<g>`, no `data-name` — same gap Road's own
 source has; doesn't reuse `writePolyline` for the dash portion, the same
 "resolve the real dash string first" approach `writeNamedLine` already
-uses for a `CableLine` connector's own dash). A pre-existing test
-(`extract_test.go`) that used shape 1 as its own example of "a recognized
+uses for a `CableLine` connector's own dash). A pre-existing test (`extract_test.go`) that used shape 1 as its own
+example of "a recognized
 shape v1 doesn't understand electrically, must be skipped" needed
 updating to reflect the new reality (extracted as a real `ClassLine`
 element now, not skipped) — its own fixture also had a non-numeric
@@ -3597,8 +3623,8 @@ i18n labels but its own smaller 2-real-variant option list — `''`/Solid
 is Line's own real default, unlike `CableLine`'s own "empty means dashed"
 convention). Verified with `go build`/`vet`/`test` (`slddoc` + `backend`,
 including the updated `extract_test.go`), `npx tsc --noEmit`, a standalone
-`Extract` check against both real corpus directories found on disk
-(`sld`/`sld1`, ~25,900 real Line instances combined: zero shape-1
+`Extract` check against both real corpus directories found on disk (`sld`/`sld1`, ~25,900 real Line instances combined:
+zero shape-1
 extraction failures, dash breakdown 25078 solid/775 dashed/2 dashDot
 matching the real `stroke-dasharray` counts found by direct search almost
 exactly), and a full round trip via the live app (drawn, selected, both
@@ -3609,8 +3635,8 @@ Date: 2026-09-22 — Fixed a real `Extract` mislabeling bug: a plain
 Buswork connector (real xsde2svg `data-type="21"`, "Ошиновка") was being
 imported as `KindBusbarWire` instead of `KindBusWork`, so Properties
 showed it as "Busbar wire" with no `:21` type code instead of the correct
-"Buswork:21". Root cause was `slddoc`'s own `connectorKindByType` map
-(the reverse of `render.go`'s authoritative `connectorTypeCode`, used by
+"Buswork:21". Root cause was `slddoc`'s own `connectorKindByType` map (the reverse of `render.go`'s authoritative
+`connectorTypeCode`, used by
 `Extract`'s `parseConnector`): it mapped `"21"` to `KindBusbarWire`, but
 `"21"` has always been `KindBusWork`'s own code — `KindBusbarWire` has no
 xsde2svg code of its own at all (it was removed as a palette choice, see
@@ -3641,8 +3667,7 @@ open, same as the pre-existing legacy rewrites, but only persists to
 disk on that diagram's next explicit save — the affected on-disk files
 were not proactively batch-resaved.
 
-Date: 2026-09-22 — Ported xsde2svg shape 320001, 
-(Powerflow direction), a purely decorative status indicator: a single
+Date: 2026-09-22 — Ported xsde2svg shape 320001, (Powerflow direction), a purely decorative status indicator: a single
 bold arrow glyph ("→"/"←", chosen by a two-way State toggle) drawn at its
 own anchor and rotated by the ordinary Orientation mechanism — no
 electrical Ports/Voltage of its own, so it's never a valid
@@ -3717,8 +3742,8 @@ entry outright).
 Date: 2026-09-22 — Backend half of "Reducing frontend/backend traffic"'s
 own incremental-rendering plan (see TODO.md): a new `slddoc.RenderFragments`
 renders only a requested set of ids' own markup instead of a whole `<svg>`
-document — still resolving voltage/topology across the *entire* diagram
-(an id's own color can depend on a VoltageClass that isn't itself
+document — still resolving voltage/topology across the *entire* diagram (an id's own color can depend on a VoltageClass
+that isn't itself
 requested), but only writing out markup for the ids actually asked for,
 returned as `map[int]string`. Ids may name an Element, Connector, Label,
 or DigitalDevice interchangeably (this schema's ids are one shared space
@@ -3755,8 +3780,8 @@ against a `lastRenderedRef` snapshot (the diagram as of its own last
 successful render) on every firing, via a new pure
 `diagramOps.diffDiagramForRender` — reference-inequality per id across
 `elements`/`connectors`/`labels`/`digitalDevices`, safe and cheap because
-every `diagramOps` mutator already does immutable, per-id array updates
-(an untouched entry always keeps its old object reference, so no
+every `diagramOps` mutator already does immutable, per-id array updates (an untouched entry always keeps its old object
+reference, so no
 field-by-field diffing or mutator instrumentation was needed). Three
 outcomes: nothing rendering-relevant changed at all (skip the network
 round trip entirely — e.g. a no-op `updateDiagram`); only a fixed set of
@@ -3791,8 +3816,7 @@ each still fired the original full `/api/render`; Save followed by a
 full page reload round-tripped every one of those edits correctly either
 way.
 
-Date: 2026-09-22 — Ported xsde2svg shapes 312 (Table) and 313
-(Table 2), both purely decorative annotations (no Ports/
+Date: 2026-09-22 — Ported xsde2svg shapes 312 (Table) and 313 (Table 2), both purely decorative annotations (no Ports/
 Voltage, never a connectElements/routing endpoint). **312** is
 drag-two-corners like Rectangle/Button, reusing existing Element fields
 entirely — Fill/Stroke/StrokeWidth/Points, LineStyle (its own real dash
@@ -3803,8 +3827,8 @@ Real source only actually draws the ≤2-corner case modeled here (a real
 multi-cell attempt via this shape is explicitly skipped by the exporter,
 which tells the operator to use 313 instead); found zero real corpus
 instances of `data-type="312"` in either corpus directory, so this one
-was verified against the real source formula directly, not corpus.
-**313** is click-to-place, starting as a small default 2×2 grid (its own
+was verified against the real source formula directly, not corpus. **313** is click-to-place, starting as a small
+default 2×2 grid (its own
 real geometry — an N-row-by-M-column table — can't be expressed as two
 dragged corners): new `RowHeights`/`ColumnWidths`/`Cells []TableCell`
 Element fields, deliberately not modeling the real source's own
@@ -3818,7 +3842,7 @@ itself (`element_312.go`/`element_313.go`/`modus.go` in the sibling
 single `<g id data-type="312"|"313">`, the same fix already made for
 shapes 7/106/385/386, so Extract has something to recognize a whole
 table by at all; a diagram exported by an xsde2svg build from before
-that fix simply doesn't have its own table(s) recognized (the same "not
+that fix simply doesn't have its own table (s) recognized (the same "not
 yet understood, skipped" treatment 313 already implicitly had, not a
 regression). `slddoc`: `ClassTable`/`writeTable`/`parseTable` and
 `ClassTable2`/`writeTable2`/`parseTable2`, both wrapping in the new `<g>`
@@ -3842,8 +3866,8 @@ the "Annotations" palette group. Frontend: `placeTable`
 (drag-two-corners, alongside `placeRectangle`/`placeButton`) and
 `table2Defaults`/`resizeTable2`/`updateTable2RowHeight`/
 `updateTable2ColumnWidth`/`updateTable2CellText`; `Table` added
-everywhere `POINTS_BASED_CLASSES` already covers Rectangle/Button
-(`elementBoxes`, `dragElementsInDom`, selection highlight, reshape
+everywhere `POINTS_BASED_CLASSES` already covers Rectangle/Button (`elementBoxes`, `dragElementsInDom`, selection
+highlight, reshape
 handles), `Table2` gets its own new anchor-plus-grid-sum box computation
 and a `translate()`-the-whole-group drag preview (simpler than shifting
 every per-cell child individually, since the real commit re-renders from
@@ -3864,8 +3888,8 @@ and a live round trip through the app: placed and dragged a Table (label
 text/rotation/dashed border all confirmed), placed a Table2, edited cell
 text, resized its column count (confirmed existing cell content
 preserved in place), dragged the whole table, saved, restarted the dev
-server (picking up the `slddoc` fix), and reloaded — every field
-(including the now-clean XML with no stray empty wrapper tags) round-tripped
+server (picking up the `slddoc` fix), and reloaded — every field (including the now-clean XML with no stray empty
+wrapper tags) round-tripped
 correctly.
 
 2026-09-22: Fixed a color bug in DigitalDevice (shape 134) extraction —
@@ -3881,8 +3905,8 @@ targets `data-type="134"` directly for animation, and wrapping it risked
 breaking that. Instead, `slddoc.Extract` now recognizes this exact
 pattern by sibling position: when a `data-type="134"` node parses
 successfully, its immediately-preceding top-level sibling, if it's a bare
-untyped/id-less `<rect>`, is extracted as its own standalone Rectangle
-(shape 3) element (`parseDigitalDeviceBackgroundRect`, `slddoc/labels.go`)
+untyped/id-less `<rect>`, is extracted as its own standalone Rectangle (shape 3) element
+(`parseDigitalDeviceBackgroundRect`, `slddoc/labels.go`)
 reusing `parseRectangle`'s own Fill/Stroke/StrokeWidth/Points logic. Since
 the real source never gives this rect its own id, `Extract` now assigns it
 a real, collision-free one itself (`maxNumericID`, `slddoc/extract.go`,
@@ -3895,8 +3919,8 @@ a positional heuristic, not a real link: the background renders correctly
 underneath the reading's own text (`Render` always finishes its full
 Elements pass, which includes this Rectangle, before starting its
 DigitalDevices pass — verified with a dedicated ordering check), but the
-box and the reading are two fully independent elements in the editor
-(dragging/deleting one doesn't affect the other). Verified with
+box and the reading are two fully independent elements in the editor (dragging/deleting one doesn't affect the other).
+Verified with
 `go build`/`vet`/`test` in `slddoc` (`TestExtract_
 DigitalDeviceBackgroundRect`: a rect+text pair extracts as both a
 Rectangle and a DigitalDevice with a fresh non-colliding id and an
@@ -3927,8 +3951,8 @@ other place these are excluded as valid wire endpoints. Added
 clicked one, selected "Start buswork" (routing started immediately, no
 palette interaction), and completed the route — confirmed via the DOM
 that the resulting connector's `data-type="21"` (Buswork) and its own
-first point exactly matched the breaker's own top terminal
-(element anchor (540,530) + local (0,-10) = (540,520), the connector's
+first point exactly matched the breaker's own top terminal (element anchor (540,530) + local (0,-10) = (540,520), the
+connector's
 literal first point).
 
 2026-09-22: Extended Shift+click multi-select to a single mixed selection
@@ -3958,20 +3982,20 @@ connector/label/digital device always collapsed to just that one item).
 Copy/Paste is now unified too (`diagramOps.copySelection`/`pasteGroup`,
 replacing the element-only `copyElements`/`pasteElements`) and extended
 to connectors and digital devices (labels already had no copy/paste at
-all before this): a copied connector reconnects to the corresponding
-*pasted* elements' own new ports only when both its endpoints' owning
+all before this): a copied connector reconnects to the corresponding *pasted* elements' own new ports only when both its
+endpoints' owning
 elements are also in the same copy/paste operation (full rigid-group
 fidelity); every other end (a tap onto a busbar/another connector, or an
 endpoint whose owning element wasn't also copied) pastes as an ordinary
 dangling end — the same normal, unremarkable state this app already
-treats any unconnected wire end as. A copied label drops its `for` link
-(already documented as informational-only, never live). `deleteSelected`
+treats any unconnected wire end as. A copied label drops its `for` link (already documented as informational-only, never
+live). `deleteSelected`
 now dispatches every entry in the mixed selection to the right remove
 function in one `updateDiagram` call. The Properties panel's bulk-
 selection view and the context menu's Copy/Delete/Paste items all switch
 on `selection.size`/contents instead of the old element-only checks; the
-now-redundant standalone "Delete wire" context-menu item was removed
-(the generalized "Delete" already covers it whenever a connector is
+now-redundant standalone "Delete wire" context-menu item was removed (the generalized "Delete" already covers it
+whenever a connector is
 selected). Verified with `npx tsc --noEmit` and a live round trip:
 shift-clicked a breaker, its own attached wire, and a text label into one
 3-item mixed selection (confirmed via the Properties panel's "3 items
@@ -3980,8 +4004,8 @@ the same delta — confirmed via the DOM that all three actually updated,
 not just a drag preview), copied and pasted the group elsewhere (new
 breaker + a correctly-dangling wire, since the wire's other original
 endpoint's owning element wasn't part of the copy + a new label, all
-confirmed via the DOM), and deleted the original 3-item selection
-(confirmed exactly those three ids were removed, leaving the untouched
+confirmed via the DOM), and deleted the original 3-item selection (confirmed exactly those three ids were removed,
+leaving the untouched
 second breaker and the pasted copies alone).
 
 2026-09-24: Import an xsde2svg-style `.svg` by dropping (or picking) it
@@ -4003,8 +4027,7 @@ silently dropped. New i18n keys `file.invalidDiagramFile` (replacing
 `sld-viewer/assets/sld/`.
 
 2026-09-24: Import log and default voltage for an imported `.svg`. Each
-`.svg` import now opens an Import log dialog
-(`frontend/src/components/ImportLogDialog.tsx`) listing what
+`.svg` import now opens an Import log dialog (`frontend/src/components/ImportLogDialog.tsx`) listing what
 `slddoc.Extract` captured (element/connector/label/digital-device/node
 counts), each extracted voltage class with its color and how many
 elements/connectors use it, every skipped unsupported data-type code with
@@ -4086,8 +4109,8 @@ import log dialog already has this picker) or new diagrams (the New dialog
 asks). en/ru strings added.
 
 2026-09-24: The Properties panel's diagram view (nothing selected) now has
-two collapsible groups, both starting collapsed: **Layers** — rename, add
-(`diagramOps.addLayer`) or delete (`removeLayer`) the diagram's `<layers>`,
+two collapsible groups, both starting collapsed: **Layers** — rename, add (`diagramOps.addLayer`) or delete
+(`removeLayer`) the diagram's `<layers>`,
 with a per-layer object count (`layerUsage`); the base layer `0` can't be
 deleted, and deleting any other layer moves its elements, connectors, labels
 and digital devices to layer `0` — and **Voltage classes** — the
@@ -4098,8 +4121,8 @@ out of the Elements panel into `components/panels/GroupHeader.tsx`, and the
 voltage-class i18n keys moved from `settings.*` to `diagram.*`.
 
 2026-09-24: Voltage classes named after their own color are renamed from
-the server's `voltage_colors` presets when a diagram is opened or imported
-(`diagramOps.applyPresetVoltageNames`): a class whose name is empty or equals
+the server's `voltage_colors` presets when a diagram is opened or imported (`diagramOps.applyPresetVoltageNames`): a
+class whose name is empty or equals
 its color (e.g. `name="#962896" color="#962896"`, as Extract names a color
 it had no hint for) takes the name of the preset with the same color,
 compared case-insensitively (`10 kV`). A class already renamed by hand is
@@ -4136,9 +4159,8 @@ answering doesn't change it) and the opened diagram's own name.
 
 2026-09-24: Several files can be imported at once — dropped together, or
 picked together in "Load from file…" (now a multi-select picker). A single
-file still opens in the editor as before; several files are each parsed
-(.xsld) or reconstructed (.svg), given the same fixes a single import gets
-(`lib/importDiagram.ts`'s `prepareImport`: id backfill, preset voltage-class
+file still opens in the editor as before; several files are each parsed (.xsld) or reconstructed (.svg), given the same
+fixes a single import gets (`lib/importDiagram.ts`'s `prepareImport`: id backfill, preset voltage-class
 names, most-used default voltage for .svg) and saved straight to the server
 into the current folder, one after another — a failing file doesn't stop the
 rest, and the open diagram is left untouched. A name that already exists is
@@ -4170,7 +4192,7 @@ work in a fresh clone (verified with dist/ holding only `.gitkeep`); the
 Makefile's `frontend-en`/`frontend-ru`/`clean` targets recreate it after
 wiping the folder.
 
-2026-09-25: Added the Power circuit breaker (xsde2svg type 399) as a new 
+2026-09-25: Added the Power circuit breaker (xsde2svg type 399) as a new
 two-state `PowerCircuitBreaker` class (Open/Close only,
 starts Closed when placed), listed under "Switching devices". Its template
 follows the real source's own `element_399.go`: Disconnector's body, a
@@ -4238,8 +4260,8 @@ and a note that the frontend has no tests or linter. Trimmed it from ~64 KB to
 ~9 KB, keeping commands, architecture and rules that span several files, and
 dropping per-function detail already covered by the code and RELEASE.md.
 
-2026-09-29: Rewrote TODO.md as a checklist of open tasks only: editor features
-(45° routing, busbar-endpoint re-routing, undo/redo), every shape still marked
+2026-09-29: Rewrote TODO.md as a checklist of open tasks only: editor features (45° routing, busbar-endpoint re-routing,
+undo/redo), every shape still marked
 not done in `elements.md`, and known gaps in already-ported shapes. Dropped the
 descriptions of finished work, already recorded here, and the stale entries
 that listed 16/51/52/55 as not ported.
@@ -4252,8 +4274,8 @@ the bundled example, and `make package` ships the folder). The backend opens
 it as a second diagram store and serves every file in it from
 `GET /api/custom-elements` as `{name, diagram, svg}`. The Elements panel
 lists them in a final "Custom elements" group with a cropped rendering as the
-icon; arming one and clicking the canvas places a full copy
-(`diagramOps.placeCustomElement`) centered on the snapped point, keeping the
+icon; arming one and clicking the canvas places a full copy (`diagramOps.placeCustomElement`) centered on the snapped
+point, keeping the
 template on-grid. Every node, element, connector, label and digital device
 gets a fresh id and the node topology is kept exactly, so wires meeting at a
 shared junction stay connected. Elements are renamed `<type>-<id>`, voltages
@@ -4263,8 +4285,8 @@ cancels, like every other palette tool. Added `placeElement`'s shared
 `NO_VOLTAGE_CLASSES` set, and English/Russian strings for the new group.
 
 2026-09-29: Save selection as custom element. Right-clicking a selection now
-offers "Save as custom element…", which asks for a name
-(`SaveCustomElementDialog`) and saves the selection to the custom-elements
+offers "Save as custom element…", which asks for a name (`SaveCustomElementDialog`) and saves the selection to the
+custom-elements
 folder via the new `PUT /api/custom-elements?name=` (a bare file name; an
 existing name returns 409 and the dialog then offers Overwrite, which resends
 with `&overwrite=1`). The new element appears in the palette right away.
@@ -4287,9 +4309,8 @@ instead (`removeDegenerateConnectors`), and a dropped device's terminal joins
 whatever lies exactly under it (`joinPortNodes`: merges a node there, splits a
 wire passing through it, or taps a busbar). Ports are now a fixed property of
 the shape: a device with N terminals always has exactly N ports named "1".."N"
-in terminal order, each on its own node, created on placement
-(`fitElementPorts`). Wiring no longer appends a port per wire
-(`attachElementEnd` uses the terminal's port node, so several wires on one
+in terminal order, each on its own node, created on placement (`fitElementPorts`). Wiring no longer appends a port per
+wire (`attachElementEnd` uses the terminal's port node, so several wires on one
 terminal share it; only a busbar still gets a port per tap), deleting a wire
 keeps them, and editing orientation/mirror/position/size in Properties moves
 the port nodes and attached wire ends along. Copy/Paste now reuse the custom
@@ -4318,8 +4339,8 @@ live canvas, the saved `.svg` and SVG downloads alike.
 from empty canvas now draws a selection frame: left-to-right (solid frame)
 selects only what lies fully inside, right-to-left (dashed frame) everything it
 touches, with the candidates highlighted while dragging; Shift or Ctrl/Cmd adds
-the result to the current selection. A multi-selection gets one dashed group box
-(no handles, since symbols have a fixed size) that can be dragged from its empty
+the result to the current selection. A multi-selection gets one dashed group box (no handles, since symbols have a fixed
+size) that can be dragged from its empty
 space. Ctrl/Cmd-click now adds/removes items like Shift-click; the old instant
 Ctrl/Cmd-click connect (`diagramOps.connectElements`) is removed, as the wire
 routing tool replaces it. Ctrl/Cmd+C copies the selection and Ctrl/Cmd+V pastes
@@ -4340,8 +4361,8 @@ them into one node. What was missing: a wire end or device terminal lying
 exactly on a busbar's line only became one of its terminals when a wire was
 routed onto the busbar, so a busbar drawn over existing wire ends (e.g.
 `diagrams/test4.xsld`) stayed unconnected. Now `diagramOps.joinBusbar` adds a
-terminal for every node lying on the busbar's line whenever the busbar is drawn
-(`placeBusbar`), moved (`moveSelection`), reshaped (`updateBusbarPoint`) or
+terminal for every node lying on the busbar's line whenever the busbar is drawn (`placeBusbar`), moved
+(`moveSelection`), reshaped (`updateBusbarPoint`) or
 repaired on open (`fitElementPorts`/`normalizeTopology`), and
 `joinNodesToBusbars` does the same for a wire end or terminal moved onto a
 busbar (`moveConnectorEndpoint`, `moveSelection`). A wire that only crosses a
@@ -4389,7 +4410,8 @@ lead on each side and two terminals at (±30, 0) (the source's own leads end at
 draws the diagonal regulation arrow and is set in Properties with the existing
 "Regulation (OLTC)" checkbox; Mirror is hidden for this class (the source has
 no mirror branch). As in the source, the arrow and the small winding-connection
-mark (a three-leg star, the windings' star connection) stay upright whatever the orientation (`{counterRotate}` wrapper); both
+mark (a three-leg star, the windings' star connection) stay upright whatever the orientation (`{counterRotate}`
+wrapper); both
 take the voltage color, like Power transformer's own arrow, instead of the
 corpus' fixed dark color. Templates get a new `{tapChanger:fragment}`
 placeholder (kept only when TapChanger is set; the palette icon always shows
@@ -4410,8 +4432,8 @@ The source is 1px off-center (leads from -36 to +34); here the box is centered
 on the anchor and the leads are 10 long, so both terminals sit on the grid.
 Mirror is hidden in Properties (the source has no mirror branch). `Extract`
 (sibling `slddoc`) reads it with the generic `parseTwoPortDevice`; the shape
-is drawn horizontally before rotation, so an unrotated instance gets Orient 0
-(`horizontalTwoPortShapes`), and a two-port device's `rotate()` angle is now
+is drawn horizontally before rotation, so an unrotated instance gets Orient 0 (`horizontalTwoPortShapes`), and a
+two-port device's `rotate()` angle is now
 normalized (`-180` → `180`). Checked against every real instance in the EMA
 corpus (49): all extracted.
 
@@ -4420,13 +4442,13 @@ default (non-mirrored) geometry. New class `Thyristor` in the Elements
 palette's Other equipment group: a diode triangle pointing right with a cathode
 bar at its apex and a gate stub off the bar, three terminals: anode (-20, 0),
 cathode (20, 0) and gate (20, -20). The source's anode lead ends at -18 and its
-gate at (17, -19); here the anode lead is 2 px longer and the gate stub ends at
-(20, -20), so all three terminals sit on the grid. Drawn unfilled (the source fills it
+gate at (17, -19); here the anode lead is 2 px longer and the gate stub ends at (20, -20), so all three terminals sit on
+the grid. Drawn unfilled (the source fills it
 with the page background, which looks the same). Mirror is hidden in
 Properties: the source's mirror branch is the same symbol turned 180° at half
 size, which Orientation already covers. `Extract` (sibling `slddoc`) reads it
-with `parseThyristor`: anode and cathode as a horizontal two-port device
-(`parseTwoPortDevice`, `horizontalTwoPortShapes`), the gate as the path's last
+with `parseThyristor`: anode and cathode as a horizontal two-port device (`parseTwoPortDevice`,
+`horizontalTwoPortShapes`), the gate as the path's last
 point.
 Checked against every real instance in the EMA corpus (6, in the "Нива"
 hydro plant diagrams): all extracted.
@@ -4516,8 +4538,8 @@ polylines now carry `data-voltage`, plus `data-name` when named, as real
 xsde2svg output does. A power transformer's outer `<g>` no longer carries a
 placeholder `data-voltage="gray"` in Static, and a winding with no
 connection-scheme glyph no longer writes an empty counter-rotate group. All 434
-diagrams in `diagrams/` and `custom-elements/` render pixel-identical to before
-(rasterized with rsvg-convert). The editor's own saved `.svg` now imports
+diagrams in `diagrams/` and `custom-elements/` render pixel-identical to before (rasterized with rsvg-convert). The
+editor's own saved `.svg` now imports
 correctly: before, every symbol came back at (0,0). Of 53,033 symbols in those
 diagrams, 96% read back at exactly the same anchor and angle, and nearly all
 the rest at an equivalent angle (e.g. -180 vs 180). A new test renders every
@@ -4539,8 +4561,8 @@ captions link back to their element on import.
 New decorative class `WindowIcon` in the Elements palette's Annotations group,
 next to 3D button: a box you draw by dragging two corners, with a centered
 label. It works like 3D button (113) with three differences from the source:
-the label is 12px and sits 2 units below center, the border is fixed at 1px
-(so Properties has no border-width field), and the border and text default to
+the label is 12px and sits 2 units below center, the border is fixed at 1px (so Properties has no border-width field),
+and the border and text default to
 black. A newly placed one gets the real corpus look: an orange fill and the
 text "Window" ("Окно" in the Russian build). Properties edits the text, fill,
 border color, text color, bold and the two corners. `Render` (sibling
@@ -4556,13 +4578,14 @@ drag-to-draw shapes.
 and the "Show nodes" marks, are now green where something is connected and
 red where the terminal or node is still free. Before, every mark was red.
 Connected means a wire ends on that node, or two or more element ports share
-it, such as a terminal sitting straight on a busbar
-(`diagramOps.connectedNodeIds`). Both user guides describe the colors.
+it, such as a terminal sitting straight on a busbar (`diagramOps.connectedNodeIds`). Both user guides describe the
+colors.
 
 2026-10-01: Container (xsde2svg shape 310), ported from `element_310.go`. New
 decorative class `Container` in the Annotations group, next to Polygon: a
 closed outline around a group of equipment, drawn one click per corner like
 Polygon (Enter closes it), with an optional caption. Properties edits:
+
 - the caption's text, its position (presets for the placements used in real
   diagrams: above, below, left, right or inside, with the source's 5-unit
   gap), its offset, size, color (Transparent gives the invisible caption most
@@ -4685,8 +4708,8 @@ all extracted, at their real terminals and orientations.
 class `KnifeSwitch` in the Elements palette's Switching devices group, before
 the 3-position knife switch: the same three small circles (pivot and two
 contacts) with the thick blade always on the left contact, as in the source,
-which has no state and no mirror branch. It has three terminals, the pivot
-(0, 10) and the left and right contacts (±10, -10). The pivot moved down
+which has no state and no mirror branch. It has three terminals, the pivot (0, 10) and the left and right contacts (±10,
+-10). The pivot moved down
 from the source's (0, 5) so every terminal sits on the grid; otherwise it is
 drawn as in the source: the full-length blade first, then the circles on top,
 filled with the diagram background so they hide the blade's ends. For that,
@@ -4710,8 +4733,8 @@ preview, Replace image…, and Fit to image proportions (height from width and
 the image's aspect ratio), plus the corner points. Static render (the saved
 `.svg`, downloads) writes the source's bare `<image x y width height
 xlink:href>`. To keep traffic down, the live canvas strips every Picture's
-image from its `/api/render` and `/api/render/fragments` requests
-(`lib/picture.ts`); Interactive render leaves the `<image>` without an href,
+image from its `/api/render` and `/api/render/fragments` requests (`lib/picture.ts`); Interactive render leaves the
+`<image>` without an href,
 and the canvas fills it in from its own state after each render or patch, so
 editing a diagram with a large backdrop posts a few kilobytes rather than the
 picture. Save and export still send the full image. `Extract` (sibling
@@ -4723,16 +4746,16 @@ BMP, all labelled `image/jpeg` by the source; browsers detect the real format.
 
 2026-10-02: Knife switch (shape 44) position. Properties now has a Position
 dropdown for it, like the 3-position knife switch (175) but with two options:
-Left contact (the source's only drawing, State unset or 0) and Right contact
-(State 2), the same codes 175 uses. The blade swings between the two
+Left contact (the source's only drawing, State unset or 0) and Right contact (State 2), the same codes 175 uses. The
+blade swings between the two
 contacts; a newly placed one starts on the left. The blade carries
 `data-state`, and `Extract` (sibling `slddoc`, `parseKnifeSwitch`) now reads
 it back for both 44 and 175, so the editor's own exported positions round-trip.
 Real xsde2svg markup has no `data-state`, so its knife switches still import
 with State unset.
 
-2026-10-02: Protection against losing unsaved work, in three layers.
-(1) Opening another diagram, New, or a single-file import while the open
+2026-10-02: Protection against losing unsaved work, in three layers. (1) Opening another diagram, New, or a single-file
+import while the open
 diagram has unsaved edits now asks first (`UnsavedChangesDialog`): Save, Don't
 save or Cancel. The check is one gate in `DiagramContext` (`confirmLeave`)
 that `openDiagram`, `newDiagram` and `importDiagramFile` all pass through;
@@ -4764,8 +4787,8 @@ every item off the base layer (both modes, on the item's root node) and a
 `<metadata>` layer list, as xsde2svg does, so ctrlroom's layer switches work on
 SVGs saved here; non-zero Z values and the base layer's name/Z ride along as
 extra JSON keys, and `Extract` reads them back. `Extract` also adds a layer
-named "Layer N" for any layer id an item uses that `<metadata>` doesn't list
-(common in the corpus). In the editor: the Layers section has an eye button
+named "Layer N" for any layer id an item uses that `<metadata>` doesn't list (common in the corpus). In the editor: the
+Layers section has an eye button
 per layer that hides it while editing (not drawn, not clickable, selectable or
 routable; session only, never saved or exported; hiding deselects its items),
 a Z field, and "New items go on" (`editor.activeLayer`), which new drawn,
@@ -4776,8 +4799,8 @@ corpus: every imported item keeps its `data-layer` (4,360 items in 346 files;
 the remaining 841 tags are on untyped paths the importer skips).
 
 2026-10-02: Withdrawable sectionalizer (xsde2svg shape 50), ported from
-`element_50.go`. A new shape of the existing `Sectionalizer` class, "Sectionalizer
-(withdrawable)" in the Switching devices group after the withdrawable
+`element_50.go`. A new shape of the existing `Sectionalizer` class, "Sectionalizer (withdrawable)" in the Switching
+devices group after the withdrawable
 disconnector. It is shape 49's withdrawable frame (outer chevrons at ±30,
 inner chevrons, contact bars; the bottom bar at +12 as in the source) around
 exactly Power circuit breaker (399)'s switch: a blade, vertical when Closed
@@ -4788,8 +4811,8 @@ Unlike 49 there is no Position control: the source has no Service/Test drawing
 for this shape. `Extract` (sibling `slddoc`) reads it with
 `parseWithdrawableSectionalizer`: ports at the outer chevron tips, anchor
 their midpoint (any export scale), rotation from the source's inner
-`rotate()` group, state from `data-state`, Mirror from the square's side
-(logic now shared with 399, `bladeSquareMirrored`). Checked against the
+`rotate()` group, state from `data-state`, Mirror from the square's side (logic now shared with 399,
+`bladeSquareMirrored`). Checked against the
 ctrlroom corpus: all 393 instances in 69 files extracted (245 Closed, 148
 Open, 114 mirrored).
 
@@ -4830,8 +4853,8 @@ slant down to the right end, stroke-width 1 in the voltage color. It sits in
 a line, so its two terminals are the ends, (±10, 0). No state; Mirror is
 hidden (no mirror branch in the source). `Extract` (sibling `slddoc`) reads it
 with `parseBlockingFilter`, both the source's bare `<path>` and the editor's
-own `<g>`: ports at the path's first and last points, anchor their midpoint
-(any export scale), rotation from `rotate()`. No real corpus instance exists,
+own `<g>`: ports at the path's first and last points, anchor their midpoint (any export scale), rotation from
+`rotate()`. No real corpus instance exists,
 so it was tested against markup in the source's own output format.
 
 2026-10-02: Power plant pictogram (xsde2svg shape 38, thermal and hydro), ported
@@ -4894,8 +4917,8 @@ states and a live check.
 2026-10-03: Thyristor (xsde2svg shape 157) Mirror. The Properties panel now
 offers the Mirror checkbox for a Thyristor: a horizontal flip about its
 anchor that swaps the anode and cathode sides and keeps the gate on top. It
-uses the generic `Element.Mirror` path already shared by every other shape
-(render, static SVG, terminal positions); SVG import still never sets it,
+uses the generic `Element.Mirror` path already shared by every other shape (render, static SVG, terminal positions); SVG
+import still never sets it,
 since the source's xMirror layout reads back as a 180° rotation.
 
 2026-10-03: Fix: dragging a mirrored element no longer un-mirrors it. The
@@ -4932,26 +4955,26 @@ a Wire jump at step 2 in RP_10kV_Yarkovo). `slddoc.Element.Scale` (`.xsld`
 draws a template symbol under an extra `scale(√2^s)` about its anchor with
 stroke widths divided back (the Static SVG keeps absolute coordinates plus
 that scale), and `slddoc.ScaledTerminal` / `diagramOps.symbolTerminals`
-place its terminals with the source's truncating math. Custom-drawn classes
-(busbar, transformer, substations, rectangles and other annotations,
+place its terminals with the source's truncating math. Custom-drawn classes (busbar, transformer, substations,
+rectangles and other annotations,
 `slddoc.UsesSizeStep`) ignore it; the element catalog exposes this as
-`scalable`. SVG import infers each element's step from where its ports lie
-(`diagramOps.inferSizeSteps`), skipping one-terminal shapes and shapes whose
+`scalable`. SVG import infers each element's step from where its ports lie (`diagramOps.inferSizeSteps`), skipping
+one-terminal shapes and shapes whose
 source also stretches its leads per instance (41, 42, 43, 71, 162, 163, 164,
 166, 203, 399, 3206). Over the corpus (72 diagrams) it sets Wire jump, Cable
-joint and Chassis instances to steps 1-3. Properties gets a Size selector
-(steps -2..4) that carries the terminals and wires along; the canvas drag
+joint and Chassis instances to steps 1-3. Properties gets a Size selector (steps -2..4) that carries the terminals and
+wires along; the canvas drag
 preview and selection boxes honour the step. Existing imported `.xsld` files
 don't store the step and must be imported again to pick it up.
 
 2026-10-03: SVG import: one-port grounding devices connect. Extract put the
-only port of a Ground switch (54), Ground terminal (31) and Short-circuiter
-(398) at the symbol's anchor, a whole stub length away from the wire it
+only port of a Ground switch (54), Ground terminal (31) and Short-circuiter (398) at the symbol's anchor, a whole stub
+length away from the wire it
 meets, so none of them connected (corpus: 0 of 2004 ground switches, 0 of
-219 grounds, 0 of 18 short-circuiters). The port is now the stub's free end
-(rotated about the anchor). The editor's import also joins a still-free port
-lying within 5 units beside a wire or busbar to it, splitting the wire there
-(`diagramOps.tapFreePortsOntoWires`): xsde2svg draws such T-taps a unit or
+219 grounds, 0 of 18 short-circuiters). The port is now the stub's free end (rotated about the anchor). The editor's
+import also joins a still-free port
+lying within 5 units beside a wire or busbar to it, splitting the wire there (`diagramOps.tapFreePortsOntoWires`):
+xsde2svg draws such T-taps a unit or
 two off the wire, and Extract only snaps to wire ends. Corpus result: 1821
 ground switches, 198 grounds and all 18 short-circuiters connected.
 
@@ -4973,8 +4996,8 @@ breaker 43.
 2026-10-03: Unique ids. SVG import produced colliding ids in the shared id
 space: `buildTopology` and `buildVoltageClasses` numbered nodes and voltage
 classes 1..N (colliding with the source's own ids, about 3100 cases over the
-corpus) and the source writes a Powerflow arrow (320001) and its reading
-(134) under one id. Extract now ends with `assignUniqueIDs`: nodes and
+corpus) and the source writes a Powerflow arrow (320001) and its reading (134) under one id. Extract now ends with
+`assignUniqueIDs`: nodes and
 voltage classes are renumbered past the highest source id with every
 reference following, and a later element/connector/digital device/label
 reusing an id gets a fresh one (elements keep theirs, so label `for` stays
@@ -5001,15 +5024,15 @@ between grid points. The element never shifts; such distances are simply not
 listed (nor are spacings shorter than the library's). The current spacing is
 still listed as its own entry when it matches no choice.
 
-2026-10-03: SVG import: line grounding switches connect. A ground switch
-(or ground terminal, short-circuiter) drawn beside an overhead line within
+2026-10-03: SVG import: line grounding switches connect. A ground switch (or ground terminal, short-circuiter) drawn
+beside an overhead line within
 50 units of the line's nearer end (the line entrance at the substation) is
 now joined to it: the piece of the line from that end to the switch becomes
 a BusWork wire and the overhead line, keeping its id and name, starts at the
 switch's node (`tapLineEntrance`). Also fixed in the import tap step: a port
 lying exactly on a wire was skipped, and a tap on a slightly slanted wire
-was rounded off the line. Corpus: 1991 of 2004 ground switches connected
-(was 1821); the 13 left are 6 eight units off a disconnector terminal, 3
+was rounded off the line. Corpus: 1991 of 2004 ground switches connected (was 1821); the 13 left are 6 eight units off a
+disconnector terminal, 3
 thirteen units off a line, 2 further than 50 along a line and 2 with nothing
 near.
 
@@ -5018,16 +5041,16 @@ offers a Topology submenu (the context menu gained submenu support,
 `ContextMenu.tsx`): the first end is the terminal / wire point nearest the
 right-click, then a click picks the second (device terminal, busbar point or
 wire point, as routing finds it; Esc cancels; a hint shows while picking).
-"Connect to…" joins the two into one node without drawing anything
-(`diagramOps.joinTopologyTargets`: the first's node is merged into the
+"Connect to…" joins the two into one node without drawing anything (`diagramOps.joinTopologyTargets`: the first's node
+is merged into the
 second's, a mid-wire point splitting that wire), for imported drawings that
 touch without being connected; "Create wire to…" draws a Buswork wire
 between them (Canvas `commitRoute`, now shared with routing).
 
 2026-10-03: "Add name label" button. A caption icon beside an element's
 Name in Properties adds a text label (shape 5) with that name, `for` the
-element, on its layer: size 10, anchor start, bottom-aligned, Arial, white
-(`diagramOps.placeNameLabel`). It is placed one grid step right of the
+element, on its layer: size 10, anchor start, bottom-aligned, Arial, white (`diagramOps.placeNameLabel`). It is placed
+one grid step right of the
 element's drawn outline at its vertical centre, snapped to the grid when
 snapping (`lib/elementBox.ts` reads the outline from the rendered markup the
 way the canvas does). Disabled while the name is empty.
@@ -5039,12 +5062,12 @@ refuses it too.
 2026-10-03: Road (335) and Line (1) as multi-point polylines. Both were
 drawn only as a straight two-point drag. They are now drawn with the pen
 tool Polygon/Container use, left open: one click per point, double-click or
-Enter finishes (2+ points), Backspace removes the last point, Esc cancels
-(Canvas `OPEN_PEN_SHAPES`; `placeRoad`/`placeLine` take a point list). A
-placed one is edited like a wire: double-click a segment to insert a point
-(`diagramOps.insertElementPoint`), click a point handle without dragging to
-select it (it fills in) and Delete/Backspace removes it, keeping at least two
-(`removeElementPoint`); the anchor stays the first/last-point midpoint.
+Enter finishes (2+ points), Backspace removes the last point, Esc cancels (Canvas `OPEN_PEN_SHAPES`; `placeRoad`/
+`placeLine` take a point list). A
+placed one is edited like a wire: double-click a segment to insert a point (`diagramOps.insertElementPoint`), click a
+point handle without dragging to
+select it (it fills in) and Delete/Backspace removes it, keeping at least two (`removeElementPoint`); the anchor stays
+the first/last-point midpoint.
 Rendering already drew any number of points.
 
 2026-10-03: A new Line (shape 1) is drawn in the default voltage class's
@@ -5110,8 +5133,8 @@ are, so on an older diagram a side winding's node can sit 2 units from the
 drawn tip.
 
 2026-10-04: 2-winding transformer terminals on the grid too. The same change
-as the 3-winding one above: both circles of a 2-winding PowerTransformer
-(autotransformer included) now sit at x=±20 instead of ±18 with an 8-unit
+as the 3-winding one above: both circles of a 2-winding PowerTransformer (autotransformer included) now sit at x=±20
+instead of ±18 with an 8-unit
 default lead (tips still at ±50), so a lead turned up or down ends on the
 grid. slddoc's offset constant is now `transformerGridShift`, shared by the
 2- and 3-winding cases; `diagramOps.ts` mirrors it. The autotransformer tap
@@ -5186,6 +5209,7 @@ the Interactive group, the single id, `data-layer` on the group and an Extract r
 2026-10-08: Snap to grid. Diagrams imported from xsde2svg often lie between grid points (39 of 436 in `diagrams/`
 have off-grid busbars, such as `PS_110kV_Demyansk`'s at y = 691), and moving never fixed that, because a move only
 rounded the distance moved. Two changes:
+
 - A **Snap to grid** button (`components/panels/SnapToGridSection.tsx`) in the diagram Properties runs
   `diagramOps.snapDiagramToGrid`. Every Node and wire vertex snaps on its own, x and y separately, so shared points
   stay shared and straight wires stay straight. Each device moves by the offset of its `gridReferencePoint` (its
@@ -5207,23 +5231,25 @@ moving-with-snap paragraph.
 2026-10-09: Topology → Disconnect. The canvas context menu's Topology submenu gains **Disconnect**
 (`diagramOps.disconnectTopologyTarget`, `canDisconnect`). It acts at the right-clicked item's connection point nearest
 the click, found the same way Connect to… picks its first point, and is greyed out when nothing else is attached there:
+
 - A device terminal gets a fresh Node on the terminal itself.
 - A busbar drops that Port.
 - A wire's nearer end gets a fresh Node at its drawn end.
-Everything else on the old Node stays connected to each other. A topology-only split would not last, because opening a
-diagram rejoins whatever lies exactly on a connection point (`fitElementPorts`/`joinBusbar`/`mergeNodesOntoPorts`). So
-the two are also pulled one grid step apart:
+  Everything else on the old Node stays connected to each other. A topology-only split would not last, because opening a
+  diagram rejoins whatever lies exactly on a connection point (`fitElementPorts`/`joinBusbar`/`mergeNodesOntoPorts`). So
+  the two are also pulled one grid step apart:
 - A detached wire end is pulled back along its wire (half the last segment when that is shorter).
 - A junction of wires moves outward from the device, or off the busbar line.
 - A device in direct contact steps back from it (`stepElementApart`), off the line when the contact is a busbar.
   This is a plain move: no join where it lands.
-Fresh Nodes go on the terminal or drawn wire end rather than the old Node's position, because imported diagrams may
-use one Node for a whole busbar. Checked on `PS_110kV_Demyansk` by disconnecting every attached point of its first 400
-elements and 150 wires, then re-running the on-open repair (`normalizeTopology`): 6/6 busbar points, 257/257 device
-terminals and 236/236 wire ends stay detached. User guides: a Disconnect bullet in the Wiring section.
+  Fresh Nodes go on the terminal or drawn wire end rather than the old Node's position, because imported diagrams may
+  use one Node for a whole busbar. Checked on `PS_110kV_Demyansk` by disconnecting every attached point of its first 400
+  elements and 150 wires, then re-running the on-open repair (`normalizeTopology`): 6/6 busbar points, 257/257 device
+  terminals and 236/236 wire ends stay detached. User guides: a Disconnect bullet in the Wiring section.
 
 2026-10-09: Matching voltage class colors to presets. Other systems draw the same voltage level in slightly different
 colors, and presets used to match only by exact color.
+
 - **Config:** a new `voltage_color_tolerance` (`config.Config.VoltageColorTolerance`, default
   `DefaultVoltageColorTolerance` = 24 when unset; `ColorTolerance()`) is the maximum Euclidean RGB distance, served by
   `/api/config` as `voltageColorTolerance`.
@@ -5240,7 +5266,7 @@ colors, and presets used to match only by exact color.
   matches. Common colors at 40-60 from a preset, such as `#ff5555` (330 kV, Δ 56), `#965000` (35 kV, Δ 53) and
   `#aa0000` (220 kV, Δ 59), need a larger tolerance.
 - **Tests:** the config test checks the default tolerance is served.
-User guides: the Creating and opening section explains the list.
+  User guides: the Creating and opening section explains the list.
 
 2026-10-09: `voltage_color_tolerance` is 60 in the bundled `sld-editor.yaml` (24 remains the code default when the key
 is missing). In `diagrams/` this offers 10 colors in 148 files: `#ff5555` → 330 kV (Δ 56, 51 classes), `#965000` →
@@ -5251,11 +5277,12 @@ None is within 60 of a second preset.
 2026-10-09: Matching preset colors merges into an existing preset-named class. Before, a color-code class (such as
 `#965000`) was only recolored and kept its color-code name when the diagram already had a "35 kV" class (for
 example one added by the default voltage picker), which left two 35 kV-looking classes.
+
 - **Planning:** `diagramOps.planVoltageColorMatches` decides per ticked match, in diagram order:
-  - `recolor`: a name somebody typed is kept;
-  - `rename`: no name of its own (`hasNoOwnName`: empty or a color code) takes the preset name;
-  - `merge`: no name of its own, but another class already carries the preset name.
-  It works on the ticked subset, so unticking a rename target turns the next one into a rename.
+    - `recolor`: a name somebody typed is kept;
+    - `rename`: no name of its own (`hasNoOwnName`: empty or a color code) takes the preset name;
+    - `merge`: no name of its own, but another class already carries the preset name.
+      It works on the ticked subset, so unticking a rename target turns the next one into a rename.
 - **Applying:** `applyVoltageColorMatches` moves a merged class's users (elements, transformer windings, substation
   sectors, wires, `editor.defaultVoltage`) to the named class, gives that class the preset color, and removes the
   duplicate.
@@ -5269,24 +5296,26 @@ example one added by the default voltage picker), which left two 35 kV-looking c
 2026-10-09: No duplicate preset class from the voltage dialog. With a color match ticked (`#965000` → 35 kV) and
 "35 kV" picked as the default voltage, OK first renamed the matched class to "35 kV" and then added the picked
 preset as a second, empty "35 kV" class. The picker's options were built before the rename. Two changes:
-- `diagramOps.resolveVoltageSelection` resolves a preset to the existing class that carries its name
-  (case-insensitive) instead of adding another. This covers the dialog, Settings and every Properties voltage picker.
+
+- `diagramOps.resolveVoltageSelection` resolves a preset to the existing class that carries its name (case-insensitive)
+  instead of adding another. This covers the dialog, Settings and every Properties voltage picker.
 - Properties → Voltage classes' Add list no longer offers presets the diagram already has.
-Replaying the reported case gives one "35 kV" class (the renamed one) as the default voltage.
+  Replaying the reported case gives one "35 kV" class (the renamed one) as the default voltage.
 
 2026-10-09: Device ports on their real terminals. Reported: Capacitor 2138 in `PS_35kV_Nevskaya.xsld` showed 4
-marks, its 2 terminals plus 2 port nodes beside them at (1135,288)/(1135,312), and wasn't connected to the wires
+marks, its 2 terminals plus 2 port nodes beside them at (1135,288)/ (1135,312), and wasn't connected to the wires
 ending on its terminals. Causes and fixes:
+
 - **slddoc `parseTwoPortDevice`:** ports were the outermost points along the drawing's longest extent, which for a
   Capacitor (388), whose 24-wide plates exceed its 20-unit span, are plate corners. A Starter's (76) ends are 10-wide
   bars, so a bar end was taken instead of its middle. Ports are now the lead tips along the shape's own axis
-  (`leadTips`): vertical, or horizontal for `horizontalTwoPortShapes`; under a rotate() always that axis, unrotated
+  (`leadTips`): vertical, or horizontal for `horizontalTwoPortShapes`; under a rotate () always that axis, unrotated
   the longer extent, except `wideBodyTwoPortShapes` (388) which is always vertical. Across the axis, each tip takes
   the middle of a shared range (the Starter's bars), else a coordinate drawn at both ends (a Thyristor's gate lead
   sits beside its right tip). Wire jump (14) joins `horizontalTwoPortShapes`: its terminals are on y = 0, and an
   unrotated one now gets Orient 0 instead of 90.
-- **slddoc `parsePackageSubstation`:** the 385's one port is its lead tip, 22 above its center
-  (`packageSubstationLead`, base.xml's terminal), rotated with it, not its center. Real drawings connect there, often
+- **slddoc `parsePackageSubstation`:** the 385's one port is its lead tip, 22 above its center (`packageSubstationLead`,
+  base.xml's terminal), rotated with it, not its center. Real drawings connect there, often
   straight onto a disconnector's terminal 2 units away, within `snapTolerance`.
 - **Repair on open (and on import), `diagramOps.moveStrayPortNodes`:** run inside `normalizeTopology` after
   `fitElementPorts` has matched each port to its nearest terminal. A port Node that nothing else uses (no wire, no
@@ -5294,13 +5323,13 @@ ending on its terminals. Causes and fixes:
   wire end lying there. A Node shared with anything is never moved, so the "one Node for a whole busbar" layout of
   imported diagrams stays.
 - **Measured on the 144 ctrlroom corpus SVGs**, after the editor's import steps:
-  - 388 52/52 and 76 45/45 ports off their terminals → 0;
-  - 14: 190 (81 before the axis change) → 7;
-  - 385: 9 of 3182 connected → about 2777.
+    - 388 52/52 and 76 45/45 ports off their terminals → 0;
+    - 14: 190 (81 before the axis change) → 7;
+    - 385: 9 of 3182 connected → about 2777.
 - **Measured on the 148 diagrams in `diagrams/`**, the on-open repair alone:
-  - connects 181 more ports in 41 files (388 100, 386 31, 76 23, 47 20, 14 5, 43 2) and disconnects none;
-  - Nevskaya 2138 comes out with its ports at (1140,300)/(1120,300) on wires 2179/2178.
-  - A saved 385 stays unconnected (its wire ends lie 2 units off the lead tip): re-import its .svg to connect it.
+    - connects 181 more ports in 41 files (388 100, 386 31, 76 23, 47 20, 14 5, 43 2) and disconnects none;
+    - Nevskaya 2138 comes out with its ports at (1140,300)/ (1120,300) on wires 2179/2178.
+    - A saved 385 stays unconnected (its wire ends lie 2 units off the lead tip): re-import its .svg to connect it.
 - **Tests:** `TestTwoPortLeadTips_RealCorpus` (388, 76, 14 with their wires) and
   `TestPackageSubstationPortAtLeadTip_RealCorpus` in slddoc.
 - **Enclosed substation (386) gets four terminals,** one at the middle of each side of its box, 20 from its center:
@@ -5315,7 +5344,8 @@ ending on its terminals. Causes and fixes:
 
 2026-10-09: Disconnect moved to Properties → Connections. The canvas context menu's Topology → Disconnect is gone.
 Instead every item listed in the Connections section (under a port of the selected device or busbar, or an end of
-the selected wire) has a disconnect button (`ScissorsLineDashed` icon, tooltip "Disconnect … here") that removes just that item from
+the selected wire) has a disconnect button (`ScissorsLineDashed` icon, tooltip "Disconnect … here") that removes just
+that item from
 that connection point, leaving everything else attached (`diagramOps.disconnectAttachment`). It reuses
 `disconnectTopologyTarget`, aimed at exactly that port or wire end rather than the one nearest a right-click, so the
 pulling apart that keeps it disconnected after reopening is unchanged. `canDisconnect` went with the menu item.
@@ -5329,6 +5359,7 @@ wire's line mid-span, or a unit or two beside it, while the wire runs on unbroke
 red cross on every such ground switch, e.g. `PS_35kV_Molvotitsy` 2066 on wire 2332). Only an .svg import through
 this editor fixed it afterwards (`diagramOps.tapFreePortsOntoWires`); any other user of `slddoc.Extract` got it
 unconnected.
+
 - **slddoc:** a new pass, `tapPortsOntoWires` (`slddoc/tap.go`), runs just before `buildTopology`. It ports the
   frontend's rules. A free port (no other port, wire end or busbar within `snapTolerance`) moves onto the nearest
   wire or busbar within `snapTolerance`, skipping wires that touch the element's own other ports. A wire is split
@@ -5348,6 +5379,7 @@ unconnected.
 
 2026-10-09: Find. A collapsible Find section (`components/panels/FindSection.tsx`) in the diagram Properties (nothing
 selected) searches the open diagram in memory (`lib/find.ts`).
+
 - **Matches:** name (elements, wires, digital devices), label text, a substation's overlay text, id (`2138` or
   `#2138`) and type: the translated type name, base.xml's English name, the class or the shape code. There's also a
   type filter listing every type present, with counts.
@@ -5357,17 +5389,18 @@ selected) searches the open diagram in memory (`lib/find.ts`).
   zoom, through a new `DiagramContext.focusItem` request that Canvas carries out from the item's measured box.
 - **State:** the query and filter live in `DiagramContext` (`findQuery`/`findType`, cleared when another diagram
   opens), so the results are still there after a selected result's properties are closed.
-- **Shortcut:** Ctrl/Cmd+F (outside text fields) clears the selection, opens Properties and focuses Find
-  (`requestFind`/`findFocusSeq`) instead of the browser's page search.
-User guides: "Finding items" (`#find`, the section's "?" target) and the shortcut table.
+- **Shortcut:** Ctrl/Cmd+F (outside text fields) clears the selection, opens Properties and focuses Find (`requestFind`/
+  `findFocusSeq`) instead of the browser's page search.
+  User guides: "Finding items" (`#find`, the section's "?" target) and the shortcut table.
 
 2026-10-09: No lonely nodes after deleting a device; devices dropped into a wire. Reported: adding and then deleting
 a Wire jump (14) in `PS_110kV_Krestsci` left a red cross that can't be selected.
+
 - **Leftover node:** deleting a device deletes the wires on its terminals, but `removeElement` dropped only the
   device's own nodes, not those wires' far ends. A far end nothing else used stayed as a Node. Show nodes draws it
   red, and nothing can select it. `removeElement` now ends with `dropUnusedNodes`, which removes every Node no port
-  or wire end uses, and the on-open repair (`normalizeTopology`) runs it too, so a node an older delete left
-  (such as the Krestsci one) goes when the diagram is opened and saved.
+  or wire end uses, and the on-open repair (`normalizeTopology`) runs it too, so a node an older delete left (such as
+  the Krestsci one) goes when the diagram is opened and saved.
 - **Dropping a device onto a wire:** `joinPortNodes` split the wire at the first terminal only. The remaining piece
   ran on through the device and touched its own port, so the second terminal was never joined and the wire shorted
   the device. A new first step, `cutWireThroughDevice`, cuts the wire out between the two terminals of a two-port
@@ -5377,11 +5410,11 @@ a Wire jump (14) in `PS_110kV_Krestsci` left a red cross that can't be selected.
   same kind and voltage, both continuing in line through it. The two wires now join back into the first one instead
   of being deleted. Any other device still deletes its wires.
 - **Checked on Krestsci** by placing and deleting a wire jump on each of its 41 straight wires:
-  - lonely nodes 10 → 0;
-  - of 15 horizontal wires, deleting restores 14 to their original ends (the other lies on a busbar, where the
-    terminals are busbar ports, so it isn't healed);
-  - opening all 148 diagrams changes no wire count.
-User guides: Connections describes dropping a device into a wire and deleting it.
+    - lonely nodes 10 → 0;
+    - of 15 horizontal wires, deleting restores 14 to their original ends (the other lies on a busbar, where the
+      terminals are busbar ports, so it isn't healed);
+    - opening all 148 diagrams changes no wire count.
+      User guides: Connections describes dropping a device into a wire and deleting it.
 
 2026-10-09: No empty busbar connection points. The red cross that remained in `PS_110kV_Krestsci` after opening
 and saving wasn't an unused node. It was busbar #3314's port at (1670,440): the Wire jump had a terminal there, so
@@ -5422,6 +5455,7 @@ click on the item, even when it's already selected, goes through `selectElement`
 guides: Finding items.
 
 2026-10-09: Cursor coordinates, free wire ends drawn red, and jumping to a node.
+
 - **Cursor readout:** the canvas's bottom-left corner shows the cursor's position in diagram units (`x 1563  y
   638`), with Snap to grid on also the grid point a click would snap to (`→ 1560, 640`), and hides off the diagram.
   It's written straight into its DOM node from `handleWrapperMouseMove` (`showCursor`), not React state, so moving
@@ -5434,12 +5468,13 @@ guides: Finding items.
 - **Jumping to a node:** in Properties → Connections, a port's or wire end's node line ("→ node … (x, y)") is a link.
   It centres the canvas on that point through a new `DiagramContext.focusPoint` (`focusRequest` now also carries a
   point) and flashes a ring there (`.canvas-point-flash`, 1.6 s).
-User guides: moving around the canvas (the readout), Connections (Show nodes colours, the node link).
+  User guides: moving around the canvas (the readout), Connections (Show nodes colours, the node link).
 
 2026-10-09: Half-chassis (52) has two terminals. In xsde2svg (`element_52.go`) it is drawn as a stem with a chevron
 plus a detached lower chevron, the other half of the coupling. The stem's free end is 10 above its origin and the
 lower chevron's tip 10 below, and real drawings attach a device at both. Base.xml declared only the stem end, so the
 device on the chevron side was never connected.
+
 - **base.xml:** a second terminal at (0,20), the chevron tip. The anchor stays at the stem end, so placed
   half-chassis keep their positions and look.
 - **slddoc:** `parseHalfChassis` replaces the generic one-port parser for 52. Its anchor and orient are as before,
@@ -5455,37 +5490,41 @@ device on the chevron side was never connected.
 ports, a device with two or more ports its ports when it passes, and a single-port device is reached but leads
 nowhere. It starts at the connection point nearest the right-click: a wire's nearer end, or a device's nearest port,
 so on an open breaker the side clicked.
+
 - **Options**, in a bar at the top of the canvas (with the item count, how many devices stopped it, and a close
   button):
-  - "Respect switch states", on by default: a device with a state passes only when Closed (1); Open, Intermediate
-    and a withdrawable device off Service stop it. Devices with no state always pass.
-  - "Through transformers", off by default: a PowerTransformer or Booster stops the trace unless it's on.
+    - "Respect switch states", on by default: a device with a state passes only when Closed (1); Open, Intermediate
+      and a withdrawable device off Service stop it. Devices with no state always pass.
+    - "Through transformers", off by default: a PowerTransformer or Booster stops the trace unless it's on.
 - **Drawing:** reached wires, busbars and devices are drawn orange over the diagram; devices that stopped it red.
 - **Behaviour:** the trace is recomputed from the diagram on every edit, so opening a breaker cuts it at once. It is
   cleared by Clear trace, the bar's button, Esc with nothing selected, or opening another diagram. It's view-only,
   never saved or undone.
 - **Checked on `PS_110kV_Krestsci`**, from "2 сш 35 кВ": 27 wires and 27 devices, stopped at an open breaker and a
   transformer. Ignoring switch states gives 44 and 47; also crossing transformers gives 183 and 204.
-User guides: "Tracing" (`#trace`). TODO's connected-network item is done.
+  User guides: "Tracing" (`#trace`). TODO's connected-network item is done.
 
 2026-10-09: Connecting a free wire end onto another wire. Reported in `PS_110kV_Lubnisa` at (590,740): wire 148704900
 ends on wire 1017's line, mid-span, and couldn't be connected. Two causes:
+
 - **Dragging the free end:** `moveConnectorEndpoint` joined a dropped free end only to a Node (a terminal or another
   wire's end) or a busbar, and a wire's line has no Node mid-span. It now taps that wire (`tapWireAt`, never an
   overhead line): the wire is split at the drop point into two pieces meeting the end on one Node.
 - **Right-click:** the context menu found a wire only when the click landed exactly on its thin drawn line, so
   Topology (and Trace) were rarely offered for one. It now also accepts a wire within `CONNECTOR_HIT_PX` screen pixels
   (`findConnectorNearHit`), as a left click already did, before the device-box fallback.
-Checked on Lubnisa: dropping 148704900's end on (590,740) splits 1017 into (450,740)–(590,740) and (590,740)–(840,720),
-all three on one junction. User guides: Editing a wire.
+  Checked on Lubnisa: dropping 148704900's end on (590,740) splits 1017 into (450,740)– (590,740) and (590,740)–
+  (840,720),
+  all three on one junction. User guides: Editing a wire.
 
 2026-10-09: Context menu groups. The canvas right-click menu is now in groups with a divider between them:
+
 1. Copy, Paste, Delete, Delete segment (Paste moved up from the end, Delete segment next to Delete);
 2. Save as custom element…;
 3. Start buswork, Topology ▸;
 4. Trace, Clear trace.
-`ContextMenu` takes `ContextMenuEntry`s (an item or `SEPARATOR`), and `withSeparators(groups)` flattens the groups,
-skipping empty ones, so a divider never leads, trails or doubles up. The submenus are unchanged.
+   `ContextMenu` takes `ContextMenuEntry`s (an item or `SEPARATOR`), and `withSeparators(groups)` flattens the groups,
+   skipping empty ones, so a divider never leads, trails or doubles up. The submenus are unchanged.
 
 2026-10-09: README: "Behind nginx". nginx's default `client_max_body_size` (1 MB) rejects saving, rendering and
 importing large diagrams with `413 Request Entity Too Large` (`CUS_Novgorodenergo.xsld` is 3.9 MB). The editor has no
@@ -5493,6 +5532,7 @@ request size limit of its own. The new section shows the `client_max_body_size` 
 proxying `server` block.
 
 2026-10-09: Trace from several sources, and dimming the rest; this replaces TODO's "Energization preview".
+
 - **Several sources:** while a trace is shown, Trace on another item adds it as one more starting point instead of
   replacing the trace (`traceNetwork` now takes a list of `TraceStart`s). Clear trace still removes the whole trace.
   The bar shows "from N sources" when there are several.
@@ -5500,7 +5540,7 @@ proxying `server` block.
   rendered element and wire the trace didn't reach or stop at. Labels and digital devices keep their look. With
   switch states respected and transformers passed, a trace from the feeding lines is the energization preview: the
   sections without supply stand out.
-User guides: Tracing.
+  User guides: Tracing.
 
 2026-10-09: RTF text (391) is imported as a Text label. xsde2svg (`element_391.go`) strips the RTF formatting and draws
 the plain lines as one `<text data-type="391">` with a `<tspan>` per further line, with no id and no `data-name`, and
@@ -5514,6 +5554,7 @@ editor draws and saves it as one. Line spacing follows the label's own, not xsde
 (`t: "47"`); pressing the key without Ctrl/Cmd/Alt arms that item the same as clicking its palette button, and
 pressing it again disarms it. The bundled config: t power transformer (47), c breaker (41), d disconnector (162),
 b busbar (24), w buswork (21).
+
 - **Backend:** `config.Config.HotKeys`, checked at startup by `elements.ValidateHotKeys`, which fails loudly. A key
   must be one letter or digit, case-insensitive and lower-cased; `r`/`m` are reserved for rotate/mirror; the same key
   may not appear in two cases; and the item must be in the palette. It's served by `/api/config` as `hotKeys`
@@ -5522,7 +5563,7 @@ b busbar (24), w buswork (21).
   buttons and by Canvas's key handler. The handler ignores keys while typing in a field, with no diagram open, on key
   repeat, and during a drag or drawing, and works with the Elements panel closed. Palette buttons with a key show it
   as a badge in their top-right corner and in their tooltip ("Breaker (C)").
-User guides: placing elements and the shortcut table. CLAUDE.md: the config summary. TODO: done.
+  User guides: placing elements and the shortcut table. CLAUDE.md: the config summary. TODO: done.
 
 2026-10-09: A visible cursor while a tool is armed. The canvas used the system `crosshair` cursor while a palette
 item, a wire route or a Topology pick was active. That's thin and black, and on the dark canvas background it all but
@@ -5532,13 +5573,14 @@ vanished, most noticeably right after a placement hot key armed a tool with the 
 which a page can't change.
 
 2026-10-10: Terminals on the 10-grid. Every `<terminal>` in `base.xml` now sits on a multiple of 10. Cable joint (32)
-moved from (0,-12)/(0,14) to (0,±10) with shorter stems, Fuse (withdrawable) (154) from ±31 to ±30, and Package
+moved from (0,-12)/ (0,14) to (0,±10) with shorter stems, Fuse (withdrawable) (154) from ±31 to ±30, and Package
 substation (385) from (0,-22) to (0,-20) with a 2-unit lead (slddoc's `writePackageSubstation`; Extract's
 `packageSubstationLead` is now 20). On open/import, `normalizeTopology` runs `moveLegacyTerminalNodes`
 (`diagramOps.ts`), which moves a port Node lying on an old terminal position onto the new terminal and reroutes its
 wire ends. A Node shared with another element's Port is left in place.
 
-2026-10-10: Symmetric chevrons. Half-chassis (52), Disconnector (withdrawable) (49) and Sectionalizer (withdrawable) (50)
+2026-10-10: Symmetric chevrons. Half-chassis (52), Disconnector (withdrawable) (49) and Sectionalizer (withdrawable)
+(50)
 drew a chevron with the stem running on into its left arm while the right arm was a separate stroke, so the tip had a
 miter corner on one side only. `base.xml` now breaks the stroke at the tip (`v 12 m 0 0 l -4 -4 m 4 4 l 4 -4`), so
 every chevron of the withdrawable family (43, 49, 50, 51, 52, 154) is drawn the same way: two separate arms meeting at
@@ -5624,9 +5666,10 @@ stayed loose (a red cross at the junction). New `tapWireEndsOntoWires` (slddoc
 `tap.go`, run after `tapPortsOntoWires`): a wire end nothing else touches, within 5 units of another wire's line
 mid-span, splits that wire there (the second piece with a fresh id, same kind/name/voltage/layer/style) and all three
 share one node. Overhead lines are not split; wires that merely cross stay separate. On the sld-viewer corpus this
-connects every such end except those landing mid-span on overhead lines. The editor's `normalizeTopology` gets the same repair for a
-whole diagram (`tapLooseWireEnds` → `tapWireAt`), so diagrams imported earlier are connected when opened. Guides
-(import section) and `slddoc/XSLD_FORMAT.md` §5 updated.
+connects every such end except those landing mid-span on overhead lines. The editor's `normalizeTopology` gets the same
+repair for a
+whole diagram (`tapLooseWireEnds` → `tapWireAt`), so diagrams imported earlier are connected when opened. Guides (import
+section) and `slddoc/XSLD_FORMAT.md` §5 updated.
 
 2026-10-15: Wires through a junction point are connected on import. xsde2svg's junction point (shape 7, the dot) marks
 that what crosses there is connected, but `slddoc.Extract` only joined the dot's own port (to a busbar under it, or by
@@ -5649,7 +5692,8 @@ terminal; busbar-wide Nodes shared by several devices don't count): Canvas then 
 tooltip, and `moveConnectorEndpoint` (now given the symbol catalog) moves the whole Node with `moveNodeBy`, every wire
 end on it following, so the connection is kept. Both guides' "Editing a wire" sections updated.
 
-2026-10-15: Off-terminal connection points are found on open/import and fixed on request. `diagramOps.misplacedPortNodes`
+2026-10-15: Off-terminal connection points are found on open/import and fixed on request.
+`diagramOps.misplacedPortNodes`
 lists every device port whose Node lies off its terminal, within `MISPLACED_PORT_REACH` (20), used by that one port
 only (never a busbar-wide Node) and carrying only BusWork; `DiagramContext` runs it after opening or importing a
 diagram (`misplacedPorts`; cleared on New and on restoring a draft). New `MisplacedPortsDialog` (shown once the import
@@ -5726,8 +5770,8 @@ is a selection aid only: drawing order, layers and topology are untouched, membe
 groups don't nest. Render writes `data-group="<id>"` on each member's root node next to `data-layer`
 (`withItemAttrs`), with no wrapping `<g>`, so every item is still found by its own id; `Extract` reads it back and
 `assignUniqueIDs` gives each group a fresh id. In the editor, new `diagramOps` functions (`groupItems`,
-`ungroupItems`, `pruneGroups`, `groupMembers`, `expandToGroups`, `selectionGroups`, `itemGroup`) back
-**Group** (Ctrl/Cmd+G) and **Ungroup** (Ctrl/Cmd+Shift+G), offered in the right-click menu and in Properties'
+`ungroupItems`, `pruneGroups`, `groupMembers`, `expandToGroups`, `selectionGroups`, `itemGroup`) back **Group**
+(Ctrl/Cmd+G) and **Ungroup** (Ctrl/Cmd+Shift+G), offered in the right-click menu and in Properties'
 multi-selection view ("Group of N items"). A click on a member selects the whole group, and a second click on a
 member of the already-selected group picks just that member. Shift/Ctrl/Cmd-click and the selection frame add or
 remove whole groups, Ctrl/Cmd-drag and Alt-drag act on the whole group, and members on a hidden layer are left
@@ -5774,8 +5818,8 @@ return already repaired diagrams too (plus the default voltage and size steps fo
 no longer repairs a whole diagram: `normalizeTopology` only fixes a pasted or duplicated group, and
 `ensureLastId`, `ensureUniqueIds`, `applyPresetVoltageNames`, `inferSizeSteps`, `tapWiresThroughJunctions` and
 `tapWireNodesOntoWires` were removed from `diagramOps.ts`. The port was checked against the TypeScript original on
-447 diagrams: identical results for all of them (181 repaired), and identical size steps (1,163). A large diagram
-(about 2,500 elements) now opens in one 0.25 s request with no upload. While a diagram is opened, imported, created
+447 diagrams: identical results for all of them (181 repaired), and identical size steps (1,163). A large diagram (about
+2,500 elements) now opens in one 0.25 s request with no upload. While a diagram is opened, imported, created
 or restored, the canvas shows "Loading <name>…" and takes no clicks (nor does the File panel), until it has drawn
 that document (`loading`, `documentVersion`, `diagramShown` in `DiagramContext`; no timers).
 
@@ -5816,219 +5860,831 @@ bookmark or a link opens it directly. Both user guides' "Unsaved changes" sectio
 2026-10-16: While a diagram loads, the mouse cursor stays the normal one; the only indicator is the spinner with the
 diagram's name in the middle of the canvas (the overlay's `cursor-wait` removed).
 
-2026-10-18: Folder actions in the File panel. **New folder** (next to New) creates an empty folder in the current one (a name may contain `/`), and every folder and diagram row shows **Rename or move** and **Delete** buttons on hover (`components/FolderActionDialog.tsx`). Rename takes the new path from the top folder, prefilled with the current one, so changing its folder part moves the item; missing folders are created, and a folder moves with its contents (never into itself). A rename covering the open diagram, directly or through its folder, renames it in place: `diagramName`, the page address and the recovery drafts (`renameDrafts` in `lib/drafts.ts`, keeping each draft's time) follow, and unsaved edits stay. Delete asks first, removes a diagram's `.xsld` and `.svg`, deletes only an empty folder, and refuses the open diagram. Both dialogs list the other tabs that have the item, or anything inside it, open, since those tabs would keep saving under the old name. Backend: `storage.Store` gains `CreateDir`, `Rename`, `RenameDir`, `Delete`, `DeleteDir` (new `ErrNotEmpty`; a case-only rename works on a case-insensitive file system), served as `POST /api/folders?dir=`, `POST /api/folders/rename?from=&to=`, `DELETE /api/folders?dir=`, `POST /api/diagrams/rename?from=&to=` and `DELETE /api/diagrams?name=` (400 bad name, 404 missing, 409 taken or not empty), plus `GET /api/presence/open?path=&session=` (`presence.Registry.OpenUnder`). The tab's presence id moved to `lib/presenceSession.ts`, shared by `PresenceBanner` and the dialog. Both user guides have a new "Folders" section (`#folders`).
+2026-10-18: Folder actions in the File panel. **New folder** (next to New) creates an empty folder in the current one (a
+name may contain `/`), and every folder and diagram row shows **Rename or move** and **Delete** buttons on hover
+(`components/FolderActionDialog.tsx`). Rename takes the new path from the top folder, prefilled with the current one, so
+changing its folder part moves the item; missing folders are created, and a folder moves with its contents (never into
+itself). A rename covering the open diagram, directly or through its folder, renames it in place: `diagramName`, the
+page address and the recovery drafts (`renameDrafts` in `lib/drafts.ts`, keeping each draft's time) follow, and unsaved
+edits stay. Delete asks first, removes a diagram's `.xsld` and `.svg`, deletes only an empty folder, and refuses the
+open diagram. Both dialogs list the other tabs that have the item, or anything inside it, open, since those tabs would
+keep saving under the old name. Backend: `storage.Store` gains `CreateDir`, `Rename`, `RenameDir`, `Delete`, `DeleteDir`
+(new `ErrNotEmpty`; a case-only rename works on a case-insensitive file system), served as `POST /api/folders?dir=`,
+`POST /api/folders/rename?from=&to=`, `DELETE /api/folders?dir=`, `POST /api/diagrams/rename?from=&to=` and
+`DELETE /api/diagrams?name=` (400 bad name, 404 missing, 409 taken or not empty), plus
+`GET /api/presence/open?path=&session=` (`presence.Registry.OpenUnder`). The tab's presence id moved to
+`lib/presenceSession.ts`, shared by `PresenceBanner` and the dialog. Both user guides have a new "Folders" section
+(`#folders`).
 
-2026-10-18: Clicking an item in Properties → Connections no longer selects it: Properties stays on the current element or wire, and the item is highlighted in amber on the canvas instead (a band along a wire, a box around anything else; `highlighted`/`highlightItem` in `DiagramContext`, drawn by the canvas's `highlightMark`). The view pans to the item, without zooming, only when it isn't fully in sight (`focusRequest.reveal`). Clicking the same item again, any selection change, or opening another document clears the highlight; an item on a hidden layer isn't drawn. To open an item's properties, select it on the canvas. The section's hint and both user guides' "Connections" section say so.
+2026-10-18: Clicking an item in Properties → Connections no longer selects it: Properties stays on the current element
+or wire, and the item is highlighted in amber on the canvas instead (a band along a wire, a box around anything else;
+`highlighted`/`highlightItem` in `DiagramContext`, drawn by the canvas's `highlightMark`). The view pans to the item,
+without zooming, only when it isn't fully in sight (`focusRequest.reveal`). Clicking the same item again, any selection
+change, or opening another document clears the highlight; an item on a hidden layer isn't drawn. To open an item's
+properties, select it on the canvas. The section's hint and both user guides' "Connections" section say so.
 
-2026-10-18: Very large diagrams open much faster. A diagram with about 7,800 elements, 5,100 wires and 8,300 nodes spent 2.3 s of its 2.5 s `diagrams/open` in `slddoc.Repair`, though nothing needed repairing. Three steps in `slddoc/repair.go` grew with nodes × elements or nodes × wires: `tapWireNodesOntoWires` scanned every element for every wire-end Node (now a Node → owning elements map built once), `tapWireAt` looked the Node up linearly and scanned every wire (now the caller passes the point, and a `wireGrid` of wire bounding boxes, kept up to date as wires are split, yields the candidates in list order), and `fitElementPorts` rebuilt a whole-diagram Node map per element (now `repairer.nodeMap`, cached until `nodesChanged` marks a write to the Nodes). Repair now takes 0.18 s there. All 448 local diagrams repair to byte-identical results as before (179 changed by the repair), and the whole set's repair time fell from 11.8 s to 3.5 s. The response itself was already gzip-compressed (9 MB of JSON and SVG travel as about 590 KB).
+2026-10-18: Very large diagrams open much faster. A diagram with about 7,800 elements, 5,100 wires and 8,300 nodes spent
+2.3 s of its 2.5 s `diagrams/open` in `slddoc.Repair`, though nothing needed repairing. Three steps in
+`slddoc/repair.go` grew with nodes × elements or nodes × wires: `tapWireNodesOntoWires` scanned every element for every
+wire-end Node (now a Node → owning elements map built once), `tapWireAt` looked the Node up linearly and scanned every
+wire (now the caller passes the point, and a `wireGrid` of wire bounding boxes, kept up to date as wires are split,
+yields the candidates in list order), and `fitElementPorts` rebuilt a whole-diagram Node map per element (now
+`repairer.nodeMap`, cached until `nodesChanged` marks a write to the Nodes). Repair now takes 0.18 s there. All 448
+local diagrams repair to byte-identical results as before (179 changed by the repair), and the whole set's repair time
+fell from 11.8 s to 3.5 s. The response itself was already gzip-compressed (9 MB of JSON and SVG travel as about 590
+KB).
 
-2026-10-18: The topology repair runs only where it is needed: right after an `.svg` or `.xsde` import is extracted (`import/svg`, `import/xsde`, unchanged: `prepareDiagram` with default voltage, ids, preset voltage names, size steps and `slddoc.Repair`), so the `.xsld` saved from it is already repaired. Opening a diagram (`diagrams/open`) and importing an `.xsld` (`import/xml`) now run only `slddoc.EnsureIDs`, which keeps ids unique and `LastID` right for the client's id sequence; `repaired` in the open response now reports only an id fix. A diagram on disk that was never repaired is repaired by hand: **Repair diagram** in Properties' diagram view (`DiagramFileSection`) posts the open diagram, unsaved edits included, to the new `POST /api/repair` (`prepareDiagram` without the extraction-only steps, nothing written to disk) and applies the answer as one undo step (`repairDiagram` in `DiagramContext`; refused if the diagram was edited while the request ran), noting "Diagram repaired" or "Nothing to repair". Both user guides have a new "Repairing a diagram" section (`#repair`), and the passages that said opening repairs a diagram were updated.
+2026-10-18: The topology repair runs only where it is needed: right after an `.svg` or `.xsde` import is extracted
+(`import/svg`, `import/xsde`, unchanged: `prepareDiagram` with default voltage, ids, preset voltage names, size steps
+and `slddoc.Repair`), so the `.xsld` saved from it is already repaired. Opening a diagram (`diagrams/open`) and
+importing an `.xsld` (`import/xml`) now run only `slddoc.EnsureIDs`, which keeps ids unique and `LastID` right for the
+client's id sequence; `repaired` in the open response now reports only an id fix. A diagram on disk that was never
+repaired is repaired by hand: **Repair diagram** in Properties' diagram view (`DiagramFileSection`) posts the open
+diagram, unsaved edits included, to the new `POST /api/repair` (`prepareDiagram` without the extraction-only steps,
+nothing written to disk) and applies the answer as one undo step (`repairDiagram` in `DiagramContext`; refused if the
+diagram was edited while the request ran), noting "Diagram repaired" or "Nothing to repair". Both user guides have a new
+"Repairing a diagram" section (`#repair`), and the passages that said opening repairs a diagram were updated.
 
 2026-10-18: The **Repair diagram** button shows a spinner while the repair request runs, like Save.
 
-2026-10-18: A new Buswork wire hops over what it crosses. When a Buswork wire is drawn (any way a route finishes, including Topology → Create wire) across a busbar or another Buswork wire of a different voltage class, a Wire jump (shape 14, the wire's voltage and layer) is put into the new wire at each crossing and the wire is cut around it, its pieces ending on the jump's two ports (`addCrossingJumps` in `lib/diagramOps.ts`, called by the canvas's `withCrossingJumps` in the same undo step). The jump follows the wire's direction (orient 0 horizontal, -90 vertical); one over a busbar is size step 1 (terminals ±14), one over buswork size step 0 (±10). Only the new wire changes, never the crossed line. A crossing at the same voltage (or with an unset voltage), one too close to a bend, an end or the previous jump for the jump to fit on one straight run, and crossings with overhead or cable lines are left as plain crossings; moving or reshaping a wire later adds nothing. Both user guides' "Wiring" section describe it.
+2026-10-18: A new Buswork wire hops over what it crosses. When a Buswork wire is drawn (any way a route finishes,
+including Topology → Create wire) across a busbar or another Buswork wire of a different voltage class, a Wire jump
+(shape 14, the wire's voltage and layer) is put into the new wire at each crossing and the wire is cut around it, its
+pieces ending on the jump's two ports (`addCrossingJumps` in `lib/diagramOps.ts`, called by the canvas's
+`withCrossingJumps` in the same undo step). The jump follows the wire's direction (orient 0 horizontal, -90 vertical);
+one over a busbar is size step 1 (terminals ±14), one over buswork size step 0 (±10). Only the new wire changes, never
+the crossed line. A crossing at the same voltage (or with an unset voltage), one too close to a bend, an end or the
+previous jump for the jump to fit on one straight run, and crossings with overhead or cable lines are left as plain
+crossings; moving or reshaping a wire later adds nothing. Both user guides' "Wiring" section describe it.
 
-2026-10-18: A new wire takes the voltage class of the terminal it starts from. A power transformer has no voltage of its own (each winding has one), so a wire drawn from it used to fall back to the other end's voltage or the default one; it now takes the voltage of the winding whose terminal it starts from (`terminalVoltage` in `lib/diagramOps.ts`: port k is winding k; an autotransformer's tap terminal, the port after the windings, has none). Every route creator uses it for its element ends (element→element, element→wire, wire→element, element→mid-air, mid-air→element): the start's terminal first, then the end's terminal or tapped wire, then the default voltage. Crossing jumps take the wire's resulting voltage. Both user guides' "Wiring" section describe the rule.
+2026-10-18: A new wire takes the voltage class of the terminal it starts from. A power transformer has no voltage of its
+own (each winding has one), so a wire drawn from it used to fall back to the other end's voltage or the default one; it
+now takes the voltage of the winding whose terminal it starts from (`terminalVoltage` in `lib/diagramOps.ts`: port k is
+winding k; an autotransformer's tap terminal, the port after the windings, has none). Every route creator uses it for
+its element ends (element→element, element→wire, wire→element, element→mid-air, mid-air→element): the start's terminal
+first, then the end's terminal or tapped wire, then the default voltage. Crossing jumps take the wire's resulting
+voltage. Both user guides' "Wiring" section describe the rule.
 
-2026-10-18: The editor no longer silently connects different voltage classes. Every join helper in `lib/diagramOps.ts` checks the voltage classes it would connect (`voltagesJoin`: a terminal's own class via `terminalVoltage`, so a transformer terminal has its winding's; a Node has the classes of everything on it; an unset class matches anything): wire ends merged onto a Node, a wire tapped, a busbar given a port (`joinBusbar`, `joinNodesToBusbars`, `joinPortNodes`, `cutWireThroughDevice`, `mergeNodesOntoPorts`, `tapWireAt`, a dragged wire end, `joinTopologyTargets`), and a route finished on a terminal, busbar or wire (`drawConnectorPath`, `drawConnectorPathToConnector`, `drawConnectorPathFromConnector`, `drawConnectorBetweenConnectors`, which otherwise end the wire free, like a mid-air end). The check is active only inside `withVoltagePolicy(skip, edit)`, which reports every mismatch. `DiagramContext.updateDiagram` runs each edit with `skip` first; if it met a mismatch, `VoltageMismatchDialog` asks "Connect different voltage classes?" with the classes and the number of connection points: **Connect** applies the edit again with those joins, **Don't connect** (also Esc or the backdrop) applies it without them, so those ends stay free and show red. Either way it is one undo step, and edits made while the question is open queue behind it. Existing connections, the server's repair (`.svg`/`.xsde` import, Repair diagram) and a zero-length wire's own two ends are unchanged: 13% of the connection points in the local diagrams legitimately join different classes. Both user guides have a new "Different voltage classes" section (`#voltage-mismatch`).
+2026-10-18: The editor no longer silently connects different voltage classes. Every join helper in `lib/diagramOps.ts`
+checks the voltage classes it would connect (`voltagesJoin`: a terminal's own class via `terminalVoltage`, so a
+transformer terminal has its winding's; a Node has the classes of everything on it; an unset class matches anything):
+wire ends merged onto a Node, a wire tapped, a busbar given a port (`joinBusbar`, `joinNodesToBusbars`, `joinPortNodes`,
+`cutWireThroughDevice`, `mergeNodesOntoPorts`, `tapWireAt`, a dragged wire end, `joinTopologyTargets`), and a route
+finished on a terminal, busbar or wire (`drawConnectorPath`, `drawConnectorPathToConnector`,
+`drawConnectorPathFromConnector`, `drawConnectorBetweenConnectors`, which otherwise end the wire free, like a mid-air
+end). The check is active only inside `withVoltagePolicy(skip, edit)`, which reports every mismatch.
+`DiagramContext.updateDiagram` runs each edit with `skip` first; if it met a mismatch, `VoltageMismatchDialog` asks
+"Connect different voltage classes?" with the classes and the number of connection points: **Connect** applies the edit
+again with those joins, **Don't connect** (also Esc or the backdrop) applies it without them, so those ends stay free
+and show red. Either way it is one undo step, and edits made while the question is open queue behind it. Existing
+connections, the server's repair (`.svg`/`.xsde` import, Repair diagram) and a zero-length wire's own two ends are
+unchanged: 13% of the connection points in the local diagrams legitimately join different classes. Both user guides have
+a new "Different voltage classes" section (`#voltage-mismatch`).
 
-2026-10-18: Wire jumps no longer depend on how a crossing came about. Instead of a hook on drawing only (`withCrossingJumps` in the canvas, removed), `DiagramContext.updateDiagram` runs `jumpChangedCrossings(prev, next)` (`lib/diagramOps.ts`) after every edit, in the same undo step: every buswork wire that is new or whose points or voltage changed, and every buswork wire crossed by a busbar that is new or whose points or voltage changed, goes through `addCrossingJumps`. So dragging a wire's free end across a busbar of another voltage now puts a jump there, as do moving a wire or the device it ends on, pasting, changing a wire's voltage, and drawing or moving a busbar across buswork. The buswork wire is always the one cut (of two buswork wires, the changed one); lines an edit didn't touch keep their crossings. Repair diagram applies the server's result without jumps (`updateDiagram(..., { jumps: false })`). Both user guides' "Wiring" paragraph describes the rule.
+2026-10-18: Wire jumps no longer depend on how a crossing came about. Instead of a hook on drawing only
+(`withCrossingJumps` in the canvas, removed), `DiagramContext.updateDiagram` runs `jumpChangedCrossings(prev, next)`
+(`lib/diagramOps.ts`) after every edit, in the same undo step: every buswork wire that is new or whose points or voltage
+changed, and every buswork wire crossed by a busbar that is new or whose points or voltage changed, goes through
+`addCrossingJumps`. So dragging a wire's free end across a busbar of another voltage now puts a jump there, as do moving
+a wire or the device it ends on, pasting, changing a wire's voltage, and drawing or moving a busbar across buswork. The
+buswork wire is always the one cut (of two buswork wires, the changed one); lines an edit didn't touch keep their
+crossings. Repair diagram applies the server's result without jumps (`updateDiagram(..., { jumps: false })`). Both user
+guides' "Wiring" paragraph describes the rule.
 
-2026-10-18: An unused busbar port can be removed. In Properties → Connections, a busbar port with nothing attached that lies away from both ends of the busbar's line (typically left where a wire end used to be) shows a red bin button next to "not connected"; it removes the port and its node in one undo step and renumbers the remaining ports (`canRemoveBusbarPort`/`removeBusbarPort` in `lib/diagramOps.ts`). Ports at the busbar's ends, and anything connected, keep the scissors only. Both user guides' "Connections" section mention it.
+2026-10-18: An unused busbar port can be removed. In Properties → Connections, a busbar port with nothing attached that
+lies away from both ends of the busbar's line (typically left where a wire end used to be) shows a red bin button next
+to "not connected"; it removes the port and its node in one undo step and renumbers the remaining ports
+(`canRemoveBusbarPort`/`removeBusbarPort` in `lib/diagramOps.ts`). Ports at the busbar's ends, and anything connected,
+keep the scissors only. Both user guides' "Connections" section mention it.
 
-2026-10-18: A new busbar–buswork connection gets a junction point. After every edit, `addJunctionPoints(prev, next)` (`lib/diagramOps.ts`, run by `DiagramContext.updateDiagram` with the wire jumps, in the same undo step) finds each Node that has become both a busbar port and a Buswork wire end and, unless a Junction point (shape 7) is already on it or at its point, adds one there: on that Node, with the busbar's voltage class and layer and the default size, as in the existing diagrams (314 of their 400 such connections carry one, all in the busbar's class). Connections that existed before the edit are left as they are; SVG/XSDE import and Repair diagram add none (`updateDiagram(..., { automatic: false })`, which replaces the `jumps` option). Both user guides' "Wiring" section describe it.
+2026-10-18: A new busbar–buswork connection gets a junction point. After every edit, `addJunctionPoints(prev, next)`
+(`lib/diagramOps.ts`, run by `DiagramContext.updateDiagram` with the wire jumps, in the same undo step) finds each Node
+that has become both a busbar port and a Buswork wire end and, unless a Junction point (shape 7) is already on it or at
+its point, adds one there: on that Node, with the busbar's voltage class and layer and the default size, as in the
+existing diagrams (314 of their 400 such connections carry one, all in the busbar's class). Connections that existed
+before the edit are left as they are; SVG/XSDE import and Repair diagram add none
+(`updateDiagram(..., { automatic: false })`, which replaces the `jumps` option). Both user guides' "Wiring" section
+describe it.
 
-2026-10-19: A Buswork wire also hops over overhead lines, cable lines and links to object. `addCrossingJumps` (`lib/diagramOps.ts`) now treats an `OverheadLine`, `CableLine` or `LinkToObject` connector of a different (set) voltage class like another buswork wire: a Wire jump of size step 0 is put into the buswork wire at the crossing and the buswork wire is cut around it; the crossed line never changes. `jumpChangedCrossings` also re-checks the buswork wires crossed by such a line when it is new or its points or voltage changed, as it does for busbars, so drawing or moving a cable line across existing buswork adds the jump too. Both user guides' "Wiring" paragraph describe it.
+2026-10-19: A Buswork wire also hops over overhead lines, cable lines and links to object. `addCrossingJumps`
+(`lib/diagramOps.ts`) now treats an `OverheadLine`, `CableLine` or `LinkToObject` connector of a different (set) voltage
+class like another buswork wire: a Wire jump of size step 0 is put into the buswork wire at the crossing and the buswork
+wire is cut around it; the crossed line never changes. `jumpChangedCrossings` also re-checks the buswork wires crossed
+by such a line when it is new or its points or voltage changed, as it does for busbars, so drawing or moving a cable
+line across existing buswork adds the jump too. Both user guides' "Wiring" paragraph describe it.
 
-2026-10-21: Electrical parameters in the diagram file, the groundwork for a CIM (CGMES 3.0) export. slddoc gains `Electrical` (`electrical.go`), an optional `<electrical .../>` child of an element or connector whose attributes are all optional and use CIM names and units: an overhead or cable line's `length`, `r`, `x`, `bch`, `gch`, `r0`, `x0`, `b0ch`, `g0ch`; a booster's `ratedS`, `ratedU`, `r`, `x`; a synchronous machine's `ratedS`, `ratedU`, `minP`, `maxP`, `minQ`, `maxQ`; a shunt capacitor or reactor's `nomU`, `bPerSection`, `gPerSection`, `maximumSections`, `normalSections`; a series reactor's `r`, `x`; a switching device's `ratedCurrent`; a busbar's `ipMax`. A transformer winding gains `ratedU`, `ratedS`, `r`, `x`, `g`, `b`, `phaseAngleClock`. Documented in slddoc's `XSLD_FORMAT.md` (§6.4, §6.6). Properties shows a collapsible "Electrical parameters" group for these classes (`components/panels/ElectricalSection.tsx`, field sets in `lib/electrical.ts`, a block per winding for a transformer); an empty field is unset, and no `<electrical>` is written when nothing is set. When a wire is split (`splitWireAt` in `lib/diagramOps.ts` and slddoc's `repair.go`, and the other two split paths in `diagramOps.ts`), the piece keeping the original id keeps the parameters and the new piece has none. Both user guides have a new "Electrical parameters" section (`#electrical-parameters`).
+2026-10-21: Electrical parameters in the diagram file, the groundwork for a CIM (CGMES 3.0) export. slddoc gains
+`Electrical` (`electrical.go`), an optional `<electrical .../>` child of an element or connector whose attributes are
+all optional and use CIM names and units: an overhead or cable line's `length`, `r`, `x`, `bch`, `gch`, `r0`, `x0`,
+`b0ch`, `g0ch`; a booster's `ratedS`, `ratedU`, `r`, `x`; a synchronous machine's `ratedS`, `ratedU`, `minP`, `maxP`,
+`minQ`, `maxQ`; a shunt capacitor or reactor's `nomU`, `bPerSection`, `gPerSection`, `maximumSections`,
+`normalSections`; a series reactor's `r`, `x`; a switching device's `ratedCurrent`; a busbar's `ipMax`. A transformer
+winding gains `ratedU`, `ratedS`, `r`, `x`, `g`, `b`, `phaseAngleClock`. Documented in slddoc's `XSLD_FORMAT.md` (§6.4,
+§6.6). Properties shows a collapsible "Electrical parameters" group for these classes
+(`components/panels/ElectricalSection.tsx`, field sets in `lib/electrical.ts`, a block per winding for a transformer);
+an empty field is unset, and no `<electrical>` is written when nothing is set. When a wire is split (`splitWireAt` in
+`lib/diagramOps.ts` and slddoc's `repair.go`, and the other two split paths in `diagramOps.ts`), the piece keeping the
+original id keeps the parameters and the new piece has none. Both user guides have a new "Electrical parameters" section
+(`#electrical-parameters`).
 
-2026-10-21: CIM export (CGMES 3.0). Properties' diagram view has a **Download CIM (CGMES 3.0)** button that posts the open diagram, unsaved edits included, to `POST /api/export/cim?name=` (`internal/api/cim.go`) and downloads `<name>_CGMES.zip` with `<name>_EQ.xml` (equipment and connectivity) and `<name>_DL.xml` (diagram layout, IEC 61970-453), both CIM100 RDF/XML with an `md:FullModel` header, DL depending on EQ. The conversion is slddoc's `ExportCIM` (`cim.go`): one Substation (in a GeographicalRegion/SubGeographicalRegion named after the diagram) with a VoltageLevel and BaseVoltage per voltage class used, the nominal voltage parsed from the class name (kV, V or MV; a bare number is kV). Devices map to Breaker, Disconnector, LoadBreakSwitch, GroundDisconnector, Fuse, Switch, Ground, SynchronousMachine (+ GeneratingUnit for a generator), Series/LinearShuntCompensator, BusbarSection and PowerTransformer with a PowerTransformerEnd per winding (a booster is a two-end transformer), each with a Terminal per port; a changeover knife switch is two Disconnectors from its pivot; a switch's State gives `normalOpen`. Overhead and cable lines are ACLineSegments, each in its own Line. Buswork wires, busbar ports and pass-through symbols (junctions, forks, wire jumps, poles, cable joints and connectors, CTs, fault indicators, blocking filters) join their nodes into one ConnectivityNode; CTs, VTs, surge arresters, fault indicators and blocking filters become auxiliary equipment on a terminal of that node. The DL has a DiagramObject per device (centre point, clockwise rotation, a `shape-<code>` style), per terminal, per busbar and line (their points) and per buswork wire (on its ConnectivityNode), glue points where points share a node, TextDiagramObjects for labels and a VisibilityLayer per layer. mRIDs are name-based UUIDs of the diagram name and item ids, so a re-export keeps them. Required values that are unset (see Electrical parameters) are written as 0 or the voltage class's nominal voltage, and the export returns structured warnings (`missing` with the fields, `voltage`, `noTerminal`, `notExported`), listed under the button with links that highlight the item (`components/panels/CimWarnings.tsx`). Both user guides have a "CIM export" section (`#cim-export`).
+2026-10-21: CIM export (CGMES 3.0). Properties' diagram view has a **Download CIM (CGMES 3.0)** button that posts the
+open diagram, unsaved edits included, to `POST /api/export/cim?name=` (`internal/api/cim.go`) and downloads
+`<name>_CGMES.zip` with `<name>_EQ.xml` (equipment and connectivity) and `<name>_DL.xml` (diagram layout, IEC
+61970-453), both CIM100 RDF/XML with an `md:FullModel` header, DL depending on EQ. The conversion is slddoc's
+`ExportCIM` (`cim.go`): one Substation (in a GeographicalRegion/SubGeographicalRegion named after the diagram) with a
+VoltageLevel and BaseVoltage per voltage class used, the nominal voltage parsed from the class name (kV, V or MV; a bare
+number is kV). Devices map to Breaker, Disconnector, LoadBreakSwitch, GroundDisconnector, Fuse, Switch, Ground,
+SynchronousMachine (+ GeneratingUnit for a generator), Series/LinearShuntCompensator, BusbarSection and PowerTransformer
+with a PowerTransformerEnd per winding (a booster is a two-end transformer), each with a Terminal per port; a changeover
+knife switch is two Disconnectors from its pivot; a switch's State gives `normalOpen`. Overhead and cable lines are
+ACLineSegments, each in its own Line. Buswork wires, busbar ports and pass-through symbols (junctions, forks, wire
+jumps, poles, cable joints and connectors, CTs, fault indicators, blocking filters) join their nodes into one
+ConnectivityNode; CTs, VTs, surge arresters, fault indicators and blocking filters become auxiliary equipment on a
+terminal of that node. The DL has a DiagramObject per device (centre point, clockwise rotation, a `shape-<code>` style),
+per terminal, per busbar and line (their points) and per buswork wire (on its ConnectivityNode), glue points where
+points share a node, TextDiagramObjects for labels and a VisibilityLayer per layer. mRIDs are name-based UUIDs of the
+diagram name and item ids, so a re-export keeps them. Required values that are unset (see Electrical parameters) are
+written as 0 or the voltage class's nominal voltage, and the export returns structured warnings (`missing` with the
+fields, `voltage`, `noTerminal`, `notExported`), listed under the button with links that highlight the item
+(`components/panels/CimWarnings.tsx`). Both user guides have a "CIM export" section (`#cim-export`).
 
-2026-10-21: One Export row instead of three buttons. Properties' diagram view (`components/panels/DiagramFileSection.tsx`) now has a format picker (XSLD, SVG, CIM CGMES 3.0) and a single **Download** button with a spinner while it runs; the user guide link appears beside the picker for CIM, and CIM's notes still show under the row. The last picked format is remembered per browser (`localStorage` key `sld-editor.exportFormat`, XSLD when unavailable). The `file.downloadXml`/`downloadSvg`/`downloadCim` strings were replaced by `file.download`, `file.exportFormat` and `file.formatXsld`/`formatSvg`/`formatCim`. Both user guides' "How to" step 11, "Saving and exporting" and "CIM export" sections describe the picker. slddoc's CIM voltage parser no longer has Cyrillic in its source (Unicode escapes, English comment).
+2026-10-21: One Export row instead of three buttons. Properties' diagram view
+(`components/panels/DiagramFileSection.tsx`) now has a format picker (XSLD, SVG, CIM CGMES 3.0) and a single
+**Download** button with a spinner while it runs; the user guide link appears beside the picker for CIM, and CIM's notes
+still show under the row. The last picked format is remembered per browser (`localStorage` key
+`sld-editor.exportFormat`, XSLD when unavailable). The `file.downloadXml`/`downloadSvg`/`downloadCim` strings were
+replaced by `file.download`, `file.exportFormat` and `file.formatXsld`/`formatSvg`/`formatCim`. Both user guides' "How
+to" step 11, "Saving and exporting" and "CIM export" sections describe the picker. slddoc's CIM voltage parser no longer
+has Cyrillic in its source (Unicode escapes, English comment).
 
-2026-10-21: CIM class per element and three new symbols. slddoc's `Element` gains an optional `cim` attribute, the CIM class the element exports as when its class allows more than one; `CIMClasses(class)` (`cim.go`) lists them, default first: Breaker | DisconnectingCircuitBreaker, Starter: Switch | LoadBreakSwitch, Generator and SynchronousMotor: SynchronousMachine | AsynchronousMachine, ReactorShunt: LinearShuntCompensator | PetersenCoil, Load: EnergyConsumer | ConformLoad | NonConformLoad, NetworkInfeed: ExternalNetworkInjection | EquivalentInjection | EnergySource. The list reaches the frontend with each symbol (`/api/elements`, `elements.Symbol.CIM`), and Properties shows a **CIM class** dropdown for symbols with more than one; the export honours the choice (a value the class doesn't allow falls back to the default) and writes each class's own attributes (an asynchronous machine's rated values, a Petersen coil's fixed mode and nominal voltage, a load's `pfixed`/`qfixed`, an injection's P/Q limits, an energy source's nominal voltage). New editor-own symbols in `base.xml`, in the 3300xx range, each with one terminal, in the palette's Other equipment group: 330001 **Load** (a lead ending in an arrowhead), 330002 **Network infeed** (a hatched square) and 330003 **Static var compensator** (a box marked SVC), with slddoc classes `Load`, `NetworkInfeed`, `StaticVarCompensator`, en/ru names and SVG round-trip (`Extract`). New electrical parameters: a load's `p`, `q`, an SVC's `capacitiveRating`, `inductiveRating` (exported as required, warned when unset), and an infeed's P/Q limits; the Properties field set follows the chosen CIM class (`lib/electrical.ts`). Documented in `XSLD_FORMAT.md` (§4.4, §6.6, §7.1) and both user guides ("CIM export", "Electrical parameters").
+2026-10-21: CIM class per element and three new symbols. slddoc's `Element` gains an optional `cim` attribute, the CIM
+class the element exports as when its class allows more than one; `CIMClasses(class)` (`cim.go`) lists them, default
+first: Breaker | DisconnectingCircuitBreaker, Starter: Switch | LoadBreakSwitch, Generator and SynchronousMotor:
+SynchronousMachine | AsynchronousMachine, ReactorShunt: LinearShuntCompensator | PetersenCoil, Load: EnergyConsumer |
+ConformLoad | NonConformLoad, NetworkInfeed: ExternalNetworkInjection | EquivalentInjection | EnergySource. The list
+reaches the frontend with each symbol (`/api/elements`, `elements.Symbol.CIM`), and Properties shows a **CIM class**
+dropdown for symbols with more than one; the export honours the choice (a value the class doesn't allow falls back to
+the default) and writes each class's own attributes (an asynchronous machine's rated values, a Petersen coil's fixed
+mode and nominal voltage, a load's `pfixed`/`qfixed`, an injection's P/Q limits, an energy source's nominal voltage).
+New editor-own symbols in `base.xml`, in the 3300xx range, each with one terminal, in the palette's Other equipment
+group: 330001 **Load** (a lead ending in an arrowhead), 330002 **Network infeed** (a hatched square) and 330003 **Static
+var compensator** (a box marked SVC), with slddoc classes `Load`, `NetworkInfeed`, `StaticVarCompensator`, en/ru names
+and SVG round-trip (`Extract`). New electrical parameters: a load's `p`, `q`, an SVC's `capacitiveRating`,
+`inductiveRating` (exported as required, warned when unset), and an infeed's P/Q limits; the Properties field set
+follows the chosen CIM class (`lib/electrical.ts`). Documented in `XSLD_FORMAT.md` (§4.4, §6.6, §7.1) and both user
+guides ("CIM export", "Electrical parameters").
 
-2026-10-21: CIM import. A CIM model, a `.zip` of CGMES profile documents or one RDF/XML `.xml`/`.rdf` file, can be dropped or loaded like an `.xsde` (`POST /api/import/cim`, `internal/api/cim.go`; `lib/fileTransfer.ts` kind `cim`, `api.importDiagramCIM`, `lib/importDiagram.ts`), each Diagram Layout diagram becoming a page. slddoc's `ImportCIM` (`cimimport.go`) reads any profiles and both CGMES 3.0 and 2.4.15 by class and property name (ids from `rdf:ID`/`rdf:about`, objects described by several profiles merged). Equipment becomes the element of its CIM class (`cimEquipmentShapes`; a machine's type, a shunt compensator's sign pick motor/compensator and capacitor/reactor) at its DiagramObject point, rotation snapped to 90°, with name, voltage class (one per BaseVoltage, coloured from `voltage_colors` by voltage, `applyPresetVoltageColors`), `normalOpen` as State, its electrical parameters and its CIM class choice; AC line segments become overhead lines (cable lines by style) along their points; TextDiagramObjects become labels and VisibilityLayers layers. A layout this editor exported (its `shape-<code>` styles) keeps its exact shapes, 1:1 coordinates, size steps, mirror and lead lengths (fitted to the drawn terminal points), ports where the terminals were drawn, wire ends glued to terminals (DiagramObjectGluePoint), junctions, wire jumps and poles (recreated from their node's point and fitted to the wire ends around them) and changeover knife switches (reassembled from their two disconnectors); exporting the bundled example and the diagrams on hand and importing them back gives the same connections. Any other layout is flipped when y points up, scaled so neighbouring devices are six grid steps apart and snapped to the grid. Every ConnectivityNode keeps the wires the layout draws for it, and each part they leave unconnected gets an orthogonal wire to the rest (its busbar when it has one), counted in the import messages; equipment without a symbol is listed as skipped by CIM class. A model with no layout is refused for now. The import log's messages heading is now "Import messages". Both user guides have a "CIM import" section (`#cim-import`).
+2026-10-21: CIM import. A CIM model, a `.zip` of CGMES profile documents or one RDF/XML `.xml`/`.rdf` file, can be
+dropped or loaded like an `.xsde` (`POST /api/import/cim`, `internal/api/cim.go`; `lib/fileTransfer.ts` kind `cim`,
+`api.importDiagramCIM`, `lib/importDiagram.ts`), each Diagram Layout diagram becoming a page. slddoc's `ImportCIM`
+(`cimimport.go`) reads any profiles and both CGMES 3.0 and 2.4.15 by class and property name (ids from `rdf:ID`/
+`rdf:about`, objects described by several profiles merged). Equipment becomes the element of its CIM class
+(`cimEquipmentShapes`; a machine's type, a shunt compensator's sign pick motor/compensator and capacitor/reactor) at its
+DiagramObject point, rotation snapped to 90°, with name, voltage class (one per BaseVoltage, coloured from
+`voltage_colors` by voltage, `applyPresetVoltageColors`), `normalOpen` as State, its electrical parameters and its CIM
+class choice; AC line segments become overhead lines (cable lines by style) along their points; TextDiagramObjects
+become labels and VisibilityLayers layers. A layout this editor exported (its `shape-<code>` styles) keeps its exact
+shapes, 1:1 coordinates, size steps, mirror and lead lengths (fitted to the drawn terminal points), ports where the
+terminals were drawn, wire ends glued to terminals (DiagramObjectGluePoint), junctions, wire jumps and poles (recreated
+from their node's point and fitted to the wire ends around them) and changeover knife switches (reassembled from their
+two disconnectors); exporting the bundled example and the diagrams on hand and importing them back gives the same
+connections. Any other layout is flipped when y points up, scaled so neighbouring devices are six grid steps apart and
+snapped to the grid. Every ConnectivityNode keeps the wires the layout draws for it, and each part they leave
+unconnected gets an orthogonal wire to the rest (its busbar when it has one), counted in the import messages; equipment
+without a symbol is listed as skipped by CIM class. A model with no layout is refused for now. The import log's messages
+heading is now "Import messages". Both user guides have a "CIM import" section (`#cim-import`).
 
-2026-10-21: CIM import without a diagram layout. A CIM model with equipment but no DL profile is laid out automatically (slddoc `cimlayout.go`, `autoLayout`), which writes ordinary DiagramObjects of a generated Diagram so the usual page builder, wiring and repair apply. One page per Substation (containers followed Bay → VoltageLevel → Substation) plus one for equipment outside any; each voltage level is a band, highest voltage on top, its busbars on one row and its bays as columns (a tree grown from the busbar's node through each device's other terminals, each node expanded once, stopping at busbars, transformers and the page's edge; side branches in columns of their own). Bays reaching a transformer of a higher voltage, or the top band's bays reaching a line, go up; the rest down. Each device is turned so the terminal facing the busbar is on its side and placed so that terminal is on its level. Transformers sit on a row under the band of their highest winding, above the bays that reach them, turned with winding 1 on top and spaced by their terminals' reach. All wires are drawn by the layout: straight down a bay, across just below a parent's terminal to a side branch, and connections to a transformer, to another busbar (a bus coupler) or closing a ring through a corridor row of their own beside the band, then up a run between columns that no terminal or other run occupies, entering a transformer terminal along its lead. A voltage level without a busbar hangs its bays from a drawn wire at its busiest node; a line to another page ends in a stub. Exporting the EQ of the bundled examples and the diagrams on hand (up to some 3300 devices, meshed) and laying them out gives the same connections. An auto-laid-out import is reported in the import messages. Both user guides' "CIM import" section describes it.
+2026-10-21: CIM import without a diagram layout. A CIM model with equipment but no DL profile is laid out automatically
+(slddoc `cimlayout.go`, `autoLayout`), which writes ordinary DiagramObjects of a generated Diagram so the usual page
+builder, wiring and repair apply. One page per Substation (containers followed Bay → VoltageLevel → Substation) plus one
+for equipment outside any; each voltage level is a band, highest voltage on top, its busbars on one row and its bays as
+columns (a tree grown from the busbar's node through each device's other terminals, each node expanded once, stopping at
+busbars, transformers and the page's edge; side branches in columns of their own). Bays reaching a transformer of a
+higher voltage, or the top band's bays reaching a line, go up; the rest down. Each device is turned so the terminal
+facing the busbar is on its side and placed so that terminal is on its level. Transformers sit on a row under the band
+of their highest winding, above the bays that reach them, turned with winding 1 on top and spaced by their terminals'
+reach. All wires are drawn by the layout: straight down a bay, across just below a parent's terminal to a side branch,
+and connections to a transformer, to another busbar (a bus coupler) or closing a ring through a corridor row of their
+own beside the band, then up a run between columns that no terminal or other run occupies, entering a transformer
+terminal along its lead. A voltage level without a busbar hangs its bays from a drawn wire at its busiest node; a line
+to another page ends in a stub. Exporting the EQ of the bundled examples and the diagrams on hand (up to some 3300
+devices, meshed) and laying them out gives the same connections. An auto-laid-out import is reported in the import
+messages. Both user guides' "CIM import" section describes it.
 
-2026-10-21: A link to object exports as CIM equipment. slddoc's `Connector` gains an optional `cim` attribute; a `LinkToObject` wire (xsde2svg 28) exports as an EnergyConsumer (default) or, chosen per wire, an EnergySource (`ConnectorCIMClasses`, `objectLink` in `cim.go`): one Terminal on the node at its From end, the arrow end standing for the outside object (an `openEnd` warning when something is connected there, which is left out), with its name, voltage level, a consumer's `pfixed`/`qfixed` from the wire's new P/Q electrical parameters and a source's nominal voltage, laid out as the wire's points with a `LinkToObject` style. The CIM import turns such a consumer or source back into a link to object with its class. `GET /api/config` sends the choices as `cimConnectorClasses`, and Properties shows a **CIM class** dropdown and, for a consumer, P and Q for a selected link to object. Documented in `XSLD_FORMAT.md` (§4.5, §6.6) and both user guides ("CIM export", "CIM import", "Electrical parameters").
+2026-10-21: A link to object exports as CIM equipment. slddoc's `Connector` gains an optional `cim` attribute; a
+`LinkToObject` wire (xsde2svg 28) exports as an EnergyConsumer (default) or, chosen per wire, an EnergySource
+(`ConnectorCIMClasses`, `objectLink` in `cim.go`): one Terminal on the node at its From end, the arrow end standing for
+the outside object (an `openEnd` warning when something is connected there, which is left out), with its name, voltage
+level, a consumer's `pfixed`/`qfixed` from the wire's new P/Q electrical parameters and a source's nominal voltage, laid
+out as the wire's points with a `LinkToObject` style. The CIM import turns such a consumer or source back into a link to
+object with its class. `GET /api/config` sends the choices as `cimConnectorClasses`, and Properties shows a **CIM
+class** dropdown and, for a consumer, P and Q for a selected link to object. Documented in `XSLD_FORMAT.md` (§4.5, §6.6)
+and both user guides ("CIM export", "CIM import", "Electrical parameters").
 
-2026-10-22: CIM import takes its connections from the model. Checked against the ENTSO-E CGMES conformity models (MicroGrid, MiniGrid, SmallGrid, Svedala; CGMES 3.0 and 2.4.15, node-breaker and bus-branch; with their layouts and laid out automatically) and against an export/import round trip of every diagram on hand: all connections now match the source. slddoc's import keys Nodes by ConnectivityNode and point, so items join only when the model puts them on one node; it splits a wire where something of its own node ends inside it, joins a busbar's end lying on another busbar or wire of its node, and gives a busbar a port at each Node of its node on its line; the backend no longer runs `slddoc.Repair` on a CIM import (`prepareCIM` in `internal/api/cim.go`), since joining what merely touches in a foreign drawing changed the topology. Where a foreign layout makes wires or terminals of different nodes cross or touch, a wire jump (shape 14, size step 1 over a busbar) is put into the wire and the wire is cut around it (`addJumps`); the import messages count the jumps and the spots too cramped for one. A bus-branch model (Terminals with only a TopologicalNode, from the TP profile) uses its TopologicalNodes as nodes. Equipment with a second DiagramObject on the same diagram is drawn once. Both user guides' "CIM import" section and the Repair hint say so.
+2026-10-22: CIM import takes its connections from the model. Checked against the ENTSO-E CGMES conformity models
+(MicroGrid, MiniGrid, SmallGrid, Svedala; CGMES 3.0 and 2.4.15, node-breaker and bus-branch; with their layouts and laid
+out automatically) and against an export/import round trip of every diagram on hand: all connections now match the
+source. slddoc's import keys Nodes by ConnectivityNode and point, so items join only when the model puts them on one
+node; it splits a wire where something of its own node ends inside it, joins a busbar's end lying on another busbar or
+wire of its node, and gives a busbar a port at each Node of its node on its line; the backend no longer runs
+`slddoc.Repair` on a CIM import (`prepareCIM` in `internal/api/cim.go`), since joining what merely touches in a foreign
+drawing changed the topology. Where a foreign layout makes wires or terminals of different nodes cross or touch, a wire
+jump (shape 14, size step 1 over a busbar) is put into the wire and the wire is cut around it (`addJumps`); the import
+messages count the jumps and the spots too cramped for one. A bus-branch model (Terminals with only a TopologicalNode,
+from the TP profile) uses its TopologicalNodes as nodes. Equipment with a second DiagramObject on the same diagram is
+drawn once. Both user guides' "CIM import" section and the Repair hint say so.
 
-2026-10-22: CIM export checked with PowSyBl's CGMES importer (powsybl-core's `cgmes-conversion`, run on the export of every diagram on hand): 147 of 149 now import, the other two having voltage classes named after colours with no configured voltage. Changes in slddoc's `ExportCIM`: substations follow the connections (whatever a device other than a line joins is one Substation, named after its busbar with the most connections, its mRID from its lowest node) with a VoltageLevel per substation and voltage class, so a network diagram is no longer one huge voltage level (PowSyBl stops at 1000 nodes); a voltage class whose name holds no voltage (`ParseVoltage` now rejects colour codes and 0) is treated as unknown, a node's voltage spreads across any device but a transformer, and what is still unknown takes its substation's or the diagram's most common voltage (`resolve`), so every node and transformer end has a voltage level and a rated voltage; `StaticVarCompensator.slope` (new `slope` electrical parameter, kV/Mvar) and `ExternalNetworkInjection.minP/maxP` are always written, as PowSyBl requires them. New export log entries: `guessedVoltage` (the voltage came from the surroundings), `shorted` (a switch or line with both ends on one node, left out) and `windings` (a 4-winding transformer, which PowSyBl can't read). The backend's export first renames voltage classes still named after their colour to the configured `voltage_colors` voltage (`applyPresetVoltageNames`). Both user guides' "CIM export" and "Electrical parameters" sections, and `XSLD_FORMAT.md`, describe it.
+2026-10-22: CIM export checked with PowSyBl's CGMES importer (powsybl-core's `cgmes-conversion`, run on the export of
+every diagram on hand): 147 of 149 now import, the other two having voltage classes named after colours with no
+configured voltage. Changes in slddoc's `ExportCIM`: substations follow the connections (whatever a device other than a
+line joins is one Substation, named after its busbar with the most connections, its mRID from its lowest node) with a
+VoltageLevel per substation and voltage class, so a network diagram is no longer one huge voltage level (PowSyBl stops
+at 1000 nodes); a voltage class whose name holds no voltage (`ParseVoltage` now rejects colour codes and 0) is treated
+as unknown, a node's voltage spreads across any device but a transformer, and what is still unknown takes its
+substation's or the diagram's most common voltage (`resolve`), so every node and transformer end has a voltage level and
+a rated voltage; `StaticVarCompensator.slope` (new `slope` electrical parameter, kV/Mvar) and
+`ExternalNetworkInjection.minP/maxP` are always written, as PowSyBl requires them. New export log entries:
+`guessedVoltage` (the voltage came from the surroundings), `shorted` (a switch or line with both ends on one node, left
+out) and `windings` (a 4-winding transformer, which PowSyBl can't read). The backend's export first renames voltage
+classes still named after their colour to the configured `voltage_colors` voltage (`applyPresetVoltageNames`). Both user
+guides' "CIM export" and "Electrical parameters" sections, and `XSLD_FORMAT.md`, describe it.
 
-2026-10-22: Configurable CIM classes. `sld-editor.yaml` has a `cim.classes` section: an element class (or `LinkToObject`) → the CIM classes it can stand for, its default first; a class left out keeps its built-in list, and the shipped file writes out today's choices. slddoc's `CIMClassTable` (`DefaultCIMClasses`, `With`, `Of` in `cim.go`) holds the table and checks overrides: the key must be an element class exported as equipment, and every CIM class one the export writes alike for it (switches, now including Jumper; machines; injections; shunts; auxiliary equipment), with no repeats; `main.go` stops at startup on a mistake. The server's table drives the CIM export (`CIMOptions.Classes`, a changeover knife switch's halves included), the import (`CIMImportOptions.CIMClasses`; a CIM class without a symbol of its own, such as a configured Jumper, is drawn with the symbol of the element class configured for it), each element symbol's CIM list for the Properties dropdown (`Library.ApplyCIMClasses`) and `/api/config`'s link-to-object choices. Both user guides document the key (Configuration, CIM export).
+2026-10-22: Configurable CIM classes. `sld-editor.yaml` has a `cim.classes` section: an element class (or
+`LinkToObject`) → the CIM classes it can stand for, its default first; a class left out keeps its built-in list, and the
+shipped file writes out today's choices. slddoc's `CIMClassTable` (`DefaultCIMClasses`, `With`, `Of` in `cim.go`) holds
+the table and checks overrides: the key must be an element class exported as equipment, and every CIM class one the
+export writes alike for it (switches, now including Jumper; machines; injections; shunts; auxiliary equipment), with no
+repeats; `main.go` stops at startup on a mistake. The server's table drives the CIM export (`CIMOptions.Classes`, a
+changeover knife switch's halves included), the import (`CIMImportOptions.CIMClasses`; a CIM class without a symbol of
+its own, such as a configured Jumper, is drawn with the symbol of the element class configured for it), each element
+symbol's CIM list for the Properties dropdown (`Library.ApplyCIMClasses`) and `/api/config`'s link-to-object choices.
+Both user guides document the key (Configuration, CIM export).
 
-2026-10-22: CIM import keeps every element at size step 0. Re-importing a diagram this editor exported fitted each symbol's size step, mirror and lead spacing to the drawn terminal points; a one-terminal device whose port Node lay off its terminal (a ground switch, for example) could match step 2 by chance and came back enlarged. slddoc's import (`fit` in `cimimport.go`) now fits only mirror and lead spacing; the ports still go where the export drew the terminals, so the connections are unchanged.
+2026-10-22: CIM import keeps every element at size step 0. Re-importing a diagram this editor exported fitted each
+symbol's size step, mirror and lead spacing to the drawn terminal points; a one-terminal device whose port Node lay off
+its terminal (a ground switch, for example) could match step 2 by chance and came back enlarged. slddoc's import (`fit`
+in `cimimport.go`) now fits only mirror and lead spacing; the ports still go where the export drew the terminals, so the
+connections are unchanged.
 
-2026-10-22: `cim.classes` is keyed by symbol shape code, like `palette` and `hot_keys` (`"28"` for a link to object), instead of element class name, so each shape can have its own CIM classes (a withdrawable breaker can default to DisconnectingCircuitBreaker while the fixed one stays a Breaker). slddoc's `CIMClassTable` is now shape code → CIM classes, built by `NewCIMClassTable(shapes, overrides)` from the element library's shapes (each exported shape getting its element class's built-in list) with the overrides checked (the code must be a library shape exported as equipment, or "28"); a nil table or a missing shape falls back to the built-in lists. On import a CIM class is drawn with a shape the configuration made default to it, else its own symbol, else the first shape listing it. The shipped `sld-editor.yaml` lists today's choices by code with the symbol name in a comment; both user guides' Configuration section and CLAUDE.md follow.
+2026-10-22: `cim.classes` is keyed by symbol shape code, like `palette` and `hot_keys` (`"28"` for a link to object),
+instead of element class name, so each shape can have its own CIM classes (a withdrawable breaker can default to
+DisconnectingCircuitBreaker while the fixed one stays a Breaker). slddoc's `CIMClassTable` is now shape code → CIM
+classes, built by `NewCIMClassTable(shapes, overrides)` from the element library's shapes (each exported shape getting
+its element class's built-in list) with the overrides checked (the code must be a library shape exported as equipment,
+or "28"); a nil table or a missing shape falls back to the built-in lists. On import a CIM class is drawn with a shape
+the configuration made default to it, else its own symbol, else the first shape listing it. The shipped
+`sld-editor.yaml` lists today's choices by code with the symbol name in a comment; both user guides' Configuration
+section and CLAUDE.md follow.
 
-2026-10-22: The open diagram can be deleted. Before, the delete dialog refused it, so the last diagram of a folder could only be deleted after opening one elsewhere. Now `deleteEntry` (`state/DiagramContext.tsx`) deletes it and closes it: the editor is left empty as at startup (diagram, name, undo history and dirty flag cleared, so the page address drops `?diagram=` and no recovery draft is kept). The dialog (`components/FolderActionDialog.tsx`) warns that the open diagram will be closed, and that its unsaved changes will be lost when it has any. Both user guides' "Folders" section say so.
+2026-10-22: The open diagram can be deleted. Before, the delete dialog refused it, so the last diagram of a folder could
+only be deleted after opening one elsewhere. Now `deleteEntry` (`state/DiagramContext.tsx`) deletes it and closes it:
+the editor is left empty as at startup (diagram, name, undo history and dirty flag cleared, so the page address drops
+`?diagram=` and no recovery draft is kept). The dialog (`components/FolderActionDialog.tsx`) warns that the open diagram
+will be closed, and that its unsaved changes will be lost when it has any. Both user guides' "Folders" section say so.
 
-2026-10-22: A diagram, or a folder holding one, that another tab has open can't be deleted, since that tab's next save would bring it back. `DELETE /api/diagrams` and `DELETE /api/folders` take the deleting tab's `session=` and answer 409 with the other tabs (`openElsewhere` in `internal/api/folders.go`, from `presence.Registry.OpenUnder`); the delete dialog lists those tabs and keeps Delete disabled ("Can't be deleted while open in other tabs"). A tab counts as open until the presence TTL (150 s) after its last heartbeat. Both user guides' "Folders" section say so.
+2026-10-22: A diagram, or a folder holding one, that another tab has open can't be deleted, since that tab's next save
+would bring it back. `DELETE /api/diagrams` and `DELETE /api/folders` take the deleting tab's `session=` and answer 409
+with the other tabs (`openElsewhere` in `internal/api/folders.go`, from `presence.Registry.OpenUnder`); the delete
+dialog lists those tabs and keeps Delete disabled ("Can't be deleted while open in other tabs"). A tab counts as open
+until the presence TTL (150 s) after its last heartbeat. Both user guides' "Folders" section say so.
 
-2026-10-22: CIM export: a line end with no equipment around it is no substation of its own. Before, the far end of every line drawn to the sheet's edge became a one-node Substation (28 substations for a diagram with 12 real ones). slddoc's `substations` now joins a component with no equipment (only lines, wires, poles, junctions and the like; a link to object counts as equipment) to the substation at the line's other end, following chains of lines until nothing changes. PowSyBl still imports 147 of the 149 diagrams on hand. Both user guides' "CIM export" section say so.
+2026-10-22: CIM export: a line end with no equipment around it is no substation of its own. Before, the far end of every
+line drawn to the sheet's edge became a one-node Substation (28 substations for a diagram with 12 real ones). slddoc's
+`substations` now joins a component with no equipment (only lines, wires, poles, junctions and the like; a link to
+object counts as equipment) to the substation at the line's other end, following chains of lines until nothing changes.
+PowSyBl still imports 147 of the 149 diagrams on hand. Both user guides' "CIM export" section say so.
 
-2026-10-22: CIM with other tools. New `docs/CIM_INTEROP.md`: how to view a CGMES export in the CGMES DiagramLayout Editor (Apache Jena Fuseki as its SPARQL endpoint: start, load, render, clear, limits; an edited layout read back from Fuseki can't be imported yet, since Fuseki writes generic `rdf:Description` objects) and how to use PowSyBl with it. New example tool `tools/cim-tools` (Maven, PowSyBl 7.4.0 + powsybl-single-line-diagram 5.6.0, one shaded jar, not part of `make`): `check [-v]` imports models and prints what PowSyBl built and its import warnings, `render` draws one PowSyBl SVG per substation, `to-cgmes` writes any PowSyBl-readable model or a built-in IEEE test network as a CGMES 3.0 zip for File → Import. `tools/cim-tools/fuseki.sh` starts Fuseki and loads/adds/clears exports. Linked from the README.
+2026-10-22: CIM with other tools. New `docs/CIM_INTEROP.md`: how to view a CGMES export in the CGMES DiagramLayout
+Editor (Apache Jena Fuseki as its SPARQL endpoint: start, load, render, clear, limits; an edited layout read back from
+Fuseki can't be imported yet, since Fuseki writes generic `rdf:Description` objects) and how to use PowSyBl with it. New
+example tool `tools/cim-tools` (Maven, PowSyBl 7.4.0 + powsybl-single-line-diagram 5.6.0, one shaded jar, not part of
+`make`): `check [-v]` imports models and prints what PowSyBl built and its import warnings, `render` draws one PowSyBl
+SVG per substation, `to-cgmes` writes any PowSyBl-readable model or a built-in IEEE test network as a CGMES 3.0 zip for
+File → Import. `tools/cim-tools/fuseki.sh` starts Fuseki and loads/adds/clears exports. Linked from the README.
 
-2026-10-22: `tools/cim-tools` carries a Maven wrapper (`mvnw`, `mvnw.cmd`, `.mvn/wrapper`, wrapper 3.3.2, script only, Maven 3.9.9), so `./mvnw package` builds the jar with only Java installed; `docs/CIM_INTEROP.md`'s Build section and quick reference say so. The guide links the CGMES DiagramLayout Editor and PowSyBl to their GitHub repositories. `tools/cim-tools/out/` (render output) is git-ignored.
+2026-10-22: `tools/cim-tools` carries a Maven wrapper (`mvnw`, `mvnw.cmd`, `.mvn/wrapper`, wrapper 3.3.2, script only,
+Maven 3.9.9), so `./mvnw package` builds the jar with only Java installed; `docs/CIM_INTEROP.md`'s Build section and
+quick reference say so. The guide links the CGMES DiagramLayout Editor and PowSyBl to their GitHub repositories.
+`tools/cim-tools/out/` (render output) is git-ignored.
 
-2026-10-24: CIM import: voltage classes no standard voltage names. An imported class takes the `voltage_colors` preset naming the same voltage (`slddoc.ParseVoltage`, so "110kV" matches "110 kV"); one that none names was given a fixed fallback color that often equalled another preset's (a "50 kV" class drew in the 110 kV blue, so switching an element between them seemed to do nothing) and now gets the color of the preset nearest in voltage by ratio (400 kV → 330 kV, 17 kV → 10 kV; grey with none), `presetFor` in `internal/api/voltage_colors.go`. `POST /api/import/cim` also returns `unmatchedVoltages` (`[{name, preset, color, pages}]`), and the import waits for the new `VoltageColorsDialog` before opening or saving any page: a row per class with its page count, nearest preset, a color to change and an **Add** box (ticked). Apply recolors the pages and appends the ticked classes through the new `POST /api/config/voltage-colors` (`config.AppendVoltageColors` writes them as text after the list's last entry, keeping the file's comments, atomically, and checks the result reads back; the running server's presets update under a lock, and the frontend takes the new list). Keep suggested (or Esc) imports with the suggested colors. User guides: new "Voltage classes of a CIM import" section (`#cim-voltage-colors`).
+2026-10-24: CIM import: voltage classes no standard voltage names. An imported class takes the `voltage_colors` preset
+naming the same voltage (`slddoc.ParseVoltage`, so "110kV" matches "110 kV"); one that none names was given a fixed
+fallback color that often equalled another preset's (a "50 kV" class drew in the 110 kV blue, so switching an element
+between them seemed to do nothing) and now gets the color of the preset nearest in voltage by ratio (400 kV → 330 kV, 17
+kV → 10 kV; grey with none), `presetFor` in `internal/api/voltage_colors.go`. `POST /api/import/cim` also returns
+`unmatchedVoltages` (`[{name, preset, color, pages}]`), and the import waits for the new `VoltageColorsDialog` before
+opening or saving any page: a row per class with its page count, nearest preset, a color to change and an **Add** box
+(ticked). Apply recolors the pages and appends the ticked classes through the new `POST /api/config/voltage-colors`
+(`config.AppendVoltageColors` writes them as text after the list's last entry, keeping the file's comments, atomically,
+and checks the result reads back; the running server's presets update under a lock, and the frontend takes the new
+list). Keep suggested (or Esc) imports with the suggested colors. User guides: new "Voltage classes of a CIM import"
+section (`#cim-voltage-colors`).
 
-2026-10-24: CIM import of a zip made by macOS Finder's Compress: the binary `._<name>` files Finder puts under `__MACOSX/` end in `.xml` too and failed the import ("illegal character code U+0000"). `cimDocuments` now skips hidden files (a name starting with ".") and everything under `__MACOSX/`. The user guides' CIM import section says so.
+2026-10-24: CIM import of a zip made by macOS Finder's Compress: the binary `._<name>` files Finder puts under
+`__MACOSX/` end in `.xml` too and failed the import ("illegal character code U+0000"). `cimDocuments` now skips hidden
+files (a name starting with ".") and everything under `__MACOSX/`. The user guides' CIM import section says so.
 
-2026-10-24: Import spinner and full names in the File panel. A dropped or picked file now shows the canvas spinner as **Importing <name>…** (or "N files") from the start, while it is uploaded and converted and its pages saved (`DiagramContext`'s `whileImporting`, exposed as `importing`), handing over to the existing **Loading** spinner for a single page; it hides while an import dialog (voltage classes, unsaved changes) waits and is always cleared on an error, and the File panel's buttons wait meanwhile. Folder and diagram rows in the File panel show their full name as a tooltip (`title`).
+2026-10-24: Import spinner and full names in the File panel. A dropped or picked file now shows the canvas spinner as
+**Importing <name>…** (or "N files") from the start, while it is uploaded and converted and its pages saved
+(`DiagramContext`'s `whileImporting`, exposed as `importing`), handing over to the existing **Loading** spinner for a
+single page; it hides while an import dialog (voltage classes, unsaved changes) waits and is always cleared on an error,
+and the File panel's buttons wait meanwhile. Folder and diagram rows in the File panel show their full name as a tooltip
+(`title`).
 
-2026-10-24: CIM import of layouts made by other tools (in the sibling `slddoc`, new `cimforeign.go`): a busbar the DL draws only as its ConnectivityNode becomes that BusbarSection (a node drawn shorter than two grid steps only marks a junction and is skipped); a Terminal drawn as a polyline from its device to its node becomes a wire from the symbol's terminal, unless it runs over another device or another node's terminal, when the connection is routed instead; each device turns (quarter or half turn) so its terminals are where the layout draws them, or, with none drawn, faces what they connect to; an AC line segment the layout leaves out runs from its device to the marker of the substation at its other end (a Substation DiagramObject; the nearest free one when there are several) or out as a stub, with its name as a label. Before, such a layout lost its busbars and lines, and wires reaching a device's far terminal through its body put wire jumps on its terminals: on the CGMES 3.0 Svedala conformity model, wire jumps went from 1646 to 163 and unconnected touches from 1945 to 1, with 110 busbars and 180 line ends drawn; MicroGrid, MiniGrid and SmallGrid improve likewise. Own exports and generated layouts are unchanged. User guides: the CIM import section describes it.
+2026-10-24: CIM import of layouts made by other tools (in the sibling `slddoc`, new `cimforeign.go`): a busbar the DL
+draws only as its ConnectivityNode becomes that BusbarSection (a node drawn shorter than two grid steps only marks a
+junction and is skipped); a Terminal drawn as a polyline from its device to its node becomes a wire from the symbol's
+terminal, unless it runs over another device or another node's terminal, when the connection is routed instead; each
+device turns (quarter or half turn) so its terminals are where the layout draws them, or, with none drawn, faces what
+they connect to; an AC line segment the layout leaves out runs from its device to the marker of the substation at its
+other end (a Substation DiagramObject; the nearest free one when there are several) or out as a stub, with its name as a
+label. Before, such a layout lost its busbars and lines, and wires reaching a device's far terminal through its body put
+wire jumps on its terminals: on the CGMES 3.0 Svedala conformity model, wire jumps went from 1646 to 163 and unconnected
+touches from 1945 to 1, with 110 busbars and 180 line ends drawn; MicroGrid, MiniGrid and SmallGrid improve likewise.
+Own exports and generated layouts are unchanged. User guides: the CIM import section describes it.
 
-2026-10-24: Automatic CIM layout on the model of PowSyBl's single-line layout (sibling `slddoc`, `cimlayout.go` rebuilt; the editor stays one executable). A voltage level's busbars that share a bay are parallel, drawn as full-width rows one under another (busbars sharing none side by side), instead of one busbar per band with the others reached by long buswork through corridors. Each bay (cell: the devices between the busbars and its feeders) takes columns of its own and is drawn as a tree rooted at its node farthest from the busbars: every device on a busbar has a column and drops straight onto its row, each other device stands over those below it, feeders (lines leaving the page, transformers, end devices) beyond the root; couplers (no feeder) come first, above the busbars. The import's wire-jump rule now also runs on generated layouts, marking where a bay crosses the busbars before its own. On the Svedala conformity model all 56 substations keep every busbar (128), line end (180) and device. Multi-page CIM imports are saved as `<file name>/<diagram name>` (a substation's name for a generated layout; "/" in a title becomes "-", a repeated one gets " (2)"), the existing-name check looking in that folder (`ExistingNames` in `lib/importDiagram.ts`). Layouts from other tools: a node drawing shorter than two grid steps counts as a junction mark only when no other drawing of its node ends at it (PowSyBl's chained segments are kept), and a device's own terminals never count as drawn over. `tools/cim-tools` gets `layout <model> <out.zip>` (`DlLayout.java`), a developer reference writing PowSyBl's own layout (spaced for our symbols, disconnectors off the busbars) as a CGMES Diagram Layout to import and compare. Docs: the user guides' CIM import section and `docs/CIM_INTEROP.md`.
+2026-10-24: Automatic CIM layout on the model of PowSyBl's single-line layout (sibling `slddoc`, `cimlayout.go` rebuilt;
+the editor stays one executable). A voltage level's busbars that share a bay are parallel, drawn as full-width rows one
+under another (busbars sharing none side by side), instead of one busbar per band with the others reached by long
+buswork through corridors. Each bay (cell: the devices between the busbars and its feeders) takes columns of its own and
+is drawn as a tree rooted at its node farthest from the busbars: every device on a busbar has a column and drops
+straight onto its row, each other device stands over those below it, feeders (lines leaving the page, transformers, end
+devices) beyond the root; couplers (no feeder) come first, above the busbars. The import's wire-jump rule now also runs
+on generated layouts, marking where a bay crosses the busbars before its own. On the Svedala conformity model all 56
+substations keep every busbar (128), line end (180) and device. Multi-page CIM imports are saved as
+`<file name>/<diagram name>` (a substation's name for a generated layout; "/" in a title becomes "-", a repeated one
+gets " (2)"), the existing-name check looking in that folder (`ExistingNames` in `lib/importDiagram.ts`). Layouts from
+other tools: a node drawing shorter than two grid steps counts as a junction mark only when no other drawing of its node
+ends at it (PowSyBl's chained segments are kept), and a device's own terminals never count as drawn over.
+`tools/cim-tools` gets `layout <model> <out.zip>` (`DlLayout.java`), a developer reference writing PowSyBl's own layout
+(spaced for our symbols, disconnectors off the busbars) as a CGMES Diagram Layout to import and compare. Docs: the user
+guides' CIM import section and `docs/CIM_INTEROP.md`.
 
-2026-10-24: CIM round trip keeps wire jump sizes. A wire jump over a busbar is a size step larger, but the CIM export names only its shape (`shape-14`), so opening an export brought it back at step 0 and its ports, on the wire ends, lay 4 off its terminals ("connection points lie off their device terminals" on every such jump). The import (`slddoc` `fit`) now sizes a wire jump, junction, pole or cable joint to the gap its wire leaves: the size step (−2…4) that puts every terminal on a wire end, devices still keeping step 0; this also repairs files exported before. A generated layout's wire jump also put its ports in the order of the wire instead of its terminals' (12 jumps on the Svedala model, each reported 20 off). Rechecked our export on the CGMES Svedala, MicroGrid, MiniGrid and SmallGrid models, generated layouts and their own DLs (export, import back, compare): the same equipment, size steps and connections and no port off its terminal; the only notes are a nonlinear shunt exported without `bPerSection` (its susceptance is given per section) and, with MicroGrid's own DL, a straight wire coming back in fewer pieces.
+2026-10-24: CIM round trip keeps wire jump sizes. A wire jump over a busbar is a size step larger, but the CIM export
+names only its shape (`shape-14`), so opening an export brought it back at step 0 and its ports, on the wire ends, lay 4
+off its terminals ("connection points lie off their device terminals" on every such jump). The import (`slddoc` `fit`)
+now sizes a wire jump, junction, pole or cable joint to the gap its wire leaves: the size step (−2…4) that puts every
+terminal on a wire end, devices still keeping step 0; this also repairs files exported before. A generated layout's wire
+jump also put its ports in the order of the wire instead of its terminals' (12 jumps on the Svedala model, each reported
+20 off). Rechecked our export on the CGMES Svedala, MicroGrid, MiniGrid and SmallGrid models, generated layouts and
+their own DLs (export, import back, compare): the same equipment, size steps and connections and no port off its
+terminal; the only notes are a nonlinear shunt exported without `bPerSection` (its susceptance is given per section)
+and, with MicroGrid's own DL, a straight wire coming back in fewer pieces.
 
-2026-10-24: A CIM import is saved straight away. A model with one diagram used to open as an unsaved diagram like a single `.xsld`/`.svg`, so its folder stayed empty until Save; it is now saved as `<current folder>/<file name>` as it opens (`loadDiagramFromFile(…, save)`), as models with several diagrams already were. When the name exists, "Diagram already exists" still asks first, saying the import replaces the server copy at once (`reload.messageSave`).
+2026-10-24: A CIM import is saved straight away. A model with one diagram used to open as an unsaved diagram like a
+single `.xsld`/`.svg`, so its folder stayed empty until Save; it is now saved as `<current folder>/<file name>` as it
+opens (`loadDiagramFromFile(…, save)`), as models with several diagrams already were. When the name exists, "Diagram
+already exists" still asks first, saying the import replaces the server copy at once (`reload.messageSave`).
 
-2026-10-24: CIM import puts wire jumps and junction points by the rules of drawing by hand (`slddoc` `addJumps`, new `junctionPoints`, as `diagramOps.addCrossingJumps`/`addJunctionPoints`). A wire jump goes only where a buswork wire crosses a busbar, another buswork wire, an overhead or cable line or a link to object of a different voltage class (size step 1 over a busbar), and once per crossing: a wire already cut there is not cut again (two crossing wires used to get a jump each at the same point). A bay crossing busbars of its own voltage level, wires of one voltage class crossing, and terminals merely touching a wire no longer get jumps. Every node where a buswork wire meets a busbar's port gets a junction point (shape 7) with the busbar's voltage class and layer, unless one is there. On the Svedala model: wire jumps 647 → 12 for the generated layout, 163 → 19 with its own DL; 861 junction points; the export round trip stays clean. Tests: `TestCIMJumpsAndJunctionsRoundTrip`, `TestCIMOneJumpPerCrossing`, `TestImportCIMConnectionsFromModel` reworked.
+2026-10-24: CIM import puts wire jumps and junction points by the rules of drawing by hand (`slddoc` `addJumps`, new
+`junctionPoints`, as `diagramOps.addCrossingJumps`/`addJunctionPoints`). A wire jump goes only where a buswork wire
+crosses a busbar, another buswork wire, an overhead or cable line or a link to object of a different voltage class (size
+step 1 over a busbar), and once per crossing: a wire already cut there is not cut again (two crossing wires used to get
+a jump each at the same point). A bay crossing busbars of its own voltage level, wires of one voltage class crossing,
+and terminals merely touching a wire no longer get jumps. Every node where a buswork wire meets a busbar's port gets a
+junction point (shape 7) with the busbar's voltage class and layer, unless one is there. On the Svedala model: wire
+jumps 647 → 12 for the generated layout, 163 → 19 with its own DL; 861 junction points; the export round trip stays
+clean. Tests: `TestCIMJumpsAndJunctionsRoundTrip`, `TestCIMOneJumpPerCrossing`, `TestImportCIMConnectionsFromModel`
+reworked.
 
-2026-10-24: The automatic CIM layout names each voltage level band at its top left, as PowSyBl does (`AGGAN_4_CT11`-style VoltageLevel names; a voltage level without a name is labelled with its voltage, e.g. "110 kV"). The label is an ordinary text label linked to no item, so our CIM export writes it and an import brings it back.
+2026-10-24: The automatic CIM layout names each voltage level band at its top left, as PowSyBl does (`AGGAN_4_CT11`
+-style VoltageLevel names; a voltage level without a name is labelled with its voltage, e.g. "110 kV"). The label is an
+ordinary text label linked to no item, so our CIM export writes it and an import brings it back.
 
-2026-10-24: The automatic CIM layout arranges itself after it is drawn (new `slddoc` `cimlayoutopt.go`). Each busbar group with its bays is a region that moves only as a whole, its inner layout untouched. Starting from the layout as drawn, moves are tried until none lowers an error function — crossings between voltage classes first, then the bends and length of the transformer connections — and kept only when they lower it: a transformer under or over any bay linked to it; a lower-voltage region under or over any transformer it links to, or just clear of another transformer's leads, rising beside the band above (never above it) where no region or transformer is in the way. Regions never overlap, nor transformers on a row, and everything stays right of the page margin; with no improving move the layout stays as drawn. A transformer lead lined up with its bay is now one straight wire instead of a side step. On the Svedala model the wire jumps of the generated layout went from 12 to 0 (AGGAN CT11: transformers under their 400 kV bays, the 135 kV and 17 kV regions side by side under their transformers); MicroGrid, MiniGrid and SmallGrid are unchanged or better, and the export round trip stays clean. Test: `TestAutoLayoutArranged`.
+2026-10-24: The automatic CIM layout arranges itself after it is drawn (new `slddoc` `cimlayoutopt.go`). Each busbar
+group with its bays is a region that moves only as a whole, its inner layout untouched. Starting from the layout as
+drawn, moves are tried until none lowers an error function — crossings between voltage classes first, then the bends and
+length of the transformer connections — and kept only when they lower it: a transformer under or over any bay linked to
+it; a lower-voltage region under or over any transformer it links to, or just clear of another transformer's leads,
+rising beside the band above (never above it) where no region or transformer is in the way. Regions never overlap, nor
+transformers on a row, and everything stays right of the page margin; with no improving move the layout stays as drawn.
+A transformer lead lined up with its bay is now one straight wire instead of a side step. On the Svedala model the wire
+jumps of the generated layout went from 12 to 0 (AGGAN CT11: transformers under their 400 kV bays, the 135 kV and 17 kV
+regions side by side under their transformers); MicroGrid, MiniGrid and SmallGrid are unchanged or better, and the
+export round trip stays clean. Test: `TestAutoLayoutArranged`.
 
-2026-10-24: A voltage level's name stands beside its busbars: left of the band's main busbar group (the most busbars, then cells), half way down its rows, in columns kept free for it, and it moves with that group's region when the layout is arranged. It used to stand at the band's top edge and travel with the band's first region, so it could end up by another region.
+2026-10-24: A voltage level's name stands beside its busbars: left of the band's main busbar group (the most busbars,
+then cells), half way down its rows, in columns kept free for it, and it moves with that group's region when the layout
+is arranged. It used to stand at the band's top edge and travel with the band's first region, so it could end up by
+another region.
 
-2026-10-24: The automatic CIM layout keeps a voltage class together and hangs generators straight under their transformers (sibling `slddoc`, `cimlayoutopt.go`). The busbar groups of one voltage class (a block) go on one row, side by side in the order of the transformers they are fed from, each as close under its transformer as the others allow and at most two columns from the one before, instead of where each wanted on its own, apart. Groups are kept clear of each other by what they draw (each symbol, wire and name) rather than by their whole boxes, so names may sit beside each other; a voltage level's name moves right of its busbars when only it keeps its group from lining up, and a block rises beside the band above as far as what is drawn there allows. A transformer's name now counts in its width, so names on a transformer row no longer run into the next transformer. The search starts both from the layout as drawn and from every transformer under its bay, and each try also has every transformer follow the group it feeds; the error now counts leads crossing each other in any voltage class, and a bend in a lead under its transformer a quarter more than one above it. Leads turning out of one side of a band get its corridors in an order where none crosses another (`corridors`, used by both the estimate and the drawing; before, the leftmost lead always turned nearest the band, so leads fanning out to the right crossed). On the Svedala model a station with four generators now has each generator under its transformer with straight leads, a second station's two generator groups sit side by side under their transformers, and a third's four generators stay together on one row; every page keeps 0 wire jumps, and the export round trip of Svedala, MicroGrid, MiniGrid and SmallGrid stays clean (same equipment, no port off its terminal). Test: `TestAutoLayoutGeneratorsUnderTransformers`. User guides: the CIM import section's layout paragraph.
+2026-10-24: The automatic CIM layout keeps a voltage class together and hangs generators straight under their
+transformers (sibling `slddoc`, `cimlayoutopt.go`). The busbar groups of one voltage class (a block) go on one row, side
+by side in the order of the transformers they are fed from, each as close under its transformer as the others allow and
+at most two columns from the one before, instead of where each wanted on its own, apart. Groups are kept clear of each
+other by what they draw (each symbol, wire and name) rather than by their whole boxes, so names may sit beside each
+other; a voltage level's name moves right of its busbars when only it keeps its group from lining up, and a block rises
+beside the band above as far as what is drawn there allows. A transformer's name now counts in its width, so names on a
+transformer row no longer run into the next transformer. The search starts both from the layout as drawn and from every
+transformer under its bay, and each try also has every transformer follow the group it feeds; the error now counts leads
+crossing each other in any voltage class, and a bend in a lead under its transformer a quarter more than one above it.
+Leads turning out of one side of a band get its corridors in an order where none crosses another (`corridors`, used by
+both the estimate and the drawing; before, the leftmost lead always turned nearest the band, so leads fanning out to the
+right crossed). On the Svedala model a station with four generators now has each generator under its transformer with
+straight leads, a second station's two generator groups sit side by side under their transformers, and a third's four
+generators stay together on one row; every page keeps 0 wire jumps, and the export round trip of Svedala, MicroGrid,
+MiniGrid and SmallGrid stays clean (same equipment, no port off its terminal). Test:
+`TestAutoLayoutGeneratorsUnderTransformers`. User guides: the CIM import section's layout paragraph.
 
-2026-10-24: A generated CIM layout's transformer lead turns in one jog: from its bay into its corridor, along it to over (or under) the winding and straight in (`clearRun` in the sibling `slddoc` `cimlayout.go`), as the arrangement's estimate already assumed, instead of stepping aside of the winding at a height of its own and back (four corners). The old detour stays only where that last run is taken by another lead, or would touch a wire, busbar, symbol or name; a ring closed through a corridor likewise. On the Svedala model no wire has more than two corners now, with 0 wire jumps; only leads into a three-winding transformer's side terminals keep three, and the export round trip stays clean. Test: `TestAutoLayoutGeneratorsUnderTransformers` checks the jog.
+2026-10-24: A generated CIM layout's transformer lead turns in one jog: from its bay into its corridor, along it to over
+(or under) the winding and straight in (`clearRun` in the sibling `slddoc` `cimlayout.go`), as the arrangement's
+estimate already assumed, instead of stepping aside of the winding at a height of its own and back (four corners). The
+old detour stays only where that last run is taken by another lead, or would touch a wire, busbar, symbol or name; a
+ring closed through a corridor likewise. On the Svedala model no wire has more than two corners now, with 0 wire jumps;
+only leads into a three-winding transformer's side terminals keep three, and the export round trip stays clean. Test:
+`TestAutoLayoutGeneratorsUnderTransformers` checks the jog.
 
-2026-10-24: User guides: new "CIM files: profiles and names" section (`#cim-files`, before CIM import), in English and Russian. It explains that a CGMES model is a set of RDF/XML documents, one per profile, linked by object ids and each with an `md:FullModel` header (profiles, dependencies); the file-name convention `<date>T<time>Z_<process>_<area>_<profile>_<version>.xml` (process codes such as `1D`, `ASSEMBLED`, `_BD` for the boundary set); a table of the profiles EQ, OP/SC, EQ_BD, TP, TP_BD, SSH, SV, DL, GL and DY with what each holds and what the editor's import and export do with it; and the `<NN>_<substation>_metadata.json` files PowSyBl's single-line renderer writes next to its SVGs (`tools/cim-tools render`): their keys (`components`, `nodes`, `wires`, `feederInfos`, `layoutParams`…), that they tie SVG element ids to the network's equipment ids for interactive viewers, and that the editor does not use them. The CIM import section no longer says the other profiles are ignored: every file is read, EQ gives the equipment, TP a bus-branch model's buses and DL the drawings, and the rest has no effect; the CIM export section says only EQ and DL are written, the DL depending on the EQ.
+2026-10-24: User guides: new "CIM files: profiles and names" section (`#cim-files`, before CIM import), in English and
+Russian. It explains that a CGMES model is a set of RDF/XML documents, one per profile, linked by object ids and each
+with an `md:FullModel` header (profiles, dependencies); the file-name convention
+`<date>T<time>Z_<process>_<area>_<profile>_<version>.xml` (process codes such as `1D`, `ASSEMBLED`, `_BD` for the
+boundary set); a table of the profiles EQ, OP/SC, EQ_BD, TP, TP_BD, SSH, SV, DL, GL and DY with what each holds and what
+the editor's import and export do with it; and the `<NN>_<substation>_metadata.json` files PowSyBl's single-line
+renderer writes next to its SVGs (`tools/cim-tools render`): their keys (`components`, `nodes`, `wires`, `feederInfos`,
+`layoutParams`…), that they tie SVG element ids to the network's equipment ids for interactive viewers, and that the
+editor does not use them. The CIM import section no longer says the other profiles are ignored: every file is read, EQ
+gives the equipment, TP a bus-branch model's buses and DL the drawings, and the rest has no effect; the CIM export
+section says only EQ and DL are written, the DL depending on the EQ.
 
-2026-10-24: CIM import of a layout made by another tool: names, and the choice of the automatic layout. Such a layout is often a network overview without texts (the CGMES SmallGrid DL: one diagram, 5024 objects, no TextDiagramObject), so its pages showed no names at all, while the same model's EQ alone, laid out automatically, came out named, a page per substation. Now a foreign DL diagram that writes no texts gets each named device, busbar and line labelled from EQ (sibling `slddoc`, `nameLabels`): beside an upright device, over a lying one, over a busbar's first end and beside a line's longest run, a name stepping away a line-height at a time (then ending at its item) where it would overlap another or a busbar; the import log says how many. And when a page follows another tool's layout, `POST /api/import/cim` says so (`foreignLayout`) and the import waits for the new `CimLayoutDialog`: **Use model layout** (also Esc) keeps it, **Lay out automatically** re-posts with `?layout=auto` (`CIMImportOptions.AutoLayout`), which sets the DL aside and lays each substation out on a page of its own; an own export or a model without a layout is never asked about. Each `CIMPage` also tells who drew it (`Layout`: own, foreign, generated). Tests: `TestCIMNamesWithoutTexts`, `TestCIMRoundTrip` (`foreignLayout` false for an own export, the same connections with `?layout=auto`). User guides: the CIM import section describes the question and the names.
+2026-10-24: CIM import of a layout made by another tool: names, and the choice of the automatic layout. Such a layout is
+often a network overview without texts (the CGMES SmallGrid DL: one diagram, 5024 objects, no TextDiagramObject), so its
+pages showed no names at all, while the same model's EQ alone, laid out automatically, came out named, a page per
+substation. Now a foreign DL diagram that writes no texts gets each named device, busbar and line labelled from EQ
+(sibling `slddoc`, `nameLabels`): beside an upright device, over a lying one, over a busbar's first end and beside a
+line's longest run, a name stepping away a line-height at a time (then ending at its item) where it would overlap
+another or a busbar; the import log says how many. And when a page follows another tool's layout, `POST /api/import/cim`
+says so (`foreignLayout`) and the import waits for the new `CimLayoutDialog`: **Use model layout** (also Esc) keeps it,
+**Lay out automatically** re-posts with `?layout=auto` (`CIMImportOptions.AutoLayout`), which sets the DL aside and lays
+each substation out on a page of its own; an own export or a model without a layout is never asked about. Each `CIMPage`
+also tells who drew it (`Layout`: own, foreign, generated). Tests: `TestCIMNamesWithoutTexts`, `TestCIMRoundTrip`
+(`foreignLayout` false for an own export, the same connections with `?layout=auto`). User guides: the CIM import section
+describes the question and the names.
 
-2026-10-24: CIM identities are kept. A CIM import now saves in the diagram the `IdentifiedObject.mRID` of what each item stands for (sibling `slddoc`, `identities`; the object's `rdf:ID` without its `_` when it has none): `mrid` on an element (its equipment), a port (its Terminal; a busbar's first port), a transformer winding (its PowerTransformerEnd), a line or link (its equipment, and `fromMrid`/`toMrid` its Terminals) and a node (its ConnectivityNode; not a bus-branch model's TopologicalNode). The CIM export writes those objects with that mRID and `rdf:ID="_<mrid>"` (`fixMRIDs`), instead of one derived from the diagram's name; a ConnectivityNode takes the mRID its Nodes keep when they keep exactly one between them (Nodes added since keep none), and gets a derived one when it joins several. An mRID taken already or unfit for an rdf:ID gets a derived one and a new export note ("its CIM identity (mRID) is also another item's, or not a valid id"). Copies are new equipment: paste, duplicate, placing a custom element and "Save as custom element" drop the mRIDs (`placeCustomElement`, `extractSelection`), and cutting a line in two (in the editor or by Repair) keeps the equipment and its `from` Terminal on the first piece and its `to` Terminal on the second. On the CGMES Svedala, MicroGrid, MiniGrid and SmallGrid models about 90% of the exported objects keep their source mRID (the rest are the substations, voltage levels, base voltages, regions and line containers the export derives), with no duplicate and the round trip clean. The rest of what a CIM model holds (operational limits, the other EQ attributes and objects, containers, SSH and GL) is planned in TODO.md. Test: `TestCIMKeepsMRIDs`. Docs: `XSLD_FORMAT.md` §4.9, the user guides' CIM import and export sections.
+2026-10-24: CIM identities are kept. A CIM import now saves in the diagram the `IdentifiedObject.mRID` of what each item
+stands for (sibling `slddoc`, `identities`; the object's `rdf:ID` without its `_` when it has none): `mrid` on an
+element (its equipment), a port (its Terminal; a busbar's first port), a transformer winding (its PowerTransformerEnd),
+a line or link (its equipment, and `fromMrid`/`toMrid` its Terminals) and a node (its ConnectivityNode; not a bus-branch
+model's TopologicalNode). The CIM export writes those objects with that mRID and `rdf:ID="_<mrid>"` (`fixMRIDs`),
+instead of one derived from the diagram's name; a ConnectivityNode takes the mRID its Nodes keep when they keep exactly
+one between them (Nodes added since keep none), and gets a derived one when it joins several. An mRID taken already or
+unfit for an rdf:ID gets a derived one and a new export note ("its CIM identity (mRID) is also another item's, or not a
+valid id"). Copies are new equipment: paste, duplicate, placing a custom element and "Save as custom element" drop the
+mRIDs (`placeCustomElement`, `extractSelection`), and cutting a line in two (in the editor or by Repair) keeps the
+equipment and its `from` Terminal on the first piece and its `to` Terminal on the second. On the CGMES Svedala,
+MicroGrid, MiniGrid and SmallGrid models about 90% of the exported objects keep their source mRID (the rest are the
+substations, voltage levels, base voltages, regions and line containers the export derives), with no duplicate and the
+round trip clean. The rest of what a CIM model holds (operational limits, the other EQ attributes and objects,
+containers, SSH and GL) is planned in TODO.md. Test: `TestCIMKeepsMRIDs`. Docs: `XSLD_FORMAT.md` §4.9, the user guides'
+CIM import and export sections.
 
-2026-10-24: Fix voltage class. The canvas context menu of a device or wire with a voltage class (not a transformer, nor anything carrying none) offers **Fix voltage class**: everything electrically joined to it on its voltage level, as a trace with switch states ignored and transformers not passed finds it (through every switch, open or closed, up to the transformers), takes its class — devices, busbars and wires (those carrying no class left alone), and the winding of each transformer facing them, its other windings untouched. One edit, undone at once (`fixVoltageClass`/`fixableVoltage` in `lib/diagramOps.ts`, on `lib/trace.ts`'s `traceNetwork`). It fixes a feeder imported or drawn with a wrong or unknown class (a CIM bay half grey, half blue). User guides: the Tracing section.
+2026-10-24: Fix voltage class. The canvas context menu of a device or wire with a voltage class (not a transformer, nor
+anything carrying none) offers **Fix voltage class**: everything electrically joined to it on its voltage level, as a
+trace with switch states ignored and transformers not passed finds it (through every switch, open or closed, up to the
+transformers), takes its class — devices, busbars and wires (those carrying no class left alone), and the winding of
+each transformer facing them, its other windings untouched. One edit, undone at once (`fixVoltageClass`/`fixableVoltage`
+in `lib/diagramOps.ts`, on `lib/trace.ts`'s `traceNetwork`). It fixes a feeder imported or drawn with a wrong or unknown
+class (a CIM bay half grey, half blue). User guides: the Tracing section.
 
-2026-10-24: A CIM import no longer depends on the order of the files in the zip. Svedala's SSH describes the in-service state of busbars and transformers by the general class (`<cim:Equipment rdf:about="#…">`), and when the zip listed the SSH file before the EQ (as one made by macOS Finder from the model's folder does), every such object kept that first class, so it was neither a busbar nor a transformer and wasn't drawn: substations lost their busbars and transformers, both with the model's layout and laid out automatically. Now the defining `rdf:ID` sets an object's class, and a specific class wins over a general one (`cimGeneralClasses`) whatever the order (sibling `slddoc` `parseCIM`); Svedala, MicroGrid, MiniGrid and SmallGrid import the same with their files in either order. The import log of a model laid out automatically although it has a layout says the file's layout was set aside instead of that it has none. Test: `TestCIMClassFromAnyOrder`.
+2026-10-24: A CIM import no longer depends on the order of the files in the zip. Svedala's SSH describes the in-service
+state of busbars and transformers by the general class (`<cim:Equipment rdf:about="#…">`), and when the zip listed the
+SSH file before the EQ (as one made by macOS Finder from the model's folder does), every such object kept that first
+class, so it was neither a busbar nor a transformer and wasn't drawn: substations lost their busbars and transformers,
+both with the model's layout and laid out automatically. Now the defining `rdf:ID` sets an object's class, and a
+specific class wins over a general one (`cimGeneralClasses`) whatever the order (sibling `slddoc` `parseCIM`); Svedala,
+MicroGrid, MiniGrid and SmallGrid import the same with their files in either order. The import log of a model laid out
+automatically although it has a layout says the file's layout was set aside instead of that it has none. Test:
+`TestCIMClassFromAnyOrder`.
 
-2026-10-24: Automatic CIM layout of a model written differently. A model whose voltage levels refer to BaseVoltage objects it doesn't contain (kept in a file not sent along) had no voltages: no voltage classes, and bands in no order (the 10 kV switchgear on top), so a three-winding transformer's lead ran straight through another band, across its busbars and along one of its bays. Now (sibling `slddoc`): a voltage level without a usable base voltage takes the one its name states with a unit ("ОРУ-110 кВ", "6,3 kV"; `nameVoltages`); associations written only from the other end (a container listing its nodes or equipment, `ConnectivityNodeContainer.ConnectivityNodes` and the like) read as the usual forward ones (`cimInverseRoles`), and a node in a Bay takes its voltage level's class, so every wire has its class; a winding without a base voltage takes its terminal's voltage level's. A transformer lead never runs through another band nor along a wire or device: when its usual way (straight, one jog, or a side step) would touch anything drawn, it goes around, along its corridor to the nearest column clear all the way (`around`), else along the shortest orthogonal way on the grid that runs along nothing and through no symbol or name, crossing a wire straight across only where it must (new `cimroute.go`; a bend costs 12 grid steps, a crossing 200); a transformer's box now spans its farthest terminals. The arrangement's error counts a lead lying along a wire or busbar like a crossing. Generated layouts of the four CGMES models have no wire along a wire of another node and keep 0 wire jumps where they had none (MiniGrid gains one where wires of two classes now known cross), and the export round trip stays clean. The import log no longer says a model with no layout had its layout set aside. Tests: `TestAutoLayoutThreeWindings`, `TestRouteAroundBusbar`. User guides: the CIM import section.
+2026-10-24: Automatic CIM layout of a model written differently. A model whose voltage levels refer to BaseVoltage
+objects it doesn't contain (kept in a file not sent along) had no voltages: no voltage classes, and bands in no order
+(the 10 kV switchgear on top), so a three-winding transformer's lead ran straight through another band, across its
+busbars and along one of its bays. Now (sibling `slddoc`): a voltage level without a usable base voltage takes the one
+its name states with a unit ("ОРУ-110 кВ", "6,3 kV"; `nameVoltages`); associations written only from the other end (a
+container listing its nodes or equipment, `ConnectivityNodeContainer.ConnectivityNodes` and the like) read as the usual
+forward ones (`cimInverseRoles`), and a node in a Bay takes its voltage level's class, so every wire has its class; a
+winding without a base voltage takes its terminal's voltage level's. A transformer lead never runs through another band
+nor along a wire or device: when its usual way (straight, one jog, or a side step) would touch anything drawn, it goes
+around, along its corridor to the nearest column clear all the way (`around`), else along the shortest orthogonal way on
+the grid that runs along nothing and through no symbol or name, crossing a wire straight across only where it must (new
+`cimroute.go`; a bend costs 12 grid steps, a crossing 200); a transformer's box now spans its farthest terminals. The
+arrangement's error counts a lead lying along a wire or busbar like a crossing. Generated layouts of the four CGMES
+models have no wire along a wire of another node and keep 0 wire jumps where they had none (MiniGrid gains one where
+wires of two classes now known cross), and the export round trip stays clean. The import log no longer says a model with
+no layout had its layout set aside. Tests: `TestAutoLayoutThreeWindings`, `TestRouteAroundBusbar`. User guides: the CIM
+import section.
 
-2026-10-24: `tools/cim-tools` reports a model it can't import instead of crashing: `render`, `layout` and `to-cgmes` read it through `readModel`, and a PowSyBl import failure ends with `cim-tools: cannot import <file>: <reason>`, a hint to run `check -v` for the import report, and exit code 1 (before: an uncaught exception's stack trace). The file is not adjusted to make it import. `docs/CIM_INTEROP.md` lists the usual reasons found in files made by other tools: a substation without a region (none of its voltage levels created), an `rdf:ID` starting with a digit, a busbar section with several terminals.
+2026-10-24: `tools/cim-tools` reports a model it can't import instead of crashing: `render`, `layout` and `to-cgmes`
+read it through `readModel`, and a PowSyBl import failure ends with `cim-tools: cannot import <file>: <reason>`, a hint
+to run `check -v` for the import report, and exit code 1 (before: an uncaught exception's stack trace). The file is not
+adjusted to make it import. `docs/CIM_INTEROP.md` lists the usual reasons found in files made by other tools: a
+substation without a region (none of its voltage levels created), an `rdf:ID` starting with a digit, a busbar section
+with several terminals.
 
-2026-10-24: CIM identities in Properties and Find. A device or line imported from CIM shows its **mRID** in Properties, read-only with a **Copy** button (new `components/panels/MridRow.tsx`; nothing for an item without one). Find also searches the mRIDs of devices, their terminals and transformer windings, and of lines and their two terminals, in any of the forms a CIM file or a tool's message writes them (`969f7caf-…`, the rdf:ID `_969f7caf-…`, the reference `#_969f7caf-…`), whole or in part (`lib/find.ts`). User guides: the CIM import and Find sections.
+2026-10-24: CIM identities in Properties and Find. A device or line imported from CIM shows its **mRID** in Properties,
+read-only with a **Copy** button (new `components/panels/MridRow.tsx`; nothing for an item without one). Find also
+searches the mRIDs of devices, their terminals and transformer windings, and of lines and their two terminals, in any of
+the forms a CIM file or a tool's message writes them (`969f7caf-…`, the rdf:ID `_969f7caf-…`, the reference
+`#_969f7caf-…`), whole or in part (`lib/find.ts`). User guides: the CIM import and Find sections.
 
-2026-10-26: CIM export closer to the CGMES 3.0 conformity models (sibling `slddoc`, `finish` and `shortCircuit` in `cim.go`), found by comparing it class by class with the ENTSO-E Svedala, MicroGrid, MiniGrid and SmallGrid models: the EQ header also lists the ShortCircuit profile when the export holds short-circuit data (a line's zero-sequence `r0`/`x0`/`b0ch`/`g0ch`, a busbar's `ipMax`, which CGMES 3.0 keeps in that profile); every equipment has `Equipment.aggregate` false (each stands for one real item); every DiagramObject and TextDiagramObject has an `IdentifiedObject.name`, the name of what it draws (else "<class> <n>"); and an mRID kept from an import that is not a UUID, which CGMES 3.0 requires, is written as it is and listed in the export notes (new note `mridFormat`). PowSyBl still imports the export without warnings. Not added, for want of data or because it might be untrue: generator short-circuit and saturation values, `GeneratingUnit.nominalP`, `PowerTransformer.isPartOfGeneratorUnit`, load groups, regulating controls. `docs/CIM_INTEROP.md` gets a "What the export conforms to" section (CIM in IEC 61970-552 RDF/XML with the CGMES 3.0 EQ and DL profiles, tested with PowSyBl; not a full CGMES model, not validated against ENTSO-E's constraints), as do the user guides' CIM export sections. Test: `TestExportCIMConformity`.
+2026-10-26: CIM export closer to the CGMES 3.0 conformity models (sibling `slddoc`, `finish` and `shortCircuit` in
+`cim.go`), found by comparing it class by class with the ENTSO-E Svedala, MicroGrid, MiniGrid and SmallGrid models: the
+EQ header also lists the ShortCircuit profile when the export holds short-circuit data (a line's zero-sequence `r0`/
+`x0`/`b0ch`/`g0ch`, a busbar's `ipMax`, which CGMES 3.0 keeps in that profile); every equipment has
+`Equipment.aggregate` false (each stands for one real item); every DiagramObject and TextDiagramObject has an
+`IdentifiedObject.name`, the name of what it draws (else "<class> <n>"); and an mRID kept from an import that is not a
+UUID, which CGMES 3.0 requires, is written as it is and listed in the export notes (new note `mridFormat`). PowSyBl
+still imports the export without warnings. Not added, for want of data or because it might be untrue: generator
+short-circuit and saturation values, `GeneratingUnit.nominalP`, `PowerTransformer.isPartOfGeneratorUnit`, load groups,
+regulating controls. `docs/CIM_INTEROP.md` gets a "What the export conforms to" section (CIM in IEC 61970-552 RDF/XML
+with the CGMES 3.0 EQ and DL profiles, tested with PowSyBl; not a full CGMES model, not validated against ENTSO-E's
+constraints), as do the user guides' CIM export sections. Test: `TestExportCIMConformity`.
 
-2026-10-26: CIM import warns about an implausible nominal voltage. A BaseVoltage above 2000 kV, which no AC grid has (a file writing `nominalVoltage` 33000 for 33 kV, in volts where CIM wants kV), is still taken as it is, but the import log now shows a warning naming the base voltage and saying CIM's `nominalVoltage` is in kV (sibling `slddoc`: new `CIMPage.Warnings`, `cimMaxNominalKV`; `POST /api/import/cim` sends them with level WARN). Before, the class just came in as "33000 kV" and the voltage classes dialog offered it as a new preset. Test: `TestCIMImplausibleVoltage`. User guides: the CIM import section.
+2026-10-26: CIM import warns about an implausible nominal voltage. A BaseVoltage above 2000 kV, which no AC grid has (a
+file writing `nominalVoltage` 33000 for 33 kV, in volts where CIM wants kV), is still taken as it is, but the import log
+now shows a warning naming the base voltage and saying CIM's `nominalVoltage` is in kV (sibling `slddoc`: new
+`CIMPage.Warnings`, `cimMaxNominalKV`; `POST /api/import/cim` sends them with level WARN). Before, the class just came
+in as "33000 kV" and the voltage classes dialog offered it as a new preset. Test: `TestCIMImplausibleVoltage`. User
+guides: the CIM import section.
 
-2026-10-26: Properties' **mRID** row looks like the Name field: the label with a small copy icon on its right (a check mark once copied; the tooltip says "Copy mRID"), and the mRID in a read-only field below, instead of a "Copy" text button beside it (`components/panels/MridRow.tsx`). User guides: the CIM import section.
+2026-10-26: Properties' **mRID** row looks like the Name field: the label with a small copy icon on its right (a check
+mark once copied; the tooltip says "Copy mRID"), and the mRID in a read-only field below, instead of a "Copy" text
+button beside it (`components/panels/MridRow.tsx`). User guides: the CIM import section.
 
-2026-10-26: Switching devices get a fourth state, 3 **Faulty** (magenta), in `state_colors` (`backend/config/sld-editor.yaml`), and Intermediate is a darker yellow (`#c9a800` instead of `yellow`). An exported breaker's `data-fill` is now `0:red,1:lawngreen,2:#c9a800,3:magenta`: rdss-dms maps a double-point status's Error value to 3, so a faulty breaker draws magenta instead of looking the same as one in transit. The Properties panel's State dropdown offers Faulty, and a trace stops at it like Intermediate. Fault passage indicators keep their own legend. Diagrams already uploaded to rdss-dms need re-exporting to pick up the new colors. User guides: switch states in tracing, the configuration table.
+2026-10-26: Switching devices get a fourth state, 3 **Faulty** (magenta), in `state_colors`
+(`backend/config/sld-editor.yaml`), and Intermediate is a darker yellow (`#c9a800` instead of `yellow`). An exported
+breaker's `data-fill` is now `0:red,1:lawngreen,2:#c9a800,3:magenta`: rdss-dms maps a double-point status's Error value
+to 3, so a faulty breaker draws magenta instead of looking the same as one in transit. The Properties panel's State
+dropdown offers Faulty, and a trace stops at it like Intermediate. Fault passage indicators keep their own legend.
+Diagrams already uploaded to rdss-dms need re-exporting to pick up the new colors. User guides: switch states in
+tracing, the configuration table.
 
-2026-10-26: SVG export warns about switching devices that aren't in a normal position. rdss-dms animates a device's live state by rotating the blade drawn in the SVG, assuming it shows Open or Close: a breaker exported as Intermediate (a diagonal blade) came out wrong in every live state — e.g. an Intermediate fill with a straight blade. After **Download** as SVG, the File section lists every switching device whose State is Intermediate, Faulty or unset (`abnormalSwitchingDevices`, new `lib/switchingDevices.ts`, which now also holds `SWITCHING_DEVICE_CLASSES` moved from `PropertiesPanel.tsx`), each a link that highlights it on the canvas, with the State it was exported in (`SwitchStateWarnings.tsx`, same layout as the CIM notes). The export itself isn't blocked. en/ru strings `svgExport.*`. User guides: the Export item of the diagram's file actions.
+2026-10-26: SVG export warns about switching devices that aren't in a normal position. rdss-dms animates a device's live
+state by rotating the blade drawn in the SVG, assuming it shows Open or Close: a breaker exported as Intermediate (a
+diagonal blade) came out wrong in every live state — e.g. an Intermediate fill with a straight blade. After **Download**
+as SVG, the File section lists every switching device whose State is Intermediate, Faulty or unset
+(`abnormalSwitchingDevices`, new `lib/switchingDevices.ts`, which now also holds `SWITCHING_DEVICE_CLASSES` moved from
+`PropertiesPanel.tsx`), each a link that highlights it on the canvas, with the State it was exported in
+(`SwitchStateWarnings.tsx`, same layout as the CIM notes). The export itself isn't blocked. en/ru strings `svgExport.*`.
+User guides: the Export item of the diagram's file actions.
 
-2026-10-27: Reduced `CLAUDE.md` (~22 KB to ~7 KB) to an index plus non-derivable rules, with a sibling-repository table (slddoc, xsde2svg, rdss-dms as the consumer of exported SVGs, rdss-dms-nca for `sld.sld_element_type` rows, sld-svg, CIM interop tools); `../slddoc`'s format doc is `XSLD_FORMAT.md`.
+2026-10-27: Reduced `CLAUDE.md` (~22 KB to ~7 KB) to an index plus non-derivable rules, with a sibling-repository table
+(slddoc, xsde2svg, rdss-dms as the consumer of exported SVGs, rdss-dms-nca for `sld.sld_element_type` rows, sld-svg, CIM
+interop tools); `../slddoc`'s format doc is `XSLD_FORMAT.md`.
 
-2026-10-27: Canvas context menu **Merge buswork**. Right-clicking within a few screen pixels of a node where exactly two BusWork wires of the same voltage class meet, and no element port (device terminal or busbar connection point) uses it, offers Merge buswork: the two wires become one, the one with the lower id keeping its attributes and running on through the other's points (points left in a straight line at the joint are dropped), the joint node is removed and the merged wire is selected. It is an ordinary undoable edit (`diagramOps.mergeableBusworkAt`/`mergeBuswork`, `Canvas.tsx`'s `findMergeableNodeNear`); repair is unchanged. User guides: editing wires.
+2026-10-27: Canvas context menu **Merge buswork**. Right-clicking within a few screen pixels of a node where exactly two
+BusWork wires of the same voltage class meet, and no element port (device terminal or busbar connection point) uses it,
+offers Merge buswork: the two wires become one, the one with the lower id keeping its attributes and running on through
+the other's points (points left in a straight line at the joint are dropped), the joint node is removed and the merged
+wire is selected. It is an ordinary undoable edit (`diagramOps.mergeableBusworkAt`/`mergeBuswork`, `Canvas.tsx`'s
+`findMergeableNodeNear`); repair is unchanged. User guides: editing wires.
 
-2026-10-27: The git tag is the only source of the version: the Makefile sets `VERSION` with `override` (a `make VERSION=…` is ignored), and `make docker-build` no longer passes it into its container, whose make runs `git describe` on the mounted repo itself (`-c safe.directory=*`, since the mount is owned by another user on Linux hosts). README's Version section updated.
+2026-10-27: The git tag is the only source of the version: the Makefile sets `VERSION` with `override` (a
+`make VERSION=…` is ignored), and `make docker-build` no longer passes it into its container, whose make runs
+`git describe` on the mounted repo itself (`-c safe.directory=*`, since the mount is owned by another user on Linux
+hosts). README's Version section updated.
 
-2026-10-27: CIM auto-layout keeps two rules for transformer leads (sibling `slddoc`, `transformers()` and new `leadClear` in `cimlayout.go`, `route` in `cimroute.go`). First, a lead never crosses or runs along its own node's wires, or itself. Second, it never passes over a symbol: it may reach the transformer only in its last segment, coming into the winding from outside. Before, the straight and one-jog shortcuts ignored the transformer's own body, so a lead into the far winding from a corridor on the other side ran straight through both circles, and the next lead zigzagged around it. Such a lead now goes around the transformer. The grid router treats the lead's own node's wires as solid, and a transformer's box across its axis is now half its terminal span plus a margin, wide enough for its circles. A lead with no clear route is still drawn, with a WARN in the import log naming the transformer (`CIMPage.Warnings`). Test: `TestAutoLayoutTransformerLeads`. User guides: the CIM import section.
+2026-10-27: CIM auto-layout keeps two rules for transformer leads (sibling `slddoc`, `transformers()` and new
+`leadClear` in `cimlayout.go`, `route` in `cimroute.go`). First, a lead never crosses or runs along its own node's
+wires, or itself. Second, it never passes over a symbol: it may reach the transformer only in its last segment, coming
+into the winding from outside. Before, the straight and one-jog shortcuts ignored the transformer's own body, so a lead
+into the far winding from a corridor on the other side ran straight through both circles, and the next lead zigzagged
+around it. Such a lead now goes around the transformer. The grid router treats the lead's own node's wires as solid, and
+a transformer's box across its axis is now half its terminal span plus a margin, wide enough for its circles. A lead
+with no clear route is still drawn, with a WARN in the import log naming the transformer (`CIMPage.Warnings`). Test:
+`TestAutoLayoutTransformerLeads`. User guides: the CIM import section.
 
-2026-10-27: CIM import asks for transformer winding voltages before laying out. If every winding of a transformer has the same voltage, the model most likely gives one base voltage to all its ends, and everything beyond the transformer would land in the wrong voltage band. The new **Transformer winding voltages** dialog (`components/CimWindingsDialog.tsx`) shows each such transformer with a kV field per winding. A field starts at the winding's `ratedU`, else the model's voltage, and both are shown beside it. **Apply** posts the import again with the answers. **Keep as in the model**, or Esc, keeps the model's voltages. A changed winding's voltage spreads to everything connected to it up to the next transformer (busbars, devices, lines, nodes). Those items move to a voltage level of that voltage next to their own, so the voltage classes and the automatic layout's bands follow the answer. A side joined back to another winding of the same transformer keeps its voltage, and the import log warns. The prompt comes first, before the layout choice. It also appears for a model with its own layout, and once per file in a multi-file import.
-- API: `POST /api/import/cim` without `?windings` answers only `sameVoltageTransformers` (no pages) when such transformers exist. `?windings={"<end mRID>": kV, …}` (`{}` keeps them) imports with the answers. Otherwise `sameVoltageTransformers` is `[]`. A malformed `windings` returns 400.
-- Sibling `slddoc`: new `CIMSameVoltageTransformers`, `CIMImportOptions.WindingVoltages` (`cimwindings.go`), and `newCIMImporter` split out of `ImportCIM`.
-- Frontend: `api.importDiagramCIM(bytes, {auto, windings})`, `prepareImport`'s `chooseWindings`, `DiagramContext`'s `cimWindingsPrompt`.
+2026-10-27: CIM import asks for transformer winding voltages before laying out. If every winding of a transformer has
+the same voltage, the model most likely gives one base voltage to all its ends, and everything beyond the transformer
+would land in the wrong voltage band. The new **Transformer winding voltages** dialog
+(`components/CimWindingsDialog.tsx`) shows each such transformer with a kV field per winding. A field starts at the
+winding's `ratedU`, else the model's voltage, and both are shown beside it. **Apply** posts the import again with the
+answers. **Keep as in the model**, or Esc, keeps the model's voltages. A changed winding's voltage spreads to everything
+connected to it up to the next transformer (busbars, devices, lines, nodes). Those items move to a voltage level of that
+voltage next to their own, so the voltage classes and the automatic layout's bands follow the answer. A side joined back
+to another winding of the same transformer keeps its voltage, and the import log warns. The prompt comes first, before
+the layout choice. It also appears for a model with its own layout, and once per file in a multi-file import.
+
+- API: `POST /api/import/cim` without `?windings` answers only `sameVoltageTransformers` (no pages) when such
+  transformers exist. `?windings={"<end mRID>": kV, …}` (`{}` keeps them) imports with the answers. Otherwise
+  `sameVoltageTransformers` is `[]`. A malformed `windings` returns 400.
+- Sibling `slddoc`: new `CIMSameVoltageTransformers`, `CIMImportOptions.WindingVoltages` (`cimwindings.go`), and
+  `newCIMImporter` split out of `ImportCIM`.
+- Frontend: `api.importDiagramCIM(bytes, {auto, windings})`, `prepareImport`'s `chooseWindings`, `DiagramContext`'s
+  `cimWindingsPrompt`.
 - Tests: `TestCIMWindingVoltages`, `TestImportCIMWindingVoltages`.
 - User guides: new section "Transformer winding voltages" (`#cim-winding-voltages`).
 
-2026-10-27: CIM auto-layout spacing taken from hand-drawn diagrams (sibling `slddoc`, `cimlayout.go`). The rules were measured on a corpus of 32 reference diagrams, with whole-diagram grid shifts and terminals a few units off treated as noise:
-- **Bay pitch:** bays are 9 grid steps apart on a busbar up to 20 kV, as most distribution busbars draw them, and 12 steps above 20 kV (`layoutColumns`, `layoutWideColumns`, `layoutWideKV`). The columns of one bay (its legs to parallel busbars) are 6 apart (`layoutLegColumns`), through a per-band table of column positions (`layBand.xs`, `columnXs`). Before, every column used 6. With 18 steps for every column, an HV substation with triple busbars came out about 2.7 times as wide as before; now, measured on 56 pages, the total width is about half of that.
+2026-10-27: CIM auto-layout spacing taken from hand-drawn diagrams (sibling `slddoc`, `cimlayout.go`). The rules were
+measured on a corpus of 32 reference diagrams, with whole-diagram grid shifts and terminals a few units off treated as
+noise:
+
+- **Bay pitch:** bays are 9 grid steps apart on a busbar up to 20 kV, as most distribution busbars draw them, and 12
+  steps above 20 kV (`layoutColumns`, `layoutWideColumns`, `layoutWideKV`). The columns of one bay (its legs to parallel
+  busbars) are 6 apart (`layoutLegColumns`), through a per-band table of column positions (`layBand.xs`, `columnXs`).
+  Before, every column used 6. With 18 steps for every column, an HV substation with triple busbars came out about 2.7
+  times as wide as before; now, measured on 56 pages, the total width is about half of that.
 - **Device pitch:** devices are 6 steps apart down a bay, 4 between terminals (`layoutLevel`, was 8).
 - **Busbar extent:** a busbar runs exactly 2 steps past its outermost bays.
-- **Names:** a device's name sits on the device's own row, 2 steps right, with its baseline half a step below the centre. Long names are staggered by column only when they don't fit the gap to the next bay (before, all were staggered).
-- **Bay columns:** columns are recorded per region and follow its moves, replacing a fixed lattice that only held for one pitch and broke once a region moved by whole grid steps (`columnX`).
-- **Ring connections:** a connection closing a ring is checked like a transformer lead (`leadClear`) and falls back to the grid router, then to a warning.
-- **Blocked side runs:** a transformer lead whose side run is blocked and finds no way around goes to the grid router first.
-- **Joins between pieces of one node:** the joining wires the import adds (`wireNode`) take the nearest way, bending either way, that runs over no device. This applies to every CIM import.
+- **Names:** a device's name sits on the device's own row, 2 steps right, with its baseline half a step below the
+  centre. Long names are staggered by column only when they don't fit the gap to the next bay (before, all were
+  staggered).
+- **Bay columns:** columns are recorded per region and follow its moves, replacing a fixed lattice that only held for
+  one pitch and broke once a region moved by whole grid steps (`columnX`).
+- **Ring connections:** a connection closing a ring is checked like a transformer lead (`leadClear`) and falls back to
+  the grid router, then to a warning.
+- **Blocked side runs:** a transformer lead whose side run is blocked and finds no way around goes to the grid router
+  first.
+- **Joins between pieces of one node:** the joining wires the import adds (`wireNode`) take the nearest way, bending
+  either way, that runs over no device. This applies to every CIM import.
 
-On the six public CGMES test models, wires drawn over a device dropped from 26 to 2 on RealGrid (the 2 left are leads the import log already warns about) and from 1 to 0 elsewhere. Test: `TestAutoLayoutSpacing`. User guides: the CIM import section.
+On the six public CGMES test models, wires drawn over a device dropped from 26 to 2 on RealGrid (the 2 left are leads
+the import log already warns about) and from 1 to 0 elsewhere. Test: `TestAutoLayoutSpacing`. User guides: the CIM
+import section.
 
-2026-10-27: CIM auto-layout draws earthing off to the side of a bay (sibling `slddoc`, `earthingChain`, `tapsAt`, `tap`, `deviceSide` in `cimlayout.go`). A bay is one straight run from the busbar to what it feeds, with its breakers and disconnectors on it.
-- **What counts as a tap:** an earthing switch (`GroundDisconnector`), a `Ground`, or a switch (`Disconnector`, `Switch`, `LoadBreakSwitch`, `Fuse`) that leads only to earthing. Such a branch on a node of the run is no longer a leg of the bay's tree. Before, it got a column of its own, so a long horizontal run went off to it, or it hung down to the busbar row like a load.
-- **How it is drawn:** the branch is turned sideways. It joins the run with a T at its node (halfway between the two devices' terminals, or on the run from the bay's top node), 2 steps to the right, with its name over it. A second branch on the same node goes to the left.
+2026-10-27: CIM auto-layout draws earthing off to the side of a bay (sibling `slddoc`, `earthingChain`, `tapsAt`, `tap`,
+`deviceSide` in `cimlayout.go`). A bay is one straight run from the busbar to what it feeds, with its breakers and
+disconnectors on it.
+
+- **What counts as a tap:** an earthing switch (`GroundDisconnector`), a `Ground`, or a switch (`Disconnector`,
+  `Switch`, `LoadBreakSwitch`, `Fuse`) that leads only to earthing. Such a branch on a node of the run is no longer a
+  leg of the bay's tree. Before, it got a column of its own, so a long horizontal run went off to it, or it hung down to
+  the busbar row like a load.
+- **How it is drawn:** the branch is turned sideways. It joins the run with a T at its node (halfway between the two
+  devices' terminals, or on the run from the bay's top node), 2 steps to the right, with its name over it. A second
+  branch on the same node goes to the left.
 - **Room:** the bay gets the width its earthing needs between it and the next bay.
 - **Unchanged:** an earthing switch straight on a busbar keeps its own column.
-- **Lead checks:** names no longer count as obstacles in the lead checks (`leadClear`). A lead that is in the way of something drawn but keeps the rules is drawn without a warning. Routing warnings on the RealGrid test model dropped from 18 to 6.
+- **Lead checks:** names no longer count as obstacles in the lead checks (`leadClear`). A lead that is in the way of
+  something drawn but keeps the rules is drawn without a warning. Routing warnings on the RealGrid test model dropped
+  from 18 to 6.
 - **Tests:** `TestAutoLayoutEarthingTaps`, and `TestAutoLayoutSpacing` (12 steps above 20 kV).
 - **User guides:** the CIM import section.
 
 2026-10-27: CIM auto-layout leaves less empty space (sibling `slddoc`, `cimlayout.go`, `cimlayoutopt.go`).
-- **Transformer bands:** a transformer whose node sits in no voltage level now takes its band from the devices on that node. Before, it fell into an empty pseudo-band drawn at the very bottom, with a lead running down the whole page.
+
+- **Transformer bands:** a transformer whose node sits in no voltage level now takes its band from the devices on that
+  node. Before, it fell into an empty pseudo-band drawn at the very bottom, with a lead running down the whole page.
 - **Empty bands:** bands with nothing in them are no longer drawn.
 - **Transformer rows:** a band reserves a transformer row under it only when a transformer stands there.
-- **End transformers:** a transformer that reaches the page at one node only (an auxiliary transformer at the end of a cable, its other side outside the model) ends its bay like a load (`endTransformer`, `inlineTransformer`), instead of a lead to a transformer row. A transformer reaching nothing drawn goes on the first transformer row.
+- **End transformers:** a transformer that reaches the page at one node only (an auxiliary transformer at the end of a
+  cable, its other side outside the model) ends its bay like a load (`endTransformer`, `inlineTransformer`), instead of
+  a lead to a transformer row. A transformer reaching nothing drawn goes on the first transformer row.
 - **Page size:** `arrange` also counts the page's width and height in its score (`layoutPageWeight`).
 - **Result on two test models:** one went from 6250 × 1950 to 4790 × 1840, the other from 3960 × 2700 to 3930 × 1530.
 
-2026-10-27: CIM auto-layout puts bands in rows instead of one under another (sibling `slddoc`, `bandTiers`, `balanceTiers` in `cimlayout.go`; `placeBlocks` in `cimlayoutopt.go`).
-- **Rows:** bands sit side by side in rows, their busbars level, with the transformer row in between. What a transformer steps down to goes on the row under the band of its highest winding, so a three-winding transformer's two lower voltages share a row. Its middle voltage moves up beside the highest when that evens out the rows: HV and MV over the LV, as hand-drawn diagrams often have them. A voltage level no transformer reaches goes on the lowest row.
-- **Why:** before, every voltage level had a row of its own. A 110/35/10 kV transformer's 10 kV lead then had to cross the 35 kV band, so the layout slid the 10 kV block out to the side, leaving the page wide and half empty.
+2026-10-27: CIM auto-layout puts bands in rows instead of one under another (sibling `slddoc`, `bandTiers`,
+`balanceTiers` in `cimlayout.go`; `placeBlocks` in `cimlayoutopt.go`).
+
+- **Rows:** bands sit side by side in rows, their busbars level, with the transformer row in between. What a transformer
+  steps down to goes on the row under the band of its highest winding, so a three-winding transformer's two lower
+  voltages share a row. Its middle voltage moves up beside the highest when that evens out the rows: HV and MV over the
+  LV, as hand-drawn diagrams often have them. A voltage level no transformer reaches goes on the lowest row.
+- **Why:** before, every voltage level had a row of its own. A 110/35/10 kV transformer's 10 kV lead then had to cross
+  the 35 kV band, so the layout slid the 10 kV block out to the side, leaving the page wide and half empty.
 - **Corridors:** the bands of one row share it, each with its own range of corridors (`upOff`, `downOff`).
-- **Bay direction:** a bay leading to a transformer goes towards that transformer's row: down from the row above it, up from the row below (`goesUp`, `tierOf`).
-- **Rearranging:** `arrange` keeps every block on its row and only moves it sideways, clear of what is already on that row.
-- **End transformers:** an end transformer whose node is drawn on another page goes on a transformer row after all, so its page is not lost.
+- **Bay direction:** a bay leading to a transformer goes towards that transformer's row: down from the row above it, up
+  from the row below (`goesUp`, `tierOf`).
+- **Rearranging:** `arrange` keeps every block on its row and only moves it sideways, clear of what is already on that
+  row.
+- **End transformers:** an end transformer whose node is drawn on another page goes on a transformer row after all, so
+  its page is not lost.
 - **Results:**
-  - One 110/35/10 kV test model: 110 and 35 kV on top, 10 kV below, the two transformers between. It now measures 4130 × 1420; it was 6250 × 1950 this morning.
-  - The RealGrid test model keeps all 4875 pages. Wires over a device dropped from 34 to 5 and routing warnings from 16 to 6 compared with this morning, for 12 % more page area (the wider LV bay pitch).
-  - The Svedala pages are as wide as before.
+    - One 110/35/10 kV test model: 110 and 35 kV on top, 10 kV below, the two transformers between. It now measures
+      4130 × 1420; it was 6250 × 1950 this morning.
+    - The RealGrid test model keeps all 4875 pages. Wires over a device dropped from 34 to 5 and routing warnings from
+      16 to 6 compared with this morning, for 12 % more page area (the wider LV bay pitch).
+    - The Svedala pages are as wide as before.
 - **Test:** `TestAutoLayoutThreeWindings` now checks that 35 and 10 kV share a row under 110 kV.
 - **User guides:** the CIM import section.
 
-2026-10-28: CIM import with a layout from another tool (sibling `slddoc`) fixes two wiring faults seen on a layout that draws each device as a single point and no wires.
-- A one-terminal device (load, network infeed, generator) drawn with its symbol over its own wire is turned to point away from it. Before, the layout's rotation was taken as-is, so an infeed above its disconnector hung down over the wire.
-- A device whose terminal lies over or under its busbar drops straight onto it. Before, when a neighbour's terminal was exactly as far away as the busbar, the device was wired across to the neighbour.
+2026-10-28: CIM import with a layout from another tool (sibling `slddoc`) fixes two wiring faults seen on a layout that
+draws each device as a single point and no wires.
+
+- A one-terminal device (load, network infeed, generator) drawn with its symbol over its own wire is turned to point
+  away from it. Before, the layout's rotation was taken as-is, so an infeed above its disconnector hung down over the
+  wire.
+- A device whose terminal lies over or under its busbar drops straight onto it. Before, when a neighbour's terminal was
+  exactly as far away as the busbar, the device was wired across to the neighbour.
 - A device placed off its column in the layout file stays where the file puts it; that is the exporter's to fix.
 - **Test:** `TestImportCIMPointLayoutFacesAndDrops` (slddoc).
 - **User guides:** the CIM import section.
 
-2026-10-28: The whole mapping between symbols and CIM classes now lives in one place, the `cim:` section of `backend/config/sld-editor.yaml`. It used to be split between that file and built-in tables in the sibling `slddoc`.
-- `cim.classes` (export) lists every exported symbol with the CIM classes it can stand for, default first. A symbol with no row is not exported: the startup log names it, and the export's notes report each such element.
-- `cim.import` (new) maps a CIM class to the symbol it is drawn with. A `Class.variant` row picks a symbol by the object's attributes: `SynchronousMachine.condenser` / `.motor`, `AsynchronousMachine.generator`, `LinearShuntCompensator.reactor` and `NonlinearShuntCompensator.reactor`.
-- Equipment of a CIM class with no `import` row is drawn where the layout places it as a red box, captioned in red with its CIM class and connected to nothing. Before, it was left out. It is still listed under Skipped, now with a warning. An automatic layout still leaves it out.
-- The shipped file lists exactly the old built-in mapping, so imports and exports are unchanged; a re-import of a test archive gave identical output.
+2026-10-28: The whole mapping between symbols and CIM classes now lives in one place, the `cim:` section of
+`backend/config/sld-editor.yaml`. It used to be split between that file and built-in tables in the sibling `slddoc`.
+
+- `cim.classes` (export) lists every exported symbol with the CIM classes it can stand for, default first. A symbol with
+  no row is not exported: the startup log names it, and the export's notes report each such element.
+- `cim.import` (new) maps a CIM class to the symbol it is drawn with. A `Class.variant` row picks a symbol by the
+  object's attributes: `SynchronousMachine.condenser` / `.motor`, `AsynchronousMachine.generator`,
+  `LinearShuntCompensator.reactor` and `NonlinearShuntCompensator.reactor`.
+- Equipment of a CIM class with no `import` row is drawn where the layout places it as a red box, captioned in red with
+  its CIM class and connected to nothing. Before, it was left out. It is still listed under Skipped, now with a warning.
+  An automatic layout still leaves it out.
+- The shipped file lists exactly the old built-in mapping, so imports and exports are unchanged; a re-import of a test
+  archive gave identical output.
 - Startup checks both lists (unknown shapes, classes or variants, classes the export can't write for a symbol).
-- **Tests:** `TestCIMRoundTrip` and `TestImportCIMWindingVoltages` run on the shipped element library and the shipped `cim` section (`newCIMTestServer`), which must validate with no symbol left out.
+- **Tests:** `TestCIMRoundTrip` and `TestImportCIMWindingVoltages` run on the shipped element library and the shipped
+  `cim` section (`newCIMTestServer`), which must validate with no symbol left out.
 - **User guides:** the CIM import and export sections, and the configuration table (`cim.classes`, `cim.import`).
 
-2026-10-28: The CIM import now asks how to draw the model whenever the file has a diagram layout. Before, it asked only when another tool made the layout, so a file exported by this editor always came back as drawn, with no way to choose the automatic layout.
-- **Use model layout** stays the default (also Esc). For this editor's own export, the dialog says so and the round trip stays 1:1.
-- The dialog shows who exported the file, as the layout document's header states it: the authority (`urn:sld-editor` for this editor), the description and the creation time. It says when the file states none of them.
-- API: `POST /api/import/cim` answers `layout` (`own`, `foreign`, or empty when laid out automatically) and `source` (the DL document's `md:FullModel` header, else the first document's; null without one), in place of `foreignLayout`. Callers updated: `lib/api.ts`, `lib/importDiagram.ts`, `TestCIMRoundTrip`.
+2026-10-28: The CIM import now asks how to draw the model whenever the file has a diagram layout. Before, it asked only
+when another tool made the layout, so a file exported by this editor always came back as drawn, with no way to choose
+the automatic layout.
+
+- **Use model layout** stays the default (also Esc). For this editor's own export, the dialog says so and the round trip
+  stays 1:1.
+- The dialog shows who exported the file, as the layout document's header states it: the authority (`urn:sld-editor` for
+  this editor), the description and the creation time. It says when the file states none of them.
+- API: `POST /api/import/cim` answers `layout` (`own`, `foreign`, or empty when laid out automatically) and `source`
+  (the DL document's `md:FullModel` header, else the first document's; null without one), in place of `foreignLayout`.
+  Callers updated: `lib/api.ts`, `lib/importDiagram.ts`, `TestCIMRoundTrip`.
 - slddoc: `CIMHeaders`, `CIMLayoutHeader`, `CIMAuthoritySet` (test `TestCIMHeaders`).
 - **User guides:** the CIM import section.
 
-2026-10-28: Text rotation is no longer lost on `.xsde` import (sibling `slddoc`). xsde2svg turns a Modus text by its orientation (VERTDOWN 90°, REVERSED 180°, VERTUP −90°) minus its tilt angle, as `transform="rotate(a,x,y)"` about the Modus origin. Extract dropped that transform, so every label came in level.
-- A label now keeps the turn (`rotate` in the `.xsld`, clockwise degrees in (−180, 180]). It is restated about the label's own anchor, which moves to where the turn takes it.
-- Saved `.svg` and canvas markup draw the label turned. Re-rendering a test sheet of every tilt angle × orientation matched xsde2svg's own drawing.
+2026-10-28: Text rotation is no longer lost on `.xsde` import (sibling `slddoc`). xsde2svg turns a Modus text by its
+orientation (VERTDOWN 90°, REVERSED 180°, VERTUP −90°) minus its tilt angle, as `transform="rotate(a,x,y)"` about the
+Modus origin. Extract dropped that transform, so every label came in level.
+
+- A label now keeps the turn (`rotate` in the `.xsld`, clockwise degrees in (−180, 180]). It is restated about the
+  label's own anchor, which moves to where the turn takes it.
+- Saved `.svg` and canvas markup draw the label turned. Re-rendering a test sheet of every tilt angle × orientation
+  matched xsde2svg's own drawing.
 - **R** / **Shift+R** turn selected labels by 90° as well as devices. Properties has a **Rotation** field for a label.
-- The canvas measures a turned label's box with its corners turned (marquee selection, focus, highlight), and a drag moves its pivot with it.
+- The canvas measures a turned label's box with its corners turned (marquee selection, focus, highlight), and a drag
+  moves its pivot with it.
 - CIM export writes a turned label's `TextDiagramObject` rotation, and the import reads it back.
 - Diagrams imported before this keep their level labels until the `.xsde` is imported again.
 - **Test:** `TestExtract_RotatedLabel` (slddoc): extract, render and CIM round trip.
 - **User guides:** turning items, the hot-key table, `.xsde` import.
 
 2026-10-28: Two `.xsde` import faults found on a test sheet of surge arrester name positions (sibling `slddoc`).
-- Mirrored two-terminal devices came in unmirrored: the surge arrester's (29) diagonal arrow, the choke coil's (33) loops and the reactor's (37) loop were drawn on the wrong side. Mirror is now read from which side of the symbol's axis the drawing leans. Checked against xsde2svg on 105 devices of each shape, mirrored and not.
-- Names xsde2svg hangs below their point (`dominant-baseline:text-before-edge`, e.g. a name under or right of its device) lost that anchor and sat one text height too high. It now reads as the **Top** vertical anchor. **Top** is now drawn as `text-before-edge` (was `hanging`), so the saved `.svg` matches xsde2svg; labels already set to Top move by about a pixel.
-- After the fix, re-rendering the imported sheet matched xsde2svg's own drawing. Diagrams imported before need the `.xsde` imported again.
+
+- Mirrored two-terminal devices came in unmirrored: the surge arrester's (29) diagonal arrow, the choke coil's (33)
+  loops and the reactor's (37) loop were drawn on the wrong side. Mirror is now read from which side of the symbol's
+  axis the drawing leans. Checked against xsde2svg on 105 devices of each shape, mirrored and not.
+- Names xsde2svg hangs below their point (`dominant-baseline:text-before-edge`, e.g. a name under or right of its
+  device) lost that anchor and sat one text height too high. It now reads as the **Top** vertical anchor. **Top** is now
+  drawn as `text-before-edge` (was `hanging`), so the saved `.svg` matches xsde2svg; labels already set to Top move by
+  about a pixel.
+- After the fix, re-rendering the imported sheet matched xsde2svg's own drawing. Diagrams imported before need the
+  `.xsde` imported again.
 - **Test:** `TestExtract_MirroredArresterAndHangingName` (slddoc).
 
-2026-10-28: Switching-state colors (Open/Close/Intermediate/Faulty) are now part of the diagram (`<stateColors>` in the `.xsld`, sibling `slddoc`). The `state_colors` setting is their starting point: a diagram saved without colors of its own takes a copy of them (`storage.Store.write`, `slddoc.SeedStateColors`), so a later configuration change no longer recolors it. Rendering (canvas and saved `.svg`, `{fill}` and `data-fill`) uses the diagram's colors, falling back to the configuration for a state it lacks. - Properties (nothing selected) has a new **State colors** group after **Voltage classes**: a color picker per configured state, outlined in amber (with the configured color as its tooltip) when it differs from the configuration (`StateColorsSection`, `diagramOps.stateColors`/`setStateColor`; a change redraws the whole canvas). - `lib/color.ts` `hexColor` now also reads named colors, shared with the voltage colors dialog. - Fault passage indicator colors (`fpi_state_colors`) stay global. - **Test:** `TestSave_SeedsStateColorsFromLegend`. - **User guides:** new `#state-colors` section, the `#configuration` table and the yaml comment.
+2026-10-28: Switching-state colors (Open/Close/Intermediate/Faulty) are now part of the diagram (`<stateColors>` in the
+`.xsld`, sibling `slddoc`). The `state_colors` setting is their starting point: a diagram saved without colors of its
+own takes a copy of them (`storage.Store.write`, `slddoc.SeedStateColors`), so a later configuration change no longer
+recolors it. Rendering (canvas and saved `.svg`, `{fill}` and `data-fill`) uses the diagram's colors, falling back to
+the configuration for a state it lacks. - Properties (nothing selected) has a new **State colors** group after **Voltage
+classes**: a color picker per configured state, outlined in amber (with the configured color as its tooltip) when it
+differs from the configuration (`StateColorsSection`, `diagramOps.stateColors`/`setStateColor`; a change redraws the
+whole canvas). - `lib/color.ts` `hexColor` now also reads named colors, shared with the voltage colors dialog. - Fault
+passage indicator colors (`fpi_state_colors`) stay global. - **Test:** `TestSave_SeedsStateColorsFromLegend`. - **User
+guides:** new `#state-colors` section, the `#configuration` table and the yaml comment.
 
-2026-10-29: New element **LED** (320007, sibling `slddoc` `ClassLED`), in the **Indicators** palette group after Lamp on pole. It has no terminals and no state, and is drawn in its voltage class color, like other equipment. It is drawn from its `base.xml` template: a diode in a circle with two identical, parallel 45° light arrows, and leads ending at ±10 so they end on the default grid. Properties: **Voltage**, **Orientation**, **Mirror** and **Size** (the xsde2svg size step, `scale`). - Extract (`parseLED`): the anchor is the circle's centre and the orientation comes from `rotate()`. The voltage color is `data-voltage`, or the circle's stroke in xsde2svg markup, which has no `data-voltage`. This editor's own `.svg` carries mirror and scale in the transform; for xsde2svg markup, the size step is read from the circle's radius and mirror from the side the diode and its arrows lean. Checked on a corpus sheet: all 28 LEDs were read. - Not exported to CIM. - **Test:** `TestExtract_LED` (slddoc).
+2026-10-29: New element **LED** (320007, sibling `slddoc` `ClassLED`), in the **Indicators** palette group after Lamp on
+pole. It has no terminals and no state, and is drawn in its voltage class color, like other equipment. It is drawn from
+its `base.xml` template: a diode in a circle with two identical, parallel 45° light arrows, and leads ending at ±10 so
+they end on the default grid. Properties: **Voltage**, **Orientation**, **Mirror** and **Size** (the xsde2svg size step,
+`scale`). - Extract (`parseLED`): the anchor is the circle's centre and the orientation comes from `rotate()`. The
+voltage color is `data-voltage`, or the circle's stroke in xsde2svg markup, which has no `data-voltage`. This editor's
+own `.svg` carries mirror and scale in the transform; for xsde2svg markup, the size step is read from the circle's
+radius and mirror from the side the diode and its arrows lean. Checked on a corpus sheet: all 28 LEDs were read. - Not
+exported to CIM. - **Test:** `TestExtract_LED` (slddoc).
 
-2026-10-30: Pictures in the user guide and Print / Save as PDF, as in rdss-dms. Pictures live in `backend/assets/images/` (next to the `user_guide` file; shipped by `make package` and uploaded by `scripts/deploy.sh`) and are written `![alt](images/x.png "Caption")`, so the Markdown previews in an editor too. A goldmark AST transformer (`guideImageLinks`) points relative ones at the new `GET /api/user-guide/images/:name`, which serves only a plain file name with a png/jpg/gif/webp/svg extension (else 404), with SVGs sandboxed by CSP. Pictures can differ per language, named like the guides: a translated guide (`USER_GUIDE.ru.md`) links its pictures with `?lang=ru`, and the endpoint serves `x.ru.png` in place of `x.png` when it exists, otherwise the shared picture; the English guide, and a build falling back to it, gets the shared one. First picture: the Settings panel in `#settings` (`EditorSettings.png`, `EditorSettings.ru.png`). So that a screenshot of the dark editor doesn't merge into the dark guide, `GuideWindow` shows each picture as a numbered figure (`lib/guideHtml.ts` `withFigures`; the caption is the image title, else its alt text): a card with a lighter slate mat, a border and a shadow; click opens it full size. The guide window's text pane now has its own lighter reading background and the contents column a darker one, set apart from the editor's panels; table and heading rules are one step lighter to match. A printer button in the window's header (`printGuide`) prints the guide from a hidden iframe as a light A4 page with a table of contents whose links work inside the PDF. The browser's "Save as PDF" gives the file, Cyrillic and pictures included, with no server-side rendering. - **Test:** `TestUserGuideImages`. - **User guides:** new `#user-guide` section, the `user_guide` row of `#configuration` and the yaml comment.
+2026-10-30: Pictures in the user guide and Print / Save as PDF, as in rdss-dms. Pictures live in
+`backend/assets/images/` (next to the `user_guide` file; shipped by `make package` and uploaded by `scripts/deploy.sh`)
+and are written `![alt](images/x.png "Caption")`, so the Markdown previews in an editor too. A goldmark AST transformer
+(`guideImageLinks`) points relative ones at the new `GET /api/user-guide/images/:name`, which serves only a plain file
+name with a png/jpg/gif/webp/svg extension (else 404), with SVGs sandboxed by CSP. Pictures can differ per language,
+named like the guides: a translated guide (`USER_GUIDE.ru.md`) links its pictures with `?lang=ru`, and the endpoint
+serves `x.ru.png` in place of `x.png` when it exists, otherwise the shared picture; the English guide, and a build
+falling back to it, gets the shared one. First picture: the Settings panel in `#settings` (`EditorSettings.png`,
+`EditorSettings.ru.png`). So that a screenshot of the dark editor doesn't merge into the dark guide, `GuideWindow` shows
+each picture as a numbered figure (`lib/guideHtml.ts` `withFigures`; the caption is the image title, else its alt text):
+a card with a lighter slate mat, a border and a shadow; click opens it full size. The guide window's text pane now has
+its own lighter reading background and the contents column a darker one, set apart from the editor's panels; table and
+heading rules are one step lighter to match. A printer button in the window's header (`printGuide`) prints the guide
+from a hidden iframe as a light A4 page with a table of contents whose links work inside the PDF. The browser's "Save as
+PDF" gives the file, Cyrillic and pictures included, with no server-side rendering. - **Test:** `TestUserGuideImages`. -
+**User guides:** new `#user-guide` section, the `user_guide` row of `#configuration` and the yaml comment.
 
-2026-10-30: Fault passage indicators and power flow direction indicators show their live state in rdss-dms (sibling `slddoc`). The saved `.svg` used to fix both at save time. The fault passage indicator template (`base.xml`, 320003) now writes the `fpi_state_colors` legend on its ring (`{fpiStrokeAttr}`, `data-stroke-style`) and its text (`{fpiFillAttr}`, `data-fill`), so rdss-dms recolors it from a status point. The power flow indicator (320001) writes `data-text="0:→,1:←"`, so rdss-dms turns the arrow. The canvas and the saved drawing are unchanged. Diagrams saved before need saving again. - **Test:** `TestRender_IndicatorLiveStateLegends` (slddoc). - **User guides:** `#state-colors`.
+2026-10-30: Fault passage indicators and power flow direction indicators show their live state in rdss-dms (sibling
+`slddoc`). The saved `.svg` used to fix both at save time. The fault passage indicator template (`base.xml`, 320003) now
+writes the `fpi_state_colors` legend on its ring (`{fpiStrokeAttr}`, `data-stroke-style`) and its text (`{fpiFillAttr}`,
+`data-fill`), so rdss-dms recolors it from a status point. The power flow indicator (320001) writes
+`data-text="0:→,1:←"`, so rdss-dms turns the arrow. The canvas and the saved drawing are unchanged. Diagrams saved
+before need saving again. - **Test:** `TestRender_IndicatorLiveStateLegends` (slddoc). - **User guides:**
+`#state-colors`.
 
-2026-10-30: New Settings option **Wire jumps at same-voltage crossings**, saved with the diagram as `<editor jumpSameVoltage="true|false">` (sibling `slddoc` `EditorSettings.JumpSameVoltage`, a `*bool`: absent means the configured default, so an explicit off is kept). Its default is the new `editor.jump_same_voltage` setting (`false`), served by `GET /api/config` as `editor.jumpSameVoltage` (callers updated: `types/index.ts` `EditorDefaults`, `TestGetConfig`). A new diagram gets a copy of it (`createDiagram`, checked in `TestDiagramLifecycle`), so a later configuration change doesn't affect it; an older or imported diagram without its own value follows the configuration. When on, a buswork wire also gets a wire jump (shape 14) where it crosses another buswork wire of the same voltage class without a connection; busbars, overhead and cable lines and links to object of the same voltage stay plain crossings. Like the other jumps it follows the resulting state of an edit, not the drawing method (`diagramOps.addCrossingJumps`, `jumpChangedCrossings`), but only for buswork drawn or changed from then on: switching the option on or off doesn't change anything already on the diagram. The CIM import is unchanged, since a new diagram starts with the option off. - **Test:** `TestEditorSettings_JumpSameVoltageRoundTrip` (slddoc). - **User guides:** `#settings` and `#wiring`.
+2026-10-30: New Settings option **Wire jumps at same-voltage crossings**, saved with the diagram as
+`<editor jumpSameVoltage="true|false">` (sibling `slddoc` `EditorSettings.JumpSameVoltage`, a `*bool`: absent means the
+configured default, so an explicit off is kept). Its default is the new `editor.jump_same_voltage` setting (`false`),
+served by `GET /api/config` as `editor.jumpSameVoltage` (callers updated: `types/index.ts` `EditorDefaults`,
+`TestGetConfig`). A new diagram gets a copy of it (`createDiagram`, checked in `TestDiagramLifecycle`), so a later
+configuration change doesn't affect it; an older or imported diagram without its own value follows the configuration.
+When on, a buswork wire also gets a wire jump (shape 14) where it crosses another buswork wire of the same voltage class
+without a connection; busbars, overhead and cable lines and links to object of the same voltage stay plain crossings.
+Like the other jumps it follows the resulting state of an edit, not the drawing method (`diagramOps.addCrossingJumps`,
+`jumpChangedCrossings`), but only for buswork drawn or changed from then on: switching the option on or off doesn't
+change anything already on the diagram. The CIM import is unchanged, since a new diagram starts with the option off. -
+**Test:** `TestEditorSettings_JumpSameVoltageRoundTrip` (slddoc). - **User guides:** `#settings` and `#wiring`.
