@@ -1,5 +1,10 @@
 # Release notes
 
+2026-11-10: An `.xsde`/`.svg` import no longer drops short-circuiters (398) drawn at orientation 0. xsde2svg writes
+no `rotate()` for them, and the sibling `slddoc` `Extract` failed on each one, leaving a red "Missing: Short-circuiter
+(398)" label in its place. The anchor now comes from the shape's own geometry. Checked on a test `.xsde` with 43
+short-circuiters: 9 were missing before, none now. - **Test:** `TestParseShortCircuiter_Unrotated` (slddoc).
+
 2026-10-30: Text labels (element 5) get **Italic** and **Underline** next to **Bold** in Properties, as one **Font
 style** row of three icon toggle buttons (lucide `Bold`/`Italic`/`Underline`, lit when on, with tooltips) in place of
 the Bold checkbox, saved as `<label italic="true" underline="true">` (sibling `slddoc` `Label.Italic`/`Underline`) and
