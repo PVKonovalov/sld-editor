@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/PVKonovalov/slddoc"
+
+	"sld-editor/internal/config"
 )
 
 // prepareDiagram repairs d in place: ids backfilled and made unique (slddoc.EnsureIDs), voltage classes still named
@@ -27,6 +29,10 @@ func (s *Server) prepareDiagram(d *slddoc.Diagram, extracted bool) bool {
 	changed = s.applyPresetVoltageNames(d) || changed
 	if extracted {
 		changed = slddoc.InferSizeSteps(d, terminals) || changed
+		halos := LineHaloTable(s.cfg.LineHalos)
+		for i := range d.Elements {
+			slddoc.DropDefaultHaloColors(&d.Elements[i], halos)
+		}
 	}
 	return slddoc.Repair(d, terminals) || changed
 }
@@ -64,4 +70,13 @@ func (s *Server) applyPresetVoltageNames(d *slddoc.Diagram) bool {
 		}
 	}
 	return changed
+}
+
+// LineHaloTable converts the line_halos configuration into the table slddoc draws halos from.
+func LineHaloTable(halos []config.LineHalo) slddoc.LineHalos {
+	table := make(slddoc.LineHalos, len(halos))
+	for _, h := range halos {
+		table[h.Style] = slddoc.LineHalo{Color: h.Color, Gap: h.Gap}
+	}
+	return table
 }

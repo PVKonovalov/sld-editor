@@ -2,7 +2,10 @@
 // struct, loaded through the generic reader in pkg/configuration.
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // Config is sld-editor's top-level configuration, read from a YAML file
 // (see config/sld-editor.yaml) with per-field environment-variable
@@ -99,6 +102,10 @@ type Config struct {
 	// and turns red on Close (a fault passed through it).
 	FPIStateColors []StateColor `yaml:"fpi_state_colors"`
 
+	// LineHalos are the Modus composite styles a Line can carry that are drawn as a coloured halo under it, with
+	// their default colours (a line can override a colour in Properties).
+	LineHalos []LineHalo `yaml:"line_halos"`
+
 	// PositionStates is the install-wide Service/Normal/Test legend a
 	// withdrawable device's own racking position (Element.Position, its own
 	// data-trolley attribute — see slddoc.Render) is labeled from.
@@ -187,6 +194,32 @@ type VoltageColor struct {
 // what the Properties panel's State dropdown shows for it, and Color is
 // what slddoc.Render fills a switching device's body with when
 // State matches.
+// LineHalo is one line_halos entry: Style is the Modus composite style name, Color the halo colour, and Gap adds a
+// background-coloured stripe inside the halo.
+type LineHalo struct {
+	Style string `yaml:"style" json:"style"`
+	Color string `yaml:"color" json:"color"`
+	Gap   bool   `yaml:"gap" json:"gap,omitempty"`
+}
+
+// ValidateLineHalos checks that every line_halos entry has a style and a colour, and that styles are unique and hold
+// no "," or ":" (the separators of a line's styles and halo colours).
+func (c *Config) ValidateLineHalos() error {
+	seen := map[string]bool{}
+	for i, h := range c.LineHalos {
+		switch {
+		case h.Style == "" || h.Color == "":
+			return fmt.Errorf("line_halos[%d]: style and color are required", i)
+		case strings.ContainsAny(h.Style, ",:"):
+			return fmt.Errorf("line_halos[%d]: style %q must not contain \",\" or \":\"", i, h.Style)
+		case seen[h.Style]:
+			return fmt.Errorf("line_halos[%d]: style %q is listed twice", i, h.Style)
+		}
+		seen[h.Style] = true
+	}
+	return nil
+}
+
 type StateColor struct {
 	State int    `yaml:"state" json:"state"`
 	Label string `yaml:"label" json:"label"`

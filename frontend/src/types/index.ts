@@ -286,6 +286,10 @@ export interface DiagramElement {
   // Go doc comment). Unused by PostPole (292) — its own border is always
   // 1, matching the real source's own hardcoded value.
   strokeWidth?: number
+  // Line (shape 1) only: Modus composite style names, comma-separated (slddoc Element.Styles).
+  styles?: string
+  // Line only: halo colors changed from the default, "name:color,…" (slddoc Element.HaloColors).
+  haloColors?: string
   // Arrow (shape 2) only — draws its own open chevron arrowhead at both
   // points instead of just the second one, matching backend/internal/
   // slddoc's own Element.DoubleHeaded.
@@ -763,6 +767,13 @@ export interface PaletteGroup {
   items: PaletteItem[]
 }
 
+// One line_halos entry: a Modus composite style, its default halo colour, and gap (a background stripe inside).
+export interface LineHaloConfig {
+  style: string
+  color: string
+  gap?: boolean
+}
+
 export interface EditorConfig {
   editor: EditorDefaults
   voltageColors: VoltageColor[]
@@ -773,6 +784,9 @@ export interface EditorConfig {
   stateColors: StateColor[]
   positionStates: PositionState[]
   fpiStateColors: StateColor[]
+  // Line composite styles drawn as a halo, with default colours (backend config line_halos). Optional for an older
+  // server.
+  lineHalos?: LineHaloConfig[]
   // The install-wide default overlay text a FaultPassageIndicator (320003)
   // with no own propertyText draws — see backend/internal/config's own
   // Indicators.DefaultFPIText doc comment for why this is admin-configured

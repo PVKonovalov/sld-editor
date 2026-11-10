@@ -1,4 +1,4 @@
-import { Bold, Captions, Italic, Trash2, Underline } from 'lucide-react'
+import { Bold, Captions, Italic, RotateCcw, Trash2, Underline, X } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { FindSection } from './FindSection'
@@ -21,6 +21,7 @@ import { elementDiagramBox } from '../../lib/elementBox'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
 import { SWITCHING_DEVICE_CLASSES } from '../../lib/switchingDevices'
+import { haloDefaults, lineStyleNames, parseHaloColors, withHaloColor, withLineStyle } from '../../lib/lineStyles'
 import { CONNECTOR_KIND_CODES, LABEL_SHAPE, DIGITAL_DEVICE_SHAPE } from '../../lib/paletteItem'
 import type { DiagramElement, ConnectorKind, ConnectorLineStyle, TransformerWinding, WindingScheme, TerminalDirection } from '../../types'
 
@@ -1906,6 +1907,73 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 ))}
               </select>
             </label>
+            <div className="block text-xs">
+              <span className="block text-gray-400 mb-1" title={t('properties.lineCompositeStylesHint')}>
+                {t('properties.lineCompositeStyles')}
+              </span>
+              <div className="space-y-1">
+                {lineStyleNames(el.styles).map(name => {
+                  const defaultColor = haloDefaults(config?.lineHalos).get(name)
+                  const color = parseHaloColors(el.haloColors).get(name)
+                  return (
+                    <div key={name} className="flex items-center gap-2">
+                      <span className="flex-1 min-w-0 truncate text-gray-300" title={name}>{name}</span>
+                      {defaultColor ? (
+                        <>
+                          <input
+                            type="color"
+                            className="w-10 h-6 bg-surface-800 border border-surface-600 rounded px-0.5"
+                            title={t('properties.lineHaloColor')}
+                            value={swatchColor(color, defaultColor)}
+                            onChange={e => patch({ haloColors: withHaloColor(el.haloColors, name, e.target.value, defaultColor) })}
+                          />
+                          <button
+                            type="button"
+                            className="p-1 rounded text-gray-400 hover:text-gray-200 hover:bg-surface-700 disabled:opacity-30 disabled:hover:bg-transparent"
+                            title={t('properties.lineHaloColorReset')}
+                            disabled={!color}
+                            onClick={() => patch({ haloColors: withHaloColor(el.haloColors, name, undefined, defaultColor) })}
+                          >
+                            <RotateCcw size={14} />
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-gray-500">{t('properties.lineStyleNotDrawn')}</span>
+                      )}
+                      <button
+                        type="button"
+                        className="p-1 rounded text-gray-400 hover:text-gray-200 hover:bg-surface-700"
+                        title={t('properties.lineStyleRemove')}
+                        onClick={() =>
+                          patch({
+                            styles: withLineStyle(el.styles, name, false),
+                            haloColors: withHaloColor(el.haloColors, name, undefined, defaultColor),
+                          })
+                        }
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )
+                })}
+                {(config?.lineHalos ?? []).some(h => !lineStyleNames(el.styles).includes(h.style)) && (
+                  <select
+                    className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                    value=""
+                    onChange={e => e.target.value && patch({ styles: withLineStyle(el.styles, e.target.value, true) })}
+                  >
+                    <option value="">{t('properties.lineStyleAdd')}</option>
+                    {(config?.lineHalos ?? [])
+                      .filter(h => !lineStyleNames(el.styles).includes(h.style))
+                      .map(h => (
+                        <option key={h.style} value={h.style}>
+                          {h.style}
+                        </option>
+                      ))}
+                  </select>
+                )}
+              </div>
+            </div>
           </>
         )}
 

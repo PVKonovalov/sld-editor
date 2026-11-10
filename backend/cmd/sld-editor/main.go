@@ -62,6 +62,9 @@ func main() {
 	if err := cfg.ValidateVoltageOrder(); err != nil {
 		llog.Logger.Fatalf("validating editor configuration: %v", err)
 	}
+	if err := cfg.ValidateLineHalos(); err != nil {
+		llog.Logger.Fatalf("validating line_halos configuration: %v", err)
+	}
 	hotKeys, err := elements.ValidateHotKeys(cfg.HotKeys, cfg.Palette)
 	if err != nil {
 		llog.Logger.Fatalf("validating hot_keys configuration: %v", err)
@@ -86,12 +89,15 @@ func main() {
 		fpiColors[i] = slddoc.StateColor{State: sc.State, Label: sc.Label, Color: sc.Color}
 	}
 
-	store, err := storage.New(cfg.Diagrams.Dir, lib.SymbolLibrary(), cfg.Indicators.DefaultFPIText, fpiColors, stateColors...)
+	symbols := lib.SymbolLibrary()
+	symbols.SetLineHalos(api.LineHaloTable(cfg.LineHalos))
+
+	store, err := storage.New(cfg.Diagrams.Dir, symbols, cfg.Indicators.DefaultFPIText, fpiColors, stateColors...)
 	if err != nil {
 		llog.Logger.Fatalf("opening diagrams directory (%s): %v", cfg.Diagrams.Dir, err)
 	}
 
-	custom, err := storage.New(cfg.CustomElements.Dir, lib.SymbolLibrary(), cfg.Indicators.DefaultFPIText, fpiColors, stateColors...)
+	custom, err := storage.New(cfg.CustomElements.Dir, symbols, cfg.Indicators.DefaultFPIText, fpiColors, stateColors...)
 	if err != nil {
 		llog.Logger.Fatalf("opening custom elements directory (%s): %v", cfg.CustomElements.Dir, err)
 	}

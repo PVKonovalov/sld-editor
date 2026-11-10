@@ -47,6 +47,7 @@ func (s *Server) getConfig(c *gin.Context) {
 		"stateColors":           s.cfg.StateColors,
 		"positionStates":        s.cfg.PositionStates,
 		"fpiStateColors":        s.cfg.FPIStateColors,
+		"lineHalos":             s.cfg.LineHalos,
 		"defaultFpiText":        s.cfg.Indicators.DefaultFPIText,
 		"palette":               s.cfg.Palette,
 		"hotKeys":               s.cfg.HotKeys,

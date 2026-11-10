@@ -144,6 +144,26 @@ fpi_state_colors:
     label: "Faulty"
     color: "magenta"
 
+# Modus composite styles of a Line (type 1) drawn as a coloured halo under it,
+# with their default colours; Properties > Composite styles can change the
+# colour of one line. A style not listed is kept on the line but not drawn.
+# gap: true adds a background-coloured stripe inside the halo. The six below
+# are the ones xsde2svg draws, in its colours.
+line_halos:
+  - style: "BadQuality"
+    color: "#f7d047"
+  - style: "linked"
+    color: "#4aa42e"
+  - style: "not_linked"
+    color: "#ec5d56"
+  - style: "NotNormal"
+    color: "#f6c560"
+  - style: "Выделение"
+    color: "#51b3b5"
+  - style: "Перегрузка"
+    color: "#0009f5"
+    gap: true
+
 # Global Service/Normal/Test legend a withdrawable device's own racking
 # position is labeled from (slddoc.Render's data-trolley attribute)
 # and the Properties panel's Position status dropdown offers — only Breaker/

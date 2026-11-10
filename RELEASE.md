@@ -1,5 +1,42 @@
 # Release notes
 
+2026-11-10: User guides: new section **Line halos (line_halos)** (`#configuration-line-halos`) in Configuration, with
+each key (`style`, `color`, `gap`), the halo widths and drawing order, the shipped value, what adding, removing or
+recolouring a style does, what a line stores (`haloColors`), the startup errors and that it is read only at startup.
+The `sld-editor.yaml` table row and the Properties Lines entry link to it.
+
+2026-11-10: Line halo colours are configured in `sld-editor.yaml` → `line_halos` (`style`, `color`, `gap`), shipped
+with the six styles xsde2svg draws, in its colours; any other Modus style can be added. The list is checked at startup
+(`Config.ValidateLineHalos`: style and colour required, no duplicates, no `,`/`:` in a style), passed to slddoc's
+renderer (`SymbolLibrary.SetLineHalos`, `api.LineHaloTable`) and returned by `/api/config` as `lineHalos`; Properties'
+**Add style…** and the halo swatches' defaults come from it, replacing the frontend's hardcoded table. On `.xsde`/`.svg`
+import a line's halo colours equal to the configured defaults are not stored (`prepareDiagram`). Blinking of the alarm
+and unacknowledged styles is removed (it did not work); those styles are kept but not drawn, and sibling xsde2svg no
+longer draws them either. - **Tests:** `TestValidateLineHalos`, `TestShippedLineHalos`. - **User guides:** the
+Properties list (Lines) and `#configuration` (`line_halos`).
+
+2026-11-10: Composite styles can be given to any line, including one drawn in the editor. Properties → **Composite
+styles** is shown for every line: **Add style…** lists the eight styles the editor draws (six halos, two blinking) that
+the line doesn't have yet, and **×** removes a style together with its changed halo colour (`lib/lineStyles.ts`
+`LINE_DRAWN_STYLES`, `withLineStyle`). - **User guides:** the Properties list (Lines).
+
+2026-11-10: A line's halo colours can be changed per line. In Properties → **Composite styles** each halo style has a
+colour swatch and a reset button; blinking and undrawn styles are marked as such. Changed colours are saved as
+`<element haloColors="BadQuality:#ff0000">` (sibling `slddoc` `Element.HaloColors`), drawn on the canvas and in the
+saved `.svg`, and read back from it. A colour equal to the default is not stored (`lib/lineStyles.ts`, a mirror of
+slddoc's halo table). - **Test:** `TestRender_LineStyles` (slddoc). - **User guides:** the Properties list (Lines).
+
+2026-11-10: Lines (type 1) keep their Modus composite styles on `.xsde`/`.svg` import, saved as `<element
+styles="...">` (sibling `slddoc` `Element.Styles`). Six styles that xsde2svg draws as a colored halo under the line
+(`BadQuality`, `linked`, `not_linked`, `NotNormal`, selection, overload) were dropped on import and are now drawn again,
+on the canvas and in the saved `.svg`. The alarm and unacknowledged styles now make the line blink in the saved `.svg`
+(red/black and yellow/green, an SVG `<animate>`); on the canvas the line shows the first color without blinking. The
+other styles are kept but not drawn yet. Properties shows a line's **Composite styles** read-only. A styled line is one
+`<g>` on the canvas, and dragging it moves all its polylines (`Canvas.dragElementsInDom`). Sibling xsde2svg 1.4.24 writes
+`data-styles` on a line and draws the two blinking styles. Checked on a test `.xsde` with 37 styled lines: all keep
+their styles, and the saved `.svg` has the halos and both blinking lines. - **Tests:** `TestExtract_LineStyles`,
+`TestRender_LineStyles` (slddoc). - **User guides:** the Properties list (Lines).
+
 2026-11-10: An `.xsde`/`.svg` import no longer drops short-circuiters (398) drawn at orientation 0. xsde2svg writes
 no `rotate()` for them, and the sibling `slddoc` `Extract` failed on each one, leaving a red "Missing: Short-circuiter
 (398)" label in its place. The anchor now comes from the shape's own geometry. Checked on a test `.xsde` with 43

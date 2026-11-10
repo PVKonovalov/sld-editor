@@ -888,6 +888,11 @@ Select a single item to edit it in the Properties panel:
 - **Text labels**: text, size, anchors, **Font style** (bold, italic and underline buttons, lit when on), colour, font,
   and the element it belongs to.
   An `.xsde`/`.svg` import keeps a caption's bold, italic and underline.
+- **Lines** (decorative line, type 1): colour, width, line style and Modus **Composite styles**. **Add style…** gives a
+  line a style, **×** removes one. The styles listed in the configuration's [`line_halos`](#configuration-line-halos) are drawn as a coloured halo
+  under the line, as xsde2svg draws them; each has a colour swatch to change its halo colour on this line, and a reset
+  button back to the configured colour. A line imported from `.xsde`/`.svg` keeps all its styles; those not in
+  `line_halos` are marked "not drawn" and only kept.
 - **Digital devices**: SCADA name, default value and unit.
 
 The voltage class list includes the server's standard voltages; choosing one that the diagram doesn't have yet adds
@@ -988,8 +993,8 @@ location / {
 ### sld-editor.yaml {#configuration-editor}
 
 The editor's own settings, read once at startup: restart the editor, then reload the page, after changing them. The
-exceptions are `user_guide` and the two `xsde` files, which are read again on every use. A mistake in `palette` or
-`hot_keys` or `cim` stops the editor at startup with a message naming it.
+exceptions are `user_guide` and the two `xsde` files, which are read again on every use. A mistake in `palette`,
+`hot_keys`, `cim` or `line_halos` stops the editor at startup with a message naming it.
 
 | Key | What it sets |
 |---|---|
@@ -1007,6 +1012,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `voltage_colors` | Standard voltage classes (`name`, `color`) offered for new classes and by **Match preset colors…**. A CIM import can add to it ([Voltage classes of a CIM import](#cim-voltage-colors)). |
 | `voltage_color_tolerance` | How close (RGB distance, 0–441) a color must be to a standard one to be offered for replacement; 0 = exact only. |
 | `state_colors`, `fpi_state_colors` | Open / Close / Intermediate (and, for switching devices, Faulty) fill colors of switching devices and fault passage indicators. `state_colors` is only the starting colors of a diagram: see [State colors](#state-colors). |
+| `line_halos` | Composite styles of a line drawn as a coloured halo under it, with their default colours: see [Line halos](#configuration-line-halos). |
 | `position_states` | Labels of a withdrawable device's racking positions (Service / Normal / Test). |
 | `indicators.default_fpi_text` | Text a fault passage indicator shows when it has none of its own. |
 | `palette` | The Elements panel: groups (`name`, in display order) and their `items`, each an xsde2svg object type code. |
@@ -1017,6 +1023,55 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 Most single values can also be set by an environment variable named after the key path in capitals, e.g.
 `SERVER_BIND`, `DIAGRAMS_DIR`, `XSDE_CONFIG`, `XSDE_WORKPLACE`, `EDITOR_GRID_SPACING` (lists comma-separated, e.g.
 `ELEMENTS_LIBRARIES`). An environment variable wins over the file.
+
+### Line halos (line_halos) {#configuration-line-halos}
+
+A Modus `.xsde` line (type 1) can carry composite styles, e.g. `styles="[BadQuality,Перегрузка]"`. xsde2svg draws some
+of them as a coloured halo: a wider line in the style's colour under the line itself. `line_halos` lists the styles the
+editor draws this way and their default colours. A line gets its styles from an `.xsde`/`.svg` import or from
+Properties → **Composite styles** (see [Properties](#properties)).
+
+Each entry has these keys:
+
+| Key | Required | What it sets |
+|---|---|---|
+| `style` | yes | The composite style name exactly as Modus writes it (case matters), e.g. `BadQuality`, `Перегрузка`. Must not contain `,` or `:`, and each style may be listed once. |
+| `color` | yes | The halo's default colour: any SVG colour, e.g. `"#f7d047"` or `orange`. A line can change it for itself in Properties; the reset button there returns to this colour. |
+| `gap` | no | `true` draws a stripe of the diagram's background colour inside the halo, so the halo looks like two thin lines along the line. Default `false`. |
+
+The halo is 6 wider than the line (a line of width 1 gets a halo of width 7); the `gap` stripe is 2 wider than the line.
+When a line has several halo styles, they are drawn in the order of the line's styles, the later one on top.
+
+Shipped value (the six styles xsde2svg draws, in its colours):
+
+```yaml
+line_halos:
+  - style: "BadQuality"
+    color: "#f7d047"
+  - style: "linked"
+    color: "#4aa42e"
+  - style: "not_linked"
+    color: "#ec5d56"
+  - style: "NotNormal"
+    color: "#f6c560"
+  - style: "Выделение"
+    color: "#51b3b5"
+  - style: "Перегрузка"
+    color: "#0009f5"
+    gap: true
+```
+
+- **Adding a style.** Any other Modus style can be listed, e.g. `- style: "В_ремонте"` with `color: "gray"`. Lines
+  that already have it are drawn with the halo from then on, and **Add style…** offers it.
+- **Removing a style.** Lines keep the style but show it as "not drawn", and **Add style…** no longer offers it.
+- **Changing a colour.** Lines that haven't changed that colour themselves take the new one. Note that xsde2svg keeps
+  drawing its own colours, so a saved `.svg` then differs from what xsde2svg draws for that style.
+- **Saved data.** A line stores only its own colour changes, as `haloColors="BadQuality:#ff0000"` in the `.xsld`. On
+  `.xsde`/`.svg` import a halo colour equal to the configured one is not stored.
+- **Errors.** An entry without `style` or `color`, a style listed twice, or a style containing `,` or `:` stops the
+  editor at startup with a message naming the entry. An empty or missing `line_halos` draws no halos.
+- `line_halos` is read at startup only (restart the editor, then reload the page) and can't be set by an environment
+  variable.
 
 ### xsde2svg.yml {#configuration-xsde}
 

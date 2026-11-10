@@ -2222,7 +2222,10 @@ export function Canvas() {
       const node = root.querySelector(`[data-editor-kind="element"][id="${id}"]`)
       if (!el || !node) continue
       if ((el.class === 'BusBarSection' || el.class === 'Road' || el.class === 'Line' || el.class === 'Polygon') && el.points) {
-        node.setAttribute('points', el.points.map(p => `${p.x + dx},${p.y + dy}`).join(' '))
+        const points = el.points.map(p => `${p.x + dx},${p.y + dy}`).join(' ')
+        // A Line with halos is a <g> of polylines (halos and the line).
+        const lines = node.tagName === 'g' ? [...node.querySelectorAll('polyline')] : [node]
+        for (const n of lines) n.setAttribute('points', points)
       } else if ((el.class === 'Container' || el.class === 'Picture') && el.points) {
         // A <g> of absolute-coordinate children (outline path and
         // caption) with no transform of its own, so the group is shifted
