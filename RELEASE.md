@@ -1,5 +1,14 @@
 # Release notes
 
+2026-11-11: CIM import takes voltage classes from the model even when its BaseVoltage objects are missing (CGMES
+keeps them in a boundary set that often isn't sent along). Before, every device whose BaseVoltage could not be found
+fell back to the voltage class chosen in the import dialog. Now each referenced BaseVoltage without a nominal voltage
+takes the most common rated voltage (`PowerTransformerEnd.ratedU`) of the transformer windings on it, else the median
+measured voltage (`SvVoltage.v`) of its topological nodes, rounded to a class already found within 15% or to the
+nearest IEC 60038 voltage; each inferred value is noted in the import log. Checked on a test CGMES model with 10
+missing base voltages: all 10 were inferred, and no device fell back to the dialog's class. The user guides
+describe the rule. - **Test:** `TestCIMInferredVoltage` (slddoc).
+
 2026-11-10: User guides: new section **Line halos (line_halos)** (`#configuration-line-halos`) in Configuration, with
 each key (`style`, `color`, `gap`), the halo widths and drawing order, the shipped value, what adding, removing or
 recolouring a style does, what a line stores (`haloColors`), the startup errors and that it is read only at startup.

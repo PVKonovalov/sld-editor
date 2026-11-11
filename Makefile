@@ -192,3 +192,4 @@ clean:
 	mkdir -p $(WEBUI_DIST)
 	touch $(WEBUI_DIST)/.gitkeep
 	git -C $(BACKEND_DIR)/internal/webui checkout -- dist/index.html 2>/dev/null || true
+
