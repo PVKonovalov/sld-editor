@@ -1,5 +1,22 @@
 # Release notes
 
+2026-11-17: SCADA bindings, step 9: bindings overview. A new left-rail button (only when bindings are on) opens a
+resizable table docked under the canvas (`components/BindingsOverview.tsx`), which stays open together with Objects
+and Properties. It lists every element expected to be bound and every digital device: id, name, type and the bound
+object's name per binding kind.
+- Drawing shapes and connection helpers are not expected to be bound (`lib/bindingOverview.ts`), and are listed only
+  when they carry a binding.
+- Sortable columns, a text filter, and "Unbound only" by gap: no binding at all, or none of one kind.
+- A click selects the item and centres the canvas on it; Ctrl/Cmd-click toggles it in the selection.
+- "Highlight unbound" draws dashed amber frames around the visible items with the gap in the canvas overlay (not in
+  the server markup).
+- "Remove … from selected" drops the ticked kinds from all selected items in one undo step
+  (`diagramOps.removeBindingKinds`).
+- CSV export of the rows as shown (UTF-8 with a byte-order mark).
+
+Frontend only, no API change. User guides: new **Bindings overview** (`#bindings-overview`); **The window** mentions
+the dock.
+
 2026-11-17: SCADA bindings, step 8: automatic binding. The **Bind object** window opened by dropping an object on an
 element or digital device has a new **Auto** choice, chosen when the system proposes anything. It lists every binding
 proposed for the object, each with a checkbox, and **Bind** writes the ticked ones in one undo step, each replacing

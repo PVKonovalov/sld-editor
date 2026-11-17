@@ -10,9 +10,12 @@ New to the editor? Start with [How to: draw a diagram step by step](#how-to).
 ## The window {#window}
 
 - **Left rail**: buttons for the **File**, **Elements**, **Objects** (only when [bindings](#configuration-bindings)
-  are on) and **Settings** panels (they share the left side; one is open at a time), the **Properties** toggle, and **Help** (this guide) and **About** at the bottom.
+  are on) and **Settings** panels (they share the left side; one is open at a time), the **Properties** toggle, the
+  [Bindings overview](#bindings-overview) toggle (only when bindings are on), and **Help** (this guide) and **About**
+  at the bottom.
 - **Canvas**: the diagram itself, with zoom buttons in the bottom-right corner.
 - **Properties** panel: docked on the right. It can stay open together with the Elements panel.
+- **Bindings overview**: docked under the canvas; it can stay open together with the panels on both sides.
 
 The browser tab shows the open diagram's name, with `*` when it has unsaved changes. The editor guards them against
 being lost: see [Unsaved changes](#unsaved).
@@ -1048,6 +1051,29 @@ never removes a binding.
 Copy, paste and Alt-drag keep bindings, precision and features: several pictures may show one object. A
 [custom element](#custom-elements) never has them: saving a selection as a custom element and placing one from the
 palette drop them.
+
+#### Bindings overview {#bindings-overview}
+
+The **Bindings overview** button on the left rail opens a table under the canvas. Drag its top edge to change its
+height. It lists every element that is expected to be bound and every digital device, with the id, the name, the type
+and, per binding kind, the name of the bound object (`—` when there is none). Drawing shapes and connection helpers
+(lines, rectangles, circles, arcs, polygons, arrows, containers, pictures, roads, junction and connection points,
+forks, wire jumps, cable connectors and joints, ground terminals, chassis) are not expected to be bound. They are
+listed only when they carry a binding anyway.
+
+- **Unbound** chooses what counts as a gap: *no binding at all*, or no binding of one kind (for example no
+  **Parameters**). The header counts the listed items and the gaps.
+- **Unbound only** shows only the items with that gap; **Filter** keeps the rows whose id, name, type or a bound
+  object's name contains the text.
+- Click a column header to sort by it; click it again to reverse.
+- **Highlight unbound** marks every visible item with the gap on the canvas with a dashed amber frame. The frames
+  follow every edit and are never saved.
+- Click a row to select the item and centre the canvas on it; Properties shows it, ready to bind. Ctrl-click (Cmd on
+  macOS) adds a row to the selection or removes it. Rows of selected items are highlighted, also when you select on
+  the canvas.
+- **Remove** with the kinds ticked, then **from selected**, removes those kinds' bindings from every selected item in
+  one step (one undo reverts it). Precision and features stay.
+- **CSV** downloads the rows as shown (filtered and sorted) as a CSV file that spreadsheets open with Cyrillic intact.
 
 ### Layers and voltage classes {#layers}
 

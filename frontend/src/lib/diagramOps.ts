@@ -5306,6 +5306,25 @@ export function removeItemBinding(diagram: Diagram, target: BindingTarget, kind:
   return patchBindable(diagram, target, item => ({ bindings: (item.bindings ?? []).filter(b => b.kind !== kind) }))
 }
 
+/** Removes the bindings of kinds from every target (one edit); items that lose nothing keep their reference. */
+export function removeBindingKinds(diagram: Diagram, targets: BindingTarget[], kinds: BindingKind[]): Diagram {
+  const drop = new Set(kinds)
+  const ids = { element: new Set<number>(), digitaldevice: new Set<number>() }
+  for (const target of targets) ids[target.kind].add(target.id)
+  const strip = <T extends BindingFields & { id: number }>(item: T, kind: BindingTarget['kind']): T => {
+    if (!ids[kind].has(item.id) || !item.bindings?.some(b => drop.has(b.kind))) return item
+    const next: T = { ...item, bindings: item.bindings.filter(b => !drop.has(b.kind)) }
+    if (!next.bindings?.length) delete next.bindings
+    return next
+  }
+  const elements = diagram.elements.map(e => strip(e, 'element'))
+  const digitalDevices = diagram.digitalDevices.map(dd => strip(dd, 'digitaldevice'))
+  if (elements.every((e, i) => e === diagram.elements[i]) && digitalDevices.every((d, i) => d === diagram.digitalDevices[i])) {
+    return diagram
+  }
+  return { ...diagram, elements, digitalDevices }
+}
+
 /** Removes the target's bindings of source, its precision and its features; bindings of other sources stay. */
 export function removeAllItemBindings(diagram: Diagram, target: BindingTarget, source: string): Diagram {
   return patchBindable(diagram, target, item => ({

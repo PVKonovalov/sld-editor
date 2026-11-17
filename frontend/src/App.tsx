@@ -8,6 +8,8 @@ import { SettingsPanel } from './components/panels/SettingsPanel'
 import { PropertiesPanel } from './components/panels/PropertiesPanel'
 import { ObjectsPanel } from './components/panels/ObjectsPanel'
 import { Canvas } from './components/Canvas'
+import { BindingsOverview } from './components/BindingsOverview'
+import type { GapKind } from './lib/bindingOverview'
 import { ImportLogDialog } from './components/ImportLogDialog'
 import { ConfirmReloadDialog } from './components/ConfirmReloadDialog'
 import { AboutDialog } from './components/AboutDialog'
@@ -35,6 +37,9 @@ function Shell() {
   const [activeLeftPanel, setActiveLeftPanel] = useState<LeftPanelId | null>('file')
   const [propertiesOpen, setPropertiesOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [overviewOpen, setOverviewOpen] = useState(false)
+  const [gap, setGap] = useState<GapKind>('any')
+  const [highlightUnbound, setHighlightUnbound] = useState(false)
   // The user guide window: null while closed. requestId changes on every
   // openGuide, so asking for the same topic again scrolls to it again.
   const [guide, setGuide] = useState<{ topic?: string; requestId: number } | null>(null)
@@ -179,6 +184,8 @@ function Shell() {
           onHelp={() => guideApi.openGuide()}
           onAbout={() => setAboutOpen(true)}
           showObjects={!!bindingProvider}
+          overviewOpen={overviewOpen && !!bindingProvider}
+          onOverviewToggle={() => setOverviewOpen(open => !open)}
         />
         {activeLeftPanel === 'file' && <FilePanel onClose={() => setActiveLeftPanel(null)} />}
         {activeLeftPanel === 'elements' && <ElementsPanel onClose={() => setActiveLeftPanel(null)} />}
@@ -188,7 +195,18 @@ function Shell() {
           </div>
         )}
         {activeLeftPanel === 'settings' && <SettingsPanel onClose={() => setActiveLeftPanel(null)} />}
-        <Canvas />
+        <div className="flex-1 min-w-0 flex flex-col">
+          <Canvas unboundGap={bindingProvider && highlightUnbound ? gap : null} />
+          {bindingProvider && overviewOpen && (
+            <BindingsOverview
+              gap={gap}
+              onGap={setGap}
+              highlight={highlightUnbound}
+              onHighlight={setHighlightUnbound}
+              onClose={() => setOverviewOpen(false)}
+            />
+          )}
+        </div>
         {propertiesOpen && <PropertiesPanel onClose={() => setPropertiesOpen(false)} />}
         {dragCounter > 0 && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 pointer-events-none">

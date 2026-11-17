@@ -5,6 +5,7 @@ import { useDiagramContext, type SelectionKind } from '../state/useDiagramContex
 import { usePaletteToggle } from '../state/usePaletteToggle'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
+import { unboundIds, type GapKind } from '../lib/bindingOverview'
 import { arcBounds, arcMidpoint, arcPathD, circularArcThrough, defaultArcBulge, type ArcParams } from '../lib/arc'
 import { clientToDiagramPoint, nearestSegmentOnPolyline, snapPointOnSegment, snapValue } from '../lib/geometry'
 import { fillPictureHrefs, readImageFile } from '../lib/picture'
@@ -144,6 +145,8 @@ const POLYGON_CLOSE_RADIUS = 5
 // equivalent constants (its own highlight pad and BBOX_HIT_PAD), the
 // reference this project's UI/UX follows.
 const BOX_HIGHLIGHT_PAD = 6
+// The bindings overview's mark of an unbound item.
+const UNBOUND_COLOR = '#f59e0b'
 // Screen pixels a press must travel before it counts as drawing a
 // selection frame rather than a plain click on empty canvas.
 const MARQUEE_MIN_DRAG = 4
@@ -486,7 +489,8 @@ function ZoomControls({
 // VoltageClass's own color); nothing at all for a no-op. A lightweight
 // local "ghost" overlay gives instant feedback for an in-progress
 // drag/draw without waiting on either round trip.
-export function Canvas() {
+/** unboundGap: the binding gap whose items are marked on the canvas (see lib/bindingOverview), null = no marks. */
+export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   const {
     diagram,
     config,
@@ -1469,6 +1473,25 @@ export function Canvas() {
   useLayoutEffect(() => {
     if (renderedRef.current && diagram) fillPictureHrefs(renderedRef.current, diagram)
   }, [svg, diagram, patchVersion])
+
+  // The bindings overview's "Highlight unbound": boxes of the visible items with the gap, measured after a render.
+  const [unboundBoxes, setUnboundBoxes] = useState<Box[]>([])
+  useEffect(() => {
+    if (!unboundGap || !diagram) {
+      setUnboundBoxes([])
+      return
+    }
+    const { elements, digitalDevices } = unboundIds(diagram, unboundGap)
+    const boxes: Box[] = []
+    const add = (id: number, kind: SelectionKind) => {
+      const box = itemBox(id, kind)
+      if (box && (box.width > 0 || box.height > 0)) boxes.push(box)
+    }
+    for (const el of diagram.elements) if (elements.has(el.id) && !isHidden(el)) add(el.id, 'element')
+    for (const dd of diagram.digitalDevices) if (digitalDevices.has(dd.id) && !isHidden(dd)) add(dd.id, 'digitaldevice')
+    setUnboundBoxes(boxes)
+    // itemBox and isHidden read the state these dependencies stand for.
+  }, [unboundGap, svg, diagram, patchVersion, elementBoxes, hiddenLayers])
 
   /** Finds the visible connector nearest point within CONNECTOR_HIT_PX
    * screen pixels of one of its segments; null if none is. The click
@@ -3127,7 +3150,7 @@ export function Canvas() {
   return (
     <div
       ref={viewportRef}
-      className="flex-1 relative overflow-hidden bg-surface-900"
+      className="flex-1 min-h-0 relative overflow-hidden bg-surface-900"
       onMouseMove={trackPointer}
       onMouseLeave={leavePointer}
       style={{ cursor: toolArmed ? 'none' : undefined }}
@@ -3311,6 +3334,21 @@ export function Canvas() {
               height={diagram.height}
               style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
             >
+              {unboundBoxes.map((box, i) => (
+                <rect
+                  key={`unbound-${i}`}
+                  data-unbound-mark=""
+                  x={box.x - BOX_HIGHLIGHT_PAD}
+                  y={box.y - BOX_HIGHLIGHT_PAD}
+                  width={box.width + 2 * BOX_HIGHLIGHT_PAD}
+                  height={box.height + 2 * BOX_HIGHLIGHT_PAD}
+                  fill={UNBOUND_COLOR}
+                  fillOpacity={0.12}
+                  stroke={UNBOUND_COLOR}
+                  strokeWidth={1}
+                  strokeDasharray="3 2"
+                />
+              ))}
               {marqueePreview &&
                 [...marqueePreview].map(([id, kind]) => {
                   if (kind === 'connector') {
