@@ -67,3 +67,5 @@ frontend/src/i18n/active.ts
 /docs/SCADA_BINDING.md
 /docs/AGENT_*.md
 /docs/executed/
+/backend/config/sld-editor.yaml
+

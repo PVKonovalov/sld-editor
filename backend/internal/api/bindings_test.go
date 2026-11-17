@@ -26,6 +26,9 @@ func (fakeProvider) Catalog(context.Context, string) ([]binding.Node, error) {
 func (fakeProvider) List(context.Context, string, string) ([]binding.Object, error) {
 	return nil, nil
 }
+func (fakeProvider) Search(context.Context, string, string, int) (*binding.SearchResult, error) {
+	return nil, nil
+}
 func (fakeProvider) Resolve(context.Context, string) (*binding.Object, error) {
 	return nil, binding.ErrNotImplemented
 }

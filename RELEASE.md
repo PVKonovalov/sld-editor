@@ -1,5 +1,23 @@
 # Release notes
 
+2026-11-17: SCADA bindings, step 5: object browser API of the RSDU provider, Adjust's tree and lists on Oracle and
+PostgreSQL. `GET /api/bindings/sections` is the `SYS_TREE21` tree from node 1 (each node with its section id and a
+`ref` of its own, so a section node can be bound); `GET /api/bindings/catalog?section=` the section's catalog (its
+`SYS_TABL_V` DIR table joined with the types table, `alias` when the column exists) as a whole tree;
+`GET /api/bindings/list?section=&node=` the objects under a catalog node, with their type alias (types table from
+`SYS_TBLREF`, else chosen by the list's name as Adjust does), class (`SYS_UCLS`) and, for `DA*` lists, `cvalif` and
+`scale`; `GET /api/bindings/search?section=&q=&limit=` the catalog nodes and objects whose name contains `q`
+(case-insensitive, at least 2 characters, at most 100 by default and 500 in all, shared half and half between catalog
+and list, `truncated` when more matched). Trees are built in Go from flat queries and sorted by name; nodes whose
+parent is missing go to the top. Optional columns are found in the column dictionary; table names read from the
+database are validated before use. Unknown section or node answers 404, a malformed one 400. `DA*` lists use
+`LEFT JOIN`s where Adjust's inner join dropped rows of lists that are not parameters. Oracle fetches 1000 rows per
+round trip (go-ora's 25 made the largest list take 22 s; now 6 s). Checked on a PostgreSQL and an Oracle RSDU: the
+largest catalog (14,500 nodes) is 2.3 MB of JSON, about 190 KB gzipped, in 2–4 s; the largest list (22,000 objects)
+3.6 MB, about 220 KB gzipped, in 4–6 s. - **Tests:** `TestForest`, `TestSections`, `TestCatalog`,
+`TestCatalogErrors`, `TestList`, `TestListErrors`, `TestLikePattern`, `TestSearch`; `TestIntegrationBrowse` with
+`RSDU_TEST_ORACLE` / `RSDU_TEST_POSTGRES`.
+
 2026-11-17: SCADA bindings, step 4: the RSDU provider reads an RSDU database, Oracle or PostgreSQL
 (`bindings.rsdu.driver`), with the pure-Go drivers ctrlroom uses (`go-ora/v2`, `lib/pq`), so the release builds for
 every platform still compile. The connection is opened on the first binding request (never at startup), keeps at most

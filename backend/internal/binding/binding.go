@@ -17,6 +17,12 @@ import (
 // ErrNotImplemented is returned by a provider method not available yet; the API answers 501.
 var ErrNotImplemented = errors.New("not implemented by the binding provider")
 
+// ErrNotFound wraps a provider error for an unknown section, node or object; the API answers 404.
+var ErrNotFound = errors.New("not found")
+
+// ErrInvalid wraps a provider error for a malformed argument; the API answers 400.
+var ErrInvalid = errors.New("invalid argument")
+
 // KindInfo is one binding kind as a provider offers it, with the option a new binding of it gets. An empty Name
 // leaves naming to the frontend.
 type KindInfo struct {
@@ -47,30 +53,60 @@ type Dictionaries struct {
 	Features []Feature  `json:"features"`
 }
 
-// Section is one node of the provider's top-level object tree (RSDU: SYS_TREE21).
+// Section is one node of the provider's top-level object tree (RSDU: SYS_TREE21). Section, when set, is the id
+// Catalog, List and Search take; the node itself can be bound by its Ref.
 type Section struct {
-	ID     string `json:"id"`
-	Parent string `json:"parent,omitempty"`
-	Name   string `json:"name"`
-	Icon   int    `json:"icon,omitempty"`
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	Icon     int64     `json:"icon,omitempty"`
+	Section  string    `json:"section,omitempty"`
+	Ref      string    `json:"ref"`
+	Children []Section `json:"children,omitempty"`
 }
 
-// Node is one catalog node of a section.
+// Node is one catalog node of a section (RSDU: a row of the section's DIR table); ID is what List takes as node.
 type Node struct {
-	ID          string `json:"id"`
-	Parent      string `json:"parent,omitempty"`
-	Name        string `json:"name"`
-	Type        string `json:"type,omitempty"`
-	HasChildren bool   `json:"hasChildren,omitempty"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Alias    string `json:"alias,omitempty"`
+	TypeName string `json:"typeName,omitempty"`
+	Icon     int64  `json:"icon,omitempty"`
+	Ref      string `json:"ref"`
+	Children []Node `json:"children,omitempty"`
 }
 
-// Object is one bindable object.
+// Object is one bindable object of a catalog node's list (RSDU: a row of the section's LST table). Class is empty
+// when the object has none; Cvalif and Scale are set for data acquisition parameters only.
 type Object struct {
-	Ref     string   `json:"ref"`
-	Name    string   `json:"name"`
-	Type    string   `json:"type,omitempty"`
-	UID     string   `json:"uid,omitempty"`
-	Options []string `json:"options,omitempty"`
+	ID        string   `json:"id"`
+	Ref       string   `json:"ref"`
+	Name      string   `json:"name"`
+	TypeAlias string   `json:"typeAlias,omitempty"`
+	Class     string   `json:"class,omitempty"`
+	UID       string   `json:"uid,omitempty"`
+	Cvalif    *int64   `json:"cvalif,omitempty"`
+	Scale     *float64 `json:"scale,omitempty"`
+}
+
+// Hit kinds of a SearchResult.
+const (
+	HitCatalog = "catalog"
+	HitList    = "list"
+)
+
+// Hit is one search match: a catalog node or a list object. Node is the catalog node to reveal: the node itself, or
+// the one the object is listed under.
+type Hit struct {
+	Ref  string `json:"ref"`
+	Name string `json:"name"`
+	Kind string `json:"kind"`
+	Node string `json:"node"`
+}
+
+// SearchResult holds at most the asked number of hits; Truncated tells that more matched.
+type SearchResult struct {
+	Hits      []Hit `json:"hits"`
+	Truncated bool  `json:"truncated"`
 }
 
 // Provider is a SCADA data source diagram items are bound to. A ref is the provider's own object key, opaque
@@ -84,6 +120,8 @@ type Provider interface {
 	Catalog(ctx context.Context, section string) ([]Node, error)
 	// List returns the objects of a catalog node of section.
 	List(ctx context.Context, section, node string) ([]Object, error)
+	// Search finds catalog nodes and objects of section whose name contains q, case-insensitively.
+	Search(ctx context.Context, section, q string, limit int) (*SearchResult, error)
 	Resolve(ctx context.Context, ref string) (*Object, error)
 	// Suggest returns the bindings an element of shape gets when bound to the object ref.
 	Suggest(ctx context.Context, ref, shape string) ([]slddoc.Binding, error)

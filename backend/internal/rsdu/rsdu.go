@@ -73,18 +73,6 @@ func (p *Provider) Dictionaries(ctx context.Context) (*binding.Dictionaries, err
 	return &dict.public, nil
 }
 
-func (p *Provider) Sections(context.Context) ([]binding.Section, error) {
-	return nil, binding.ErrNotImplemented
-}
-
-func (p *Provider) Catalog(context.Context, string) ([]binding.Node, error) {
-	return nil, binding.ErrNotImplemented
-}
-
-func (p *Provider) List(context.Context, string, string) ([]binding.Object, error) {
-	return nil, binding.ErrNotImplemented
-}
-
 func (p *Provider) Resolve(context.Context, string) (*binding.Object, error) {
 	return nil, binding.ErrNotImplemented
 }

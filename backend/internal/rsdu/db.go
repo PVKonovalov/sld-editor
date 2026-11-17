@@ -22,9 +22,11 @@ import (
 const queryTimeout = 30 * time.Second
 
 const (
-	maxOpenConns    = 4
-	maxIdleConns    = 2
-	connMaxIdleTime = 5 * time.Minute
+	// oraclePrefetchRows is how many rows go-ora fetches per round trip (its default 25 makes big lists slow).
+	oraclePrefetchRows = "1000"
+	maxOpenConns       = 4
+	maxIdleConns       = 2
+	connMaxIdleTime    = 5 * time.Minute
 )
 
 // Rows is the part of *sql.Rows the provider reads.
@@ -142,7 +144,7 @@ func (c *conn) dsnString() string {
 
 // oracleURL builds a go-ora URL as ctrlroom does: a SID, when given, wins over the service name in Database.
 func oracleURL(d config.DSN) string {
-	opts := map[string]string{}
+	opts := map[string]string{"PREFETCH_ROWS": oraclePrefetchRows}
 	service := d.Database
 	if d.Sid != "" {
 		service = ""
