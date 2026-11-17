@@ -1,5 +1,11 @@
 # Release notes
 
+2026-11-17: One RSDU connection. `bindings.rsdu.read` and `bindings.rsdu.write` are replaced by `bindings.rsdu.dsn` (the
+same keys as an entry of ctrlroom's `database.dsn`; environment `BINDINGS_RSDU_DSN_*`), used for reading and for
+export, and export is enabled by `bindings.rsdu.export: true` (default false; `binding.CanExport`). A config still
+holding `read:` or `write:` stops the editor at startup with a message naming the new keys. Updated the example
+config, both guides' `#configuration-bindings` section, the export window's message and tests.
+
 2026-11-17: SCADA bindings, step 11: pre-export check and export dialog (nothing is written to RSDU). New optional
 provider interface `binding.ExportChecker` (`internal/binding/export.go`), implemented by RSDU
 (`internal/rsdu/export_check.go`), and routes `GET /api/bindings/export/check?name=`, `/scheme-groups` and

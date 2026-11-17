@@ -33,7 +33,7 @@ func New(cfg config.Bindings) (binding.Provider, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newProvider(cfg.RSDU, d, newConn(cfg.RSDU.Driver, cfg.RSDU.Read)), nil
+	return newProvider(cfg.RSDU, d, newConn(cfg.RSDU.Driver, cfg.RSDU.DSN)), nil
 }
 
 // newProvider builds a provider reading through q.

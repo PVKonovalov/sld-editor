@@ -43,7 +43,7 @@ func integrationProvider(t *testing.T, env, driver string) *Provider {
 	cfg.Provider = config.ProviderRSDU
 	cfg.RSDU.Driver = driver
 	cfg.RSDU.Schema = u.Query().Get("schema")
-	cfg.RSDU.Read = config.DSN{
+	cfg.RSDU.DSN = config.DSN{
 		Host: u.Hostname(), Port: port, User: u.User.Username(), Password: pw,
 		Database: u.Path[min(1, len(u.Path)):], Sid: u.Query().Get("sid"),
 	}

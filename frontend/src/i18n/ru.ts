@@ -720,7 +720,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'exportCheck.allGood': 'Замечаний нет.',
   'exportCheck.ok': 'Файл можно экспортировать.',
   'exportCheck.notOk': 'Экспорт невозможен, пока не исправлены ошибки.',
-  'exportCheck.noWrite': 'Запись в РСДУ выключена: не задан bindings.rsdu.write.',
+  'exportCheck.exportOff': 'Экспорт в РСДУ выключен: задайте bindings.rsdu.export: true в конфигурации.',
   'exportCheck.export': 'Экспортировать',
   'exportCheck.exportLater': 'Запись в РСДУ в этой версии ещё недоступна.',
   'exportCheck.element': 'Элемент {{id}}',

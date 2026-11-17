@@ -207,7 +207,7 @@ func New(cfg config.Bindings) (Provider, error) {
 	return c(cfg)
 }
 
-// CanExport reports whether p can export and cfg has a connection to write through.
+// CanExport reports whether p can export and cfg enables export.
 func CanExport(p Provider, cfg config.Bindings) bool {
 	if p == nil {
 		return false
@@ -217,7 +217,7 @@ func CanExport(p Provider, cfg config.Bindings) bool {
 	}
 	switch cfg.Provider {
 	case config.ProviderRSDU:
-		return cfg.RSDU.Write.IsSet()
+		return cfg.RSDU.Export
 	}
 	return false
 }

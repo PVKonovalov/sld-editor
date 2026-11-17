@@ -256,7 +256,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
               {t(check.ok ? 'exportCheck.ok' : 'exportCheck.notOk')}
             </p>
           )}
-          {!canExport && <p className="text-[11px] text-gray-400">{t('exportCheck.noWrite')}</p>}
+          {!canExport && <p className="text-[11px] text-gray-400">{t('exportCheck.exportOff')}</p>}
           <div className="flex justify-end gap-2">
             <button type="button" onClick={onClose} className="px-2 py-1 text-gray-300 hover:text-white">
               {t('common.close')}

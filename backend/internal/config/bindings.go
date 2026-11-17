@@ -26,9 +26,13 @@ type Bindings struct {
 type RSDUBindings struct {
 	Driver string `yaml:"driver" env:"true"`
 	Schema string `yaml:"schema" env:"true"`
-	// Read is the connection objects are read through; Write, when set, enables export.
-	Read  DSN `yaml:"read"`
-	Write DSN `yaml:"write"`
+	// DSN is the connection to the RSDU database, for reading and for export.
+	DSN DSN `yaml:"dsn"`
+	// Export enables export to RSDU; the account of DSN must then be allowed to write.
+	Export bool `yaml:"export" env:"true"`
+	// LegacyRead and LegacyWrite catch the former separate connections, replaced by DSN.
+	LegacyRead  any `yaml:"read"`
+	LegacyWrite any `yaml:"write"`
 	// SchemeType is VS_FORM.ID_TYPE / VS_TCOMP.ID_DTYP of exported schemes.
 	SchemeType int `yaml:"scheme_type" env:"true"`
 	SVG        struct {
@@ -40,7 +44,7 @@ type RSDUBindings struct {
 }
 
 // DSN is one database connection, with the field names of an entry of ctrlroom's database.dsn. Every connection field
-// can come from the environment or .env (BINDINGS_RSDU_READ_PASSWORD, ...).
+// can come from the environment or .env (BINDINGS_RSDU_DSN_PASSWORD, ...).
 type DSN struct {
 	Engine            string `yaml:"engine" env:"true"`
 	User              string `yaml:"user" env:"true"`
@@ -74,16 +78,14 @@ func (c *Config) ValidateBindings() error {
 	if r.SchemeType < 0 {
 		return fmt.Errorf("bindings.rsdu.scheme_type: %d is negative", r.SchemeType)
 	}
-	if !r.Read.IsSet() {
-		return errors.New("bindings.rsdu.read: required")
+	if r.LegacyRead != nil || r.LegacyWrite != nil {
+		return errors.New("bindings.rsdu.read / write: replaced by one connection, bindings.rsdu.dsn (environment: BINDINGS_RSDU_DSN_*), and bindings.rsdu.export: true to enable export")
 	}
-	if err := r.Read.validate(r.Driver); err != nil {
-		return fmt.Errorf("bindings.rsdu.read: %w", err)
+	if !r.DSN.IsSet() {
+		return errors.New("bindings.rsdu.dsn: required")
 	}
-	if r.Write.IsSet() {
-		if err := r.Write.validate(r.Driver); err != nil {
-			return fmt.Errorf("bindings.rsdu.write: %w", err)
-		}
+	if err := r.DSN.validate(r.Driver); err != nil {
+		return fmt.Errorf("bindings.rsdu.dsn: %w", err)
 	}
 	return nil
 }

@@ -45,13 +45,11 @@ func (fakeExporter) Export(context.Context, string, *slddoc.Diagram) (*slddoc.Sc
 	return nil, nil
 }
 
-func rsduBindings(write bool) config.Bindings {
+func rsduBindings(export bool) config.Bindings {
 	b := config.Bindings{Provider: config.ProviderRSDU}
 	b.RSDU.Driver = config.DriverOracle
-	b.RSDU.Read = config.DSN{Host: "db", Port: 1521, User: "u", Sid: "S"}
-	if write {
-		b.RSDU.Write = b.RSDU.Read
-	}
+	b.RSDU.DSN = config.DSN{Host: "db", Port: 1521, User: "u", Sid: "S"}
+	b.RSDU.Export = export
 	return b
 }
 
@@ -65,7 +63,7 @@ func TestConfigBindings(t *testing.T) {
 	}{
 		{"off", nil, config.Bindings{}, bindingsConfig{}, http.StatusNotFound},
 		{"provider without export", fakeProvider{}, rsduBindings(true), bindingsConfig{Provider: "fake"}, http.StatusOK},
-		{"exporter without write", fakeExporter{}, rsduBindings(false), bindingsConfig{Provider: "fake"}, http.StatusOK},
+		{"exporter without export", fakeExporter{}, rsduBindings(false), bindingsConfig{Provider: "fake"}, http.StatusOK},
 		{"exporter with write", fakeExporter{}, rsduBindings(true), bindingsConfig{Provider: "fake", CanExport: true}, http.StatusOK},
 	}
 	for _, c := range cases {
@@ -90,7 +88,7 @@ func TestConfigBindings(t *testing.T) {
 
 func TestBindingsDataSourceDown(t *testing.T) {
 	cfg := rsduBindings(false)
-	cfg.RSDU.Read.Host, cfg.RSDU.Read.Port = "127.0.0.1", 1
+	cfg.RSDU.DSN.Host, cfg.RSDU.DSN.Port = "127.0.0.1", 1
 	p, err := binding.New(cfg)
 	if err != nil || p == nil || p.Name() != config.ProviderRSDU {
 		t.Fatalf("rsdu provider not registered: %v %v", p, err)

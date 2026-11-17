@@ -352,21 +352,21 @@ cim:
 # provider: "" (or absent) turns bindings off; "rsdu" reads objects from an RSDU database. Checked at startup; the
 # database is not contacted until a binding call. Keep database credentials out of this file: put them in .env in
 # the folder the editor is started in (or in the environment, which wins), e.g.
-#   BINDINGS_RSDU_READ_USER=rsduadmin
-#   BINDINGS_RSDU_READ_PASSWORD=secret
-# Every connection key has one: BINDINGS_RSDU_{READ|WRITE}_{HOST|PORT|USER|PASSWORD|SID|DATABASE|ENGINE}.
+#   BINDINGS_RSDU_DSN_USER=rsduadmin
+#   BINDINGS_RSDU_DSN_PASSWORD=secret
+# Every connection key has one: BINDINGS_RSDU_DSN_{HOST|PORT|USER|PASSWORD|SID|DATABASE|ENGINE}.
 bindings:
   provider: ""
   # rsdu:
   #   driver: oracle          # oracle | postgres
   #   schema: rsduadmin       # schema (owner) of the RSDU tables, not the database
-  #   read:                   # same fields as an entry of ctrlroom's database.dsn
+  #   dsn:                    # the RSDU database, for reading and export; the fields of an entry of ctrlroom's database.dsn
   #     host: 127.0.0.1
   #     port: 1521
-  #     user: ""              # from .env: BINDINGS_RSDU_READ_USER
-  #     password: ""          # from .env: BINDINGS_RSDU_READ_PASSWORD
+  #     user: ""              # from .env: BINDINGS_RSDU_DSN_USER
+  #     password: ""          # from .env: BINDINGS_RSDU_DSN_PASSWORD
   #     sid: RSDU             # Oracle: the instance SID; or database: the service name
-  #   write: {}               # optional; without it export to RSDU is off
+  #   export: false           # true enables export to RSDU (the dsn account must be allowed to write)
   #   scheme_type: 518        # VS_FORM.ID_TYPE / VS_TCOMP.ID_DTYP of exported schemes (518: MODUS); needed for export
   #   svg:
   #     dir: ""               # where ctrlroom reads scheme SVGs (its backend.path_to_sld)
@@ -376,13 +376,13 @@ bindings:
   # rsdu:
   #   driver: postgres
   #   schema: rsduadmin       # a schema inside the database below
-  #   read:
+  #   dsn:
   #     host: 127.0.0.1
   #     port: 5432
-  #     user: ""              # from .env: BINDINGS_RSDU_READ_USER
-  #     password: ""          # from .env: BINDINGS_RSDU_READ_PASSWORD
+  #     user: ""              # from .env: BINDINGS_RSDU_DSN_USER
+  #     password: ""          # from .env: BINDINGS_RSDU_DSN_PASSWORD
   #     database: rsdu        # PostgreSQL: the database name
-  #   write: {}
+  #   export: false
   #   scheme_type: 518
   #   svg:
   #     dir: ""

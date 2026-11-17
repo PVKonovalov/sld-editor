@@ -585,7 +585,7 @@ scheme it is.
 
 With nothing selected, **Export to RSDU…** in the **Bindings** group of Properties opens the export window. It checks
 the **saved** diagram, so if it has unsaved changes, **Save and check** saves first. Nothing is written to RSDU yet:
-the **Export** button is not available in this version. The window shows:
+the **Export** button is not available in this version (it will also need `bindings.rsdu.export: true`). The window shows:
 
 - **Scheme**: the linked RSDU scheme, or for an unlinked diagram the new scheme that would be registered: its name
   (the diagram's name by default) and its RSDU group. The group proposed is the group of the scheme exported last; any
@@ -1315,14 +1315,14 @@ bindings:
 | `provider` | no | `""` or absent: bindings are off and the editor shows no binding controls. `rsdu`: objects come from an RSDU database. |
 | `rsdu.driver` | with `rsdu` | The RSDU database: `oracle` or `postgres`. |
 | `rsdu.schema` | no | The schema (owner) of RSDU's tables, not the database; default `rsduadmin`. On PostgreSQL it is a schema inside the database named in `database`. Letters, digits, `_` and `$` only. |
-| `rsdu.read` | with `rsdu` | The connection objects are read through (keys below). |
-| `rsdu.write` | no | The connection diagrams are exported to RSDU through, same keys. Without it export to RSDU is off. It may be the same account as `read`. |
+| `rsdu.dsn` | with `rsdu` | The connection to the RSDU database (keys below), for reading objects and for export. |
+| `rsdu.export` | no | `true` enables export to RSDU; the `dsn` account must then be allowed to write. Default `false`. |
 | `rsdu.scheme_type` | no | The RSDU scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`), usually 518 (MODUS scheme): an element is exported only when `VS_TCOMP` has a row of this type for its shape. 0 or more, default 0 = not set; the [export check](#rsdu-export) then refuses the export. |
 | `rsdu.svg.dir` | no | The folder ctrlroom reads scheme pictures from (its `backend.path_to_sld`). Used by export. |
 | `rsdu.svg.full_path` | no | As ctrlroom's `backend.use_full_path_for_sld`: `true`: ctrlroom finds a picture by the scheme's file path stored in RSDU, under `dir`; `false`: by its file name only, directly in `dir`. Used by export. |
 
-A connection (`read`, `write`) has the same keys as an entry of ctrlroom's `database.dsn`, so the same lines can be
-copied between the two files:
+The connection (`dsn`) has the same keys as an entry of ctrlroom's `database.dsn`, so the same lines can be copied
+between the two files:
 
 | Key | Required | What it sets |
 |---|---|---|
@@ -1344,11 +1344,11 @@ bindings:
   rsdu:
     driver: oracle
     schema: rsduadmin
-    read:
+    dsn:
       host: 10.0.0.5
       port: 1521
       sid: RSDU               # or, by service name: database: RSDU
-    scheme_type: 0
+    scheme_type: 518
     svg:
       dir: /opt/ctrlroom/sld
       full_path: true
@@ -1361,11 +1361,11 @@ bindings:
   rsdu:
     driver: postgres
     schema: rsduadmin
-    read:
+    dsn:
       host: 10.0.0.6
       port: 5432
       database: rsdu
-    scheme_type: 0
+    scheme_type: 518
     svg:
       dir: /opt/ctrlroom/sld
       full_path: true
@@ -1374,18 +1374,17 @@ bindings:
 with the credentials in `.env` next to it (in the folder the editor is started in):
 
 ```sh
-BINDINGS_RSDU_READ_USER=rsduadmin
-BINDINGS_RSDU_READ_PASSWORD=secret
+BINDINGS_RSDU_DSN_USER=rsduadmin
+BINDINGS_RSDU_DSN_PASSWORD=secret
 ```
 
 - **`.env` and environment variables.** Every key can also be set as a variable named after its path in capitals,
   in `.env` or in the environment (which wins): `BINDINGS_PROVIDER`, `BINDINGS_RSDU_DRIVER`, `BINDINGS_RSDU_SCHEMA`,
-  `BINDINGS_RSDU_SCHEME_TYPE`, `BINDINGS_RSDU_SVG_DIR`, `BINDINGS_RSDU_SVG_FULL_PATH`, and per connection
-  `BINDINGS_RSDU_READ_HOST`, `_PORT`, `_USER`, `_PASSWORD`, `_SID`, `_DATABASE`, `_ENGINE` (likewise
-  `BINDINGS_RSDU_WRITE_…`). Keep the user and password there, not in `sld-editor.yaml`; protect `.env` from other
-  users of the machine.
+  `BINDINGS_RSDU_EXPORT`, `BINDINGS_RSDU_SCHEME_TYPE`, `BINDINGS_RSDU_SVG_DIR`, `BINDINGS_RSDU_SVG_FULL_PATH`, and for
+  the connection `BINDINGS_RSDU_DSN_HOST`, `_PORT`, `_USER`, `_PASSWORD`, `_SID`, `_DATABASE`, `_ENGINE`. Keep the user
+  and password there, not in `sld-editor.yaml`; protect `.env` from other users of the machine.
 - **Startup.** The settings are checked at startup; the database is not contacted then. An unknown `provider`, a
-  missing or wrong `driver`, a missing `read`, a connection without `host`, `port`, `user` or `sid`/`database`, an
+  missing or wrong `driver`, a missing `dsn`, the former `read`/`write` sections, a connection without `host`, `port`, `user` or `sid`/`database`, an
   `engine` other than `driver`, `password_encrypted: true`, a negative `scheme_type` or a `schema` that isn't a plain
   name stops the editor with a message naming the key. An unreachable database only makes the binding actions fail.
 - **Database use.** The editor connects on the first binding action and keeps at most 4 connections open; after a lost

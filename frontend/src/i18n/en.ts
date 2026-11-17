@@ -724,7 +724,7 @@ export const dictionary = {
   'exportCheck.allGood': 'Nothing to report.',
   'exportCheck.ok': 'The diagram can be exported.',
   'exportCheck.notOk': 'The diagram can\'t be exported until the errors are fixed.',
-  'exportCheck.noWrite': 'Writing to RSDU is off: bindings.rsdu.write is not configured.',
+  'exportCheck.exportOff': 'Export to RSDU is off: set bindings.rsdu.export: true in the configuration.',
   'exportCheck.export': 'Export',
   'exportCheck.exportLater': 'Writing to RSDU is not available in this version yet.',
   'exportCheck.element': 'Element {{id}}',
