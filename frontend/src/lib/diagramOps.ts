@@ -1406,6 +1406,7 @@ export function placeCustomElement(
       mrid: undefined,
       fromMrid: undefined,
       toMrid: undefined,
+      ...(dropBindings ? NO_BINDINGS : {}),
     }
   })
 
@@ -1416,6 +1417,7 @@ export function placeCustomElement(
     group: mapGroup(l.group),
     ...shift(l),
     for: l.for ? elementIds.get(l.for) : undefined,
+    ...(dropBindings ? NO_BINDINGS : {}),
   }))
 
   const newDigitalDevices: DigitalDevice[] = template.digitalDevices.map(dd => ({
@@ -1539,11 +1541,13 @@ export function extractSelection(
       mrid: undefined,
       fromMrid: undefined,
       toMrid: undefined,
+      ...(forCustomElement ? NO_BINDINGS : {}),
     })),
     labels: labels.map(l => ({
       ...l,
       ...shift(l),
       for: l.for !== undefined && elementIds.has(l.for) ? l.for : undefined,
+      ...(forCustomElement ? NO_BINDINGS : {}),
     })),
     digitalDevices: digitalDevices.map(dd => ({ ...dd, ...shift(dd), ...(forCustomElement ? NO_BINDINGS : {}) })),
   }
@@ -5253,25 +5257,51 @@ export function addJunctionPoints(prev: Diagram, next: Diagram, symbols: Element
 
 /** An item that carries bindings: an element or a digital device. */
 export interface BindingTarget {
-  kind: 'element' | 'digitaldevice'
+  kind: 'element' | 'digitaldevice' | 'label' | 'connector'
   id: number
 }
 
 type BindingFields = { bindings?: Binding[]; precision?: number; features?: string }
 
+/** The diagram list holding each kind of bindable item. */
+const BINDABLE_LISTS = {
+  element: 'elements',
+  digitaldevice: 'digitalDevices',
+  label: 'labels',
+  connector: 'connectors',
+} as const satisfies Record<BindingTarget['kind'], keyof Diagram>
+
+/** Maps every bindable item through fn; a list (and the diagram) whose items fn returns unchanged keeps its object. */
+export function mapBindables(
+  diagram: Diagram,
+  fn: <T extends BindingFields & { id: number }>(item: T, kind: BindingTarget['kind']) => T,
+): Diagram {
+  let next: Diagram | null = null
+  for (const [kind, key] of Object.entries(BINDABLE_LISTS) as [BindingTarget['kind'], (typeof BINDABLE_LISTS)[BindingTarget['kind']]][]) {
+    const list = diagram[key] as (BindingFields & { id: number })[]
+    let changed = false
+    const out = list.map(item => {
+      const r = fn(item, kind)
+      if (r !== item) changed = true
+      return r
+    })
+    if (changed) next = { ...(next ?? diagram), [key]: out }
+  }
+  return next ?? diagram
+}
+
+function cleanBindable<T extends BindingFields>(item: T): T {
+  if (!item.bindings?.length) delete item.bindings
+  if (!item.precision) delete item.precision
+  if (!item.features) delete item.features
+  return item
+}
+
 // patchBindable applies patch to the target's binding fields; every other entry keeps its object.
 function patchBindable(diagram: Diagram, target: BindingTarget, patch: (item: BindingFields) => BindingFields): Diagram {
-  const apply = <T extends BindingFields>(item: T): T => {
-    const next = { ...item, ...patch(item) }
-    if (!next.bindings?.length) delete next.bindings
-    if (!next.precision) delete next.precision
-    if (!next.features) delete next.features
-    return next
-  }
-  if (target.kind === 'element') {
-    return { ...diagram, elements: diagram.elements.map(e => (e.id === target.id ? apply(e) : e)) }
-  }
-  return { ...diagram, digitalDevices: diagram.digitalDevices.map(dd => (dd.id === target.id ? apply(dd) : dd)) }
+  return mapBindables(diagram, (item, kind) =>
+    kind === target.kind && item.id === target.id ? cleanBindable({ ...item, ...patch(item) }) : item,
+  )
 }
 
 /** Binds the target: binding replaces the target's binding of the same kind. */
@@ -5310,20 +5340,13 @@ export function removeItemBinding(diagram: Diagram, target: BindingTarget, kind:
 /** Removes the bindings of kinds from every target (one edit); items that lose nothing keep their reference. */
 export function removeBindingKinds(diagram: Diagram, targets: BindingTarget[], kinds: BindingKind[]): Diagram {
   const drop = new Set(kinds)
-  const ids = { element: new Set<number>(), digitaldevice: new Set<number>() }
-  for (const target of targets) ids[target.kind].add(target.id)
-  const strip = <T extends BindingFields & { id: number }>(item: T, kind: BindingTarget['kind']): T => {
-    if (!ids[kind].has(item.id) || !item.bindings?.some(b => drop.has(b.kind))) return item
-    const next: T = { ...item, bindings: item.bindings.filter(b => !drop.has(b.kind)) }
+  const ids = new Set(targets.map(t => `${t.kind}:${t.id}`))
+  return mapBindables(diagram, (item, kind) => {
+    if (!ids.has(`${kind}:${item.id}`) || !item.bindings?.some(b => drop.has(b.kind))) return item
+    const next: typeof item = { ...item, bindings: item.bindings.filter(b => !drop.has(b.kind)) }
     if (!next.bindings?.length) delete next.bindings
     return next
-  }
-  const elements = diagram.elements.map(e => strip(e, 'element'))
-  const digitalDevices = diagram.digitalDevices.map(dd => strip(dd, 'digitaldevice'))
-  if (elements.every((e, i) => e === diagram.elements[i]) && digitalDevices.every((d, i) => d === diagram.digitalDevices[i])) {
-    return diagram
-  }
-  return { ...diagram, elements, digitalDevices }
+  })
 }
 
 /** Removes the target's bindings of source, its precision and its features; bindings of other sources stay. */
@@ -5358,6 +5381,33 @@ export function setDiagramObject(diagram: Diagram, object: Binding | undefined):
   return next
 }
 
+/** An item's bindings of one source, with its precision and features, as an import sets them. */
+export interface ImportedItem {
+  target: BindingTarget
+  bindings: Binding[]
+  precision?: number
+  features?: string
+}
+
+/** Sets each item's bindings of source, precision and features to the imported ones (no bindings: cleared); its
+ * bindings of other sources stay. object sets the diagram's object (null removes it, undefined leaves it). Items not
+ * listed keep their object. */
+export function applyImportedBindings(diagram: Diagram, source: string, items: ImportedItem[], object?: Binding | null): Diagram {
+  const byTarget = new Map(items.map(i => [`${i.target.kind}:${i.target.id}`, i]))
+  let next = mapBindables(diagram, (item, kind) => {
+    const imported = byTarget.get(`${kind}:${item.id}`)
+    if (!imported) return item
+    return cleanBindable({
+      ...item,
+      bindings: [...(item.bindings ?? []).filter(b => b.source !== source), ...imported.bindings.map(normalizeBinding)],
+      precision: imported.precision,
+      features: imported.features,
+    })
+  })
+  if (object !== undefined) next = setDiagramObject(next, object ? normalizeBinding(object) : undefined)
+  return next
+}
+
 function normalizeBinding(b: Binding): Binding {
   const next = { ...b }
   if (!next.scale || next.scale === 1) delete next.scale
@@ -5389,8 +5439,10 @@ export interface StaleBinding {
 export function bindingRefs(diagram: Diagram, source: string): string[] {
   const refs = new Set<string>()
   const add = (bs?: Binding[]) => bs?.forEach(b => b.source === source && refs.add(b.ref))
-  diagram.elements.forEach(e => add(e.bindings))
-  diagram.digitalDevices.forEach(dd => add(dd.bindings))
+  mapBindables(diagram, item => {
+    add(item.bindings)
+    return item
+  })
   if (diagram.object) add([diagram.object])
   return [...refs]
 }
@@ -5421,22 +5473,13 @@ export function refreshBindings(
     updated++
     return fresh
   }
-  const items = <T extends { id: number; bindings?: Binding[] }>(list: T[], kind: BindingTarget['kind']): T[] => {
-    let changed = false
-    const out = list.map(item => {
-      if (!item.bindings?.length) return item
-      const bs = item.bindings.map(b => refresh(b, { kind, id: item.id }))
-      if (bs.every((b, i) => b === item.bindings![i])) return item
-      changed = true
-      return { ...item, bindings: bs }
-    })
-    return changed ? out : list
-  }
-  const elements = items(diagram.elements, 'element')
-  const digitalDevices = items(diagram.digitalDevices, 'digitaldevice')
+  let next = mapBindables(diagram, (item, kind) => {
+    if (!item.bindings?.length) return item
+    const bs = item.bindings.map(b => refresh(b, { kind, id: item.id }))
+    if (bs.every((b, i) => b === item.bindings![i])) return item
+    return { ...item, bindings: bs }
+  })
   const object = diagram.object ? refresh(diagram.object, null) : undefined
-  if (elements === diagram.elements && digitalDevices === diagram.digitalDevices && object === diagram.object) {
-    return { diagram, updated, stale }
-  }
-  return { diagram: { ...diagram, elements, digitalDevices, ...(object ? { object } : {}) }, updated, stale }
+  if (object !== diagram.object) next = { ...next, object }
+  return { diagram: next, updated, stale }
 }

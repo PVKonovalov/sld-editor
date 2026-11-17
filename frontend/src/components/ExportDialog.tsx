@@ -23,10 +23,22 @@ function baseName(name: string): string {
   return name.slice(name.lastIndexOf('/') + 1)
 }
 
+const ISSUE_ITEM: Record<string, { label: TranslationKey; selection: SelectionKind }> = {
+  element: { label: 'exportCheck.element', selection: 'element' },
+  device: { label: 'exportCheck.device', selection: 'digitaldevice' },
+  label: { label: 'exportCheck.label', selection: 'label' },
+  wire: { label: 'exportCheck.wire', selection: 'connector' },
+}
+const WIRE_SHAPE = 'wire:'
+
 function issueText(i: ExportIssue): string {
-  const item = i.item === undefined ? '' : t(i.kind === 'device' ? 'exportCheck.device' : 'exportCheck.element', { id: i.item })
+  const item = i.item === undefined ? '' : t((ISSUE_ITEM[i.kind ?? ''] ?? ISSUE_ITEM.element).label, { id: i.item })
   const schemes = (i.schemes ?? []).map(s => `${s.name || s.ref} (${s.ref})`).join(', ')
-  return t(`exportCheck.issue.${i.code}` as TranslationKey, { item, shape: i.shape ?? '', detail: i.detail ?? '', schemes })
+  const shape = i.shape ?? ''
+  if (i.code === 'noComponentType' && shape.startsWith(WIRE_SHAPE)) {
+    return t('exportCheck.issue.noWireType', { item, kind: shape.slice(WIRE_SHAPE.length) })
+  }
+  return t(`exportCheck.issue.${i.code}` as TranslationKey, { item, shape, detail: i.detail ?? '', schemes })
 }
 
 const errorText = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -99,7 +111,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
 
   function show(i: ExportIssue) {
     if (i.item === undefined || !i.kind) return
-    const kind: SelectionKind = i.kind === 'device' ? 'digitaldevice' : 'element'
+    const kind = (ISSUE_ITEM[i.kind] ?? ISSUE_ITEM.element).selection
     selectMany(new Map([[i.item, kind]]))
     focusItem(i.item, kind)
   }

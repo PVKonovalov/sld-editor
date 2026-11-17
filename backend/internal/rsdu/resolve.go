@@ -3,7 +3,9 @@ package rsdu
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -118,6 +120,73 @@ func (p *Provider) Resolve(ctx context.Context, r string) (*binding.Resolved, er
 	if err != nil {
 		return nil, err
 	}
+	found, err := p.resolveObjects(ctx, tableID, []int64{id}, map[string]string{})
+	if err != nil {
+		return nil, err
+	}
+	res := found[id]
+	if res == nil {
+		return nil, fmt.Errorf("%w: object %s", binding.ErrNotFound, ref(tableID, id))
+	}
+	return res, nil
+}
+
+// ResolveMany resolves refs as Resolve does, reading each table's objects in chunks: found by the refs as given,
+// missing the refs that are invalid, don't exist or can't be bound, in their order; duplicates count once.
+func (p *Provider) ResolveMany(ctx context.Context, refs []string) (map[string]*binding.Resolved, []string, error) {
+	type key struct{ table, id int64 }
+	keys := map[string]key{}
+	byTable := map[int64][]int64{}
+	var tables []int64
+	for _, r := range refs {
+		if _, ok := keys[r]; ok {
+			continue
+		}
+		tableID, id, err := parseRef(r)
+		if err != nil {
+			keys[r] = key{}
+			continue
+		}
+		keys[r] = key{tableID, id}
+		if _, ok := byTable[tableID]; !ok {
+			tables = append(tables, tableID)
+		}
+		byTable[tableID] = append(byTable[tableID], id)
+	}
+	objects := map[key]*binding.Resolved{}
+	globals := map[string]string{}
+	for _, tableID := range tables {
+		found, err := p.resolveObjects(ctx, tableID, byTable[tableID], globals)
+		if errors.Is(err, binding.ErrNotFound) || errors.Is(err, binding.ErrInvalid) {
+			continue
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		for id, res := range found {
+			objects[key{tableID, id}] = res
+		}
+	}
+	found := map[string]*binding.Resolved{}
+	missing := []string{}
+	done := map[string]bool{}
+	for _, r := range refs {
+		if done[r] {
+			continue
+		}
+		done[r] = true
+		if res := objects[keys[r]]; res != nil {
+			found[r] = res
+		} else {
+			missing = append(missing, r)
+		}
+	}
+	return found, missing, nil
+}
+
+// resolveObjects reads objects ids of table tableID in chunks, keyed by id; ids that don't exist are left out.
+// globals caches the global types read, by data acquisition type id or type alias, as globalType reads them.
+func (p *Provider) resolveObjects(ctx context.Context, tableID int64, ids []int64, globals map[string]string) (map[int64]*binding.Resolved, error) {
 	ti, err := p.tableInfo(ctx, tableID)
 	if err != nil {
 		return nil, err
@@ -141,7 +210,7 @@ func (p *Provider) Resolve(ctx context.Context, r string) (*binding.Resolved, er
 		return nil, err
 	}
 
-	sel := []string{"o.NAME"}
+	sel := []string{"o.ID", "o.NAME"}
 	opt := func(col, expr string) {
 		if cols[col] {
 			sel = append(sel, expr)
@@ -178,50 +247,68 @@ func (p *Provider) Resolve(ctx context.Context, r string) (*binding.Resolved, er
 	if !typed {
 		sel = append(sel, "NULL", "NULL")
 	}
-	query := "SELECT " + strings.Join(sel, ", ") + " FROM " + from + " WHERE o.ID = ?"
 
-	var res *binding.Resolved
-	var typeID int64
-	err = each(ctx, p.read, p.d.SQL(query), func(row Rows) error {
-		var name, typeAlias, typeName sql.NullString
-		var guid any
-		var parent, idType sql.NullInt64
-		if err := row.Scan(&name, &guid, &parent, &idType, &typeAlias, &typeName); err != nil {
-			return err
+	out := map[int64]*binding.Resolved{}
+	typeIDs := map[int64]int64{}
+	ids = slices.Clone(ids)
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	for chunk := range slices.Chunk(ids, existChunk) {
+		marks := strings.TrimSuffix(strings.Repeat("?, ", len(chunk)), ", ")
+		args := make([]any, len(chunk))
+		for i, id := range chunk {
+			args[i] = id
 		}
-		res = &binding.Resolved{
-			Ref: ref(tableID, id), Name: name.String, UID: GUID(guid),
-			Type: strings.TrimSpace(typeAlias.String), TypeName: typeName.String,
-		}
-		if parent.Int64 > 0 && parentTable > 0 {
-			res.ParentRef = ref(parentTable, parent.Int64)
-		}
-		typeID = idType.Int64
-		return nil
-	}, id)
-	if err != nil {
-		return nil, err
-	}
-	if res == nil {
-		return nil, fmt.Errorf("%w: object %s", binding.ErrNotFound, ref(tableID, id))
-	}
-
-	switch {
-	case jumpTables[ti.alias]:
-		res.Kind, res.Option = slddoc.BindingJump, optionComplex
-	case strings.EqualFold(ti.types, equipmentTypes):
-		res.Kind, res.Option = slddoc.BindingEquipment, optionComplex
-	default:
-		res.Kind, res.Option = slddoc.BindingMeas1, optionAnalog
-		global, err := p.globalType(ctx, ti.types, res.Type, typeID)
+		query := "SELECT " + strings.Join(sel, ", ") + " FROM " + from + " WHERE o.ID IN (" + marks + ")"
+		err := each(ctx, p.read, p.d.SQL(query), func(row Rows) error {
+			var id int64
+			var name, typeAlias, typeName sql.NullString
+			var guid any
+			var parent, idType sql.NullInt64
+			if err := row.Scan(&id, &name, &guid, &parent, &idType, &typeAlias, &typeName); err != nil {
+				return err
+			}
+			res := &binding.Resolved{
+				Ref: ref(tableID, id), Name: name.String, UID: GUID(guid),
+				Type: strings.TrimSpace(typeAlias.String), TypeName: typeName.String,
+			}
+			if parent.Int64 > 0 && parentTable > 0 {
+				res.ParentRef = ref(parentTable, parent.Int64)
+			}
+			out[id] = res
+			typeIDs[id] = idType.Int64
+			return nil
+		}, args...)
 		if err != nil {
 			return nil, err
 		}
-		if boolGlobalTypes[global] {
-			res.Option = optionBool
+	}
+
+	for id, res := range out {
+		switch {
+		case jumpTables[ti.alias]:
+			res.Kind, res.Option = slddoc.BindingJump, optionComplex
+		case strings.EqualFold(ti.types, equipmentTypes):
+			res.Kind, res.Option = slddoc.BindingEquipment, optionComplex
+		default:
+			res.Kind, res.Option = slddoc.BindingMeas1, optionAnalog
+			k := "alias " + res.Type
+			if strings.HasPrefix(strings.ToUpper(ti.types), daTypesPrefix) && typeIDs[id] > 0 {
+				k = fmt.Sprintf("da %d", typeIDs[id])
+			}
+			global, ok := globals[k]
+			if !ok {
+				if global, err = p.globalType(ctx, ti.types, res.Type, typeIDs[id]); err != nil {
+					return nil, err
+				}
+				globals[k] = global
+			}
+			if boolGlobalTypes[global] {
+				res.Option = optionBool
+			}
 		}
 	}
-	return res, nil
+	return out, nil
 }
 
 // globalType returns SYS_GTYP.DEFINE_ALIAS of a measurement's type: through SYS_DTYP for data acquisition types,

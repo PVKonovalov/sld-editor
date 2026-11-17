@@ -5,6 +5,7 @@ import type {
   ExportCheck,
   ExportRequest,
   ExportResult,
+  SchemeBindings,
   SchemeGroup,
   SchemeType,
   SchemeRef,
@@ -443,6 +444,14 @@ export async function resolveBindings(refs: string[]): Promise<BindingResolveRes
   return asJSON(res)
 }
 
+/** The path of a provider object from its tree's root down to the object. */
+export async function bindingPath(ref: string): Promise<{ ref: string; name: string }[]> {
+  const body: { path: { ref: string; name: string }[] | null } = await asJSON(
+    await fetch(`${BASE}/bindings/path?ref=${encodeURIComponent(ref)}`),
+  )
+  return body.path ?? []
+}
+
 /** The bindings the provider proposes for binding object ref to an element automatically (none when it proposes
  * nothing for that object). */
 export async function suggestBindings(ref: string, element: { shape: string; class: string }): Promise<Binding[]> {
@@ -462,6 +471,18 @@ export async function checkExport(name: string, register = false): Promise<Expor
   const q = `name=${encodeURIComponent(name)}${register ? '&register=true' : ''}`
   const c: ExportCheck = await asJSON(await fetch(`${BASE}/bindings/export/check?${q}`))
   return { ...c, issues: c.issues ?? [] }
+}
+
+/** The bindings of the scheme the saved diagram name is linked to, read from the provider for import. */
+export async function importBindings(name: string): Promise<SchemeBindings> {
+  const r: SchemeBindings = await asJSON(
+    await fetch(`${BASE}/bindings/import?name=${encodeURIComponent(name)}`, { method: 'POST' }),
+  )
+  return {
+    ...r,
+    issues: r.issues ?? [],
+    components: (r.components ?? []).map(c => ({ ...c, bindings: c.bindings ?? [] })),
+  }
 }
 
 /** An export the server's check stopped; check tells why. */

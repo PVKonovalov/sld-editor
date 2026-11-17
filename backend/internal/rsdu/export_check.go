@@ -18,8 +18,11 @@ import (
 const (
 	sqlSchemeTypes    = "SELECT ot.ID, ot.NAME FROM {s}.SYS_OTYP ot, {s}.VS_TYPE_V vt WHERE ot.ID = vt.ID"
 	sqlComponentTypes = "SELECT ID, MODUS_TYPE FROM {s}.VS_TCOMP WHERE ID_DTYP = ? AND MODUS_TYPE IS NOT NULL"
-	// deviceShape is the Modus symbol code of a digital device (VS_TCOMP.MODUS_TYPE).
+	// deviceShape is the Modus symbol code of a digital device (VS_TCOMP.MODUS_TYPE), labelShape a text label's.
 	deviceShape = "134"
+	labelShape  = "5"
+	// wireShape prefixes a wire's connector kind as the shape key of its component type (see componentTypes).
+	wireShape = "wire:"
 )
 
 // SchemeTypes returns SYS_OTYP rows that are scheme types (VS_TYPE_V), sorted by name.
@@ -41,7 +44,8 @@ func (p *Provider) SchemeTypes(ctx context.Context) ([]binding.SchemeType, error
 	return types, nil
 }
 
-// componentTypes returns VS_TCOMP.ID by MODUS_TYPE for the scheme type dtyp.
+// componentTypes returns VS_TCOMP.ID by MODUS_TYPE for the scheme type dtyp, and by wireShape + connector kind as
+// configured.
 func (p *Provider) componentTypes(ctx context.Context, dtyp int) (map[string]int64, error) {
 	out := map[string]int64{}
 	err := each(ctx, p.read, p.d.SQL(sqlComponentTypes), func(r Rows) error {
@@ -55,6 +59,11 @@ func (p *Provider) componentTypes(ctx context.Context, dtyp int) (map[string]int
 		}
 		return nil
 	}, int64(dtyp))
+	for _, kind := range []slddoc.ConnectorKind{slddoc.KindBusWork, slddoc.KindOverheadLine, slddoc.KindCableLine, slddoc.KindLinkToObject, slddoc.KindBusbarWire} {
+		if id, ok := p.cfg.WireType(string(kind)); ok {
+			out[wireShape+string(kind)] = id
+		}
+	}
 	return out, err
 }
 
@@ -168,6 +177,12 @@ func (p *Provider) checkItems(ctx context.Context, c *binding.ExportCheck, d *sl
 	}
 	for _, dd := range d.DigitalDevices {
 		item("device", dd.ID, deviceShape, dd.Bindings)
+	}
+	for _, l := range d.Labels {
+		item("label", l.ID, labelShape, l.Bindings)
+	}
+	for _, w := range d.Connectors {
+		item("wire", w.ID, wireShape+string(w.Kind), w.Bindings)
 	}
 	if d.Object != nil && d.Object.Source != p.Name() {
 		c.Add(binding.ExportIssue{Code: binding.IssueOtherSource, Severity: binding.SeverityWarning, Detail: d.Object.Source})

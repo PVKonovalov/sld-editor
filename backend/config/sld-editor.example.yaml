@@ -368,6 +368,12 @@ bindings:
   #     sid: RSDU             # Oracle: the instance SID; or database: the service name
   #   export: false           # true enables export to RSDU (the dsn account must be allowed to write)
   #   scheme_type: 518        # VS_FORM.ID_TYPE / VS_TCOMP.ID_DTYP of exported schemes (518: MODUS); needed for export
+  #   wire_types:             # VS_TCOMP.ID of an exported bound wire, by kind; absent: these RSDU defaults
+  #     BusWork: 1489
+  #     OverheadLine: 112
+  #     CableLine: 115
+  #     LinkToObject: 1014
+  #     BusbarWire: 113
   #   svg:
   #     dir: ""               # where ctrlroom reads scheme SVGs (its backend.path_to_sld)
   #     full_path: true       # as ctrlroom's backend.use_full_path_for_sld

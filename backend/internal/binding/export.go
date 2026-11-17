@@ -34,6 +34,8 @@ const (
 	IssueUnknownKind       = "unknownKind"       // the provider has no binding type for the kind; skipped
 	IssueUnknownOption     = "unknownOption"     // the provider has no such value option; skipped
 	IssueDuplicate         = "duplicate"         // a binding the provider can't store twice for one item; skipped
+	IssueBadComponent      = "badComponent"      // a component whose name is not an item id; skipped
+	IssueMissingObject     = "missingObject"     // a binding's object no longer exists; kept, without a name
 )
 
 // ExportIssue is one finding of an export check. Item, Kind (element or device) and Shape name the diagram item it is
@@ -118,4 +120,23 @@ type ExportChecker interface {
 	CheckExport(ctx context.Context, name string, d *slddoc.Diagram, scheme *slddoc.SchemeRef) (*ExportCheck, error)
 	SchemeGroups(ctx context.Context) ([]SchemeGroup, error)
 	SchemeTypes(ctx context.Context) ([]SchemeType, error)
+}
+
+// SchemeBindings are the bindings a provider's scheme holds, read for import: the diagram's object and one Component
+// per item. Issues are warnings about what could not be read as a binding.
+type SchemeBindings struct {
+	Scheme     Scheme          `json:"scheme"`
+	Object     *slddoc.Binding `json:"object,omitempty"`
+	Components []Component     `json:"components"`
+	Issues     []ExportIssue   `json:"issues"`
+}
+
+// Component is what a scheme holds for one item: Item is its id, Shape the shape code of its component type ("" when
+// the provider has none), Precision and Features as in slddoc.Element, and its bindings with names cached.
+type Component struct {
+	Item      int              `json:"item"`
+	Shape     string           `json:"shape,omitempty"`
+	Precision int              `json:"precision,omitempty"`
+	Features  string           `json:"features,omitempty"`
+	Bindings  []slddoc.Binding `json:"bindings"`
 }

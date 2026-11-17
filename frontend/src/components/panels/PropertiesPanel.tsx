@@ -11,6 +11,7 @@ import { ConnectionsSection } from './ConnectionsSection'
 import { MridRow } from './MridRow'
 import { ElectricalSection } from './ElectricalSection'
 import { BindingsSection, DiagramBindingsSection } from './BindingsSection'
+import { ImportedBindings } from './ImportedBindings'
 import {
   connectorElectricalFields,
   elementElectricalFields,
@@ -733,6 +734,14 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           />
           <ConnectionsSection connector={connector} />
           <LayerSelect layers={diagram.layers} value={connector.layer} onChange={layer => moveItemToLayer(connector.id, 'connector', layer)} />
+          <BindingsSection
+            provider={bindingProvider}
+            target={{ kind: 'connector', id: connector.id }}
+            bindings={connector.bindings}
+            precision={connector.precision}
+            features={connector.features}
+          />
+          <ImportedBindings id={connector.id} bindings={connector.bindings} precision={connector.precision} features={connector.features} />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: connector.id })}</p>
           <DeleteButton label={t('properties.deleteConnector')} onDelete={deleteSelected} />
         </div>
@@ -868,6 +877,20 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             </select>
           </label>
           <LayerSelect layers={diagram.layers} value={label.layer} onChange={layer => moveItemToLayer(label.id, 'label', layer)} />
+          <BindingsSection
+            provider={bindingProvider}
+            target={{ kind: 'label', id: label.id }}
+            bindings={label.bindings}
+            precision={label.precision}
+            features={label.features}
+          />
+          <ImportedBindings
+            id={label.id}
+            shape={LABEL_SHAPE}
+            bindings={label.bindings}
+            precision={label.precision}
+            features={label.features}
+          />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: label.id })}</p>
           <DeleteButton label={t('properties.deleteLabel')} onDelete={deleteSelected} />
         </div>
@@ -978,6 +1001,13 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           <BindingsSection
             provider={bindingProvider}
             target={{ kind: 'digitaldevice', id: digitalDevice.id }}
+            bindings={digitalDevice.bindings}
+            precision={digitalDevice.precision}
+            features={digitalDevice.features}
+          />
+          <ImportedBindings
+            id={digitalDevice.id}
+            shape={DIGITAL_DEVICE_SHAPE}
             bindings={digitalDevice.bindings}
             precision={digitalDevice.precision}
             features={digitalDevice.features}
@@ -1175,6 +1205,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           precision={el.precision}
           features={el.features}
         />
+        <ImportedBindings id={el.id} shape={el.shape} bindings={el.bindings} precision={el.precision} features={el.features} />
         {(typeSymbol?.cim?.length ?? 0) > 1 && (
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.cimClass')}</span>

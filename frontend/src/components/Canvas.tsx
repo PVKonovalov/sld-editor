@@ -1820,7 +1820,9 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   function bindDropTarget(e: ReactDragEvent): BindDrop['target'] | null {
     const hit = (e.target as HTMLElement).closest('[data-editor-kind]') as HTMLElement | null
     const kind = hit?.dataset.editorKind
-    if (hit && (kind === 'element' || kind === 'digitaldevice')) return { kind, id: Number(hit.id) }
+    if (hit && (kind === 'element' || kind === 'digitaldevice' || kind === 'label' || kind === 'connector')) {
+      return { kind, id: Number(hit.id) }
+    }
     const id = findElementBoxHit(toPoint(e.clientX, e.clientY))
     return id === null ? null : { kind: 'element', id }
   }
@@ -1838,8 +1840,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     e.preventDefault()
     const target = bindDropTarget(e)
     if (!target || obj.source !== bindingProvider) return
-    if (target.kind === 'element') selectElement(target.id)
-    else selectDigitalDevice(target.id)
+    selectMany(new Map([[target.id, target.kind]]))
     setBindDrop({ ref: obj.ref, name: obj.name, target, x: e.clientX, y: e.clientY })
   }
 

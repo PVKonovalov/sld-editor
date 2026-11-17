@@ -772,3 +772,58 @@ func TestIntegrationExport(t *testing.T) {
 		})
 	}
 }
+
+// TestIntegrationSchemeBindings reads the bindings of the scheme with the most of them and checks that every
+// component and binding row is either imported or reported.
+func TestIntegrationSchemeBindings(t *testing.T) {
+	for _, db := range testDSNs {
+		t.Run(db.driver, func(t *testing.T) {
+			p := integrationProvider(t, db.env, db.driver)
+			ctx := context.Background()
+			var form, tunes int64
+			err := each(ctx, p.read, p.d.SQL("SELECT c.ID_FORM, COUNT(*) FROM {s}.VS_REGIM_TUNE t JOIN {s}.VS_COMP c ON c.ID = t.ID_OWNLST "+
+				"GROUP BY c.ID_FORM ORDER BY COUNT(*) DESC, c.ID_FORM"), func(r Rows) error {
+				if form == 0 {
+					return r.Scan(&form, &tunes)
+				}
+				return nil
+			})
+			if err != nil || form == 0 {
+				t.Fatalf("no scheme with bindings: %v", err)
+			}
+			var comps int64
+			if err := each(ctx, p.read, p.d.SQL("SELECT COUNT(*) FROM {s}.VS_COMP WHERE ID_FORM = ?"), func(r Rows) error { return r.Scan(&comps) }, form); err != nil {
+				t.Fatal(err)
+			}
+			res, err := p.SchemeBindings(ctx, strconv.FormatInt(form, 10))
+			if err != nil {
+				t.Fatal(err)
+			}
+			bindings, named, jumps := 0, 0, 0
+			for _, c := range res.Components {
+				bindings += len(c.Bindings)
+				for _, b := range c.Bindings {
+					if b.Name != "" {
+						named++
+					}
+					if b.Kind == slddoc.BindingJump {
+						jumps++
+					}
+				}
+			}
+			count := map[string]int{}
+			for _, i := range res.Issues {
+				count[i.Code]++
+			}
+			if got := int64(len(res.Components) + count[binding.IssueBadComponent]); got != comps {
+				t.Errorf("%d components read and %d bad of %d", len(res.Components), count[binding.IssueBadComponent], comps)
+			}
+			// Bindings of a bad component are not read; every other row is a binding, a duplicate or an unknown kind.
+			if got := int64(bindings + count[binding.IssueDuplicate] + count[binding.IssueUnknownKind]); got > tunes || bindings == 0 {
+				t.Errorf("%d bindings + %v of %d rows", bindings, count, tunes)
+			}
+			t.Logf("scheme %d: %d components, %d bindings (%d named, %d jumps) of %d rows, object %v, issues %v",
+				form, len(res.Components), bindings, named, jumps, tunes, res.Object != nil, count)
+		})
+	}
+}

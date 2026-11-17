@@ -236,3 +236,34 @@ func TestDeliverSVGOnExportAndSave(t *testing.T) {
 		t.Error("delivered with export off")
 	}
 }
+
+// importingProvider holds item 3's bindings in every scheme.
+type importingProvider struct{ checkingProvider }
+
+func (importingProvider) SchemeBindings(_ context.Context, ref string) (*binding.SchemeBindings, error) {
+	return &binding.SchemeBindings{
+		Scheme:     binding.Scheme{Ref: ref, Name: "S"},
+		Components: []binding.Component{{Item: 3, Shape: "41", Bindings: []slddoc.Binding{{Source: "fake", Kind: slddoc.BindingMeas1, Ref: "1:2"}}}},
+		Issues:     []binding.ExportIssue{},
+	}, nil
+}
+
+func TestImportBindings(t *testing.T) {
+	s := newTestServerWithBindings(t, importingProvider{}, rsduBindings(false))
+	if cfg := doJSON(t, s, http.MethodGet, "/api/config", nil).Body.String(); !strings.Contains(cfg, `"import":true`) {
+		t.Errorf("config: %s", cfg)
+	}
+	doJSON(t, s, http.MethodPost, "/api/diagrams", map[string]any{"name": "x/a"})
+	if rec := doJSON(t, s, http.MethodPost, "/api/bindings/import?name=x/a", nil); rec.Code != http.StatusConflict {
+		t.Errorf("unlinked: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := doJSON(t, s, http.MethodPost, "/api/bindings/import?name=x/none", nil); rec.Code != http.StatusNotFound {
+		t.Errorf("missing diagram: %d %s", rec.Code, rec.Body.String())
+	}
+	doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=x/a", slddoc.Diagram{Width: 10, Height: 10, Scheme: &slddoc.SchemeRef{Source: "fake", Ref: "9"}})
+	rec := doJSON(t, s, http.MethodPost, "/api/bindings/import?name=x/a", nil)
+	res := decode[binding.SchemeBindings](t, rec.Body.String())
+	if rec.Code != http.StatusOK || res.Scheme.Ref != "9" || len(res.Components) != 1 || res.Components[0].Bindings[0].Ref != "1:2" {
+		t.Errorf("linked: %d %s", rec.Code, rec.Body.String())
+	}
+}

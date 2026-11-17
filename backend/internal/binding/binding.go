@@ -159,9 +159,14 @@ type Exporter interface {
 	Export(ctx context.Context, name string, d *slddoc.Diagram, req ExportRequest) (*ExportResult, error)
 }
 
-// Importer is a Provider that can read a scheme's bindings, returned as a diagram holding only bound items.
+// BatchResolver is a Provider that resolves many refs at once, with ResolveAll's results.
+type BatchResolver interface {
+	ResolveMany(ctx context.Context, refs []string) (map[string]*Resolved, []string, error)
+}
+
+// Importer is a Provider that can read the bindings its scheme ref holds for the items of a diagram.
 type Importer interface {
-	Import(ctx context.Context, scheme string) (*slddoc.Diagram, error)
+	SchemeBindings(ctx context.Context, ref string) (*SchemeBindings, error)
 }
 
 // Constructor builds a provider from its configuration. It must not contact the data source.
@@ -226,6 +231,9 @@ func CanExport(p Provider, cfg config.Bindings) bool {
 // ResolveAll resolves every distinct ref with p. Refs that don't exist or can't be bound (ErrNotFound, ErrInvalid)
 // are listed in missing; any other error (the data source failing) stops it.
 func ResolveAll(ctx context.Context, p Provider, refs []string) (map[string]*Resolved, []string, error) {
+	if b, ok := p.(BatchResolver); ok {
+		return b.ResolveMany(ctx, refs)
+	}
 	found := map[string]*Resolved{}
 	missing := []string{}
 	seen := map[string]bool{}

@@ -22,6 +22,7 @@ import type {
   Point,
   Revision,
   VoltageColor,
+  SchemeBindings,
 } from '../types'
 import {
   DiagramContext,
@@ -888,9 +889,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   )
   const dismissSchemeOffer = useCallback(() => setSchemeOffer(null), [])
   const [exportOpen, setExportOpen] = useState(false)
+  const [bindingImport, setBindingImport] = useState<SchemeBindings | null>(null)
   useEffect(() => {
     setSchemeOffer(prev => (prev && prev.name !== diagramName ? null : prev))
     setExportOpen(false)
+    setBindingImport(null)
   }, [diagramName])
 
   const importDiagramFile = useCallback(
@@ -1266,6 +1269,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       dismissSchemeOffer,
       exportOpen,
       setExportOpen,
+      bindingImport,
+      setBindingImport,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,
@@ -1376,6 +1381,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       dismissSchemeOffer,
       exportOpen,
       setExportOpen,
+      bindingImport,
+      setBindingImport,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,

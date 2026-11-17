@@ -1067,7 +1067,9 @@ piece keeps the parameters and the new piece starts empty.
 
 ### Bindings {#properties-bindings}
 
-A device or digital device can be bound to objects of a SCADA system (for example RSDU). The collapsible **Bindings**
+A device, digital device, text label or wire can be bound to objects of a SCADA system (for example RSDU), as RSDU's
+own scheme editor binds them: a label usually opens a panel or scheme (**Jumps**), a wire stands for a line segment or
+bus section (**Equipment**). The collapsible **Bindings**
 group in Properties shows and edits these bindings. It appears only when bindings are turned on in the configuration
 (see [Bindings](#configuration-bindings)). With bindings off the group is hidden, but bindings stored in a diagram are
 kept when it is saved.
@@ -1086,6 +1088,8 @@ system's name as a tag, and lets you change:
 - **Scale**: a whole number other than 0; 1 when unset; a negative scale inverts a discrete value. A value that isn't
   allowed is marked red and not kept. Press Enter or leave the field to apply it.
 - **×** removes that binding.
+- The tree icon shows the object's full path in the system's object tree, from the root down to the object (for
+  example *company / branch / substation / bay / switch*); click it again to hide it.
 
 An empty row reads "Drop an object here from the Objects panel". Dropping an object on a row binds it as that row's
 kind (see [Binding an object](#binding-objects)). A binding made with another system than the configured one shows a
@@ -1109,7 +1113,7 @@ on the **Object** row to set it; **×** clears it. **Refresh bindings** is there
 
 Open the [Objects](#objects) panel and find the object in its tree, list or search.
 
-- **Drop it on an element or digital device on the canvas.** The editor selects the item, reads the object from the
+- **Drop it on an element, digital device, text label or wire on the canvas.** The editor selects the item, reads the object from the
   database and opens **Bind object**. The window shows:
   - the object's name and type;
   - **Auto** (chosen when the system proposes anything): every binding the system proposes for the object, as RSDU's
@@ -1156,7 +1160,8 @@ A binding stores the object's name, type and identifier as they were when it was
 diagram's Bindings group) reads every object bound in the diagram from the database again and updates them in one
 step (one undo reverts it). It then reports how many objects it checked, how many bindings changed, and the bindings
 whose object no longer exists, with the item and kind. **Select** selects that item to rebind or remove it. Refresh
-never removes a binding.
+never removes a binding. Objects are read table by table, so even a diagram with a thousand bindings takes seconds;
+if the database doesn't answer within two minutes, Refresh stops with an error and changes nothing.
 
 Copy, paste and Alt-drag keep bindings, precision and features: several pictures may show one object. A
 [custom element](#custom-elements) never has them: saving a selection as a custom element and placing one from the
@@ -1169,7 +1174,7 @@ height. It lists every element that is expected to be bound and every digital de
 and, per binding kind, the name of the bound object (`—` when there is none). Drawing shapes and connection helpers
 (lines, rectangles, circles, arcs, polygons, arrows, containers, pictures, roads, junction and connection points,
 forks, wire jumps, cable connectors and joints, ground terminals, chassis) are not expected to be bound. They are
-listed only when they carry a binding anyway.
+listed only when they carry a binding anyway, and so are text labels and wires.
 
 - **Unbound** chooses what counts as a gap: *no binding at all*, or no binding of one kind (for example no
   **Parameters**). The header counts the listed items and the gaps.
@@ -1184,6 +1189,36 @@ listed only when they carry a binding anyway.
 - **Remove** with the kinds ticked, then **from selected**, removes those kinds' bindings from every selected item in
   one step (one undo reverts it). Precision and features stay.
 - **CSV** downloads the rows as shown (filtered and sorted) as a CSV file that spreadsheets open with Cyrillic intact.
+
+#### Import bindings from RSDU {#bindings-import}
+
+A diagram linked to an RSDU scheme (see [RSDU schemes](#rsdu-schemes)) can take the bindings that scheme holds, for
+example after its `.xsde` was imported. **Import bindings from RSDU…** in the diagram's Bindings section reads them;
+save the diagram first, since the link of the saved file is read. Nothing changes in RSDU.
+
+Each scheme component is matched to the element, digital device, text label or wire whose id is the component's name. The component's
+regime gives the kind (*Equipment*, *Parameters*, *Additional parameters*); a *Parameters* binding to a scheme, frame, panel or
+report with the complex option is a **jump**. Its option, scale, precision and features come along, and the object
+names are read again. The scheme's own object becomes the diagram object.
+
+The [Bindings overview](#bindings-overview) then shows what will change: only the items whose bindings differ, each
+kind with RSDU's binding (with option and scale when it differs from the file's; amber when it differs), and
+precision · features. The file's own bindings show in Properties when you select the item:
+
+- **New**: the file has no RSDU binding for the item.
+- **Differs**: both have bindings and they differ.
+- **Not in RSDU**: the file binds an item the scheme has no component for; its RSDU bindings will be removed.
+- A warning under the type shows when RSDU's component type is of another shape.
+
+While the import is open, Properties of a selected element, digital device, text label or wire also shows **In RSDU
+(import)**: its status and what RSDU holds for it per kind (name, ref, option, scale) with precision · features, the
+values that differ from the file's in amber.
+
+**Apply** makes the diagram's RSDU bindings, precision, features and diagram object those of RSDU, in one step (one
+undo reverts it); other providers' bindings stay. **Cancel import** goes back to the overview and changes nothing. The summary link lists the components with no item of
+their id in the diagram (for example a symbol the `.xsde` import doesn't convert yet) and the rows that were
+skipped (a component name that is not an id, an unknown regime, a second binding of one kind, an object that no longer
+exists).
 
 ### Layers and voltage classes {#layers}
 
@@ -1357,6 +1392,7 @@ bindings:
 | `rsdu.schema` | no | The schema (owner) of RSDU's tables, not the database; default `rsduadmin`. On PostgreSQL it is a schema inside the database named in `database`. Letters, digits, `_` and `$` only. |
 | `rsdu.dsn` | with `rsdu` | The connection to the RSDU database (keys below), for reading objects and for export. |
 | `rsdu.export` | no | `true` enables export to RSDU; the `dsn` account must then be allowed to write. Default `false`. |
+| `rsdu.wire_types` | no | The RSDU component type (`VS_TCOMP.ID`) a bound wire of each kind is exported as, since wires have no Modus shape: a map of `BusWork`, `OverheadLine`, `CableLine`, `LinkToObject`, `BusbarWire` to a positive id. Absent: RSDU's standard types `BusWork: 1489`, `OverheadLine: 112`, `CableLine: 115`, `LinkToObject: 1014`, `BusbarWire: 113`; a configured map replaces them all, and a bound wire of a kind it lacks is skipped by the export. A text label is exported as the component type of shape 5. |
 | `rsdu.scheme_type` | no | The RSDU scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`), usually 518 (MODUS scheme): an element is exported only when `VS_TCOMP` has a row of this type for its shape. 0 or more, default 0 = not set; the [export check](#rsdu-export) then refuses the export. |
 | `rsdu.svg.dir` | no | The folder ctrlroom reads scheme pictures from (its `backend.path_to_sld`); the export and later saves [deliver the SVG](#rsdu-svg) there. The editor needs write access to it. |
 | `rsdu.svg.full_path` | no | As ctrlroom's `backend.use_full_path_for_sld`: `true`: ctrlroom finds a picture by the scheme's file path stored in RSDU, under `dir`; `false`: by its file name only, directly in `dir`. The same for the Minio object name. |

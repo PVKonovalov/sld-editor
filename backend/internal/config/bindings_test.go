@@ -43,6 +43,9 @@ func TestValidateBindings(t *testing.T) {
 		{"engine differs", func(b *Bindings) { b.RSDU.DSN.Engine = "_oracle" }, `engine "_oracle" differs`},
 		{"encrypted password", func(b *Bindings) { b.RSDU.DSN.PasswordEncrypted = true }, "password_encrypted"},
 		{"negative scheme type", func(b *Bindings) { b.RSDU.SchemeType = -1 }, "scheme_type"},
+		{"wire types", func(b *Bindings) { b.RSDU.WireTypes = map[string]int64{"BusWork": 1489} }, ""},
+		{"unknown wire kind", func(b *Bindings) { b.RSDU.WireTypes = map[string]int64{"Rope": 1} }, `"Rope" is not a wire kind`},
+		{"bad wire type", func(b *Bindings) { b.RSDU.WireTypes = map[string]int64{"CableLine": 0} }, "wire_types.CableLine"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -160,5 +163,19 @@ svg:
 	var f struct{ S Flag }
 	if err := yaml.Unmarshal([]byte("s: maybe"), &f); err == nil {
 		t.Error("secure: maybe passed")
+	}
+}
+
+func TestWireType(t *testing.T) {
+	var r RSDUBindings
+	if id, ok := r.WireType("CableLine"); !ok || id != 115 {
+		t.Errorf("default CableLine: %d %v", id, ok)
+	}
+	r.WireTypes = map[string]int64{"BusWork": 7}
+	if id, ok := r.WireType("BusWork"); !ok || id != 7 {
+		t.Errorf("configured BusWork: %d %v", id, ok)
+	}
+	if _, ok := r.WireType("CableLine"); ok {
+		t.Error("a configured map replaces the defaults")
 	}
 }

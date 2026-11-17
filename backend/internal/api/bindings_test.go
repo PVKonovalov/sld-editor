@@ -217,3 +217,35 @@ func TestBindingSuggest(t *testing.T) {
 		t.Errorf("bad ref: status = %d", rec.Code)
 	}
 }
+
+func TestBindingPath(t *testing.T) {
+	p := resolvingProvider{objs: map[string]binding.Resolved{
+		"9:1": {Ref: "9:1", Name: "Root"},
+		"9:2": {Ref: "9:2", Name: "Substation", ParentRef: "9:1"},
+		"5:6": {Ref: "5:6", Name: "Ia", ParentRef: "9:2"},
+		"5:7": {Ref: "5:7", Name: "Orphan", ParentRef: "9:99"},
+		"8:1": {Ref: "8:1", Name: "Loop", ParentRef: "8:2"},
+		"8:2": {Ref: "8:2", Name: "Back", ParentRef: "8:1"},
+	}}
+	s := newTestServerWithBindings(t, p, rsduBindings(false))
+	path := func(ref string) (int, string) {
+		rec := doJSON(t, s, http.MethodGet, "/api/bindings/path?ref="+ref, nil)
+		var got struct {
+			Path []PathNode `json:"path"`
+		}
+		_ = json.Unmarshal(rec.Body.Bytes(), &got)
+		var names []string
+		for _, n := range got.Path {
+			names = append(names, n.Name)
+		}
+		return rec.Code, strings.Join(names, "/")
+	}
+	for ref, want := range map[string]string{"5:6": "Root/Substation/Ia", "5:7": "Orphan", "8:1": "Back/Loop"} {
+		if code, got := path(ref); code != http.StatusOK || got != want {
+			t.Errorf("%s: %d %q, want %q", ref, code, got, want)
+		}
+	}
+	if code, _ := path("1:3"); code != http.StatusNotFound {
+		t.Errorf("missing object: %d", code)
+	}
+}

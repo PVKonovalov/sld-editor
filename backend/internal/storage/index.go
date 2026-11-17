@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -104,6 +105,15 @@ func (s *Store) buildIndex() []string {
 	}
 	s.links = x
 	return warnings
+}
+
+// LoadScheme returns the scheme the saved diagram name is linked to, nil when none, reading only its <scheme>.
+func (s *Store) LoadScheme(name string) (*slddoc.SchemeRef, error) {
+	ref, err := s.readScheme(name)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("%w: %s", ErrNotFound, name)
+	}
+	return ref, err
 }
 
 func (s *Store) readScheme(name string) (*slddoc.SchemeRef, error) {

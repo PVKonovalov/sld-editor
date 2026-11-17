@@ -17,6 +17,7 @@ import type {
   Revision,
   UnmatchedVoltage,
   VoltageColor,
+  SchemeBindings,
 } from '../types'
 import type { PreparedImport } from '../lib/importDiagram'
 import type { MisplacedPort, VoltageMismatch } from '../lib/diagramOps'
@@ -203,6 +204,11 @@ export interface DiagramContextValue {
   // The export window of the open diagram is shown; it closes when another diagram opens.
   exportOpen: boolean
   setExportOpen: (open: boolean) => void
+
+  // The bindings read from the linked scheme, shown in the bindings overview to compare and apply; null when no
+  // import is in progress. It ends when another diagram opens.
+  bindingImport: SchemeBindings | null
+  setBindingImport: (b: SchemeBindings | null) => void
 
   // The last voltage class the user picked in Properties (or Settings, or
   // the New Diagram dialog), remembered for the lifetime of the session

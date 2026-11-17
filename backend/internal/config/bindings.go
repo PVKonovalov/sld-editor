@@ -3,11 +3,15 @@ package config
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/PVKonovalov/slddoc"
 )
 
 // Binding providers known to ValidateBindings.
@@ -40,7 +44,10 @@ type RSDUBindings struct {
 	LegacyWrite any `yaml:"write"`
 	// SchemeType is VS_FORM.ID_TYPE / VS_TCOMP.ID_DTYP of exported schemes.
 	SchemeType int `yaml:"scheme_type" env:"true"`
-	SVG        struct {
+	// WireTypes is the VS_TCOMP.ID a bound wire of each connector kind is exported as (wires have no MODUS_TYPE);
+	// absent: DefaultWireTypes.
+	WireTypes map[string]int64 `yaml:"wire_types"`
+	SVG       struct {
 		// Dir is where ctrlroom reads scheme SVGs (its backend.path_to_sld).
 		Dir string `yaml:"dir" env:"true"`
 		// FullPath mirrors ctrlroom's backend.use_full_path_for_sld.
@@ -53,6 +60,22 @@ type RSDUBindings struct {
 			Minio Minio `yaml:"minio"`
 		} `yaml:"object_storage"`
 	} `yaml:"svg"`
+}
+
+// DefaultWireTypes are RSDU's standard wire component types: bus work, overhead line, cable line, object link, bus.
+var DefaultWireTypes = map[string]int64{
+	string(slddoc.KindBusWork): 1489, string(slddoc.KindOverheadLine): 112, string(slddoc.KindCableLine): 115,
+	string(slddoc.KindLinkToObject): 1014, string(slddoc.KindBusbarWire): 113,
+}
+
+// WireType returns the VS_TCOMP.ID a wire of kind is exported as.
+func (r RSDUBindings) WireType(kind string) (int64, bool) {
+	types := r.WireTypes
+	if types == nil {
+		types = DefaultWireTypes
+	}
+	id, ok := types[kind]
+	return id, ok
 }
 
 // UsesMinio reports whether the SVG is delivered to the Minio bucket too.
@@ -144,6 +167,14 @@ func (c *Config) ValidateBindings() error {
 	}
 	if r.SchemeType < 0 {
 		return fmt.Errorf("bindings.rsdu.scheme_type: %d is negative", r.SchemeType)
+	}
+	for kind, id := range r.WireTypes {
+		if _, ok := DefaultWireTypes[kind]; !ok {
+			return fmt.Errorf("bindings.rsdu.wire_types: %q is not a wire kind (%s)", kind, strings.Join(slices.Sorted(maps.Keys(DefaultWireTypes)), ", "))
+		}
+		if id <= 0 {
+			return fmt.Errorf("bindings.rsdu.wire_types.%s: %d is not a VS_TCOMP id", kind, id)
+		}
 	}
 	if r.LegacyRead != nil || r.LegacyWrite != nil {
 		return errors.New("bindings.rsdu.read / write: replaced by one connection, bindings.rsdu.dsn (environment: BINDINGS_RSDU_DSN_*), and bindings.rsdu.export: true to enable export")

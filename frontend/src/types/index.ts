@@ -523,6 +523,10 @@ export interface Connector {
   mrid?: string
   fromMrid?: string
   toMrid?: string
+  // Precision, features and bindings as on DiagramElement.
+  precision?: number
+  features?: string
+  bindings?: Binding[]
 }
 
 export interface Label {
@@ -543,6 +547,10 @@ export interface Label {
   // Clockwise turn in degrees about x/y, in (-180, 180]; absent = level (slddoc Label.Rotate).
   rotate?: number
   text: string
+  // Precision, features and bindings as on DiagramElement.
+  precision?: number
+  features?: string
+  bindings?: Binding[]
 }
 
 // A shape-134 SCADA-style analog readout — shares Label's own text-styling
@@ -891,6 +899,8 @@ export interface BindingsConfig {
   schemes?: boolean
   // The provider can check a diagram before an export.
   exportCheck?: boolean
+  // A linked scheme's bindings can be imported.
+  import?: boolean
 }
 
 // Matches binding.SchemeType.
@@ -1029,4 +1039,21 @@ export interface DraggedObject {
   ref: string
   name: string
   type: string
+}
+
+// Matches binding.Component: what a provider's scheme holds for item; shape is its component type's shape code.
+export interface SchemeComponent {
+  item: number
+  shape?: string
+  precision?: number
+  features?: string
+  bindings: Binding[]
+}
+
+// Matches binding.SchemeBindings: a scheme's bindings, read for import; issues are warnings.
+export interface SchemeBindings {
+  scheme: ProviderScheme
+  object?: Binding
+  components: SchemeComponent[]
+  issues: ExportIssue[]
 }

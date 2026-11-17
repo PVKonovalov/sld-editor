@@ -1,5 +1,5 @@
 import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
-import { Loader2, Lock, RefreshCw, Upload, X } from 'lucide-react'
+import { Download, FolderTree, Loader2, Lock, RefreshCw, Upload, X } from 'lucide-react'
 import { GroupHeader } from './GroupHeader'
 import { SchemeLinkRow } from './SchemeLinkRow'
 import { t, type TranslationKey } from '../../i18n'
@@ -7,8 +7,9 @@ import * as api from '../../lib/api'
 import * as diagramOps from '../../lib/diagramOps'
 import type { BindingTarget, StaleBinding } from '../../lib/diagramOps'
 import { draggedObject, isObjectDrag, optionFor, useBindingDictionaries } from '../../lib/bindingDictionaries'
+import { itemTitle } from '../../lib/bindingOverview'
 import { useDiagramContext } from '../../state/useDiagramContext'
-import type { Binding, BindingDictionaries, BindingKind, SchemeRef } from '../../types'
+import type { Binding, BindingDictionaries, BindingKind, Diagram, SchemeRef } from '../../types'
 
 const KINDS: BindingKind[] = ['equipment', 'meas1', 'meas2', 'jump']
 
@@ -155,6 +156,37 @@ function useObjectDrop(enabled: boolean, provider: string, onObject: (ref: strin
 
 /** One binding (or "—" for none) under its title. Editable (option, scale, remove, drop an object to rebind) when
  * it is of the active provider; a binding of another provider gets a lock and stays read-only. */
+/** The full path of a bound object, read when first shown and again when ref changes. */
+function useBindingPath(ref: string | undefined) {
+  const [open, setOpen] = useState(false)
+  const [state, setState] = useState<{ ref: string; text?: string; error?: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const load = (r: string) => {
+    setBusy(true)
+    api.bindingPath(r).then(
+      path => {
+        setBusy(false)
+        setState({ ref: r, text: path.map(n => n.name || n.ref).join(' / ') })
+      },
+      e => {
+        setBusy(false)
+        setState({ ref: r, error: t('bindings.fullPathFailed', { error: errorText(e) }) })
+      },
+    )
+  }
+  useEffect(() => {
+    if (open && ref && state?.ref !== ref && !busy) load(ref)
+  }, [open, ref])
+  const current = state?.ref === ref ? state : null
+  return {
+    open: open && !!ref,
+    busy,
+    text: current?.text,
+    error: current?.error,
+    toggle: () => setOpen(v => !v),
+  }
+}
+
 function BindingRow({
   title,
   binding,
@@ -183,6 +215,7 @@ function BindingRow({
   const foreign = binding !== undefined && binding.source !== provider
   const canEdit = editable && !foreign
   const drop = useObjectDrop(editable && !!onDropRef, provider, ref => onDropRef?.(ref))
+  const path = useBindingPath(foreign ? undefined : binding?.ref)
   return (
     <div className="text-xs" {...drop.props}>
       <span className="flex items-center gap-1 text-gray-400 mb-0.5">
@@ -204,6 +237,18 @@ function BindingRow({
                 </span>
               )}
               <SourceTag source={binding.source} />
+              {!foreign && (
+                <button
+                  type="button"
+                  onClick={path.toggle}
+                  title={t('bindings.fullPath')}
+                  aria-label={t('bindings.fullPath')}
+                  aria-pressed={path.open}
+                  className={path.open ? 'text-accent' : 'text-gray-400 hover:text-gray-200'}
+                >
+                  {path.busy ? <Loader2 size={12} className="animate-spin" /> : <FolderTree size={12} />}
+                </button>
+              )}
               {canEdit && onRemove && (
                 <button
                   type="button"
@@ -216,6 +261,12 @@ function BindingRow({
                 </button>
               )}
             </div>
+            {path.open && path.text && (
+              <p className="text-[11px] text-gray-300 break-words" title={path.text}>
+                {path.text}
+              </p>
+            )}
+            {path.open && path.error && <p className="text-[11px] text-red-300 break-words">{path.error}</p>}
             <Detail label={t('bindings.type')} value={binding.type} />
             {canEdit && onOption ? (
               <label className="flex items-center gap-1 text-[11px]">
@@ -388,16 +439,15 @@ export function BindingsSection({
   )
 }
 
-function staleLabel(s: StaleBinding, elementName: (id: number) => string): string {
+function staleLabel(s: StaleBinding, diagram: Diagram): string {
   if (!s.target) return t('bindings.object')
-  const item = s.target.kind === 'element' ? elementName(s.target.id) : t('bindings.staleDigitalDevice', { id: s.target.id })
-  return `${item} · ${t(`bindings.kind.${s.kind}` as TranslationKey)}`
+  return `${itemTitle(diagram, s.target)} · ${t(`bindings.kind.${s.kind}` as TranslationKey)}`
 }
 
 /** Refresh bindings: re-reads every binding of the active provider and updates what it caches (one undo step),
  * then reports the bindings whose object is gone. */
 function RefreshBindings({ provider }: { provider: string }) {
-  const { diagram, updateDiagram, selectElement, selectDigitalDevice } = useDiagramContext()
+  const { diagram, updateDiagram, selectMany, focusItem } = useDiagramContext()
   const [state, setState] = useState<
     { status: 'idle' } | { status: 'busy' } | { status: 'error'; error: string } | { status: 'done'; updated: number; total: number; stale: StaleBinding[] }
   >({ status: 'idle' })
@@ -424,10 +474,6 @@ function RefreshBindings({ provider }: { provider: string }) {
     )
   }
 
-  const elementName = (id: number) => {
-    const el = diagram.elements.find(e => e.id === id)
-    return el?.name ? `${el.name} (${id})` : t('bindings.staleElement', { id })
-  }
   let body: ReactNode = null
   if (state.status === 'error') body = <p className="text-[11px] text-red-300 break-words">{t('bindings.refreshFailed', { error: state.error })}</p>
   if (state.status === 'done') {
@@ -441,13 +487,16 @@ function RefreshBindings({ provider }: { provider: string }) {
             {state.stale.map((s, i) => (
               <li key={i} className="flex items-center gap-1">
                 <span className="flex-1 truncate text-amber-300" title={s.ref}>
-                  {staleLabel(s, elementName)}
+                  {staleLabel(s, diagram)}
                 </span>
                 <span className="font-mono text-gray-500">{s.ref}</span>
                 {s.target && (
                   <button
                     type="button"
-                    onClick={() => (s.target!.kind === 'element' ? selectElement(s.target!.id) : selectDigitalDevice(s.target!.id))}
+                    onClick={() => {
+                      selectMany(new Map([[s.target!.id, s.target!.kind]]))
+                      focusItem(s.target!.id, s.target!.kind)
+                    }}
                     className="text-accent hover:underline"
                   >
                     {t('bindings.staleSelect')}
@@ -527,6 +576,7 @@ export function DiagramBindingsSection({
             onRemove={() => updateDiagram(d => diagramOps.setDiagramObject(d, undefined))}
           />
           <RefreshBindings provider={provider} />
+          {config?.bindings?.import && diagramName && scheme?.source === provider && <ImportBindingsButton name={diagramName} />}
           {config?.bindings?.exportCheck && diagramName && (
             <button
               type="button"
@@ -540,5 +590,44 @@ export function DiagramBindingsSection({
         </div>
       )}
     </div>
+  )
+}
+
+/** Reads the bindings of the scheme the saved diagram name is linked to; the bindings overview then compares them
+ * with the diagram's. Off while the diagram has unsaved changes, since the link read is the saved one. */
+function ImportBindingsButton({ name }: { name: string }) {
+  const { dirty, setBindingImport } = useDiagramContext()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function run() {
+    setBusy(true)
+    setError(null)
+    api.importBindings(name).then(
+      res => {
+        setBusy(false)
+        setBindingImport(res)
+      },
+      e => {
+        setBusy(false)
+        setError(t('bindingImport.failed', { error: errorText(e) }))
+      },
+    )
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={run}
+        disabled={busy || dirty}
+        title={dirty ? t('bindingImport.saveFirst') : undefined}
+        className="flex items-center gap-1 rounded border border-surface-500 px-2 py-0.5 text-xs hover:bg-surface-600 disabled:opacity-50"
+      >
+        {busy ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+        {t('bindingImport.open')}
+      </button>
+      {error && <p className="text-[11px] text-red-300 break-words">{error}</p>}
+    </>
   )
 }

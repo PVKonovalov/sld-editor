@@ -50,6 +50,13 @@ func suggestDB(t *testing.T) *fakeDB {
 		}
 		return nil
 	}
+	// object rows of a resolve query, which selects the id first
+	object := func(m map[int64][]any, id any) [][]any {
+		if row, ok := m[id.(int64)]; ok {
+			return [][]any{append([]any{id}, row...)}
+		}
+		return nil
+	}
 	typeCols := []string{"ID", "NAME", "DEFINE_ALIAS"}
 	listCols := []string{"ID", "NAME", "ID_NODE", "ID_TYPE"}
 	return &fakeDB{
@@ -109,13 +116,13 @@ func suggestDB(t *testing.T) *fakeDB {
 				row := objects[o]
 				return [][]any{{o, nil, row[0], row[4], row[5]}}
 			case strings.Contains(q, "FROM rsduadmin.OBJ_TREE o "):
-				return one(objects, args[0])
+				return object(objects, args[0])
 			case strings.Contains(q, "PSWT_LIST_V o"), strings.Contains(q, "FROM rsduadmin.ELREG_LIST_V o"):
-				return one(meas, args[0])
+				return object(meas, args[0])
 			case strings.Contains(q, "FROM rsduadmin.VP_PANEL o"):
-				return [][]any{{"Overview panel", nil, int64(1), int64(8), "OTYP_DEVICE_PANEL", "Device panel"}}
+				return [][]any{{args[0], "Overview panel", nil, int64(1), int64(8), "OTYP_DEVICE_PANEL", "Device panel"}}
 			case strings.Contains(q, "FROM rsduadmin.DA_V_LST_1 o"):
-				return [][]any{{"Ia", nil, int64(1), int64(405), nil, "Base analog"}}
+				return [][]any{{args[0], "Ia", nil, int64(1), int64(405), nil, "Base analog"}}
 			case strings.Contains(q, "SYS_DTYP d"):
 				return [][]any{{"GLOBAL_TYPE_ANALOG"}}
 			}

@@ -261,3 +261,53 @@ func TestExportRefused(t *testing.T) {
 		t.Errorf("wrote %v", f.execs)
 	}
 }
+
+// TestExportLabelsAndWires: a text label is exported as shape 5's component type, a wire as its kind's configured
+// one; a wire kind without one is skipped.
+func TestExportLabelsAndWires(t *testing.T) {
+	f := newTxDB()
+	rows := f.rows
+	f.rows = func(q string, args []any) [][]any {
+		if strings.Contains(q, "FROM rsduadmin.VS_TCOMP") {
+			return [][]any{{int64(6), int64(41)}, {int64(7), int64(5)}}
+		}
+		return rows(q, args)
+	}
+	p := exportProvider(t, f, config.DriverPostgres)
+	p.cfg.WireTypes = map[string]int64{string(slddoc.KindBusWork): 1489}
+	jump := []slddoc.Binding{{Source: "rsdu", Kind: slddoc.BindingJump, Ref: "43:9"}}
+	eq := []slddoc.Binding{{Source: "rsdu", Kind: slddoc.BindingEquipment, Ref: "1024:5"}}
+	d := &slddoc.Diagram{
+		Scheme: &slddoc.SchemeRef{Source: "rsdu", Ref: "10"},
+		Labels: []slddoc.Label{{ID: 20, Text: "Panel", Precision: 2, Bindings: jump}, {ID: 23, Text: "free"}},
+		Connectors: []slddoc.Connector{
+			{ID: 21, Kind: slddoc.KindBusWork, Bindings: eq},
+			{ID: 22, Kind: slddoc.KindOverheadLine, Bindings: eq},
+		},
+	}
+	check, err := p.CheckExport(context.Background(), "region/sub", d, d.Scheme)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if check.Bound != 3 || !slices.ContainsFunc(check.Issues, func(i binding.ExportIssue) bool {
+		return i.Code == binding.IssueNoComponentType && i.Item == 22 && i.Kind == "wire" && i.Shape == "wire:OverheadLine"
+	}) {
+		t.Errorf("check: bound %d, issues %+v", check.Bound, check.Issues)
+	}
+	res, err := p.Export(context.Background(), "region/sub", d, binding.ExportRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Components != 2 || res.Bindings != 2 {
+		t.Errorf("result %+v", res)
+	}
+	var comps [][]any
+	for i, q := range f.execs {
+		if strings.HasPrefix(q, "INSERT INTO rsduadmin.VS_COMP ") {
+			comps = append(comps, f.args[i])
+		}
+	}
+	if len(comps) != 2 || fmt.Sprint(comps[0][2:4]) != "[7 20]" || fmt.Sprint(comps[1][2:4]) != "[1489 21]" {
+		t.Errorf("components %v", comps)
+	}
+}

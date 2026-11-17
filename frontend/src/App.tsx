@@ -66,8 +66,13 @@ function Shell() {
     setImportLogOpen,
     findFocusSeq,
     config,
+    bindingImport,
   } = useDiagramContext()
   const bindingProvider = config?.bindings?.provider ?? ''
+  // An import of bindings is compared in the overview.
+  useEffect(() => {
+    if (bindingImport) setOverviewOpen(true)
+  }, [bindingImport])
   // The Objects panel is kept mounted once opened (hidden while another panel is shown), so its loaded trees,
   // selection and search survive switching panels.
   const [objectsMounted, setObjectsMounted] = useState(false)

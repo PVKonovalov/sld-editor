@@ -1,5 +1,28 @@
 # Release notes
 
+2026-11-17: Text labels and wires can be bound like elements and digital devices: Properties shows their Bindings
+group, Objects can be dropped on them on the canvas, the Bindings overview lists them once bound, Refresh and the RSDU
+import cover them, and export to RSDU writes their components (a label as shape 5's component type, a wire as its
+kind's `bindings.rsdu.wire_types` entry, defaults BusWork 1489, OverheadLine 112, CableLine 115, LinkToObject 1014,
+BusbarWire 113). A split wire keeps its bindings on both pieces; custom elements drop them.
+
+2026-11-17: Refresh bindings no longer hangs on large diagrams: RSDU objects are resolved table by table in chunked
+`IN` queries with each measurement type's option read once (891 refs: from 8.5 minutes to about 20 seconds), for every
+caller of `ResolveAll` (refresh, export check). `POST /api/bindings/objects` has a two-minute watchdog that answers
+504. New `GET /api/bindings/path?ref=` returns an object's path from its tree's root; a tree icon on every binding in
+Properties shows it.
+
+2026-11-17: SCADA bindings, step 14: import of bindings from RSDU. `POST /api/bindings/import?name=` reads the
+bindings of the scheme the saved diagram is linked to (VS_COMP name → item id, VS_TCOMP.MODUS_TYPE → shape,
+VS_REGIM.DEFINE_ALIAS → kind, a complex parameter binding to a scheme/frame/panel/report → jump, option, scale,
+precision, FEATURE bits → feature aliases, VS_OBJ_TUNE → diagram object, object names/types/GUIDs re-read per table);
+rows that can't be read are skipped and listed. "Import bindings from RSDU…" opens the result in the Bindings overview,
+which previews RSDU's bindings for every differing item (differences highlighted); Apply makes the diagram's
+provider bindings (with precision, features and the diagram object) those of RSDU as one undoable edit, removing those
+of items RSDU has no component for. While an import is open, Properties of the selected item shows what RSDU holds
+for it ("In RSDU (import)"), differing values highlighted; for text labels and wires RSDU binds, read-only. Guide section
+"Import bindings from RSDU".
+
 2026-11-17: SCADA bindings, step 13: SVG delivery to ctrlroom. The export, and every later save of a diagram exported
 to the provider (with `bindings.rsdu.export: true`), delivers the saved Static SVG where ctrlroom's `PathToSld` looks
 for the scheme's `VS_FORM.FILE_NAME` (`\` as `/`, extension `.svg`, the whole path or the base name by

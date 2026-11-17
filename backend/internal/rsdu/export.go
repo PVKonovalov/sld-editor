@@ -224,6 +224,12 @@ func (p *Provider) plan(ctx context.Context, d *slddoc.Diagram, req binding.Expo
 	for _, dd := range d.DigitalDevices {
 		item("device", dd.ID, deviceShape, dd.Precision, dd.Features, dd.Bindings)
 	}
+	for _, l := range d.Labels {
+		item("label", l.ID, labelShape, l.Precision, l.Features, l.Bindings)
+	}
+	for _, w := range d.Connectors {
+		item("wire", w.ID, wireShape+string(w.Kind), w.Precision, w.Features, w.Bindings)
+	}
 	if o := d.Object; o != nil && o.Source == p.Name() {
 		if table, param, err := parseRef(o.Ref); err == nil {
 			pl.object = &tune{table: table, param: param}

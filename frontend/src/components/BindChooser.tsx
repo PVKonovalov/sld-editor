@@ -5,11 +5,20 @@ import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
 import type { BindingTarget } from '../lib/diagramOps'
 import { optionFor, useBindingDictionaries } from '../lib/bindingDictionaries'
+import { bindables, itemTitle } from '../lib/bindingOverview'
 import { useDiagramContext } from '../state/useDiagramContext'
 import { OptionSelect } from './panels/BindingsSection'
 import type { Binding, BindingKind, BindingResolved } from '../types'
 
 const KINDS: BindingKind[] = ['equipment', 'meas1', 'meas2', 'jump']
+
+// The class an item other than an element is described to the provider as.
+const ITEM_CLASS: Record<BindingTarget['kind'], string> = {
+  element: '',
+  digitaldevice: 'DigitalDevice',
+  label: 'Label',
+  connector: 'Connector',
+}
 
 /** What was dropped where: the object ref, the item it was dropped on and the drop point in the window. */
 export interface BindDrop {
@@ -22,7 +31,7 @@ export interface BindDrop {
 
 type Mode = 'auto' | BindingKind
 
-/** The chooser opened by dropping an Objects-panel object on an element or digital device. The object is resolved
+/** The chooser opened by dropping an Objects-panel object on an element, digital device, text label or wire. The object is resolved
  * and the provider's automatic bindings fetched. Auto (the default when the provider proposes any) lists them, each
  * with a checkbox; a kind binds the object alone with an option, preset as the provider suggests. Bind writes them
  * in one undo step, each replacing the item's binding of its kind. */
@@ -38,14 +47,10 @@ export function BindChooser({ drop, provider, onClose }: { drop: BindDrop; provi
   const [option, setOption] = useState<string | undefined>()
   const box = useRef<HTMLDivElement>(null)
 
-  const item =
-    drop.target.kind === 'element'
-      ? diagram?.elements.find(e => e.id === drop.target.id)
-      : diagram?.digitalDevices.find(dd => dd.id === drop.target.id)
-  const element =
-    drop.target.kind === 'element' && item && 'shape' in item
-      ? { shape: item.shape, class: item.class as string }
-      : { shape: '', class: 'DigitalDevice' }
+  const item = diagram
+    ? bindables(diagram).find(b => b.target.kind === drop.target.kind && b.target.id === drop.target.id)
+    : undefined
+  const element = { shape: item?.shape ?? '', class: item?.sub ?? ITEM_CLASS[drop.target.kind] }
 
   useEffect(() => {
     let live = true
@@ -89,10 +94,8 @@ export function BindChooser({ drop, provider, onClose }: { drop: BindDrop; provi
   }, [onClose])
 
   const existing = (kind: BindingKind) => item?.bindings?.find(b => b.kind === kind)
-  const itemName =
-    drop.target.kind === 'element'
-      ? (item as { name?: string } | undefined)?.name || t('bindings.staleElement', { id: drop.target.id })
-      : t('bindings.staleDigitalDevice', { id: drop.target.id })
+  const itemName = diagram ? itemTitle(diagram, drop.target) : ''
+
   const chosen = mode === 'auto' ? (auto ?? []).filter(b => !unticked.has(b.kind)) : []
   const ready = !!obj && mode !== null && (mode !== 'auto' || chosen.length > 0)
 

@@ -3,6 +3,7 @@ package rsdu
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -24,6 +25,19 @@ func resolveDB(t *testing.T) *fakeDB {
 		28:   {"SYS_TREE21_SIM", "SYS_TREE21", "GEN", int64(0), nil},
 	}
 	guid := []byte{0x52, 0x19, 0x1b, 0x7b, 0x0d, 0x43, 0x50, 0xfa, 0xe0, 0x63, 0x29, 0xa5, 0x05, 0x0a, 0x91, 0x50}
+	objects := map[string][][]any{
+		"DA_V_LST_1": {
+			{int64(10), "Breaker state", guid, int64(7), int64(406), nil, "Base bool"},
+			{int64(11), "Current", nil, int64(7), int64(405), nil, "Base analog"},
+		},
+		"ELREG_LIST_V": {
+			{int64(20), "Voltage", nil, int64(3), int64(13), "MEAS_U", "Voltage"},
+			{int64(21), "Position", nil, int64(3), int64(14), "MEAS_SWITCH", "Switch position"},
+		},
+		"OBJ_TREE_PIN_V": {{int64(1), "Breaker Q1", guid, int64(0), int64(5), "OTYP_BREAKER", "Breaker"}},
+		"VS_FORM":        {{int64(5), "Overview", nil, int64(2), int64(9), "OTYP_MODUS_SCHEME", "Scheme"}},
+		"ELREG_TREE":     {{int64(8), "Substation", nil, int64(4), nil, nil, nil}},
+	}
 	return &fakeDB{
 		cols: map[string][]string{
 			"DA_V_LST_1":     {"ID", "NAME", "ID_NODE", "ID_TYPE", "GUID"},
@@ -52,28 +66,18 @@ func resolveDB(t *testing.T) *fakeDB {
 					return [][]any{{"GLOBAL_TYPE_ENUMERATION"}}
 				}
 				return nil
-			case strings.Contains(q, "FROM rsduadmin.DA_V_LST_1 o"):
-				switch args[0] {
-				case int64(10):
-					return [][]any{{"Breaker state", guid, int64(7), int64(406), nil, "Base bool"}}
-				case int64(11):
-					return [][]any{{"Current", nil, int64(7), int64(405), nil, "Base analog"}}
+			case strings.Contains(q, "WHERE o.ID IN"):
+				for name, rows := range objects {
+					if strings.Contains(q, "FROM rsduadmin."+name+" o") {
+						var out [][]any
+						for _, r := range rows {
+							if slices.Contains(args, r[0]) {
+								out = append(out, r)
+							}
+						}
+						return out
+					}
 				}
-				return nil
-			case strings.Contains(q, "FROM rsduadmin.ELREG_LIST_V o"):
-				switch args[0] {
-				case int64(20):
-					return [][]any{{"Voltage", nil, int64(3), int64(13), "MEAS_U", "Voltage"}}
-				case int64(21):
-					return [][]any{{"Position", nil, int64(3), int64(14), "MEAS_SWITCH", "Switch position"}}
-				}
-				return nil
-			case strings.Contains(q, "FROM rsduadmin.OBJ_TREE_PIN_V o"):
-				return [][]any{{"Breaker Q1", guid, int64(0), int64(5), "OTYP_BREAKER", "Breaker"}}
-			case strings.Contains(q, "FROM rsduadmin.VS_FORM o"):
-				return [][]any{{"Overview", nil, int64(2), int64(9), "OTYP_MODUS_SCHEME", "Scheme"}}
-			case strings.Contains(q, "FROM rsduadmin.ELREG_TREE o"):
-				return [][]any{{"Substation", nil, int64(4), nil, nil, nil}}
 			}
 			t.Fatalf("unexpected query %q %v", q, args)
 			return nil
@@ -168,4 +172,45 @@ type failingQuerier struct{}
 
 func (failingQuerier) Query(context.Context, string, ...any) (Rows, error) {
 	return nil, errors.New("connection refused")
+}
+
+// TestResolveMany reads each table's objects in one query and each global type once, with Resolve's results.
+func TestResolveMany(t *testing.T) {
+	refs := []string{"54:10", "28:1", "54:11", "54:10", "54:12", "29:20", "29:21", "x", "999:1", " 43:5 ", "1231:1", "1026:8"}
+	single := newFakeProvider(t, resolveDB(t))
+	f := resolveDB(t)
+	p := newFakeProvider(t, f)
+	found, missing, err := p.ResolveMany(context.Background(), refs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(missing, ",") != "28:1,54:12,x,999:1" {
+		t.Errorf("missing = %q", missing)
+	}
+	for _, r := range []string{"54:10", "54:11", "29:20", "29:21", " 43:5 ", "1231:1", "1026:8"} {
+		want, err := single.Resolve(context.Background(), r)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if found[r] == nil || *found[r] != *want {
+			t.Errorf("%q: got %+v, want %+v", r, found[r], want)
+		}
+	}
+	if len(found) != 7 {
+		t.Errorf("found %d", len(found))
+	}
+	count := func(sub string) (n int) {
+		for _, q := range f.queries {
+			if strings.Contains(q, sub) {
+				n++
+			}
+		}
+		return n
+	}
+	if n := count("FROM rsduadmin.DA_V_LST_1 o"); n != 1 {
+		t.Errorf("data acquisition list read %d times", n)
+	}
+	if n := count("SYS_DTYP d"); n != 2 {
+		t.Errorf("data acquisition global types read %d times, want 2", n)
+	}
 }
