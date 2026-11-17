@@ -28,6 +28,12 @@ const (
 	IssueBadFileName       = "badFileName"       // the scheme file name can't be read by the viewer
 	IssueSVGClash          = "svgClash"          // another scheme resolves to the same SVG file
 	IssueNoSVGDir          = "noSvgDir"          // where the viewer reads SVGs is not configured
+	IssueFileOfDiagram     = "fileOfDiagram"     // the linked scheme's file name is another diagram's path
+	IssueSchemeExists      = "schemeExists"      // registering a new scheme while the linked one still exists
+	IssueBadRef            = "badRef"            // a binding's object can't be written; it is skipped
+	IssueUnknownKind       = "unknownKind"       // the provider has no binding type for the kind; skipped
+	IssueUnknownOption     = "unknownOption"     // the provider has no such value option; skipped
+	IssueDuplicate         = "duplicate"         // a binding the provider can't store twice for one item; skipped
 )
 
 // ExportIssue is one finding of an export check. Item, Kind (element or device) and Shape name the diagram item it is
@@ -70,6 +76,31 @@ func (c *ExportCheck) Add(i ExportIssue) {
 		c.OK = false
 	}
 }
+
+// ExportRequest is what the user chose for an export: Register a new scheme (for an unlinked diagram, or one whose
+// scheme is gone) rather than export to the linked one; the scheme's Name, Alias and Group ("" keeps a linked
+// scheme's own).
+type ExportRequest struct {
+	Register bool   `json:"register"`
+	Name     string `json:"name"`
+	Alias    string `json:"alias"`
+	Group    string `json:"group"`
+}
+
+// ExportResult is what an export wrote: the scheme link to save in the diagram, how many components and bindings,
+// and what was skipped.
+type ExportResult struct {
+	Scheme     slddoc.SchemeRef `json:"scheme"`
+	Registered bool             `json:"registered"`
+	Components int              `json:"components"`
+	Bindings   int              `json:"bindings"`
+	Skipped    []ExportIssue    `json:"skipped"`
+}
+
+// ErrExportRefused is returned by an export its check stops; Check tells why.
+type ErrExportRefused struct{ Check *ExportCheck }
+
+func (e *ErrExportRefused) Error() string { return "binding: the export check failed" }
 
 // ExportChecker is a Provider that can tell, without writing, whether a diagram can be exported to it.
 type ExportChecker interface {

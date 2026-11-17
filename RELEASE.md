@@ -1,5 +1,20 @@
 # Release notes
 
+2026-11-17: SCADA bindings, step 12: export to RSDU. `POST /api/bindings/export?name=` (only with
+`bindings.rsdu.export: true`, one export at a time) exports the saved diagram as `binding.ExportRequest` asks: to the
+linked scheme, or registering a new one (name, alias, group). `rsdu.Export` writes in one transaction, as RSDU's scheme
+editor saves: `VS_FORM` inserted or updated, the scheme's `VS_OBJ_TUNE`, `VS_REGIM_TUNE` and `VS_COMP` deleted and
+inserted again (a component per bound item with a component type, `FEATURE` from the item's features, a jump as
+`ADJUST_REGIM` with `GLT_OBJECT_OPT_COMPLEX`); bindings it can't write are skipped and listed. The diagram is then
+saved with its scheme link (`registered` for a scheme the editor registered, whose file name follows the diagram's
+path) and export time, and the `.xsld`'s mtime set to it (`Store.SaveExported`). The export check gained
+`?register=true`, the errors `fileOfDiagram` and `schemeExists`, and the scheme's alias. The export window offers
+"Register a new scheme" / "Use an existing scheme", edits a linked scheme's name, alias and group, exports and shows
+what was written and skipped. No MQ notification: RSDU clients must reopen the scheme. Tests: the SQL sequence per
+dialect with a fake transaction (including rollback), the API route, and an integration test on Oracle and PostgreSQL
+inside a transaction that is always rolled back, read back with the scheme editor's and ctrlroom's queries. Guide
+`#rsdu-export` updated (en, ru).
+
 2026-11-17: One RSDU connection. `bindings.rsdu.read` and `bindings.rsdu.write` are replaced by `bindings.rsdu.dsn` (the
 same keys as an entry of ctrlroom's `database.dsn`; environment `BINDINGS_RSDU_DSN_*`), used for reading and for
 export, and export is enabled by `bindings.rsdu.export: true` (default false; `binding.CanExport`). A config still

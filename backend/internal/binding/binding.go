@@ -153,9 +153,10 @@ type Refresher interface {
 	Refresh()
 }
 
-// Exporter is a Provider that can write a diagram's bindings to its scheme name; it returns the scheme written.
+// Exporter is a Provider that can write the bindings of the diagram name, d, to a scheme of its own, as req chose,
+// in one transaction. It refuses with ErrExportRefused when its export check fails.
 type Exporter interface {
-	Export(ctx context.Context, name string, d *slddoc.Diagram) (*slddoc.SchemeRef, error)
+	Export(ctx context.Context, name string, d *slddoc.Diagram, req ExportRequest) (*ExportResult, error)
 }
 
 // Importer is a Provider that can read a scheme's bindings, returned as a diagram holding only bound items.

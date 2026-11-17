@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"reflect"
@@ -565,6 +566,209 @@ func TestIntegrationExportCheck(t *testing.T) {
 				t.Errorf("new scheme at %s: %+v", file, c.Issues)
 			}
 			t.Logf("scheme %s: %d issues; component types for %d shapes", linked.Ref, len(c.Issues), len(tcomp))
+		})
+	}
+}
+
+// TestIntegrationExport registers and exports a diagram inside a transaction that is always rolled back, and reads
+// the result back as RSDU's scheme editor (§1.3: components, then each bound table joined to its objects) and
+// ctrlroom (its settings query) do. Sequences keep the values the export took.
+func TestIntegrationExport(t *testing.T) {
+	for _, db := range testDSNs {
+		t.Run(db.driver, func(t *testing.T) {
+			p := integrationProvider(t, db.env, db.driver)
+			p.cfg.SchemeType = 518
+			p.cfg.SVG.FullPath = true
+			ctx := context.Background()
+
+			// Real objects: the first existing equipment, parameter and additional parameter bindings.
+			type real struct {
+				table, param int64
+				option       string
+			}
+			found := map[string]real{}
+			err := each(ctx, p.read, p.d.SQL("SELECT t.ID_TABLE, t.ID_PARAM, r.DEFINE_ALIAS, o.DEFINE_ALIAS FROM {s}.VS_REGIM_TUNE t "+
+				"JOIN {s}.VS_REGIM r ON r.ID = t.ID_REGIM JOIN {s}.SYS_GTOPT o ON o.ID = t.ID_GTOPT JOIN {s}.SYS_TBLLST l ON l.ID = t.ID_TABLE "+
+				"WHERE l.DEFINE_ALIAS NOT IN ('VS_FORM_LST', 'R_KADR_LST', 'VP_PANEL_LST', 'RPT_LST_LST')"), func(r Rows) error {
+				var table, param int64
+				var regim, option string
+				if err := r.Scan(&table, &param, &regim, &option); err != nil {
+					return err
+				}
+				if _, ok := found[regim]; !ok {
+					found[regim] = real{table, param, option}
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			eq, m1, m2 := found[regimEquipment], found[regimMeas1], found[regimMeas2]
+			if eq.table == 0 || m1.table == 0 {
+				t.Skipf("no existing equipment and parameter bindings to reuse: %v", found)
+			}
+			ref := func(r real) string { return fmt.Sprintf("%d:%d", r.table, r.param) }
+			bs := []slddoc.Binding{
+				{Source: config.ProviderRSDU, Kind: slddoc.BindingEquipment, Ref: ref(eq)},
+				{Source: config.ProviderRSDU, Kind: slddoc.BindingMeas1, Ref: ref(m1), Option: m1.option, Scale: -1},
+			}
+			if m2.table != 0 && m2.table != m1.table {
+				bs = append(bs, slddoc.Binding{Source: config.ProviderRSDU, Kind: slddoc.BindingMeas2, Ref: ref(m2), Option: m2.option})
+			}
+			d := &slddoc.Diagram{
+				Object:         &slddoc.Binding{Source: config.ProviderRSDU, Kind: slddoc.BindingEquipment, Ref: ref(eq)},
+				Elements:       []slddoc.Element{{ID: 900001, Shape: "41", Precision: 1, Bindings: bs}},
+				DigitalDevices: []slddoc.DigitalDevice{{ID: 900002, Bindings: bs[1:2]}},
+			}
+			groups, err := p.SchemeGroups(ctx)
+			if err != nil || len(groups) == 0 {
+				t.Fatalf("groups %v, %v", groups, err)
+			}
+			req := binding.ExportRequest{Register: true, Name: "sld-editor integration test", Group: groups[0].ID}
+			pl, linked, err := p.prepare(ctx, "sld-editor-it/export", d, req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			tx, err := p.read.(Beginner).Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := tx.Rollback(); err != nil {
+					t.Errorf("rollback: %v", err)
+				}
+				var n int64
+				_ = each(ctx, p.read, p.d.SQL("SELECT COUNT(*) FROM {s}.VS_FORM WHERE NAME = ?"), func(r Rows) error { return r.Scan(&n) }, req.Name)
+				if n != 0 {
+					t.Errorf("%d rows left after the rollback", n)
+				}
+			}()
+			res, err := p.exportTx(ctx, tx, pl, linked)
+			if err != nil {
+				t.Fatal(err)
+			}
+			form, _ := parseID("form", res.Scheme.Ref)
+			if res.Components != 2 || res.Bindings != len(bs)+1 || !res.Registered {
+				t.Fatalf("result %+v", res)
+			}
+
+			var fileName, name string
+			var node, typ int64
+			var guid any
+			err = each(ctx, tx, p.d.SQL("SELECT FILE_NAME, NAME, ID_NODE, ID_TYPE, GUID FROM {s}.VS_FORM WHERE ID = ?"), func(r Rows) error {
+				return r.Scan(&fileName, &name, &node, &typ, &guid)
+			}, form)
+			if err != nil || fileName != "sld-editor-it/export.svg" || name != req.Name || typ != 518 || GUID(guid) == "" {
+				t.Errorf("VS_FORM %q %q %d %d guid %q, %v", fileName, name, node, typ, GUID(guid), err)
+			}
+
+			// §1.3 components.
+			comps := map[string]int64{}
+			err = each(ctx, tx, p.d.SQL("SELECT comp.NAME, tcomp.MODUS_TYPE FROM {s}.VS_COMP comp, {s}.VS_TCOMP tcomp WHERE tcomp.ID = comp.ID_TCTRL AND comp.ID_FORM = ?"), func(r Rows) error {
+				var n string
+				var modus int64
+				err := r.Scan(&n, &modus)
+				comps[n] = modus
+				return err
+			}, form)
+			if err != nil || len(comps) != 2 || comps["900001"] != 41 || comps["900002"] != 134 {
+				t.Errorf("components %v, %v", comps, err)
+			}
+
+			// §1.3 tunes: per bound table, joined to its objects and their types.
+			type tableRow struct {
+				id              int64
+				name, typeTable string
+			}
+			var tables []tableRow
+			err = each(ctx, tx, p.d.SQL("SELECT DISTINCT tbl.ID, tbl.TABLE_NAME, tt.TABLE_NAME FROM {s}.SYS_TBLLST tbl "+
+				"JOIN {s}.SYS_OTYP ot ON ot.ID = tbl.ID_TYPE JOIN {s}.SYS_TABL_V tv ON tv.ID = tbl.ID "+
+				"JOIN {s}.SYS_TBLLST tt ON tt.ID = CASE ot.DEFINE_ALIAS WHEN 'DIR' THEN tv.ID_TDIRTBL ELSE tv.ID_TBLREF END "+
+				"WHERE tbl.ID IN (SELECT tune.ID_TABLE FROM {s}.VS_COMP comp JOIN {s}.VS_REGIM_TUNE tune ON tune.ID_OWNLST = comp.ID WHERE comp.ID_FORM = ?)"), func(r Rows) error {
+				var tr tableRow
+				err := r.Scan(&tr.id, &tr.name, &tr.typeTable)
+				tables = append(tables, tr)
+				return err
+			}, form)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, tr := range tables {
+				err = each(ctx, tx, p.d.SQL("SELECT comp.NAME, reg.DEFINE_ALIAS, tune.ID_TABLE, tune.ID_PARAM, gtopt.DEFINE_ALIAS, tune.SCALE "+
+					"FROM {s}.VS_COMP comp, {s}.VS_REGIM_TUNE tune, {s}.VS_REGIM reg, {s}.SYS_GTOPT gtopt, {s}."+tr.name+" obj, {s}."+tr.typeTable+" obj_type "+
+					"WHERE tune.ID_OWNLST = comp.ID AND reg.ID = tune.ID_REGIM AND gtopt.ID = tune.ID_GTOPT AND comp.ID_FORM = ? AND tune.ID_TABLE = ? "+
+					"AND obj.ID = tune.ID_PARAM AND obj_type.ID = obj.ID_TYPE"), func(r Rows) error {
+					var comp, regim, option string
+					var table, param, scale int64
+					err := r.Scan(&comp, &regim, &table, &param, &option, &scale)
+					got = append(got, fmt.Sprintf("%s %s %d:%d %s %d", comp, regim, table, param, option, scale))
+					return err
+				}, form, tr.id)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			regimOf := map[slddoc.BindingKind]string{slddoc.BindingEquipment: regimEquipment, slddoc.BindingMeas1: regimMeas1, slddoc.BindingMeas2: regimMeas2}
+			var want []string
+			for _, c := range []struct {
+				id string
+				bs []slddoc.Binding
+			}{{"900001", bs}, {"900002", bs[1:2]}} {
+				for _, b := range c.bs {
+					opt, scale := b.Option, b.Scale
+					if opt == "" {
+						opt = kindOptions[b.Kind]
+					}
+					if scale == 0 {
+						scale = 1
+					}
+					want = append(want, fmt.Sprintf("%s %s %s %s %d", c.id, regimOf[b.Kind], b.Ref, opt, scale))
+				}
+			}
+			slices.Sort(got)
+			slices.Sort(want)
+			if !slices.Equal(got, want) {
+				t.Errorf("tunes read back\n got %v\nwant %v", got, want)
+			}
+
+			// ctrlroom's settings query (regimes 2 and 3, live values).
+			var settings []string
+			err = each(ctx, tx, p.d.SQL("SELECT vs_comp.name, vs_regim_tune.id_table, vs_regim_tune.id_param, vs_regim_tune.scale, vs_tcomp.modus_type "+
+				"FROM {s}.vs_comp LEFT JOIN {s}.vs_regim_tune ON vs_comp.id = vs_regim_tune.id_ownlst LEFT JOIN {s}.vs_tcomp ON vs_tcomp.id = vs_comp.id_tctrl "+
+				"WHERE vs_regim_tune.id_table IS NOT NULL AND vs_regim_tune.id_param IS NOT NULL AND (vs_regim_tune.id_regim = 2 OR vs_regim_tune.id_regim = 3) AND vs_comp.id_form = ?"), func(r Rows) error {
+				var comp string
+				var table, param, scale, modus int64
+				err := r.Scan(&comp, &table, &param, &scale, &modus)
+				settings = append(settings, fmt.Sprintf("%s %d:%d %d %d", comp, table, param, scale, modus))
+				return err
+			}, form)
+			if err != nil {
+				t.Fatal(err)
+			}
+			scaleOf := func(b slddoc.Binding) int {
+				if b.Scale == 0 {
+					return 1
+				}
+				return b.Scale
+			}
+			var wantSettings []string
+			for _, b := range bs[1:] {
+				wantSettings = append(wantSettings, fmt.Sprintf("900001 %s %d 41", b.Ref, scaleOf(b)))
+			}
+			wantSettings = append(wantSettings, fmt.Sprintf("900002 %s %d 134", bs[1].Ref, scaleOf(bs[1])))
+			slices.Sort(settings)
+			slices.Sort(wantSettings)
+			if dict, _ := p.dictionaries(ctx); dict.regimID[slddoc.BindingMeas1] == 2 && !slices.Equal(settings, wantSettings) {
+				t.Errorf("ctrlroom settings\n got %v\nwant %v", settings, wantSettings)
+			}
+
+			var objTable, objParam int64
+			err = each(ctx, tx, p.d.SQL("SELECT ID_TABLE, ID_PARAM FROM {s}.VS_OBJ_TUNE WHERE ID_FORM = ?"), func(r Rows) error { return r.Scan(&objTable, &objParam) }, form)
+			if err != nil || fmt.Sprintf("%d:%d", objTable, objParam) != ref(eq) {
+				t.Errorf("VS_OBJ_TUNE %d:%d, %v", objTable, objParam, err)
+			}
+			t.Logf("scheme %d (rolled back): %d components, %d bindings; %d tunes and %d ctrlroom settings read back", form, res.Components, res.Bindings, len(got), len(settings))
 		})
 	}
 }

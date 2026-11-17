@@ -21,6 +21,7 @@ type Scheme struct {
 	Ref      string     `json:"ref"`
 	Group    string     `json:"group"`
 	Name     string     `json:"name"`
+	Alias    string     `json:"alias,omitempty"`
 	Type     string     `json:"type,omitempty"`
 	TypeID   string     `json:"typeId,omitempty"`
 	FileName string     `json:"fileName,omitempty"`

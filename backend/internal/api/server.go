@@ -50,6 +50,8 @@ type Server struct {
 	cimClasses slddoc.CIMClassTable
 	// bindings is the configured SCADA binding provider; nil when bindings are off.
 	bindings binding.Provider
+	// exportMu runs exports to the provider one at a time.
+	exportMu sync.Mutex
 }
 
 // NewServer builds a ready-to-run Server. custom is the custom-elements

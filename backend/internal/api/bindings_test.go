@@ -41,7 +41,7 @@ func (fakeProvider) Suggest(context.Context, string, binding.Element) ([]slddoc.
 
 type fakeExporter struct{ fakeProvider }
 
-func (fakeExporter) Export(context.Context, string, *slddoc.Diagram) (*slddoc.SchemeRef, error) {
+func (fakeExporter) Export(context.Context, string, *slddoc.Diagram, binding.ExportRequest) (*binding.ExportResult, error) {
 	return nil, nil
 }
 

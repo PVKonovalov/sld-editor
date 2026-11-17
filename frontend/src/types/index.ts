@@ -247,6 +247,7 @@ export interface SchemeRef {
   source: string
   ref: string
   exported?: string
+  registered?: boolean
 }
 
 // Matches binding.SchemeGroup: a folder of the provider's schemes; parent absent for a root group.
@@ -261,6 +262,7 @@ export interface ProviderScheme {
   ref: string
   group: string
   name: string
+  alias?: string
   type?: string
   typeId?: string
   fileName?: string
@@ -919,6 +921,23 @@ export interface ExportCheck {
   bound: number
   defaultGroup?: string
   issues: ExportIssue[]
+}
+
+// Matches binding.ExportRequest: register a new scheme or export to the linked one; "" keeps a linked scheme's own.
+export interface ExportRequest {
+  register: boolean
+  name: string
+  alias: string
+  group: string
+}
+
+// Matches binding.ExportResult.
+export interface ExportResult {
+  scheme: SchemeRef
+  registered: boolean
+  components: number
+  bindings: number
+  skipped: ExportIssue[]
 }
 
 // Matches binding.KindInfo: a binding kind as the provider offers it; an empty name is named by the frontend.

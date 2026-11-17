@@ -14,7 +14,7 @@ import (
 
 const (
 	sqlSchemeGroups = "SELECT ID, ID_PARENT, NAME FROM {s}.VS_GROUP"
-	sqlSchemes      = "SELECT f.ID, f.ID_NODE, f.ID_TYPE, f.NAME, t.NAME, f.FILE_NAME, f.LAST_UPDATE FROM {s}.VS_FORM f LEFT JOIN {s}.SYS_OTYP t ON t.ID = f.ID_TYPE"
+	sqlSchemes      = "SELECT f.ID, f.ID_NODE, f.ID_TYPE, f.NAME, f.ALIAS, t.NAME, f.FILE_NAME, f.LAST_UPDATE FROM {s}.VS_FORM f LEFT JOIN {s}.SYS_OTYP t ON t.ID = f.ID_TYPE"
 	sqlSchemeByID   = sqlSchemes + " WHERE f.ID = ?"
 	sqlSchemesIn    = "SELECT ID FROM {s}.VS_FORM WHERE ID IN (%s)"
 	// existChunk keeps an IN list under Oracle's 1000 expressions.
@@ -24,12 +24,12 @@ const (
 func scanScheme(r Rows) (binding.Scheme, error) {
 	var id int64
 	var group, typeID sql.NullInt64
-	var name, typ, file sql.NullString
+	var name, alias, typ, file sql.NullString
 	var updated sql.NullInt64
-	if err := r.Scan(&id, &group, &typeID, &name, &typ, &file, &updated); err != nil {
+	if err := r.Scan(&id, &group, &typeID, &name, &alias, &typ, &file, &updated); err != nil {
 		return binding.Scheme{}, err
 	}
-	s := binding.Scheme{Ref: strconv.FormatInt(id, 10), Name: name.String, Type: typ.String, FileName: file.String}
+	s := binding.Scheme{Ref: strconv.FormatInt(id, 10), Name: name.String, Alias: alias.String, Type: typ.String, FileName: file.String}
 	if group.Valid {
 		s.Group = strconv.FormatInt(group.Int64, 10)
 	}

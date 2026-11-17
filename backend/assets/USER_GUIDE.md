@@ -584,13 +584,17 @@ scheme it is.
 ### Export to RSDU {#rsdu-export}
 
 With nothing selected, **Export to RSDU…** in the **Bindings** group of Properties opens the export window. It checks
-the **saved** diagram, so if it has unsaved changes, **Save and check** saves first. Nothing is written to RSDU yet:
-the **Export** button is not available in this version (it will also need `bindings.rsdu.export: true`). The window shows:
+the **saved** diagram, so if it has unsaved changes, **Save and check** saves first; **Export** is available only for a
+saved diagram whose check found nothing that stops it, and only with `bindings.rsdu.export: true` in the
+[configuration](#configuration-bindings). The window shows:
 
-- **Scheme**: the linked RSDU scheme, or for an unlinked diagram the new scheme that would be registered: its name
-  (the diagram's name by default) and its RSDU group. The group proposed is the group of the scheme exported last; any
-  other can be chosen. **Link to an existing scheme…** links the diagram instead (see [RSDU schemes](#rsdu-schemes)).
-  A new scheme must be added to users' menus (`US_MENU`) with RSDU's tools before ctrlroom shows it.
+- **Scheme**: the linked RSDU scheme with its name, alias and group, which can be changed here and are written by the
+  export. For an unlinked diagram, or one whose scheme no longer exists, choose where it goes:
+  - **Register a new scheme**: its name (the diagram's name by default), alias (the name when empty) and RSDU group.
+    The group proposed is the group of the scheme exported last; any other can be chosen. A new scheme must be added
+    to users' menus (`US_MENU`) with RSDU's tools before ctrlroom shows it.
+  - **Use an existing scheme**: **Link to an existing scheme…** links the diagram (see [RSDU schemes](#rsdu-schemes));
+    save it, then export.
 - **Scheme type**: `bindings.rsdu.scheme_type` from the [configuration](#configuration-bindings), usually 518 (MODUS
   scheme).
 - **File name** of the scheme (a new one: the diagram's path with `.svg`) and the **SVG for ctrlroom**: where its
@@ -599,6 +603,8 @@ the **Export** button is not available in this version (it will also need `bindi
 - What **stops the export**:
   - no scheme type configured, or one that is not an RSDU scheme type;
   - the linked scheme no longer exists, is linked to another diagram as well, or belongs to another provider;
+  - the linked scheme's file name is the path of another diagram of the editor (the two would share one SVG);
+  - **Register a new scheme** chosen while the linked scheme still exists;
   - an item bound to RSDU whose id is not a positive integer (ctrlroom finds an element by its number);
   - a scheme file name that ctrlroom can't show (not `.svg` or `.xsde`, or leaving its folder);
   - another RSDU scheme whose SVG is the same file (letter case ignored): the same base name when `svg.full_path` is
@@ -610,6 +616,21 @@ the **Export** button is not available in this version (it will also need `bindi
   - nothing bound to RSDU; no SVG folder configured; a linked scheme of another type; a new scheme to be registered.
 
 Click a finding about an item to select it and show it on the canvas. The refresh button checks again.
+
+**Export** writes, in one transaction (on any error nothing is written):
+
+- the scheme row (`VS_FORM`): a new one, or the linked one updated with its name, alias, group, scheme type and the
+  export time. A scheme registered by the editor follows the diagram: when the diagram is moved or renamed, the next
+  export sets its file name to the new path. A scheme linked from RSDU keeps its own file name;
+- the diagram's object (`VS_OBJ_TUNE`), a component (`VS_COMP`) per item bound to RSDU whose shape has a component
+  type, and its bindings (`VS_REGIM_TUNE`). The scheme's previous components and bindings are replaced, as RSDU's
+  scheme editor saves them. A jump is stored as a parameter binding to an object. A binding that can't be written (a
+  bad object, a binding type or value option RSDU doesn't know, a second binding of one type to the same table) is
+  skipped and listed.
+
+Then the diagram is saved with its link to the scheme and the export time (a history entry, like any save) and
+reopened; its status in [RSDU schemes](#rsdu-schemes) is **exported** until it is changed again. RSDU clients that have
+the scheme open must reopen it to see the changes. The scheme's SVG is not delivered to ctrlroom yet.
 
 ## Moving around the canvas {#navigation}
 

@@ -202,6 +202,41 @@ func (s *Store) Save(name string, d *slddoc.Diagram) (renderWarning, err error) 
 func (s *Store) SaveRevision(name string, d *slddoc.Diagram, rev slddoc.Revision) (renderWarning, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.saveRevision(name, d, rev)
+}
+
+// SaveExported is SaveRevision for a diagram just exported: the .xsld's modification time is set to
+// d.Scheme.Exported, so its link status is "exported" until the next save.
+func (s *Store) SaveExported(name string, d *slddoc.Diagram, rev slddoc.Revision) (renderWarning, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if d.Scheme == nil || d.Scheme.Exported == nil {
+		return nil, fmt.Errorf("storage: %s has no export time", name)
+	}
+	if renderWarning, err = s.saveRevision(name, d, rev); err != nil {
+		return nil, err
+	}
+	path, err := s.xmlPath(name)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chtimes(path, *d.Scheme.Exported, *d.Scheme.Exported); err != nil {
+		return nil, fmt.Errorf("storage: %w", err)
+	}
+	return renderWarning, nil
+}
+
+// Exists reports whether the diagram name exists.
+func (s *Store) Exists(name string) bool {
+	path, err := s.xmlPath(name)
+	if err != nil {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+func (s *Store) saveRevision(name string, d *slddoc.Diagram, rev slddoc.Revision) (renderWarning, err error) {
 	old, err := s.Load(name)
 	switch {
 	case errors.Is(err, ErrNotFound):

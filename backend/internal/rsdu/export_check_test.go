@@ -23,10 +23,10 @@ func exportDB() *fakeDB {
 			return [][]any{{int64(6), int64(41)}, {int64(567), int64(134)}}
 		case strings.Contains(q, "FROM rsduadmin.VS_FORM f"):
 			return [][]any{
-				{int64(10), int64(2), int64(518), "Sub", "MODUS", `region\sub.xsde`, nil},
-				{int64(11), int64(2), int64(518), "Other sub", "MODUS", `other\SUB.xsde`, nil},
-				{int64(12), int64(3), int64(520), "Topaz", "TOPAZ", `t/topaz.sde`, nil},
-				{int64(13), int64(3), int64(518), "New one", "MODUS", `a/new.svg`, nil},
+				{int64(10), int64(2), int64(518), "Sub", nil, "MODUS", `region\sub.xsde`, nil},
+				{int64(11), int64(2), int64(518), "Other sub", nil, "MODUS", `other\SUB.xsde`, nil},
+				{int64(12), int64(3), int64(520), "Topaz", nil, "TOPAZ", `t/topaz.sde`, nil},
+				{int64(13), int64(3), int64(518), "New one", nil, "MODUS", `a/new.svg`, nil},
 			}
 		}
 		return nil

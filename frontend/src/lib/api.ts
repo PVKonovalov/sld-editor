@@ -3,6 +3,8 @@ import type {
   ProviderScheme,
   SchemeCandidate,
   ExportCheck,
+  ExportRequest,
+  ExportResult,
   SchemeGroup,
   SchemeType,
   SchemeRef,
@@ -456,9 +458,36 @@ export async function listSchemes(): Promise<SchemeTree> {
 }
 
 /** What an export of the saved diagram name would do and what stops it. */
-export async function checkExport(name: string): Promise<ExportCheck> {
-  const c: ExportCheck = await asJSON(await fetch(`${BASE}/bindings/export/check?name=${encodeURIComponent(name)}`))
+export async function checkExport(name: string, register = false): Promise<ExportCheck> {
+  const q = `name=${encodeURIComponent(name)}${register ? '&register=true' : ''}`
+  const c: ExportCheck = await asJSON(await fetch(`${BASE}/bindings/export/check?${q}`))
   return { ...c, issues: c.issues ?? [] }
+}
+
+/** An export the server's check stopped; check tells why. */
+export class ExportRefusedError extends Error {
+  check: ExportCheck
+  constructor(message: string, check: ExportCheck) {
+    super(message)
+    this.check = { ...check, issues: check.issues ?? [] }
+  }
+}
+
+/** Exports the saved diagram name to the provider as req chose; the server saves the diagram's new scheme link.
+ * Throws ExportRefusedError when the check fails. */
+export async function exportDiagram(name: string, req: ExportRequest): Promise<ExportResult> {
+  const res = await fetch(`${BASE}/bindings/export?name=${encodeURIComponent(name)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (res.status === 409) {
+    const body = await res.json().catch(() => null)
+    if (body?.check) throw new ExportRefusedError(body.error, body.check)
+    throw new Error(body?.error || `${res.status} ${res.statusText}`)
+  }
+  const r: ExportResult = await asJSON(res)
+  return { ...r, skipped: r.skipped ?? [] }
 }
 
 /** The groups a new scheme can go into. */

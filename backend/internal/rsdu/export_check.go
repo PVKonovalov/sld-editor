@@ -111,7 +111,9 @@ func (p *Provider) CheckExport(ctx context.Context, name string, d *slddoc.Diagr
 		case c.Scheme == nil:
 			c.Add(binding.ExportIssue{Code: binding.IssueSchemeMissing, Severity: binding.SeverityError, Detail: scheme.Ref})
 		default:
-			c.FileName = c.Scheme.FileName
+			if !scheme.Registered {
+				c.FileName = c.Scheme.FileName
+			}
 			if c.SchemeType != nil && c.Scheme.TypeID != c.SchemeType.ID {
 				c.Add(binding.ExportIssue{Code: binding.IssueSchemeTypeDiffers, Severity: binding.SeverityWarning, Detail: c.Scheme.Type})
 			}

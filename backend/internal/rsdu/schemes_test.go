@@ -17,13 +17,13 @@ func schemesDB() *fakeDB {
 			return [][]any{{int64(2), int64(1), "b child"}, {int64(1), nil, "A root"}, {int64(3), int64(3), "self"}}
 		case strings.Contains(q, "WHERE f.ID = "):
 			if args[0].(int64) == 10 {
-				return [][]any{{int64(10), int64(2), int64(518), "Sub", "Scheme", `C:\x\sub.xsde`, int64(1763018922)}}
+				return [][]any{{int64(10), int64(2), int64(518), "Sub", nil, "Scheme", `C:\x\sub.xsde`, int64(1763018922)}}
 			}
 			return nil
 		case strings.Contains(q, "FROM rsduadmin.VS_FORM f"):
 			return [][]any{
-				{int64(11), int64(1), nil, "zeta", nil, nil, nil},
-				{int64(10), int64(2), int64(518), "Sub", "Scheme", `C:\x\sub.xsde`, int64(1763018922)},
+				{int64(11), int64(1), nil, "zeta", nil, nil, nil, nil},
+				{int64(10), int64(2), int64(518), "Sub", nil, "Scheme", `C:\x\sub.xsde`, int64(1763018922)},
 			}
 		case strings.Contains(q, "SELECT ID FROM rsduadmin.VS_FORM WHERE ID IN"):
 			var out [][]any
