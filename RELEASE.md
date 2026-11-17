@@ -1,5 +1,20 @@
 # Release notes
 
+2026-11-17: SCADA bindings, step 6: **Objects** panel, the editor's own object browser (RSDU's Adjust inside the
+editor). With bindings on, the left rail has an **Objects** button (`ObjectsPanel.tsx`): the provider's sections as a
+tree, each section's catalog loaded when first expanded, and the objects of the selected catalog node below, sortable
+by name, type and class. Tree and list render only their visible rows (`lib/virtualRows.ts`), so a 22,000-object list
+scrolls smoothly. Search runs in the selected section; clicking a match expands the way to it, selects it, loads its
+list and scrolls to the object. Sections, catalog nodes, objects and matches are draggable with a
+`{source, ref, name, type}` payload (`application/x-sld-object`, `OBJECT_DRAG_TYPE`); dropping them comes in step 7.
+Load errors are shown in place with **Retry**; **Reload** re-reads everything. The panel keeps its state while another
+panel is open (also its scroll position). `PanelShell` takes `wide` and `fill`. `lib/api.ts` has
+`getBindingDictionaries`, `getBindingSections`, `getBindingCatalog`, `getBindingList`, `searchBindings`; `types/index.ts`
+mirrors their responses. Checked in a browser against the PostgreSQL and the Oracle RSDU: sections in about 1 s, the
+electrical-mode catalog in 2–4 s, a search match in a 22,000-object node revealed and selected in about 6 s with 34
+rendered rows, sorting, the drag payload, error with Retry, and the tree's scroll and state after switching panels.
+User guides: **Objects** (`#objects`).
+
 2026-11-17: The editor's configuration `backend/config/sld-editor.yaml` is now local and not in git; the tracked
 `backend/config/sld-editor.example.yaml` (bindings off) is the shipped one. `make package` puts a copy of the example
 into the archive as `config/sld-editor.yaml`, so a developer's local settings (e.g. an RSDU database host) are never

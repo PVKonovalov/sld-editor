@@ -6,6 +6,7 @@ import { FilePanel } from './components/panels/FilePanel'
 import { ElementsPanel } from './components/panels/ElementsPanel'
 import { SettingsPanel } from './components/panels/SettingsPanel'
 import { PropertiesPanel } from './components/panels/PropertiesPanel'
+import { ObjectsPanel } from './components/panels/ObjectsPanel'
 import { Canvas } from './components/Canvas'
 import { ImportLogDialog } from './components/ImportLogDialog'
 import { ConfirmReloadDialog } from './components/ConfirmReloadDialog'
@@ -57,7 +58,15 @@ function Shell() {
     recoverableDrafts,
     setImportLogOpen,
     findFocusSeq,
+    config,
   } = useDiagramContext()
+  const bindingProvider = config?.bindings?.provider ?? ''
+  // The Objects panel is kept mounted once opened (hidden while another panel is shown), so its loaded trees,
+  // selection and search survive switching panels.
+  const [objectsMounted, setObjectsMounted] = useState(false)
+  useEffect(() => {
+    if (activeLeftPanel === 'objects') setObjectsMounted(true)
+  }, [activeLeftPanel])
   const hadSelection = useRef(false)
   const hadDiagram = useRef(false)
 
@@ -169,9 +178,15 @@ function Shell() {
           onPanelToggle={togglePanel}
           onHelp={() => guideApi.openGuide()}
           onAbout={() => setAboutOpen(true)}
+          showObjects={!!bindingProvider}
         />
         {activeLeftPanel === 'file' && <FilePanel onClose={() => setActiveLeftPanel(null)} />}
         {activeLeftPanel === 'elements' && <ElementsPanel onClose={() => setActiveLeftPanel(null)} />}
+        {bindingProvider && objectsMounted && (
+          <div className={activeLeftPanel === 'objects' ? 'contents' : 'hidden'}>
+            <ObjectsPanel provider={bindingProvider} onClose={() => setActiveLeftPanel(null)} />
+          </div>
+        )}
         {activeLeftPanel === 'settings' && <SettingsPanel onClose={() => setActiveLeftPanel(null)} />}
         <Canvas />
         {propertiesOpen && <PropertiesPanel onClose={() => setPropertiesOpen(false)} />}

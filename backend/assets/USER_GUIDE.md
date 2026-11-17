@@ -9,8 +9,8 @@ New to the editor? Start with [How to: draw a diagram step by step](#how-to).
 
 ## The window {#window}
 
-- **Left rail**: buttons for the **File**, **Elements** and **Settings** panels (they share the left side; one is
-  open at a time), the **Properties** toggle, and **Help** (this guide) and **About** at the bottom.
+- **Left rail**: buttons for the **File**, **Elements**, **Objects** (only when [bindings](#configuration-bindings)
+  are on) and **Settings** panels (they share the left side; one is open at a time), the **Properties** toggle, and **Help** (this guide) and **About** at the bottom.
 - **Canvas**: the diagram itself, with zoom buttons in the bottom-right corner.
 - **Properties** panel: docked on the right. It can stay open together with the Elements panel.
 
@@ -872,6 +872,32 @@ place like a single element.
   the dialog offers to overwrite it. The new element appears in the palette at once.
 - They are stored as ordinary `.xsld` files in the server's custom-elements folder, so they can also be edited by
   opening the file as a diagram.
+
+## Objects {#objects}
+
+When bindings to a SCADA system are turned on in the configuration (see [Bindings](#configuration-bindings)), the
+left rail has an **Objects** button. The panel shows the system's objects, as RSDU's Adjust does, inside the editor:
+nothing else needs to be installed or started.
+
+- **Tree** (upper part): the system's sections. Expand a node with its arrow or a double-click. A section with a
+  database icon has a catalog (for example equipment), loaded from the database when you first expand it; a large
+  catalog takes a few seconds ("Loading…"). Catalog nodes show their type on the right; hover a node to see its
+  type and alias.
+- **List** (lower part): the objects (parameters) of the selected catalog node, with **Name**, **Type** and
+  **Class**. Click a column header to sort by it, again to reverse the order. The count is shown below. A list can
+  hold tens of thousands of objects; it scrolls smoothly.
+- **Search**: select a section (or anything inside it), type at least 2 characters of a name and press Enter. The
+  search covers the section's catalog and all its objects, ignoring case; it shows up to 100 matches, half from the
+  catalog and half from the objects when both have many, and says when there are more. Click a match to show it in
+  the tree and list; **×** goes back to the tree.
+- **Reload** (the circular arrow) reads everything again from the database, for example after objects were added
+  in the SCADA system. Expanded sections stay expanded.
+- **Errors**: when the database can't be reached, the panel shows the message where the data should be, with a
+  **Retry** button.
+- **Dragging**: sections, catalog nodes, objects and search matches can be dragged. Dropping them onto the diagram to
+  bind an item comes in a later version.
+
+The panel keeps its tree, selection and search while you switch to another panel.
 
 ## Properties {#properties}
 

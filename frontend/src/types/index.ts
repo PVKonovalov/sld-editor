@@ -847,3 +847,73 @@ export interface BindingsConfig {
   provider: string
   canExport: boolean
 }
+
+// Matches binding.KindInfo: a binding kind as the provider offers it; an empty name is named by the frontend.
+export interface BindingKindInfo {
+  kind: BindingKind
+  name: string
+  defaultOption?: string
+}
+
+// Matches binding.Dictionaries (GET /api/bindings/dictionaries).
+export interface BindingDictionaries {
+  kinds: BindingKindInfo[]
+  options: { alias: string; name: string; group?: string; groupName?: string }[]
+  features: { alias: string; name: string; mask: number }[]
+}
+
+// Matches binding.Section: a node of the provider's top-level object tree. section, when set, is the id the
+// catalog, list and search calls take; ref binds the node itself.
+export interface BindingSection {
+  id: string
+  name: string
+  icon?: number
+  section?: string
+  ref: string
+  children?: BindingSection[]
+}
+
+// Matches binding.Node: a catalog node of a section; id is what the list call takes as node.
+export interface BindingNode {
+  id: string
+  name: string
+  alias?: string
+  typeName?: string
+  icon?: number
+  ref: string
+  children?: BindingNode[]
+}
+
+// Matches binding.Object: an object listed under a catalog node.
+export interface BindingObject {
+  id: string
+  ref: string
+  name: string
+  typeAlias?: string
+  class?: string
+  uid?: string
+  cvalif?: number
+  scale?: number
+}
+
+// Matches binding.Hit: a search match; node is the catalog node to reveal.
+export interface BindingHit {
+  ref: string
+  name: string
+  kind: 'catalog' | 'list'
+  node: string
+}
+
+// Matches binding.SearchResult.
+export interface BindingSearchResult {
+  hits: BindingHit[]
+  truncated: boolean
+}
+
+// The payload of an object dragged from the Objects panel (drag data type OBJECT_DRAG_TYPE in lib/api.ts).
+export interface DraggedObject {
+  source: string
+  ref: string
+  name: string
+  type: string
+}
