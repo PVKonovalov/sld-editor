@@ -29,7 +29,7 @@ func TestValidateLineHalos(t *testing.T) {
 // TestShippedLineHalos checks the shipped configuration's line_halos load and validate.
 func TestShippedLineHalos(t *testing.T) {
 	var cfg Config
-	if err := configuration.ReadConfigFromYMLFile("../../config/sld-editor.yaml", &cfg); err != nil {
+	if err := configuration.ReadConfigFromYMLFile("../../config/sld-editor.example.yaml", &cfg); err != nil {
 		t.Fatal(err)
 	}
 	if err := cfg.ValidateLineHalos(); err != nil || len(cfg.LineHalos) != 6 || !cfg.LineHalos[5].Gap || cfg.LineHalos[0] != (LineHalo{Style: "BadQuality", Color: "#f7d047"}) {

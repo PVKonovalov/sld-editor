@@ -10,7 +10,12 @@ sidebar's Help button.
 
 # Development
 
-Run the backend from `backend/` (binds `0.0.0.0:8090` by default):
+Run the backend from `backend/` (binds `0.0.0.0:8090` by default). The configuration is local and not in git: create
+it once from the tracked example, and put secrets such as database passwords in `backend/.env` (also not in git):
+
+```
+cp config/sld-editor.example.yaml config/sld-editor.yaml
+```
 
 ```
 go run ./cmd/sld-editor -config config/sld-editor.yaml
@@ -27,6 +32,10 @@ go build ./...
 go vet ./...
 go test ./...
 ```
+
+The RSDU binding provider's integration tests (`internal/rsdu`) run only against a real RSDU database given as a
+DSN URL, read-only: `RSDU_TEST_ORACLE=oracle://user:password@host:1521/service?sid=SID`,
+`RSDU_TEST_POSTGRES=postgres://user:password@host:5432/rsdu` (both may add `&schema=` / `?schema=`).
 
 The backend depends on the sibling `slddoc` module (`../../slddoc` relative to this
 repo, via a `replace` directive in `backend/go.mod`) — check that repo out next to
@@ -103,9 +112,9 @@ on its own bind address.
 `make package` packs every binary currently in `build/` into
 `build/sld-editor-<version>.tar.gz` (older archives and stray `*.gz` files are
 left out). Everything sits under one `sld-editor-<version>/` folder, together
-with what the binaries need at runtime: `config/sld-editor.yaml` and
-`assets/elements/` (taken from `backend/`, with the config's diagrams dir set to
-`diagrams`) and an empty `diagrams/` folder. Unpack it and run a binary from
+with what the binaries need at runtime: `config/sld-editor.yaml` (a copy of
+`backend/config/sld-editor.example.yaml`, never the local config, with its diagrams dir set to `diagrams`) and
+`assets/elements/` (taken from `backend/`) and an empty `diagrams/` folder. Unpack it and run a binary from
 inside that folder, e.g. `./sld-editor-linux-en`. `make release` builds every
 target first, then packages.
 

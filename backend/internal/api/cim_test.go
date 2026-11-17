@@ -73,7 +73,7 @@ func newCIMTestServer(t *testing.T) (*Server, *elements.Library) {
 		t.Fatal(err)
 	}
 	var shipped config.Config
-	if err := configuration.ReadConfigFromYMLFile("../../config/sld-editor.yaml", &shipped); err != nil {
+	if err := configuration.ReadConfigFromYMLFile("../../config/sld-editor.example.yaml", &shipped); err != nil {
 		t.Fatal(err)
 	}
 	if _, unlisted, err := slddoc.NewCIMClassTable(lib.Classes(), shipped.CIM.Classes, shipped.CIM.Import); err != nil || len(unlisted) > 0 {
@@ -82,7 +82,7 @@ func newCIMTestServer(t *testing.T) (*Server, *elements.Library) {
 	cfg := &config.Config{}
 	cfg.Editor.GridSpacing = 10
 	cfg.CIM = shipped.CIM
-	return NewServer(store, store, lib, cfg), lib
+	return NewServer(store, store, lib, cfg, nil), lib
 }
 
 func TestCIMRoundTrip(t *testing.T) {

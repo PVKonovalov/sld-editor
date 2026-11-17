@@ -2480,7 +2480,16 @@ export function Canvas() {
     if (armedCustomElement) {
       e.stopPropagation()
       updateDiagram(d =>
-        diagramOps.placeCustomElement(d, armedCustomElement.diagram, snapPoint(point), elements, snapPoint, defaultVoltage, true),
+        diagramOps.placeCustomElement(
+          d,
+          armedCustomElement.diagram,
+          snapPoint(point),
+          elements,
+          snapPoint,
+          defaultVoltage,
+          true,
+          true,
+        ),
       )
       armCustomElement(null)
       return
@@ -2927,7 +2936,7 @@ export function Canvas() {
                 label: t('contextMenu.saveCustomElement'),
                 onSelect: () =>
                   setCustomElementTemplate(
-                    diagramOps.extractSelection(diagram, selection, gridSpacing),
+                    diagramOps.extractSelection(diagram, selection, gridSpacing, true),
                   ),
               },
             ]

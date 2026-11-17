@@ -1,4 +1,9 @@
 import type {
+  BindingDictionaries,
+  BindingNode,
+  BindingObject,
+  BindingSearchResult,
+  BindingSection,
   CIMWarning,
   CustomElement,
   Diagram,
@@ -375,3 +380,41 @@ export async function openTabs(path: string, session: string): Promise<OpenTab[]
   const data = await asJSON<{ others: OpenTab[] | null }>(res)
   return data.others ?? []
 }
+
+/** The SCADA binding provider's reference lists (GET /api/bindings/dictionaries); refresh re-reads them from its
+ * data source. */
+export async function getBindingDictionaries(refresh = false): Promise<BindingDictionaries> {
+  const res = await fetch(`${BASE}/bindings/dictionaries${refresh ? '?refresh=1' : ''}`)
+  return asJSON(res)
+}
+
+/** The provider's top-level object tree (GET /api/bindings/sections). */
+export async function getBindingSections(): Promise<BindingSection[]> {
+  const res = await fetch(`${BASE}/bindings/sections`)
+  return asJSON(res)
+}
+
+/** The catalog tree of a section (BindingSection.section) (GET /api/bindings/catalog). */
+export async function getBindingCatalog(section: string): Promise<BindingNode[]> {
+  const res = await fetch(`${BASE}/bindings/catalog?section=${encodeURIComponent(section)}`)
+  return asJSON(res)
+}
+
+/** The objects listed under catalog node node of section (GET /api/bindings/list). */
+export async function getBindingList(section: string, node: string): Promise<BindingObject[]> {
+  const res = await fetch(
+    `${BASE}/bindings/list?section=${encodeURIComponent(section)}&node=${encodeURIComponent(node)}`,
+  )
+  return asJSON(res)
+}
+
+/** Catalog nodes and objects of section whose name contains q, case-insensitively (GET /api/bindings/search). */
+export async function searchBindings(section: string, q: string, limit?: number): Promise<BindingSearchResult> {
+  const params = new URLSearchParams({ section, q })
+  if (limit) params.set('limit', String(limit))
+  const res = await fetch(`${BASE}/bindings/search?${params}`)
+  return asJSON(res)
+}
+
+/** The drag data type of an object dragged from the Objects panel; its value is a JSON DraggedObject. */
+export const OBJECT_DRAG_TYPE = 'application/x-sld-object'

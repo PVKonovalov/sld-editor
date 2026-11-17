@@ -1,5 +1,96 @@
 # Release notes
 
+2026-11-17: SCADA bindings, step 6: **Objects** panel, the editor's own object browser (RSDU's Adjust inside the
+editor). With bindings on, the left rail has an **Objects** button (`ObjectsPanel.tsx`): the provider's sections as a
+tree, each section's catalog loaded when first expanded, and the objects of the selected catalog node below, sortable
+by name, type and class. Tree and list render only their visible rows (`lib/virtualRows.ts`), so a 22,000-object list
+scrolls smoothly. Search runs in the selected section; clicking a match expands the way to it, selects it, loads its
+list and scrolls to the object. Sections, catalog nodes, objects and matches are draggable with a
+`{source, ref, name, type}` payload (`application/x-sld-object`, `OBJECT_DRAG_TYPE`); dropping them comes in step 7.
+Load errors are shown in place with **Retry**; **Reload** re-reads everything. The panel keeps its state while another
+panel is open (also its scroll position). `PanelShell` takes `wide` and `fill`. `lib/api.ts` has
+`getBindingDictionaries`, `getBindingSections`, `getBindingCatalog`, `getBindingList`, `searchBindings`; `types/index.ts`
+mirrors their responses. Checked in a browser against the PostgreSQL and the Oracle RSDU: sections in about 1 s, the
+electrical-mode catalog in 2–4 s, a search match in a 22,000-object node revealed and selected in about 6 s with 34
+rendered rows, sorting, the drag payload, error with Retry, and the tree's scroll and state after switching panels.
+User guides: **Objects** (`#objects`).
+
+2026-11-17: The editor's configuration `backend/config/sld-editor.yaml` is now local and not in git; the tracked
+`backend/config/sld-editor.example.yaml` (bindings off) is the shipped one. `make package` puts a copy of the example
+into the archive as `config/sld-editor.yaml`, so a developer's local settings (e.g. an RSDU database host) are never
+shipped; checked: the archive's config has `provider: ""` and no `.env`. `TestShippedLineHalos` and the CIM tests read
+the example, so they pass on a fresh clone. README, CLAUDE.md and the user guides' Configuration section say to copy
+the example to `sld-editor.yaml` once, and to keep database credentials in `backend/.env`.
+
+2026-11-17: SCADA bindings, step 5: object browser API of the RSDU provider, Adjust's tree and lists on Oracle and
+PostgreSQL. `GET /api/bindings/sections` is the `SYS_TREE21` tree from node 1 (each node with its section id and a
+`ref` of its own, so a section node can be bound); `GET /api/bindings/catalog?section=` the section's catalog (its
+`SYS_TABL_V` DIR table joined with the types table, `alias` when the column exists) as a whole tree;
+`GET /api/bindings/list?section=&node=` the objects under a catalog node, with their type alias (types table from
+`SYS_TBLREF`, else chosen by the list's name as Adjust does), class (`SYS_UCLS`) and, for `DA*` lists, `cvalif` and
+`scale`; `GET /api/bindings/search?section=&q=&limit=` the catalog nodes and objects whose name contains `q`
+(case-insensitive, at least 2 characters, at most 100 by default and 500 in all, shared half and half between catalog
+and list, `truncated` when more matched). Trees are built in Go from flat queries and sorted by name; nodes whose
+parent is missing go to the top. Optional columns are found in the column dictionary; table names read from the
+database are validated before use. Unknown section or node answers 404, a malformed one 400. `DA*` lists use
+`LEFT JOIN`s where Adjust's inner join dropped rows of lists that are not parameters. Oracle fetches 1000 rows per
+round trip (go-ora's 25 made the largest list take 22 s; now 6 s). Checked on a PostgreSQL and an Oracle RSDU: the
+largest catalog (14,500 nodes) is 2.3 MB of JSON, about 190 KB gzipped, in 2–4 s; the largest list (22,000 objects)
+3.6 MB, about 220 KB gzipped, in 4–6 s. - **Tests:** `TestForest`, `TestSections`, `TestCatalog`,
+`TestCatalogErrors`, `TestList`, `TestListErrors`, `TestLikePattern`, `TestSearch`; `TestIntegrationBrowse` with
+`RSDU_TEST_ORACLE` / `RSDU_TEST_POSTGRES`.
+
+2026-11-17: SCADA bindings, step 4: the RSDU provider reads an RSDU database, Oracle or PostgreSQL
+(`bindings.rsdu.driver`), with the pure-Go drivers ctrlroom uses (`go-ora/v2`, `lib/pq`), so the release builds for
+every platform still compile. The connection is opened on the first binding request (never at startup), keeps at most
+4 connections, is dropped after a connection failure so the next request reconnects, and each query fails after 30 s
+(a watchdog). SQL is written once; `rsdu.Dialect` gives the schema prefix (`bindings.rsdu.schema`, default
+`rsduadmin`, checked at startup), bind parameters (`:pr1` / `$1`), sequence calls, the column dictionary
+(`ALL_TAB_COLUMNS` / `information_schema.columns`, cached per table), GUID and flag decoding. A table name read from
+the database is put into SQL only if it is a plain identifier and exists. `GET /api/bindings/dictionaries` returns the
+binding kinds (`VS_REGIM`: equipment, parameters, additional parameters, plus the virtual jumps), value options
+(`SYS_GTOPT` with their `SYS_GTYP` group) and display features (`VS_COMP_FEATURE` with their mask), named as in the
+database; they are cached until `?refresh=1`. Checked on a PostgreSQL and an Oracle RSDU: same tables, columns and
+sequences, and identical dictionaries JSON. User guides: `#configuration-bindings` (schema rule, connection use,
+reference lists). - **Tests:** `TestDialectSQL`, `TestDialectNextValAndColumns`, `TestNewDialectRejects`,
+`TestGUIDAndBool`, `TestTableValidation`, `TestDictionaries`, `TestDictionariesError`, `TestBindingsDataSourceDown`,
+`TestBindingDictionariesRefresh`; `TestIntegrationDictionaries` runs when `RSDU_TEST_ORACLE` / `RSDU_TEST_POSTGRES`
+hold a DSN URL.
+
+2026-11-17: SCADA bindings, step 3: `sld-editor.yaml` → `bindings` turns bindings on and selects the provider
+(`provider`: `""` = off, shipped; `rsdu`). The `rsdu` section has `driver` (`oracle`/`postgres`), `schema`, `read` and
+optional `write` connections with the field names of ctrlroom's `database.dsn` (export needs `write`), `scheme_type`
+and `svg.dir`/`full_path`. `Config.ValidateBindings` checks it at startup without contacting the database. Database
+credentials go in `.env` (or the environment): every connection key has a variable
+(`BINDINGS_RSDU_{READ|WRITE}_{HOST|PORT|USER|PASSWORD|SID|DATABASE|ENGINE}`), since nested config keys now get
+variables named after their full path; existing names are unchanged. New package `internal/binding`: the source-neutral `Provider` interface (`Dictionaries`, `Sections`,
+`Catalog`, `List`, `Resolve`, `Suggest`, optional `Exporter`/`Importer`) and a provider registry; `internal/rsdu`
+registers a stub answering 501. `/api/config` returns `bindings: {provider, canExport}`; `/api/bindings/*` (so far
+`GET /api/bindings/dictionaries`) exists only with a provider configured. The frontend hides the Bindings groups when
+bindings are off (stored bindings are still saved) and marks bindings of another provider with a lock, read-only.
+User guides: **Bindings (bindings)** (`#configuration-bindings`). - **Tests:** `TestValidateBindings`,
+`TestConfigBindings`, `TestBindingsNotImplemented`, `TestReadFromEnv_NestedNamesUseFullPath`,
+`TestBindingsCredentialsFromDotEnv`.
+
+2026-11-17: SCADA bindings, step 2: Properties shows a diagram's bindings, read-only. A selected device or digital
+device with a binding, precision or features gets a collapsible **Bindings** group (`BindingsSection.tsx`): rows
+Equipment, Parameters, Additional parameters and Jumps, each with the bound object's cached name (else its key), type,
+option, scale (1 when unset) and source tag, "—" when empty, then precision and features. With nothing selected, the
+group shows the diagram's scheme and bound object. Copy, paste and Alt-drag keep bindings, precision and features;
+"Save as custom element" (`extractSelection(..., forCustomElement)`) and placing a custom element from the palette
+(`placeCustomElement(..., dropBindings)`) drop them. User guides: **Bindings** (`#properties-bindings`). Checked in the
+browser on a hand-written test diagram: element, digital device and diagram views, a paste keeping its bindings
+through save, a saved custom element without them, and a hand-edited custom element with bindings placed without them.
+
+2026-11-17: SCADA bindings, step 1: the diagram model can hold bindings of elements and
+digital devices to SCADA objects (slddoc `Binding`, `Element`/`DigitalDevice` `Bindings`/`Precision`/`Features`,
+`Diagram.Scheme`/`Object`; `.xsld` format in slddoc's `XSLD_FORMAT.md` §4.10). Saving a diagram rejects invalid
+bindings with 400 (`slddoc.ValidateBindings`: unknown kind, empty source/ref, two bindings of one kind on an item).
+`types/index.ts` mirrors the new fields (`Binding`, `BindingKind`, `SchemeRef`). No UI yet; diagrams without bindings
+are saved unchanged: loading and saving every `.xsld` under `diagrams/` and `custom-elements/` gives the same bytes as
+before (a `<digitalDevice>` without bindings was briefly written as an open/close pair; fixed in slddoc's `Save`).
+- **Test:** `TestSaveBindings`.
+
 2026-11-11: CIM import takes voltage classes from the model even when its BaseVoltage objects are missing (CGMES
 keeps them in a boundary set that often isn't sent along). Before, every device whose BaseVoltage could not be found
 fell back to the voltage class chosen in the import dialog. Now each referenced BaseVoltage without a nominal voltage

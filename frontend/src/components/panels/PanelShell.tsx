@@ -15,12 +15,16 @@ interface Props {
   /** User guide heading id: adds a "?" beside the title that opens the
    * guide there (GuideButton). */
   topic?: string
+  /** Wider panel, for content with columns (Objects). */
+  wide?: boolean
+  /** The body neither pads nor scrolls: the content lays out its own scrolling parts. */
+  fill?: boolean
 }
 
-export function PanelShell({ title, onClose, children, side = 'left', topic }: Props) {
+export function PanelShell({ title, onClose, children, side = 'left', topic, wide, fill }: Props) {
   return (
     <div
-      className={`w-72 shrink-0 h-full bg-surface-700 flex flex-col ${
+      className={`${wide ? 'w-96' : 'w-72'} shrink-0 h-full bg-surface-700 flex flex-col ${
         side === 'right' ? 'border-l border-surface-600' : 'border-r border-surface-600'
       }`}
     >
@@ -38,7 +42,15 @@ export function PanelShell({ title, onClose, children, side = 'left', topic }: P
           <X size={16} />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 text-sm text-gray-200">{children}</div>
+      <div
+        className={
+          fill
+            ? 'flex-1 min-h-0 flex flex-col text-sm text-gray-200'
+            : 'flex-1 overflow-y-auto p-3 text-sm text-gray-200'
+        }
+      >
+        {children}
+      </div>
     </div>
   )
 }

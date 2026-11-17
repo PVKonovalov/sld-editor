@@ -1,17 +1,18 @@
-import { Folder, Boxes, Settings as SettingsIcon, SlidersHorizontal, Info, CircleHelp, type LucideIcon } from 'lucide-react'
+import { Folder, Boxes, Database, Settings as SettingsIcon, SlidersHorizontal, Info, CircleHelp, type LucideIcon } from 'lucide-react'
 import { t } from '../i18n'
 
-export type PanelId = 'file' | 'elements' | 'settings' | 'properties'
+export type PanelId = 'file' | 'elements' | 'objects' | 'settings' | 'properties'
 
 const ITEMS: { id: PanelId; icon: LucideIcon; label: string }[] = [
   { id: 'file', icon: Folder, label: t('sidebar.file') },
   { id: 'elements', icon: Boxes, label: t('sidebar.elements') },
+  { id: 'objects', icon: Database, label: t('sidebar.objects') },
   { id: 'settings', icon: SettingsIcon, label: t('sidebar.settings') },
   { id: 'properties', icon: SlidersHorizontal, label: t('sidebar.properties') },
 ]
 
 interface Props {
-  // File/Elements/Settings share one slot (at most one open at a time);
+  // File/Elements/Objects/Settings share one slot (at most one open at a time);
   // Properties docks on the opposite side of the canvas and can be open
   // at the same time as one of them, so its own state is tracked
   // separately rather than folded into a single "active panel" value.
@@ -22,12 +23,14 @@ interface Props {
   onHelp: () => void
   // Opens the About dialog (program icon, name, version).
   onAbout: () => void
+  // Shows the Objects item: bindings are on.
+  showObjects: boolean
 }
 
-export function Sidebar({ activeLeftPanel, propertiesOpen, onPanelToggle, onHelp, onAbout }: Props) {
+export function Sidebar({ activeLeftPanel, propertiesOpen, onPanelToggle, onHelp, onAbout, showObjects }: Props) {
   return (
     <aside className="flex flex-col items-center w-12 shrink-0 h-full bg-surface-800 border-r border-surface-600 py-2 gap-1 z-20">
-      {ITEMS.map(({ id, icon: Icon, label }) => {
+      {ITEMS.filter(item => item.id !== 'objects' || showObjects).map(({ id, icon: Icon, label }) => {
         const active = id === 'properties' ? propertiesOpen : activeLeftPanel === id
         return (
           <button

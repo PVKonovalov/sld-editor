@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"sld-editor/internal/api"
+	"sld-editor/internal/binding"
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
+	_ "sld-editor/internal/rsdu"
 	"sld-editor/internal/storage"
 	"sld-editor/pkg/configuration"
 	"sld-editor/pkg/llog"
@@ -65,6 +67,16 @@ func main() {
 	if err := cfg.ValidateLineHalos(); err != nil {
 		llog.Logger.Fatalf("validating line_halos configuration: %v", err)
 	}
+	if err := cfg.ValidateBindings(); err != nil {
+		llog.Logger.Fatalf("validating bindings configuration: %v", err)
+	}
+	bindings, err := binding.New(cfg.Bindings)
+	if err != nil {
+		llog.Logger.Fatalf("creating binding provider: %v", err)
+	}
+	if bindings != nil {
+		llog.Logger.Infof("bindings: provider %s", bindings.Name())
+	}
 	hotKeys, err := elements.ValidateHotKeys(cfg.HotKeys, cfg.Palette)
 	if err != nil {
 		llog.Logger.Fatalf("validating hot_keys configuration: %v", err)
@@ -109,7 +121,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	srv := api.NewServer(store, custom, lib, &cfg)
+	srv := api.NewServer(store, custom, lib, &cfg, bindings)
 	srv.SetConfigFile(*configFile)
 	llog.Logger.Infof("sld-editor %s listening on %s", version, cfg.Server.Bind)
 

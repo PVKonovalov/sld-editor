@@ -55,5 +55,6 @@ func (s *Server) getConfig(c *gin.Context) {
 		"cimConnectorClasses": map[slddoc.ConnectorKind][]string{
 			slddoc.KindLinkToObject: s.cimClasses.Of(slddoc.LinkToObjectCode),
 		},
+		"bindings": s.bindingsConfig(),
 	})
 }

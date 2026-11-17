@@ -63,4 +63,9 @@ frontend/src/i18n/active.ts
 # PowSyBl example tool build output
 /tools/cim-tools/target/
 /tools/cim-tools/out/
-/tools/cim-tools/out/
+/docs/images/scada_binding_*.png
+/docs/SCADA_BINDING.md
+/docs/AGENT_*.md
+/docs/executed/
+/backend/config/sld-editor.yaml
+

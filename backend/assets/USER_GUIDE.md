@@ -9,8 +9,8 @@ New to the editor? Start with [How to: draw a diagram step by step](#how-to).
 
 ## The window {#window}
 
-- **Left rail**: buttons for the **File**, **Elements** and **Settings** panels (they share the left side; one is
-  open at a time), the **Properties** toggle, and **Help** (this guide) and **About** at the bottom.
+- **Left rail**: buttons for the **File**, **Elements**, **Objects** (only when [bindings](#configuration-bindings)
+  are on) and **Settings** panels (they share the left side; one is open at a time), the **Properties** toggle, and **Help** (this guide) and **About** at the bottom.
 - **Canvas**: the diagram itself, with zoom buttons in the bottom-right corner.
 - **Properties** panel: docked on the right. It can stay open together with the Elements panel.
 
@@ -873,6 +873,32 @@ place like a single element.
 - They are stored as ordinary `.xsld` files in the server's custom-elements folder, so they can also be edited by
   opening the file as a diagram.
 
+## Objects {#objects}
+
+When bindings to a SCADA system are turned on in the configuration (see [Bindings](#configuration-bindings)), the
+left rail has an **Objects** button. The panel shows the system's objects, as RSDU's Adjust does, inside the editor:
+nothing else needs to be installed or started.
+
+- **Tree** (upper part): the system's sections. Expand a node with its arrow or a double-click. A section with a
+  database icon has a catalog (for example equipment), loaded from the database when you first expand it; a large
+  catalog takes a few seconds ("Loading…"). Catalog nodes show their type on the right; hover a node to see its
+  type and alias.
+- **List** (lower part): the objects (parameters) of the selected catalog node, with **Name**, **Type** and
+  **Class**. Click a column header to sort by it, again to reverse the order. The count is shown below. A list can
+  hold tens of thousands of objects; it scrolls smoothly.
+- **Search**: select a section (or anything inside it), type at least 2 characters of a name and press Enter. The
+  search covers the section's catalog and all its objects, ignoring case; it shows up to 100 matches, half from the
+  catalog and half from the objects when both have many, and says when there are more. Click a match to show it in
+  the tree and list; **×** goes back to the tree.
+- **Reload** (the circular arrow) reads everything again from the database, for example after objects were added
+  in the SCADA system. Expanded sections stay expanded.
+- **Errors**: when the database can't be reached, the panel shows the message where the data should be, with a
+  **Retry** button.
+- **Dragging**: sections, catalog nodes, objects and search matches can be dragged. Dropping them onto the diagram to
+  bind an item comes in a later version.
+
+The panel keeps its tree, selection and search while you switch to another panel.
+
 ## Properties {#properties}
 
 Select a single item to edit it in the Properties panel:
@@ -925,6 +951,34 @@ export. Every field is optional: leave it empty when the value is unknown. Names
 
 Copying a device copies its parameters. When a line is split (a tap, or a busbar laid across it), the original
 piece keeps the parameters and the new piece starts empty.
+
+### Bindings {#properties-bindings}
+
+A device or digital device can be bound to objects of a SCADA system (for example RSDU). The collapsible **Bindings**
+group in Properties shows these bindings. It appears only when bindings are turned on in the configuration (see
+[Bindings](#configuration-bindings)) and the item has a binding, a precision or features. For now it is read-only:
+bindings come with the diagram file. With bindings off the group is hidden, but bindings stored in a diagram are kept
+when it is saved.
+
+| Row | What it binds |
+|---|---|
+| Equipment | the equipment the item stands for |
+| Parameters | the main measured value or state shown by the item |
+| Additional parameters | a second value |
+| Jumps | a scheme, panel or report opened from the item |
+
+Each row shows the object's name (its key when the name is unknown; hover to see the key), its type, the **Option**
+(how the value is read) and the **Scale** (1 when unset; a negative scale inverts a discrete value), with the
+system's name as a tag. An empty row shows "—". A binding made with another system than the configured one shows a
+lock: it is kept, but can't be edited or exported. **Precision** is the number of decimal places of a shown value and
+**Features** are the system's display features.
+
+With nothing selected, the **Bindings** group shows the diagram's own **Scheme** (the system's scheme it is exported
+to) and **Object** (the object the whole diagram is bound to), when it has them.
+
+Copy, paste and Alt-drag keep bindings, precision and features: several pictures may show one object. A
+[custom element](#custom-elements) never has them: saving a selection as a custom element and placing one from the
+palette drop them.
 
 ### Layers and voltage classes {#layers}
 
@@ -979,7 +1033,9 @@ Busbars, overhead and cable lines and links to object of the same voltage stay p
 
 These files are for whoever installs and runs the editor. `sld-editor.yaml` lives in the `config/` folder, the
 converter's `xsde2svg.yml` and `workplace.xml` in `assets/` (`backend/config/` and `backend/assets/` in the source
-tree). Relative paths inside them are resolved from the folder the editor is started in.
+tree). Relative paths inside them are resolved from the folder the editor is started in. The release archive comes
+with a ready `config/sld-editor.yaml`; in the source tree it is not stored in git: copy `sld-editor.example.yaml` to
+`sld-editor.yaml` next to it, then change the copy.
 
 Behind a reverse proxy, run the proxy on the same machine and have it pass the client's address, so the history and
 the "Also open by" message show real IP addresses instead of `127.0.0.1`. The editor trusts `X-Forwarded-For` /
@@ -997,7 +1053,7 @@ location / {
 
 The editor's own settings, read once at startup: restart the editor, then reload the page, after changing them. The
 exceptions are `user_guide` and the two `xsde` files, which are read again on every use. A mistake in `palette`,
-`hot_keys`, `cim` or `line_halos` stops the editor at startup with a message naming it.
+`hot_keys`, `cim`, `line_halos` or `bindings` stops the editor at startup with a message naming it.
 
 | Key | What it sets |
 |---|---|
@@ -1016,6 +1072,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `voltage_color_tolerance` | How close (RGB distance, 0–441) a color must be to a standard one to be offered for replacement; 0 = exact only. |
 | `state_colors`, `fpi_state_colors` | Open / Close / Intermediate (and, for switching devices, Faulty) fill colors of switching devices and fault passage indicators. `state_colors` is only the starting colors of a diagram: see [State colors](#state-colors). |
 | `line_halos` | Composite styles of a line drawn as a coloured halo under it, with their default colours: see [Line halos](#configuration-line-halos). |
+| `bindings` | Whether diagram items can be bound to a SCADA system, and the system's connection: see [Bindings](#configuration-bindings). |
 | `position_states` | Labels of a withdrawable device's racking positions (Service / Normal / Test). |
 | `indicators.default_fpi_text` | Text a fault passage indicator shows when it has none of its own. |
 | `palette` | The Elements panel: groups (`name`, in display order) and their `items`, each an xsde2svg object type code. |
@@ -1025,7 +1082,9 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 
 Most single values can also be set by an environment variable named after the key path in capitals, e.g.
 `SERVER_BIND`, `DIAGRAMS_DIR`, `XSDE_CONFIG`, `XSDE_WORKPLACE`, `EDITOR_GRID_SPACING` (lists comma-separated, e.g.
-`ELEMENTS_LIBRARIES`). An environment variable wins over the file.
+`ELEMENTS_LIBRARIES`). The same variables can be written as `NAME=value` lines in a `.env` file in the folder the
+editor is started in (blank lines and `#` comments allowed). The order is: `sld-editor.yaml`, then `.env`, then the
+environment, each winning over the one before.
 
 ### Line halos (line_halos) {#configuration-line-halos}
 
@@ -1075,6 +1134,86 @@ line_halos:
   editor at startup with a message naming the entry. An empty or missing `line_halos` draws no halos.
 - `line_halos` is read at startup only (restart the editor, then reload the page) and can't be set by an environment
   variable.
+
+### Bindings (bindings) {#configuration-bindings}
+
+`bindings` turns on binding of diagram items to objects of a SCADA system (see [Bindings](#properties-bindings)) and
+says which system and how to reach it. The shipped file has bindings off:
+
+```yaml
+bindings:
+  provider: ""
+```
+
+| Key | Required | What it sets |
+|---|---|---|
+| `provider` | no | `""` or absent: bindings are off and the editor shows no binding controls. `rsdu`: objects come from an RSDU database. |
+| `rsdu.driver` | with `rsdu` | The RSDU database: `oracle` or `postgres`. |
+| `rsdu.schema` | no | The schema (owner) of RSDU's tables; default `rsduadmin`. Letters, digits, `_` and `$` only. |
+| `rsdu.read` | with `rsdu` | The connection objects are read through (keys below). |
+| `rsdu.write` | no | The connection diagrams are exported to RSDU through, same keys. Without it export to RSDU is off. It may be the same account as `read`. |
+| `rsdu.scheme_type` | no | The RSDU scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`); 0 or more, default 0. Used by export. |
+| `rsdu.svg.dir` | no | The folder ctrlroom reads scheme pictures from (its `backend.path_to_sld`). Used by export. |
+| `rsdu.svg.full_path` | no | As ctrlroom's `backend.use_full_path_for_sld`: `true`: ctrlroom finds a picture by the scheme's file path stored in RSDU, under `dir`; `false`: by its file name only, directly in `dir`. Used by export. |
+
+A connection (`read`, `write`) has the same keys as an entry of ctrlroom's `database.dsn`, so the same lines can be
+copied between the two files:
+
+| Key | Required | What it sets |
+|---|---|---|
+| `host` | yes | Database server name or address. |
+| `port` | yes | Port, e.g. `1521` (Oracle) or `5432` (PostgreSQL). |
+| `user` | yes | Account name. |
+| `password` | no | Password in plain text; better kept in `.env` (below). |
+| `sid` / `database` | one of them | Oracle: the SID, or the service name in `database`. PostgreSQL: the database in `database`. |
+| `engine` | no | If given, must equal `driver`. |
+| `trace` | no | Accepted for compatibility with ctrlroom. |
+| `password_encrypted` | no | Must be `false`: encrypted passwords are not supported. |
+
+Example:
+
+```yaml
+bindings:
+  provider: rsdu
+  rsdu:
+    driver: oracle
+    schema: rsduadmin
+    read:
+      host: 10.0.0.5
+      port: 1521
+      sid: RSDU
+    scheme_type: 0
+    svg:
+      dir: /opt/ctrlroom/sld
+      full_path: true
+```
+
+with the credentials in `.env` next to it (in the folder the editor is started in):
+
+```sh
+BINDINGS_RSDU_READ_USER=rsduadmin
+BINDINGS_RSDU_READ_PASSWORD=secret
+```
+
+- **`.env` and environment variables.** Every key can also be set as a variable named after its path in capitals,
+  in `.env` or in the environment (which wins): `BINDINGS_PROVIDER`, `BINDINGS_RSDU_DRIVER`, `BINDINGS_RSDU_SCHEMA`,
+  `BINDINGS_RSDU_SCHEME_TYPE`, `BINDINGS_RSDU_SVG_DIR`, `BINDINGS_RSDU_SVG_FULL_PATH`, and per connection
+  `BINDINGS_RSDU_READ_HOST`, `_PORT`, `_USER`, `_PASSWORD`, `_SID`, `_DATABASE`, `_ENGINE` (likewise
+  `BINDINGS_RSDU_WRITE_…`). Keep the user and password there, not in `sld-editor.yaml`; protect `.env` from other
+  users of the machine.
+- **Startup.** The settings are checked at startup; the database is not contacted then. An unknown `provider`, a
+  missing or wrong `driver`, a missing `read`, a connection without `host`, `port`, `user` or `sid`/`database`, an
+  `engine` other than `driver`, `password_encrypted: true`, a negative `scheme_type` or a `schema` that isn't a plain
+  name stops the editor with a message naming the key. An unreachable database only makes the binding actions fail.
+- **Database use.** The editor connects on the first binding action and keeps at most 4 connections open; after a lost
+  connection the next action reconnects. A query still running after 30 seconds fails with an error. Oracle and
+  PostgreSQL databases of RSDU give the same results.
+- **Reference lists.** The binding kinds (`VS_REGIM`), value options (`SYS_GTOPT`) and display features
+  (`VS_COMP_FEATURE`) are read once and kept until the editor is restarted, with their names as the database has
+  them. After changing them in RSDU, open `/api/bindings/dictionaries?refresh=1` (or restart the editor) to re-read them.
+- **Other systems' bindings.** A diagram keeps bindings made with another `provider`; they are shown with a lock and
+  can't be edited or exported.
+- `bindings` is read at startup only (restart the editor, then reload the page).
 
 ### xsde2svg.yml {#configuration-xsde}
 

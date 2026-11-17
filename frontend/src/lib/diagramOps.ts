@@ -1302,7 +1302,8 @@ export function selectionCentroid(
  * item goes on the default layer. Label.for is remapped to the copied
  * element. Each template group becomes a fresh group of its copies (a
  * one-member group is dropped). Also what Paste uses, with the copied
- * selection (extractSelection) as the template. */
+ * selection (extractSelection) as the template. dropBindings (a custom element from the palette) clears the
+ * SCADA bindings, precision and features of every element and digital device. */
 export function placeCustomElement(
   diagram: Diagram,
   template: Diagram,
@@ -1311,6 +1312,7 @@ export function placeCustomElement(
   snap: (p: Point) => Point = p => p,
   defaultVoltage?: number,
   toActiveLayer = false,
+  dropBindings = false,
 ): Diagram {
   const anchors = groupAnchors(template)
   const centroid = groupCentroid(template)
@@ -1378,6 +1380,7 @@ export function placeCustomElement(
       ...(e.windings ? { windings: e.windings.map(w => ({ ...w, voltage: mapVoltage(w.voltage), mrid: undefined })) } : {}),
       // A copy is new equipment: no CIM identity of its own until exported.
       mrid: undefined,
+      ...(dropBindings ? NO_BINDINGS : {}),
     }
   })
 
@@ -1417,6 +1420,7 @@ export function placeCustomElement(
     layer: mapLayer(dd.layer),
     group: mapGroup(dd.group),
     ...shift(dd),
+    ...(dropBindings ? NO_BINDINGS : {}),
   }))
 
   const placed: Diagram = {
@@ -1435,6 +1439,9 @@ export function placeCustomElement(
   return pruneGroups(result)
 }
 
+// What a custom element never carries: SCADA bindings belong to one diagram's objects.
+const NO_BINDINGS = { bindings: undefined, precision: undefined, features: undefined }
+
 // How far a symbol's own drawing reaches beyond its anchor, for sizing an
 // extracted custom element's page — a symbol has no measured extent here,
 // and most base.xml shapes fit within about this radius.
@@ -1450,11 +1457,14 @@ const SYMBOL_EXTENT = 12
  * entry a fresh one anyway. Everything is shifted by a whole number of grid
  * steps so the contents start one step in from the top-left, and the page
  * is cropped to fit; editor settings are copied from the source. Returns
- * null for an empty selection. */
+ * null for an empty selection. SCADA bindings, precision and features are
+ * kept for a copy (several pictures may show one object) and dropped
+ * forCustomElement. */
 export function extractSelection(
   diagram: Diagram,
   selection: Map<number, 'element' | 'connector' | 'label' | 'digitaldevice'>,
   gridSpacing: number,
+  forCustomElement = false,
 ): Diagram | null {
   const has = (id: number, kind: string) => selection.get(id) === kind
   const elements = diagram.elements.filter(e => has(e.id, 'element'))
@@ -1517,6 +1527,7 @@ export function extractSelection(
       ...(e.ports ? { ports: e.ports.map(p => ({ ...p, mrid: undefined })) } : {}),
       ...(e.windings ? { windings: e.windings.map(w => ({ ...w, mrid: undefined })) } : {}),
       mrid: undefined,
+      ...(forCustomElement ? NO_BINDINGS : {}),
     })),
     connectors: connectors.map(c => ({
       ...c,
@@ -1530,7 +1541,7 @@ export function extractSelection(
       ...shift(l),
       for: l.for !== undefined && elementIds.has(l.for) ? l.for : undefined,
     })),
-    digitalDevices: digitalDevices.map(dd => ({ ...dd, ...shift(dd) })),
+    digitalDevices: digitalDevices.map(dd => ({ ...dd, ...shift(dd), ...(forCustomElement ? NO_BINDINGS : {}) })),
   }
 }
 
