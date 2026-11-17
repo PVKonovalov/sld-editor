@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"sld-editor/pkg/configuration"
 )
 
@@ -101,5 +103,62 @@ func TestBindingsLegacyConnections(t *testing.T) {
 	}
 	if err := cfg.ValidateBindings(); err == nil || !strings.Contains(err.Error(), "bindings.rsdu.dsn") {
 		t.Errorf("read: section: %v", err)
+	}
+}
+
+func TestBindingsMinio(t *testing.T) {
+	c := &Config{}
+	c.Bindings.Provider = ProviderRSDU
+	c.Bindings.RSDU.Driver = DriverPostgres
+	c.Bindings.RSDU.DSN = DSN{Host: "h", Port: 5432, User: "u", Database: "d"}
+	svg := &c.Bindings.RSDU.SVG
+	svg.UseObjectStorage = "n"
+	if err := c.ValidateBindings(); err != nil {
+		t.Errorf("off: %v", err)
+	}
+	svg.UseObjectStorage = "s3"
+	if err := c.ValidateBindings(); err == nil {
+		t.Error("an unknown object storage passed")
+	}
+	svg.UseObjectStorage = "minio"
+	svg.ObjectStorage.Minio = Minio{Username: "u", Endpoint: []Endpoint{{Host: "h", Port: 9090}}}
+	if err := c.ValidateBindings(); err == nil || !strings.Contains(err.Error(), "bucket.sld") {
+		t.Errorf("no bucket: %v", err)
+	}
+	svg.ObjectStorage.Minio.Bucket = map[string]string{"sld": "sld"}
+	if err := c.ValidateBindings(); err != nil {
+		t.Error(err)
+	}
+	if m := svg.ObjectStorage.Minio; m.Address() != "h:9090" || m.AccessKey() != "u" || !c.Bindings.RSDU.UsesMinio() {
+		t.Errorf("%+v", m)
+	}
+}
+
+// TestMinioCtrlroomYAML reads ctrlroom's object storage lines as they are in its configuration.
+func TestMinioCtrlroomYAML(t *testing.T) {
+	var r RSDUBindings
+	err := yaml.Unmarshal([]byte(`
+svg:
+  use_object_storage: minio
+  object_storage:
+    minio:
+      secure: n
+      username: admin
+      bucket:
+        sld: sld
+        avatar: avatar
+      endpoint:
+        - host: 10.0.0.1
+          port: 9080
+        - host: 10.0.0.2
+          port: 9080
+`), &r)
+	m := r.SVG.ObjectStorage.Minio
+	if err != nil || !r.UsesMinio() || bool(m.Secure) || m.AccessKey() != "admin" || m.SLDBucket() != "sld" || m.Address() != "10.0.0.1:9080" {
+		t.Errorf("%+v, %v", m, err)
+	}
+	var f struct{ S Flag }
+	if err := yaml.Unmarshal([]byte("s: maybe"), &f); err == nil {
+		t.Error("secure: maybe passed")
 	}
 }

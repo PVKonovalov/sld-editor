@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -177,5 +178,61 @@ func TestExport(t *testing.T) {
 	}
 	if res := decode[binding.ExportResult](t, rec.Body.String()); res.Scheme.Ref != "1" || res.Registered || res.Bindings != 2 {
 		t.Errorf("linked result %+v", res)
+	}
+}
+
+// deliveringProvider records the SVGs delivered, by scheme; fail makes a delivery fail.
+type deliveringProvider struct {
+	exportingProvider
+	got  map[string]string
+	fail *bool
+}
+
+func (p deliveringProvider) DeliverSVG(_ context.Context, ref string, svg []byte) ([]string, error) {
+	if *p.fail {
+		return nil, errors.New("viewer folder unreachable")
+	}
+	p.got[ref] = string(svg)
+	return []string{"/sld/" + ref + ".svg"}, nil
+}
+
+func TestDeliverSVGOnExportAndSave(t *testing.T) {
+	fail := false
+	p := deliveringProvider{got: map[string]string{}, fail: &fail}
+	s := newTestServerWithBindings(t, p, rsduBindings(true))
+	doJSON(t, s, http.MethodPost, "/api/diagrams", map[string]any{"name": "d/one"})
+
+	rec := doJSON(t, s, http.MethodPost, "/api/bindings/export?name=d/one", map[string]any{"register": true, "name": "One", "group": "g"})
+	res := decode[binding.ExportResult](t, rec.Body.String())
+	if rec.Code != http.StatusOK || len(res.SVG) != 1 || res.SVGError != "" || !strings.Contains(p.got["77"], "<svg") {
+		t.Fatalf("export: %d %s; delivered %v", rec.Code, rec.Body.String(), p.got)
+	}
+
+	opened := decode[struct{ Diagram slddoc.Diagram }](t, doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=d/one", nil).Body.String())
+	d := opened.Diagram
+	d.Width = 1234
+	delete(p.got, "77")
+	if rec := doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=d/one", d); rec.Code != http.StatusOK || !strings.Contains(p.got["77"], `width="1234"`) {
+		t.Errorf("save of an exported diagram: %d %s; delivered %.80q", rec.Code, rec.Body.String(), p.got["77"])
+	}
+
+	fail = true
+	rec = doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=d/one", d)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "not delivered") {
+		t.Errorf("failed delivery: %d %s", rec.Code, rec.Body.String())
+	}
+	fail = false
+
+	// Never exported, or export off: nothing is delivered.
+	delete(p.got, "5")
+	doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=d/two", slddoc.Diagram{Width: 10, Height: 10, Scheme: &slddoc.SchemeRef{Source: "fake", Ref: "5"}})
+	off := newTestServerWithBindings(t, p, rsduBindings(false))
+	at := time.Now()
+	doJSON(t, off, http.MethodPut, "/api/diagrams/save?name=d/three", slddoc.Diagram{Width: 10, Height: 10, Scheme: &slddoc.SchemeRef{Source: "fake", Ref: "6", Exported: &at}})
+	if _, ok := p.got["5"]; ok {
+		t.Error("a never exported diagram was delivered")
+	}
+	if _, ok := p.got["6"]; ok {
+		t.Error("delivered with export off")
 	}
 }

@@ -371,6 +371,17 @@ bindings:
   #   svg:
   #     dir: ""               # where ctrlroom reads scheme SVGs (its backend.path_to_sld)
   #     full_path: true       # as ctrlroom's backend.use_full_path_for_sld
+  #     use_object_storage: n # minio: also ctrlroom's object storage (its backend.use_object_storage)
+  #     object_storage:       # ctrlroom's backend.object_storage lines, as they are
+  #       minio:
+  #         secure: n
+  #         # user (or username) and password: in .env,
+  #         # BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_USER / _PASSWORD
+  #         bucket:
+  #           sld: sld
+  #         endpoint:           # the first is used
+  #           - host: 127.0.0.1
+  #             port: 9080
   #
   # The same for PostgreSQL: only driver, port and the database name differ.
   # rsdu:

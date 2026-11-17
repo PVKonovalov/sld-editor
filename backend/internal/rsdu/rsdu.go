@@ -21,6 +21,7 @@ type Provider struct {
 	read   Querier
 	tables *tables
 	infos  tableInfos
+	sinks  []svgSink
 
 	mu    sync.Mutex
 	dict  *dictionaries
@@ -33,7 +34,13 @@ func New(cfg config.Bindings) (binding.Provider, error) {
 	if err != nil {
 		return nil, err
 	}
-	return newProvider(cfg.RSDU, d, newConn(cfg.RSDU.Driver, cfg.RSDU.DSN)), nil
+	sinks, err := svgSinks(cfg.RSDU)
+	if err != nil {
+		return nil, err
+	}
+	p := newProvider(cfg.RSDU, d, newConn(cfg.RSDU.Driver, cfg.RSDU.DSN))
+	p.sinks = sinks
+	return p, nil
 }
 
 // newProvider builds a provider reading through q.

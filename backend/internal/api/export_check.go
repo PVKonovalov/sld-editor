@@ -8,6 +8,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/PVKonovalov/slddoc"
 	"github.com/gin-gonic/gin"
@@ -166,5 +167,31 @@ func (s *Server) exportDiagram(c *gin.Context, x binding.ExportChecker, e bindin
 		return
 	}
 	s.presence.Saved(name, rev)
+	if res.SVG, err = s.deliverSVG(ctx, name, d.Scheme); err != nil {
+		res.SVGError = err.Error()
+	}
 	c.JSON(http.StatusOK, res)
+}
+
+// svgDeliveryTimeout is a watchdog: a delivery still running after it fails with an error.
+const svgDeliveryTimeout = time.Minute
+
+// deliverSVG delivers the saved SVG of the diagram name where the provider's viewer reads it, when export is on and
+// the diagram is linked to a scheme of the provider that it was exported to.
+func (s *Server) deliverSVG(ctx context.Context, name string, scheme *slddoc.SchemeRef) ([]string, error) {
+	if s.bindings == nil || scheme == nil || scheme.Exported == nil || scheme.Source != s.bindings.Name() ||
+		!binding.CanExport(s.bindings, s.cfg.Bindings) {
+		return nil, nil
+	}
+	dl, ok := s.bindings.(binding.SVGDeliverer)
+	if !ok {
+		return nil, nil
+	}
+	svg, err := s.store.ReadSVG(name)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, svgDeliveryTimeout)
+	defer cancel()
+	return dl.DeliverSVG(ctx, scheme.Ref, svg)
 }

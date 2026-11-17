@@ -1,5 +1,19 @@
 # Release notes
 
+2026-11-17: SCADA bindings, step 13: SVG delivery to ctrlroom. The export, and every later save of a diagram exported
+to the provider (with `bindings.rsdu.export: true`), delivers the saved Static SVG where ctrlroom's `PathToSld` looks
+for the scheme's `VS_FORM.FILE_NAME` (`\` as `/`, extension `.svg`, the whole path or the base name by
+`svg.full_path`): into `bindings.rsdu.svg.dir` (subfolders created, temp file + rename) and into the Minio bucket of
+`bindings.rsdu.svg.object_storage` when `bindings.rsdu.svg.use_object_storage: minio` (ctrlroom's own
+`use_object_storage` / `object_storage.minio` lines, copied as they are: `secure` as y/n, `bucket.sld`, the first
+`endpoint`, `user` or `username`; the keys from `.env`, `BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_*`), whichever are set
+(`binding.SVGDeliverer`, `rsdu.DeliverSVG`, minio-go v7; one PUT with an unsigned payload, since the S3-like store
+ctrlroom reads from refuses aws-chunked uploads). Delivery refuses a file another scheme resolves to as well (letter case ignored), so a save never replaces another scheme's picture. A save whose delivery fails is kept and says why; the
+export result and window list where the SVG went. Bindings in RSDU still change only on Export. Tests: delivery in
+both `full_path` modes (including two schemes with one file name in different folders) and to a fake S3 server, the
+save and export hooks, and an SVG contract test (numeric `id`, `data-type`, `data-name` for every shape RSDU has a
+component type for). Guide `#rsdu-svg` and the `svg.use_object_storage` / `svg.object_storage` keys in `#configuration-bindings` (en, ru).
+
 2026-11-17: SCADA bindings, step 12: export to RSDU. `POST /api/bindings/export?name=` (only with
 `bindings.rsdu.export: true`, one export at a time) exports the saved diagram as `binding.ExportRequest` asks: to the
 linked scheme, or registering a new one (name, alias, group). `rsdu.Export` writes in one transaction, as RSDU's scheme

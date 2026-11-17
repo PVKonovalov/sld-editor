@@ -150,6 +150,9 @@ func (s *Server) saveDiagram(c *gin.Context) {
 		return
 	}
 	s.presence.Saved(name, rev)
+	if _, err := s.deliverSVG(c.Request.Context(), name, d.Scheme); err != nil {
+		warn = errors.Join(warn, fmt.Errorf("the diagram is saved, but its SVG was not delivered to the viewer: %w", err))
+	}
 	c.JSON(http.StatusOK, diagramResponse(&d, warn))
 }
 

@@ -199,20 +199,31 @@ func (p *Provider) checkSVG(c *binding.ExportCheck, schemes []binding.Scheme) {
 	c.SVGPath = file
 	if dir := p.cfg.SVG.Dir; dir != "" {
 		c.SVGPath = path.Join(strings.ReplaceAll(dir, `\`, "/"), file)
+	} else if p.cfg.UsesMinio() {
+		c.SVGPath = "minio:" + path.Join(p.cfg.SVG.ObjectStorage.Minio.SLDBucket(), file)
 	} else {
 		c.Add(binding.ExportIssue{Code: binding.IssueNoSVGDir, Severity: binding.SeverityWarning})
 	}
+	self := ""
+	if c.Scheme != nil {
+		self = c.Scheme.Ref
+	}
+	if clash := svgClash(file, self, schemes, full); len(clash) > 0 {
+		c.Add(binding.ExportIssue{Code: binding.IssueSVGClash, Severity: binding.SeverityError, Schemes: clash, Detail: file})
+	}
+}
+
+// svgClash returns the schemes other than self whose SVG is file too (letter case ignored), by ref.
+func svgClash(file, self string, schemes []binding.Scheme, fullPath bool) []binding.Scheme {
 	var clash []binding.Scheme
 	for _, s := range schemes {
-		if c.Scheme != nil && s.Ref == c.Scheme.Ref {
+		if s.Ref == self {
 			continue
 		}
-		if other, err := svgFile(s.FileName, full); err == nil && strings.EqualFold(other, file) {
+		if other, err := svgFile(s.FileName, fullPath); err == nil && strings.EqualFold(other, file) {
 			clash = append(clash, s)
 		}
 	}
-	if len(clash) > 0 {
-		sort.Slice(clash, func(i, j int) bool { return clash[i].Ref < clash[j].Ref })
-		c.Add(binding.ExportIssue{Code: binding.IssueSVGClash, Severity: binding.SeverityError, Schemes: clash, Detail: file})
-	}
+	sort.Slice(clash, func(i, j int) bool { return clash[i].Ref < clash[j].Ref })
+	return clash
 }

@@ -938,6 +938,8 @@ export interface ExportResult {
   components: number
   bindings: number
   skipped: ExportIssue[]
+  svg?: string[]
+  svgError?: string
 }
 
 // Matches binding.KindInfo: a binding kind as the provider offers it; an empty name is named by the frontend.

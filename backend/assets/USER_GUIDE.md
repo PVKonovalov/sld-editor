@@ -630,7 +630,26 @@ Click a finding about an item to select it and show it on the canvas. The refres
 
 Then the diagram is saved with its link to the scheme and the export time (a history entry, like any save) and
 reopened; its status in [RSDU schemes](#rsdu-schemes) is **exported** until it is changed again. RSDU clients that have
-the scheme open must reopen it to see the changes. The scheme's SVG is not delivered to ctrlroom yet.
+the scheme open must reopen it to see the changes.
+
+#### The SVG for ctrlroom {#rsdu-svg}
+
+ctrlroom shows a scheme from its SVG: it finds the file by the scheme's `FILE_NAME` in RSDU (`\` read as `/`, the
+extension replaced by `.svg`) — the whole path with `svg.full_path: true`, only the file name with `false` — in its
+folder (`backend.path_to_sld`) or in its Minio bucket (`use_object_storage: minio`). The export delivers the
+diagram's saved SVG there: into `bindings.rsdu.svg.dir` (subfolders created, the old file replaced in one step) and
+into the Minio bucket of `bindings.rsdu.svg.object_storage` with `use_object_storage: minio`, whichever are
+configured. After that, **every save** of the diagram
+delivers its SVG again; its bindings in RSDU change only with **Export**. A save whose delivery fails is still saved and
+says why. The export window shows where the SVG went.
+
+- The SVG's name comes from the scheme's file name in RSDU, not from the diagram's path. A scheme the editor
+  registered follows the diagram's path at the next export; the SVG under the old name stays, and ctrlroom, which
+  keeps each scheme's file name until it restarts, needs a restart to read the new one.
+- Each item ctrlroom shows values on is an SVG element whose `id` is the item's number, with `data-type` (its shape)
+  and, as xsde2svg writes them, `data-name`.
+- With `svg.full_path: false` two schemes with the same file name in different folders would share one SVG; the
+  [export check](#rsdu-export) refuses that.
 
 ## Moving around the canvas {#navigation}
 
@@ -1339,8 +1358,13 @@ bindings:
 | `rsdu.dsn` | with `rsdu` | The connection to the RSDU database (keys below), for reading objects and for export. |
 | `rsdu.export` | no | `true` enables export to RSDU; the `dsn` account must then be allowed to write. Default `false`. |
 | `rsdu.scheme_type` | no | The RSDU scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`), usually 518 (MODUS scheme): an element is exported only when `VS_TCOMP` has a row of this type for its shape. 0 or more, default 0 = not set; the [export check](#rsdu-export) then refuses the export. |
-| `rsdu.svg.dir` | no | The folder ctrlroom reads scheme pictures from (its `backend.path_to_sld`). Used by export. |
-| `rsdu.svg.full_path` | no | As ctrlroom's `backend.use_full_path_for_sld`: `true`: ctrlroom finds a picture by the scheme's file path stored in RSDU, under `dir`; `false`: by its file name only, directly in `dir`. Used by export. |
+| `rsdu.svg.dir` | no | The folder ctrlroom reads scheme pictures from (its `backend.path_to_sld`); the export and later saves [deliver the SVG](#rsdu-svg) there. The editor needs write access to it. |
+| `rsdu.svg.full_path` | no | As ctrlroom's `backend.use_full_path_for_sld`: `true`: ctrlroom finds a picture by the scheme's file path stored in RSDU, under `dir`; `false`: by its file name only, directly in `dir`. The same for the Minio object name. |
+| `rsdu.svg.use_object_storage` | no | As ctrlroom's `backend.use_object_storage`: `minio` delivers the SVG to the Minio bucket below as well as to `svg.dir`; empty, `n`, `local` or `file`: no object storage. The `object_storage` lines are ctrlroom's own and can be copied from its configuration. |
+| `rsdu.svg.object_storage.minio.endpoint` | with `minio` | The servers as a list of `host` and `port`; the first is used, as ctrlroom does. |
+| `rsdu.svg.object_storage.minio.bucket.sld` | with `minio` | The bucket of scheme pictures. Other buckets (`avatar`, `report`) are ignored. |
+| `rsdu.svg.object_storage.minio.user` (or ctrlroom's `username`), `…password` | `user` with `minio` | The access key and secret; better kept in `.env` (`BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_USER`, `BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_PASSWORD`). |
+| `rsdu.svg.object_storage.minio.secure` | no | HTTPS: `y`/`n`, `yes`/`no` or `true`/`false`. Default no. |
 
 The connection (`dsn`) has the same keys as an entry of ctrlroom's `database.dsn`, so the same lines can be copied
 between the two files:

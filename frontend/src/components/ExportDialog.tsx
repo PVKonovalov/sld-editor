@@ -231,6 +231,20 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
         })}
       </p>
       {issueList(result.skipped, 'warning', t('exportCheck.skipped', { count: result.skipped.length }))}
+      {result.svgError ? (
+        <p className="text-red-300 break-words">{t('exportCheck.svgFailed', { error: result.svgError })}</p>
+      ) : result.svg?.length ? (
+        <div className="text-gray-300">
+          {t('exportCheck.svgDelivered')}
+          <ul className="text-gray-400 break-all">
+            {result.svg.map(w => (
+              <li key={w}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="text-amber-300">{t('exportCheck.svgNowhere')}</p>
+      )}
       {result.registered && <p className="text-gray-300">{t('exportCheck.menuNote')}</p>}
       <p className="text-gray-400">{t('exportCheck.reloadNote')}</p>
       {error && <p className="text-red-300 break-words">{error}</p>}

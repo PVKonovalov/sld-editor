@@ -226,6 +226,19 @@ func (s *Store) SaveExported(name string, d *slddoc.Diagram, rev slddoc.Revision
 	return renderWarning, nil
 }
 
+// ReadSVG returns the saved .svg of the diagram name.
+func (s *Store) ReadSVG(name string) ([]byte, error) {
+	path, err := s.svgPath(name)
+	if err != nil {
+		return nil, err
+	}
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("%w: %s", ErrNotFound, name)
+	}
+	return b, err
+}
+
 // Exists reports whether the diagram name exists.
 func (s *Store) Exists(name string) bool {
 	path, err := s.xmlPath(name)

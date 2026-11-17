@@ -88,13 +88,22 @@ type ExportRequest struct {
 }
 
 // ExportResult is what an export wrote: the scheme link to save in the diagram, how many components and bindings,
-// and what was skipped.
+// what was skipped, and where the scheme's SVG was delivered (SVGError when that failed).
 type ExportResult struct {
 	Scheme     slddoc.SchemeRef `json:"scheme"`
 	Registered bool             `json:"registered"`
 	Components int              `json:"components"`
 	Bindings   int              `json:"bindings"`
 	Skipped    []ExportIssue    `json:"skipped"`
+	SVG        []string         `json:"svg,omitempty"`
+	SVGError   string           `json:"svgError,omitempty"`
+}
+
+// SVGDeliverer is a Provider that delivers a scheme's picture where its viewer reads it.
+type SVGDeliverer interface {
+	// DeliverSVG puts svg where the viewer looks for the picture of scheme ref and returns where it went (none: no
+	// destination configured).
+	DeliverSVG(ctx context.Context, ref string, svg []byte) ([]string, error)
 }
 
 // ErrExportRefused is returned by an export its check stops; Check tells why.

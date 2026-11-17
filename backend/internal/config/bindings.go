@@ -3,6 +3,11 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
+	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Binding providers known to ValidateBindings.
@@ -40,7 +45,69 @@ type RSDUBindings struct {
 		Dir string `yaml:"dir" env:"true"`
 		// FullPath mirrors ctrlroom's backend.use_full_path_for_sld.
 		FullPath bool `yaml:"full_path" env:"true"`
+		// UseObjectStorage and ObjectStorage are ctrlroom's backend.use_object_storage and backend.object_storage, so
+		// the lines can be copied: "minio" delivers the SVG to ObjectStorage.Minio as well; "", "n", "local" or
+		// "file": no object storage.
+		UseObjectStorage string `yaml:"use_object_storage" env:"true"`
+		ObjectStorage    struct {
+			Minio Minio `yaml:"minio"`
+		} `yaml:"object_storage"`
 	} `yaml:"svg"`
+}
+
+// UsesMinio reports whether the SVG is delivered to the Minio bucket too.
+func (r RSDUBindings) UsesMinio() bool { return strings.EqualFold(r.SVG.UseObjectStorage, "minio") }
+
+// Minio is ctrlroom's object_storage.minio. The keys are better kept in .env
+// (BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_USER, ..._PASSWORD).
+type Minio struct {
+	Secure Flag   `yaml:"secure" env:"true"`
+	User   string `yaml:"user" env:"true"`
+	// Username is ctrlroom's name for User.
+	Username string            `yaml:"username" env:"true"`
+	Password string            `yaml:"password" env:"true"`
+	Bucket   map[string]string `yaml:"bucket"`
+	Endpoint []Endpoint        `yaml:"endpoint"`
+}
+
+// Endpoint is one server of an object storage.
+type Endpoint struct {
+	Host string `yaml:"host"`
+	Port int    `yaml:"port"`
+}
+
+// AccessKey is User, or Username when User is empty.
+func (m Minio) AccessKey() string {
+	if m.User != "" {
+		return m.User
+	}
+	return m.Username
+}
+
+// Address is the first endpoint as host:port, the one ctrlroom reads from; "" when none.
+func (m Minio) Address() string {
+	if len(m.Endpoint) == 0 {
+		return ""
+	}
+	return net.JoinHostPort(m.Endpoint[0].Host, strconv.Itoa(m.Endpoint[0].Port))
+}
+
+// SLDBucket is the bucket of scheme pictures, bucket.sld.
+func (m Minio) SLDBucket() string { return m.Bucket["sld"] }
+
+// Flag is a bool written as in ctrlroom's YAML: true/false, y/n or yes/no.
+type Flag bool
+
+func (f *Flag) UnmarshalYAML(n *yaml.Node) error {
+	switch strings.ToLower(n.Value) {
+	case "true", "y", "yes", "1":
+		*f = true
+	case "false", "n", "no", "0", "":
+		*f = false
+	default:
+		return fmt.Errorf("line %d: %q is not true/false, y/n or yes/no", n.Line, n.Value)
+	}
+	return nil
 }
 
 // DSN is one database connection, with the field names of an entry of ctrlroom's database.dsn. Every connection field
@@ -86,6 +153,21 @@ func (c *Config) ValidateBindings() error {
 	}
 	if err := r.DSN.validate(r.Driver); err != nil {
 		return fmt.Errorf("bindings.rsdu.dsn: %w", err)
+	}
+	switch u := strings.ToLower(r.SVG.UseObjectStorage); u {
+	case "", "n", "no", "local", "file":
+	case "minio":
+		m := r.SVG.ObjectStorage.Minio
+		switch {
+		case len(m.Endpoint) == 0 || m.Endpoint[0].Host == "" || m.Endpoint[0].Port <= 0:
+			return errors.New("bindings.rsdu.svg.object_storage.minio.endpoint: a host and port are required")
+		case m.SLDBucket() == "":
+			return errors.New("bindings.rsdu.svg.object_storage.minio.bucket.sld: required")
+		case m.AccessKey() == "":
+			return errors.New("bindings.rsdu.svg.object_storage.minio.user: required (environment: BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_USER)")
+		}
+	default:
+		return fmt.Errorf("bindings.rsdu.svg.use_object_storage: unknown object storage %q (known: minio)", r.SVG.UseObjectStorage)
 	}
 	return nil
 }
