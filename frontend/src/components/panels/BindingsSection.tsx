@@ -1,5 +1,5 @@
 import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
-import { Loader2, Lock, RefreshCw, X } from 'lucide-react'
+import { Loader2, Lock, RefreshCw, Upload, X } from 'lucide-react'
 import { GroupHeader } from './GroupHeader'
 import { SchemeLinkRow } from './SchemeLinkRow'
 import { t, type TranslationKey } from '../../i18n'
@@ -488,7 +488,7 @@ export function DiagramBindingsSection({
   scheme?: SchemeRef
   object?: Binding
 }) {
-  const { updateDiagram, config } = useDiagramContext()
+  const { updateDiagram, config, diagramName, setExportOpen } = useDiagramContext()
   const [collapsed, toggle] = useCollapsed()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -527,6 +527,16 @@ export function DiagramBindingsSection({
             onRemove={() => updateDiagram(d => diagramOps.setDiagramObject(d, undefined))}
           />
           <RefreshBindings provider={provider} />
+          {config?.bindings?.exportCheck && diagramName && (
+            <button
+              type="button"
+              onClick={() => setExportOpen(true)}
+              className="flex items-center gap-1 rounded border border-surface-500 px-2 py-0.5 text-xs hover:bg-surface-600"
+            >
+              <Upload size={12} />
+              {t('exportCheck.open')}
+            </button>
+          )}
         </div>
       )}
     </div>

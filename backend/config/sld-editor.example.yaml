@@ -367,7 +367,7 @@ bindings:
   #     password: ""          # from .env: BINDINGS_RSDU_READ_PASSWORD
   #     sid: RSDU             # Oracle: the instance SID; or database: the service name
   #   write: {}               # optional; without it export to RSDU is off
-  #   scheme_type: 0          # VS_FORM.ID_TYPE / VS_TCOMP.ID_DTYP of exported schemes
+  #   scheme_type: 518        # VS_FORM.ID_TYPE / VS_TCOMP.ID_DTYP of exported schemes (518: MODUS); needed for export
   #   svg:
   #     dir: ""               # where ctrlroom reads scheme SVGs (its backend.path_to_sld)
   #     full_path: true       # as ctrlroom's backend.use_full_path_for_sld
@@ -383,7 +383,7 @@ bindings:
   #     password: ""          # from .env: BINDINGS_RSDU_READ_PASSWORD
   #     database: rsdu        # PostgreSQL: the database name
   #   write: {}
-  #   scheme_type: 0
+  #   scheme_type: 518
   #   svg:
   #     dir: ""
   #     full_path: true

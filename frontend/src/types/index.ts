@@ -262,6 +262,7 @@ export interface ProviderScheme {
   group: string
   name: string
   type?: string
+  typeId?: string
   fileName?: string
   updated?: string
   diagram?: string
@@ -886,6 +887,38 @@ export interface BindingsConfig {
   canExport: boolean
   // Diagrams can be linked to the provider's schemes.
   schemes?: boolean
+  // The provider can check a diagram before an export.
+  exportCheck?: boolean
+}
+
+// Matches binding.SchemeType.
+export interface SchemeType {
+  id: string
+  name: string
+}
+
+// Matches binding.ExportIssue: code names the finding (the frontend words it); item, kind and shape the diagram item
+// it is about; schemes the provider's schemes involved; detail extra text.
+export interface ExportIssue {
+  code: string
+  severity: 'error' | 'warning'
+  item?: number
+  kind?: 'element' | 'device'
+  shape?: string
+  schemes?: ProviderScheme[]
+  detail?: string
+}
+
+// Matches binding.ExportCheck.
+export interface ExportCheck {
+  ok: boolean
+  scheme?: ProviderScheme
+  schemeType?: SchemeType
+  fileName: string
+  svgPath?: string
+  bound: number
+  defaultGroup?: string
+  issues: ExportIssue[]
 }
 
 // Matches binding.KindInfo: a binding kind as the provider offers it; an empty name is named by the frontend.

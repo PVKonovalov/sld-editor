@@ -22,6 +22,7 @@ type Scheme struct {
 	Group    string     `json:"group"`
 	Name     string     `json:"name"`
 	Type     string     `json:"type,omitempty"`
+	TypeID   string     `json:"typeId,omitempty"`
 	FileName string     `json:"fileName,omitempty"`
 	Updated  *time.Time `json:"updated,omitempty"`
 	Diagram  string     `json:"diagram,omitempty"`

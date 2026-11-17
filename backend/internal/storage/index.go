@@ -167,3 +167,17 @@ func schemeStatus(ref slddoc.SchemeRef, mod time.Time) string {
 		return SchemeExported
 	}
 }
+
+// LastExported returns the ref of the scheme of source exported most recently, "" when none was.
+func (s *Store) LastExported(source string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var ref string
+	var at time.Time
+	for _, r := range s.links.byDiagram {
+		if r.Source == source && r.Exported != nil && r.Exported.After(at) {
+			ref, at = r.Ref, *r.Exported
+		}
+	}
+	return ref
+}

@@ -18,6 +18,8 @@ type bindingsConfig struct {
 	CanExport bool   `json:"canExport"`
 	// Schemes tells that diagrams can be linked to the provider's schemes (binding.Linker).
 	Schemes bool `json:"schemes"`
+	// ExportCheck tells that the provider can check a diagram before an export (binding.ExportChecker).
+	ExportCheck bool `json:"exportCheck"`
 }
 
 func (s *Server) bindingsConfig() bindingsConfig {
@@ -25,7 +27,8 @@ func (s *Server) bindingsConfig() bindingsConfig {
 		return bindingsConfig{}
 	}
 	_, linker := s.bindings.(binding.Linker)
-	return bindingsConfig{Provider: s.bindings.Name(), CanExport: binding.CanExport(s.bindings, s.cfg.Bindings), Schemes: linker}
+	_, checker := s.bindings.(binding.ExportChecker)
+	return bindingsConfig{Provider: s.bindings.Name(), CanExport: binding.CanExport(s.bindings, s.cfg.Bindings), Schemes: linker, ExportCheck: checker}
 }
 
 // bindingRoutes registers /api/bindings/* on grp; called only with a provider configured.
@@ -41,6 +44,9 @@ func (s *Server) bindingRoutes(grp *gin.RouterGroup) {
 	b.POST("/suggest", s.suggestBindings)
 	if l, ok := s.bindings.(binding.Linker); ok {
 		s.schemeRoutes(b, l)
+	}
+	if x, ok := s.bindings.(binding.ExportChecker); ok {
+		s.exportCheckRoutes(b, x)
 	}
 }
 

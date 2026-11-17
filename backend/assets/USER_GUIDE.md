@@ -581,6 +581,36 @@ named after the scheme, in the folder you type (the File panel's current one by 
 **Deleting** a linked diagram keeps the RSDU scheme and the scheme's SVG for ctrlroom; the confirmation says which
 scheme it is.
 
+### Export to RSDU {#rsdu-export}
+
+With nothing selected, **Export to RSDU…** in the **Bindings** group of Properties opens the export window. It checks
+the **saved** diagram, so if it has unsaved changes, **Save and check** saves first. Nothing is written to RSDU yet:
+the **Export** button is not available in this version. The window shows:
+
+- **Scheme**: the linked RSDU scheme, or for an unlinked diagram the new scheme that would be registered: its name
+  (the diagram's name by default) and its RSDU group. The group proposed is the group of the scheme exported last; any
+  other can be chosen. **Link to an existing scheme…** links the diagram instead (see [RSDU schemes](#rsdu-schemes)).
+  A new scheme must be added to users' menus (`US_MENU`) with RSDU's tools before ctrlroom shows it.
+- **Scheme type**: `bindings.rsdu.scheme_type` from the [configuration](#configuration-bindings), usually 518 (MODUS
+  scheme).
+- **File name** of the scheme (a new one: the diagram's path with `.svg`) and the **SVG for ctrlroom**: where its
+  picture goes, as ctrlroom finds it (`bindings.rsdu.svg.dir`, and the full path or only the base name by
+  `svg.full_path`).
+- What **stops the export**:
+  - no scheme type configured, or one that is not an RSDU scheme type;
+  - the linked scheme no longer exists, is linked to another diagram as well, or belongs to another provider;
+  - an item bound to RSDU whose id is not a positive integer (ctrlroom finds an element by its number);
+  - a scheme file name that ctrlroom can't show (not `.svg` or `.xsde`, or leaving its folder);
+  - another RSDU scheme whose SVG is the same file (letter case ignored): the same base name when `svg.full_path` is
+    off, the same path when it is on.
+- **Warnings**, which don't stop it:
+  - an item whose shape has no RSDU component type of the scheme type (`VS_TCOMP.MODUS_TYPE`, a digital device counts
+    as shape 134); it is skipped;
+  - bindings of another provider, skipped;
+  - nothing bound to RSDU; no SVG folder configured; a linked scheme of another type; a new scheme to be registered.
+
+Click a finding about an item to select it and show it on the canvas. The refresh button checks again.
+
 ## Moving around the canvas {#navigation}
 
 | Action | How |
@@ -1287,7 +1317,7 @@ bindings:
 | `rsdu.schema` | no | The schema (owner) of RSDU's tables, not the database; default `rsduadmin`. On PostgreSQL it is a schema inside the database named in `database`. Letters, digits, `_` and `$` only. |
 | `rsdu.read` | with `rsdu` | The connection objects are read through (keys below). |
 | `rsdu.write` | no | The connection diagrams are exported to RSDU through, same keys. Without it export to RSDU is off. It may be the same account as `read`. |
-| `rsdu.scheme_type` | no | The RSDU scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`); 0 or more, default 0. Used by export. |
+| `rsdu.scheme_type` | no | The RSDU scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`), usually 518 (MODUS scheme): an element is exported only when `VS_TCOMP` has a row of this type for its shape. 0 or more, default 0 = not set; the [export check](#rsdu-export) then refuses the export. |
 | `rsdu.svg.dir` | no | The folder ctrlroom reads scheme pictures from (its `backend.path_to_sld`). Used by export. |
 | `rsdu.svg.full_path` | no | As ctrlroom's `backend.use_full_path_for_sld`: `true`: ctrlroom finds a picture by the scheme's file path stored in RSDU, under `dir`; `false`: by its file name only, directly in `dir`. Used by export. |
 

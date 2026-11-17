@@ -2,6 +2,9 @@ import type {
   Binding,
   ProviderScheme,
   SchemeCandidate,
+  ExportCheck,
+  SchemeGroup,
+  SchemeType,
   SchemeRef,
   SchemeTree,
   BindingDictionaries,
@@ -450,6 +453,22 @@ export async function suggestBindings(ref: string, element: { shape: string; cla
 export async function listSchemes(): Promise<SchemeTree> {
   const tree: SchemeTree = await asJSON(await fetch(`${BASE}/bindings/schemes`))
   return { groups: tree.groups ?? [], schemes: tree.schemes ?? [] }
+}
+
+/** What an export of the saved diagram name would do and what stops it. */
+export async function checkExport(name: string): Promise<ExportCheck> {
+  const c: ExportCheck = await asJSON(await fetch(`${BASE}/bindings/export/check?name=${encodeURIComponent(name)}`))
+  return { ...c, issues: c.issues ?? [] }
+}
+
+/** The groups a new scheme can go into. */
+export async function listSchemeGroups(): Promise<SchemeGroup[]> {
+  return (await asJSON(await fetch(`${BASE}/bindings/scheme-groups`))) ?? []
+}
+
+/** The provider's scheme types. */
+export async function listSchemeTypes(): Promise<SchemeType[]> {
+  return (await asJSON(await fetch(`${BASE}/bindings/scheme-types`))) ?? []
 }
 
 /** Thrown by getScheme for a scheme the provider no longer has. */

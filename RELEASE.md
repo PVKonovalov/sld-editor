@@ -1,5 +1,22 @@
 # Release notes
 
+2026-11-17: SCADA bindings, step 11: pre-export check and export dialog (nothing is written to RSDU). New optional
+provider interface `binding.ExportChecker` (`internal/binding/export.go`), implemented by RSDU
+(`internal/rsdu/export_check.go`), and routes `GET /api/bindings/export/check?name=`, `/scheme-groups` and
+`/scheme-types` (`SYS_OTYP` joined with `VS_TYPE_V`); `/api/config` `bindings.exportCheck`. The check of the saved diagram
+reports: the scheme type `bindings.rsdu.scheme_type` not set or not a scheme type; the linked scheme missing, held by
+another diagram, of another provider or of another type; per item bound to RSDU, a shape without a `VS_TCOMP` row of the
+scheme type (`MODUS_TYPE`, a digital device as 134; skipped) and an id that is not a positive integer; bindings of other
+sources (skipped); the SVG target from `FILE_NAME` (new scheme: the diagram path with `.svg`), `svg.dir` and
+`svg.full_path` as ctrlroom's `PathToSld` resolves it, refusing another extension than .svg/.xsde, a path leaving the
+folder, and another scheme resolving to the same file (base name or full path, letter case ignored). A new scheme is
+proposed the group of the scheme exported last (from the link index, `Store.LastExported`). `binding.Scheme` gets
+`typeId`. Frontend: "Export to RSDU..." in the diagram's Bindings group opens `ExportDialog.tsx` (scheme or new scheme
+name and group, type, file, SVG target, errors and warnings with a click selecting the item, save-and-check for
+unsaved changes, the `US_MENU` note, Export disabled with the reason). New `useEscapeKey` hook (also used by the scheme
+picker): a dialog re-adding its Escape listener on every render missed an Escape that the canvas's listener had
+re-rendered it with. The example config sets `scheme_type: 518`. Guide section `#rsdu-export`.
+
 2026-11-17: SCADA bindings, step 10: diagram <-> RSDU scheme link. The store keeps an in-memory index scheme -> diagram
 (`internal/storage/index.go`), built at startup from the `<scheme>` header of every `.xsld` (`slddoc.ReadScheme`) and
 kept current by save, rename, folder rename/move and delete; a save that would link a scheme another diagram holds is

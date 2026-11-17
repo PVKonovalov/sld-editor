@@ -887,8 +887,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [config],
   )
   const dismissSchemeOffer = useCallback(() => setSchemeOffer(null), [])
+  const [exportOpen, setExportOpen] = useState(false)
   useEffect(() => {
     setSchemeOffer(prev => (prev && prev.name !== diagramName ? null : prev))
+    setExportOpen(false)
   }, [diagramName])
 
   const importDiagramFile = useCallback(
@@ -1262,6 +1264,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectMany,
       schemeOffer,
       dismissSchemeOffer,
+      exportOpen,
+      setExportOpen,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,
@@ -1370,6 +1374,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectMany,
       schemeOffer,
       dismissSchemeOffer,
+      exportOpen,
+      setExportOpen,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,

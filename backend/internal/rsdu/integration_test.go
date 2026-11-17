@@ -500,3 +500,71 @@ func TestIntegrationSchemes(t *testing.T) {
 		})
 	}
 }
+
+// TestIntegrationExportCheck checks, read-only, a diagram linked to an existing scheme of type 518 and a new one at
+// the path of an existing scheme's file.
+func TestIntegrationExportCheck(t *testing.T) {
+	for _, db := range testDSNs {
+		t.Run(db.driver, func(t *testing.T) {
+			p := integrationProvider(t, db.env, db.driver)
+			p.cfg.SchemeType = 518
+			p.cfg.SVG.FullPath = true
+			ctx := context.Background()
+			types, err := p.SchemeTypes(ctx)
+			if err != nil || !slices.ContainsFunc(types, func(s binding.SchemeType) bool { return s.ID == "518" }) {
+				t.Fatalf("scheme types %+v, %v", types, err)
+			}
+			tcomp, err := p.componentTypes(ctx, 518)
+			if err != nil || tcomp["41"] == 0 || tcomp[deviceShape] == 0 {
+				t.Fatalf("component types %v, %v", tcomp, err)
+			}
+			schemes, err := p.allSchemes(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			i := slices.IndexFunc(schemes, func(s binding.Scheme) bool {
+				_, err := svgFile(s.FileName, true)
+				return s.TypeID == "518" && err == nil
+			})
+			if i < 0 {
+				t.Fatal("no scheme of type 518 with an .svg or .xsde file")
+			}
+			linked := schemes[i]
+			bound := []slddoc.Binding{{Source: config.ProviderRSDU, Kind: "equipment", Ref: "1:1"}}
+			d := &slddoc.Diagram{
+				Elements:       []slddoc.Element{{ID: 1, Shape: "41", Bindings: bound}, {ID: 2, Shape: "999999", Bindings: bound}},
+				DigitalDevices: []slddoc.DigitalDevice{{ID: 3, Bindings: bound}},
+			}
+			c, err := p.CheckExport(ctx, "any", d, &slddoc.SchemeRef{Source: config.ProviderRSDU, Ref: linked.Ref})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.Scheme == nil || c.Scheme.Ref != linked.Ref || c.SchemeType == nil || c.Bound != 3 || c.FileName != linked.FileName {
+				t.Fatalf("linked check %+v", c)
+			}
+			var missing []int
+			for _, is := range c.Issues {
+				if is.Code == binding.IssueNoComponentType {
+					missing = append(missing, is.Item)
+				}
+				if is.Code == binding.IssueBadFileName {
+					t.Errorf("bad file name: %+v", is)
+				}
+			}
+			if !slices.Equal(missing, []int{2}) {
+				t.Errorf("items without a component type %v, want [2]", missing)
+			}
+			file, _ := svgFile(linked.FileName, true)
+			c, err = p.CheckExport(ctx, strings.TrimSuffix(file, ".svg"), d, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if c.OK || !slices.ContainsFunc(c.Issues, func(i binding.ExportIssue) bool {
+				return i.Code == binding.IssueSVGClash && slices.ContainsFunc(i.Schemes, func(s binding.Scheme) bool { return s.Ref == linked.Ref })
+			}) {
+				t.Errorf("new scheme at %s: %+v", file, c.Issues)
+			}
+			t.Logf("scheme %s: %d issues; component types for %d shapes", linked.Ref, len(c.Issues), len(tcomp))
+		})
+	}
+}

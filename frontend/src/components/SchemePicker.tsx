@@ -3,6 +3,7 @@ import { Loader2, RefreshCw, Search } from 'lucide-react'
 import { t } from '../i18n'
 import * as api from '../lib/api'
 import { useSchemeTree } from '../lib/schemes'
+import { useEscapeKey } from '../lib/useEscapeKey'
 import { GuideButton } from './GuideButton'
 import { SchemeTreeList } from './SchemeTreeList'
 import type { ProviderScheme, SchemeCandidate } from '../types'
@@ -46,11 +47,7 @@ export function SchemePicker({
     }
   }, [name, source, current])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  useEscapeKey(onClose)
 
   function row(s: ProviderScheme, match?: SchemeCandidate['match']) {
     const holder = takenBy(s)

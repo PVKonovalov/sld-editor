@@ -200,6 +200,10 @@ export interface DiagramContextValue {
   schemeOffer: SchemeOffer | null
   dismissSchemeOffer: () => void
 
+  // The export window of the open diagram is shown; it closes when another diagram opens.
+  exportOpen: boolean
+  setExportOpen: (open: boolean) => void
+
   // The last voltage class the user picked in Properties (or Settings, or
   // the New Diagram dialog), remembered for the lifetime of the session
   // (not persisted itself — see Diagram.editor.defaultVoltage for the
