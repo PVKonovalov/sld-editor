@@ -1,5 +1,12 @@
 # Release notes
 
+2026-11-17: The editor's configuration `backend/config/sld-editor.yaml` is now local and not in git; the tracked
+`backend/config/sld-editor.example.yaml` (bindings off) is the shipped one. `make package` puts a copy of the example
+into the archive as `config/sld-editor.yaml`, so a developer's local settings (e.g. an RSDU database host) are never
+shipped; checked: the archive's config has `provider: ""` and no `.env`. `TestShippedLineHalos` and the CIM tests read
+the example, so they pass on a fresh clone. README, CLAUDE.md and the user guides' Configuration section say to copy
+the example to `sld-editor.yaml` once, and to keep database credentials in `backend/.env`.
+
 2026-11-17: SCADA bindings, step 5: object browser API of the RSDU provider, Adjust's tree and lists on Oracle and
 PostgreSQL. `GET /api/bindings/sections` is the `SYS_TREE21` tree from node 1 (each node with its section id and a
 `ref` of its own, so a section node can be bound); `GET /api/bindings/catalog?section=` the section's catalog (its

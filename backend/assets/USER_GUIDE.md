@@ -1007,7 +1007,9 @@ Busbars, overhead and cable lines and links to object of the same voltage stay p
 
 These files are for whoever installs and runs the editor. `sld-editor.yaml` lives in the `config/` folder, the
 converter's `xsde2svg.yml` and `workplace.xml` in `assets/` (`backend/config/` and `backend/assets/` in the source
-tree). Relative paths inside them are resolved from the folder the editor is started in.
+tree). Relative paths inside them are resolved from the folder the editor is started in. The release archive comes
+with a ready `config/sld-editor.yaml`; in the source tree it is not stored in git: copy `sld-editor.example.yaml` to
+`sld-editor.yaml` next to it, then change the copy.
 
 Behind a reverse proxy, run the proxy on the same machine and have it pass the client's address, so the history and
 the "Also open by" message show real IP addresses instead of `127.0.0.1`. The editor trusts `X-Forwarded-For` /
