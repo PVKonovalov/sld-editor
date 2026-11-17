@@ -469,6 +469,8 @@ export interface DiagramElement {
   // (at most one per kind) — slddoc's Element.Precision/Features/Bindings.
   precision?: number
   features?: string
+  // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
+  componentType?: string
   bindings?: Binding[]
 }
 
@@ -526,6 +528,8 @@ export interface Connector {
   // Precision, features and bindings as on DiagramElement.
   precision?: number
   features?: string
+  // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
+  componentType?: string
   bindings?: Binding[]
 }
 
@@ -550,6 +554,8 @@ export interface Label {
   // Precision, features and bindings as on DiagramElement.
   precision?: number
   features?: string
+  // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
+  componentType?: string
   bindings?: Binding[]
 }
 
@@ -576,6 +582,8 @@ export interface DigitalDevice {
   // As in DiagramElement.
   precision?: number
   features?: string
+  // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
+  componentType?: string
   bindings?: Binding[]
 }
 
@@ -964,6 +972,8 @@ export interface BindingDictionaries {
   kinds: BindingKindInfo[]
   options: { alias: string; name: string; group?: string; groupName?: string }[]
   features: { alias: string; name: string; mask: number }[]
+  // The types an item can be exported as (RSDU: VS_TCOMP of the scheme type); shape: the symbol code it stands for.
+  componentTypes?: { id: string; name: string; shape?: string }[]
 }
 
 // Matches binding.Section: a node of the provider's top-level object tree. section, when set, is the id the
@@ -1045,6 +1055,8 @@ export interface DraggedObject {
 export interface SchemeComponent {
   item: number
   shape?: string
+  // The component's type (RSDU: VS_TCOMP.ID).
+  type?: string
   precision?: number
   features?: string
   bindings: Binding[]

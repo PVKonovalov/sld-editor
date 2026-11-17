@@ -1446,7 +1446,7 @@ export function placeCustomElement(
 }
 
 // What a custom element never carries: SCADA bindings belong to one diagram's objects.
-const NO_BINDINGS = { bindings: undefined, precision: undefined, features: undefined }
+const NO_BINDINGS = { bindings: undefined, precision: undefined, features: undefined, componentType: undefined }
 
 // How far a symbol's own drawing reaches beyond its anchor, for sizing an
 // extracted custom element's page — a symbol has no measured extent here,
@@ -5261,7 +5261,7 @@ export interface BindingTarget {
   id: number
 }
 
-type BindingFields = { bindings?: Binding[]; precision?: number; features?: string }
+type BindingFields = { bindings?: Binding[]; precision?: number; features?: string; componentType?: string }
 
 /** The diagram list holding each kind of bindable item. */
 const BINDABLE_LISTS = {
@@ -5294,6 +5294,7 @@ function cleanBindable<T extends BindingFields>(item: T): T {
   if (!item.bindings?.length) delete item.bindings
   if (!item.precision) delete item.precision
   if (!item.features) delete item.features
+  if (!item.componentType) delete item.componentType
   return item
 }
 
@@ -5349,20 +5350,23 @@ export function removeBindingKinds(diagram: Diagram, targets: BindingTarget[], k
   })
 }
 
-/** Removes the target's bindings of source, its precision and its features; bindings of other sources stay. */
+/** Removes the target's bindings of source, its precision, features and component type; bindings of other sources
+ * stay. */
 export function removeAllItemBindings(diagram: Diagram, target: BindingTarget, source: string): Diagram {
   return patchBindable(diagram, target, item => ({
     bindings: (item.bindings ?? []).filter(b => b.source !== source),
     precision: undefined,
     features: undefined,
+    componentType: undefined,
   }))
 }
 
-/** Sets the target's precision (decimal places, 0 = unset) and/or features (comma-separated aliases). */
+/** Sets the target's precision (decimal places, 0 = unset), features (comma-separated aliases) and/or component type
+ * ("" = by shape). */
 export function setItemBindingExtras(
   diagram: Diagram,
   target: BindingTarget,
-  patch: { precision?: number; features?: string },
+  patch: { precision?: number; features?: string; componentType?: string },
 ): Diagram {
   return patchBindable(diagram, target, () => patch)
 }
@@ -5387,9 +5391,10 @@ export interface ImportedItem {
   bindings: Binding[]
   precision?: number
   features?: string
+  componentType?: string
 }
 
-/** Sets each item's bindings of source, precision and features to the imported ones (no bindings: cleared); its
+/** Sets each item's bindings of source, precision, features and component type to the imported ones (no bindings: cleared); its
  * bindings of other sources stay. object sets the diagram's object (null removes it, undefined leaves it). Items not
  * listed keep their object. */
 export function applyImportedBindings(diagram: Diagram, source: string, items: ImportedItem[], object?: Binding | null): Diagram {
@@ -5402,6 +5407,7 @@ export function applyImportedBindings(diagram: Diagram, source: string, items: I
       bindings: [...(item.bindings ?? []).filter(b => b.source !== source), ...imported.bindings.map(normalizeBinding)],
       precision: imported.precision,
       features: imported.features,
+      componentType: imported.componentType,
     })
   })
   if (object !== undefined) next = setDiagramObject(next, object ? normalizeBinding(object) : undefined)

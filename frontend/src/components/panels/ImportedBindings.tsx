@@ -3,7 +3,7 @@ import { AlertTriangle } from 'lucide-react'
 import { GroupHeader } from './GroupHeader'
 import { t, type TranslationKey } from '../../i18n'
 import { BINDING_KINDS } from '../../lib/bindingOverview'
-import { useBindingDictionaries } from '../../lib/bindingDictionaries'
+import { componentTypeName, typeOfShape, useBindingDictionaries } from '../../lib/bindingDictionaries'
 import { compareItem } from '../../lib/bindingImport'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import type { Binding } from '../../types'
@@ -23,12 +23,14 @@ export function ImportedBindings({
   bindings,
   precision,
   features,
+  componentType,
 }: {
   id: number
   shape?: string
   bindings?: Binding[]
   precision?: number
   features?: string
+  componentType?: string
 }) {
   const { bindingImport, config } = useDiagramContext()
   const provider = config?.bindings?.provider ?? ''
@@ -36,8 +38,8 @@ export function ImportedBindings({
   const { dict } = useBindingDictionaries(!!bindingImport)
   const component = useMemo(() => bindingImport?.components.find(c => c.item === id), [bindingImport, id])
   if (!bindingImport || !provider) return null
-  const own = { bindings: (bindings ?? []).filter(b => b.source === provider), precision, features }
-  const cmp = compareItem(own, component, k => dict?.kinds.find(i => i.kind === k)?.defaultOption)
+  const own = { bindings: (bindings ?? []).filter(b => b.source === provider), precision, features, componentType }
+  const cmp = compareItem(own, shape ?? '', component, k => dict?.kinds.find(i => i.kind === k)?.defaultOption, typeOfShape(dict))
   if (!component && !cmp.status) return null
 
   const status = cmp.status ?? 'same'
@@ -77,6 +79,7 @@ export function ImportedBindings({
               })}
               <div className={tone(cmp.display)}>
                 <span className="text-gray-500">{t('bindingImport.display')}: </span>
+                {component.type ? `${componentTypeName(dict, component.type)} · ` : ''}
                 {component.precision ?? 0} · {component.features || '—'}
               </div>
             </>

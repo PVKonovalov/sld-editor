@@ -47,7 +47,10 @@ type RSDUBindings struct {
 	// WireTypes is the VS_TCOMP.ID a bound wire of each connector kind is exported as (wires have no MODUS_TYPE);
 	// absent: DefaultWireTypes.
 	WireTypes map[string]int64 `yaml:"wire_types"`
-	SVG       struct {
+	// ComponentTypes is the VS_TCOMP.ID an item of a shape is exported as when no component type of the scheme type
+	// has that MODUS_TYPE and the item has no type of its own.
+	ComponentTypes map[string]int64 `yaml:"component_types"`
+	SVG            struct {
 		// Dir is where ctrlroom reads scheme SVGs (its backend.path_to_sld).
 		Dir string `yaml:"dir" env:"true"`
 		// FullPath mirrors ctrlroom's backend.use_full_path_for_sld.
@@ -167,6 +170,11 @@ func (c *Config) ValidateBindings() error {
 	}
 	if r.SchemeType < 0 {
 		return fmt.Errorf("bindings.rsdu.scheme_type: %d is negative", r.SchemeType)
+	}
+	for shape, id := range r.ComponentTypes {
+		if _, err := strconv.Atoi(shape); err != nil || id <= 0 {
+			return fmt.Errorf("bindings.rsdu.component_types: %q: %d, want a shape code and a VS_TCOMP id", shape, id)
+		}
 	}
 	for kind, id := range r.WireTypes {
 		if _, ok := DefaultWireTypes[kind]; !ok {

@@ -3,7 +3,7 @@ import { AlertTriangle, X } from "lucide-react";
 import { t, type TranslationKey } from "../i18n";
 import * as diagramOps from "../lib/diagramOps";
 import { BINDING_KINDS, bindables, overviewTypeNames, typeName } from "../lib/bindingOverview";
-import { useBindingDictionaries } from "../lib/bindingDictionaries";
+import { componentTypeName, typeOfShape, useBindingDictionaries } from "../lib/bindingDictionaries";
 import {
   importPlan,
   importedItems,
@@ -23,6 +23,7 @@ import type {
   BindingKind,
   ExportIssue,
   SchemeBindings,
+  BindingDictionaries,
 } from "../types";
 
 const IS_MAC =
@@ -39,9 +40,10 @@ function bindingText(b: Binding | undefined, detail: boolean): string {
   return s;
 }
 
-function displayText(side: ImportSide | null): string {
+function displayText(side: ImportSide | null, dict: BindingDictionaries | null): string {
   if (!side) return "—";
-  return `${side.precision ?? 0} · ${side.features || "—"}`;
+  const type = componentTypeName(dict, side.componentType);
+  return `${type ? `${type} · ` : ""}${side.precision ?? 0} · ${side.features || "—"}`;
 }
 
 function issueText(i: ExportIssue): string {
@@ -87,6 +89,7 @@ export function BindingImportView({
             scheme,
             provider,
             (k) => dict?.kinds.find((i) => i.kind === k)?.defaultOption,
+            typeOfShape(dict),
           )
         : null,
     [diagram, scheme, provider, dict],
@@ -315,7 +318,7 @@ export function BindingImportView({
                   })}
                   <td className="px-2 py-0.5 max-w-40">
                     {r.display ? (
-                      twoSides(displayText(r.file), displayText(r.scheme), true)
+                      twoSides(displayText(r.file, dict), displayText(r.scheme, dict), true)
                     ) : (
                       <span className="text-gray-600">—</span>
                     )}

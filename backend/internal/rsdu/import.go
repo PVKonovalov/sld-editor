@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	sqlImportComponents = "SELECT c.ID, c.NAME, c.PRECISION, c.FEATURE, t.MODUS_TYPE FROM {s}.VS_COMP c " +
+	sqlImportComponents = "SELECT c.ID, c.NAME, c.PRECISION, c.FEATURE, t.MODUS_TYPE, c.ID_TCTRL FROM {s}.VS_COMP c " +
 		"LEFT JOIN {s}.VS_TCOMP t ON t.ID = c.ID_TCTRL WHERE c.ID_FORM = ? ORDER BY c.ID"
 	sqlImportTunes = "SELECT t.ID_OWNLST, r.DEFINE_ALIAS, t.ID_TABLE, t.ID_PARAM, o.DEFINE_ALIAS, t.SCALE " +
 		"FROM {s}.VS_REGIM_TUNE t JOIN {s}.VS_COMP c ON c.ID = t.ID_OWNLST JOIN {s}.VS_REGIM r ON r.ID = t.ID_REGIM " +
@@ -27,7 +27,7 @@ const (
 type objectInfo struct{ name, typ, uid string }
 
 // SchemeBindings reads scheme schemeRef's components, their bindings (VS_REGIM_TUNE) and the scheme's object (VS_OBJ_TUNE):
-// VS_COMP.NAME is the item id, VS_TCOMP.MODUS_TYPE its shape, FEATURE the feature aliases of its bits; the regime
+// VS_COMP.NAME is the item id, ID_TCTRL its component type and that type's MODUS_TYPE its shape, FEATURE the feature aliases of its bits; the regime
 // gives the kind, a parameter binding to a scheme, frame, panel or report with GLT_OBJECT_OPT_COMPLEX being a jump.
 // Object names are read per table. What can't be read as a binding is skipped and listed.
 func (p *Provider) SchemeBindings(ctx context.Context, schemeRef string) (*binding.SchemeBindings, error) {
@@ -50,8 +50,8 @@ func (p *Provider) SchemeBindings(ctx context.Context, schemeRef string) (*bindi
 	err = each(ctx, p.read, p.d.SQL(sqlImportComponents), func(r Rows) error {
 		var id int64
 		var name sql.NullString
-		var precision, feature, modus sql.NullInt64
-		if err := r.Scan(&id, &name, &precision, &feature, &modus); err != nil {
+		var precision, feature, modus, tctrl sql.NullInt64
+		if err := r.Scan(&id, &name, &precision, &feature, &modus, &tctrl); err != nil {
 			return err
 		}
 		item, err := strconv.Atoi(strings.TrimSpace(name.String))
@@ -62,6 +62,9 @@ func (p *Provider) SchemeBindings(ctx context.Context, schemeRef string) (*bindi
 		c := &binding.Component{Item: item, Precision: int(precision.Int64), Features: featureAliases(dict, feature.Int64), Bindings: []slddoc.Binding{}}
 		if modus.Valid {
 			c.Shape = strconv.FormatInt(modus.Int64, 10)
+		}
+		if tctrl.Valid {
+			c.Type = strconv.FormatInt(tctrl.Int64, 10)
 		}
 		byID[id] = c
 		order = append(order, id)

@@ -81,5 +81,9 @@ func (p *Provider) Dictionaries(ctx context.Context) (*binding.Dictionaries, err
 	if err != nil {
 		return nil, err
 	}
-	return &dict.public, nil
+	out := dict.public
+	if out.ComponentTypes, err = p.ComponentTypes(ctx); err != nil {
+		return nil, err
+	}
+	return &out, nil
 }

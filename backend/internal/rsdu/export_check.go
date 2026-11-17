@@ -17,7 +17,7 @@ import (
 
 const (
 	sqlSchemeTypes    = "SELECT ot.ID, ot.NAME FROM {s}.SYS_OTYP ot, {s}.VS_TYPE_V vt WHERE ot.ID = vt.ID"
-	sqlComponentTypes = "SELECT ID, MODUS_TYPE FROM {s}.VS_TCOMP WHERE ID_DTYP = ? AND MODUS_TYPE IS NOT NULL"
+	sqlComponentTypes = "SELECT ID, NAME, MODUS_TYPE FROM {s}.VS_TCOMP WHERE ID_DTYP = ? ORDER BY ID"
 	// deviceShape is the Modus symbol code of a digital device (VS_TCOMP.MODUS_TYPE), labelShape a text label's.
 	deviceShape = "134"
 	labelShape  = "5"
@@ -44,27 +44,74 @@ func (p *Provider) SchemeTypes(ctx context.Context) ([]binding.SchemeType, error
 	return types, nil
 }
 
-// componentTypes returns VS_TCOMP.ID by MODUS_TYPE for the scheme type dtyp, and by wireShape + connector kind as
-// configured.
-func (p *Provider) componentTypes(ctx context.Context, dtyp int) (map[string]int64, error) {
-	out := map[string]int64{}
+// compTypes are the component types (VS_TCOMP) of the scheme type.
+type compTypes struct {
+	// byShape is VS_TCOMP.ID by MODUS_TYPE, then by bindings.rsdu.component_types, and by wireShape + connector kind.
+	byShape map[string]int64
+	known   map[int64]bool
+	list    []binding.ComponentType
+}
+
+// of returns the component type of an item of shape whose own type is stored: stored when the scheme type has it,
+// else by shape; bad tells a stored type the scheme type lacks.
+func (t *compTypes) of(shape, stored string) (id int64, ok, bad bool) {
+	if stored = strings.TrimSpace(stored); stored != "" {
+		if n, err := strconv.ParseInt(stored, 10, 64); err == nil && t.known[n] {
+			return n, true, false
+		}
+		bad = true
+	}
+	id, ok = t.byShape[strings.TrimSpace(shape)]
+	return id, ok, bad
+}
+
+// componentTypes reads the component types of the scheme type dtyp.
+func (p *Provider) componentTypes(ctx context.Context, dtyp int) (*compTypes, error) {
+	out := &compTypes{byShape: map[string]int64{}, known: map[int64]bool{}, list: []binding.ComponentType{}}
 	err := each(ctx, p.read, p.d.SQL(sqlComponentTypes), func(r Rows) error {
 		var id int64
+		var name sql.NullString
 		var modus sql.NullInt64
-		if err := r.Scan(&id, &modus); err != nil {
+		if err := r.Scan(&id, &name, &modus); err != nil {
 			return err
 		}
+		ct := binding.ComponentType{ID: strconv.FormatInt(id, 10), Name: name.String}
 		if modus.Valid {
-			out[strconv.FormatInt(modus.Int64, 10)] = id
+			ct.Shape = strconv.FormatInt(modus.Int64, 10)
+			if _, dup := out.byShape[ct.Shape]; !dup {
+				out.byShape[ct.Shape] = id
+			}
 		}
+		out.known[id] = true
+		out.list = append(out.list, ct)
 		return nil
 	}, int64(dtyp))
-	for _, kind := range []slddoc.ConnectorKind{slddoc.KindBusWork, slddoc.KindOverheadLine, slddoc.KindCableLine, slddoc.KindLinkToObject, slddoc.KindBusbarWire} {
-		if id, ok := p.cfg.WireType(string(kind)); ok {
-			out[wireShape+string(kind)] = id
+	if err != nil {
+		return nil, err
+	}
+	for shape, id := range p.cfg.ComponentTypes {
+		if _, ok := out.byShape[shape]; !ok {
+			out.byShape[shape] = id
 		}
 	}
-	return out, err
+	for _, kind := range []slddoc.ConnectorKind{slddoc.KindBusWork, slddoc.KindOverheadLine, slddoc.KindCableLine, slddoc.KindLinkToObject, slddoc.KindBusbarWire} {
+		if id, ok := p.cfg.WireType(string(kind)); ok {
+			out.byShape[wireShape+string(kind)] = id
+		}
+	}
+	return out, nil
+}
+
+// ComponentTypes returns the component types of the configured scheme type, for choosing an item's.
+func (p *Provider) ComponentTypes(ctx context.Context) ([]binding.ComponentType, error) {
+	if p.cfg.SchemeType <= 0 {
+		return []binding.ComponentType{}, nil
+	}
+	t, err := p.componentTypes(ctx, p.cfg.SchemeType)
+	if err != nil {
+		return nil, err
+	}
+	return t.list, nil
 }
 
 // svgFile returns the file a viewer reads for the scheme file name fileName, relative to its SVG folder, as ctrlroom's
@@ -139,14 +186,14 @@ func (p *Provider) CheckExport(ctx context.Context, name string, d *slddoc.Diagr
 // checkItems reports, per item with bindings of the provider, a shape without a component type and an id that is
 // not positive, and per item the bindings of other sources.
 func (p *Provider) checkItems(ctx context.Context, c *binding.ExportCheck, d *slddoc.Diagram) error {
-	var tcomp map[string]int64
+	var tcomp *compTypes
 	if c.SchemeType != nil {
 		var err error
 		if tcomp, err = p.componentTypes(ctx, p.cfg.SchemeType); err != nil {
 			return err
 		}
 	}
-	item := func(kind string, id int, shape string, bs []slddoc.Binding) {
+	item := func(kind string, id int, shape, stored string, bs []slddoc.Binding) {
 		var own int
 		other := map[string]bool{}
 		for _, b := range bs {
@@ -167,22 +214,26 @@ func (p *Provider) checkItems(ctx context.Context, c *binding.ExportCheck, d *sl
 			c.Add(binding.ExportIssue{Code: binding.IssueBadID, Severity: binding.SeverityError, Item: id, Kind: kind, Shape: shape})
 		}
 		if tcomp != nil {
-			if _, ok := tcomp[strings.TrimSpace(shape)]; !ok {
+			_, ok, bad := tcomp.of(shape, stored)
+			if bad {
+				c.Add(binding.ExportIssue{Code: binding.IssueBadComponentType, Severity: binding.SeverityWarning, Item: id, Kind: kind, Shape: shape, Detail: stored})
+			}
+			if !ok {
 				c.Add(binding.ExportIssue{Code: binding.IssueNoComponentType, Severity: binding.SeverityWarning, Item: id, Kind: kind, Shape: shape})
 			}
 		}
 	}
 	for _, e := range d.Elements {
-		item("element", e.ID, e.Shape, e.Bindings)
+		item("element", e.ID, e.Shape, e.ComponentType, e.Bindings)
 	}
 	for _, dd := range d.DigitalDevices {
-		item("device", dd.ID, deviceShape, dd.Bindings)
+		item("device", dd.ID, deviceShape, dd.ComponentType, dd.Bindings)
 	}
 	for _, l := range d.Labels {
-		item("label", l.ID, labelShape, l.Bindings)
+		item("label", l.ID, labelShape, l.ComponentType, l.Bindings)
 	}
 	for _, w := range d.Connectors {
-		item("wire", w.ID, wireShape+string(w.Kind), w.Bindings)
+		item("wire", w.ID, wireShape+string(w.Kind), w.ComponentType, w.Bindings)
 	}
 	if d.Object != nil && d.Object.Source != p.Name() {
 		c.Add(binding.ExportIssue{Code: binding.IssueOtherSource, Severity: binding.SeverityWarning, Detail: d.Object.Source})

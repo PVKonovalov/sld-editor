@@ -368,6 +368,8 @@ bindings:
   #     sid: RSDU             # Oracle: the instance SID; or database: the service name
   #   export: false           # true enables export to RSDU (the dsn account must be allowed to write)
   #   scheme_type: 518        # VS_FORM.ID_TYPE / VS_TCOMP.ID_DTYP of exported schemes (518: MODUS); needed for export
+  #   component_types:        # VS_TCOMP.ID by shape, for shapes no VS_TCOMP.MODUS_TYPE stands for (an item's own wins)
+  #     "385": 2000023
   #   wire_types:             # VS_TCOMP.ID of an exported bound wire, by kind; absent: these RSDU defaults
   #     BusWork: 1489
   #     OverheadLine: 112

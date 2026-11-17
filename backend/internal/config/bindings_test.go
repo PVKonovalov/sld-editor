@@ -44,6 +44,9 @@ func TestValidateBindings(t *testing.T) {
 		{"encrypted password", func(b *Bindings) { b.RSDU.DSN.PasswordEncrypted = true }, "password_encrypted"},
 		{"negative scheme type", func(b *Bindings) { b.RSDU.SchemeType = -1 }, "scheme_type"},
 		{"wire types", func(b *Bindings) { b.RSDU.WireTypes = map[string]int64{"BusWork": 1489} }, ""},
+		{"component types", func(b *Bindings) { b.RSDU.ComponentTypes = map[string]int64{"385": 2000023} }, ""},
+		{"component type of no shape", func(b *Bindings) { b.RSDU.ComponentTypes = map[string]int64{"KTP": 1} }, "component_types"},
+		{"bad component type", func(b *Bindings) { b.RSDU.ComponentTypes = map[string]int64{"385": 0} }, "component_types"},
 		{"unknown wire kind", func(b *Bindings) { b.RSDU.WireTypes = map[string]int64{"Rope": 1} }, `"Rope" is not a wire kind`},
 		{"bad wire type", func(b *Bindings) { b.RSDU.WireTypes = map[string]int64{"CableLine": 0} }, "wire_types.CableLine"},
 	}

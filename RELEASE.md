@@ -1,5 +1,12 @@
 # Release notes
 
+2026-11-17: Component types: every bindable item can carry the provider's component type (`componentType`, RSDU
+`VS_TCOMP.ID`). The RSDU import reads each component's type and Apply stores it, Properties lists the scheme type's
+types to choose from (default: by shape), and export uses the item's own type when the scheme type has it (else
+`badComponentType` and the shape decides), then the shape's `MODUS_TYPE`, then the new
+`bindings.rsdu.component_types` (shape → `VS_TCOMP.ID`), then `wire_types`. Elements RSDU types without a Modus shape
+(kiosk substations, cable joints, points, …) now export with RSDU's own type.
+
 2026-11-17: Text labels and wires can be bound like elements and digital devices: Properties shows their Bindings
 group, Objects can be dropped on them on the canvas, the Bindings overview lists them once bound, Refresh and the RSDU
 import cover them, and export to RSDU writes their components (a label as shape 5's component type, a wire as its

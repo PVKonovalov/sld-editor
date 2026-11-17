@@ -44,6 +44,7 @@ export interface Bindable {
   bindings?: Binding[]
   precision?: number
   features?: string
+  componentType?: string
   /** A wire's connector kind, an element's class. */
   sub?: string
 }
@@ -51,10 +52,11 @@ export interface Bindable {
 /** Every bindable item of diagram: elements, digital devices, text labels (named by their first line), wires. */
 export function bindables(diagram: Diagram): Bindable[] {
   const out: Bindable[] = []
-  const fields = (i: { bindings?: Binding[]; precision?: number; features?: string }) => ({
+  const fields = (i: { bindings?: Binding[]; precision?: number; features?: string; componentType?: string }) => ({
     bindings: i.bindings,
     precision: i.precision,
     features: i.features,
+    componentType: i.componentType,
   })
   for (const e of diagram.elements) {
     out.push({ target: { kind: 'element', id: e.id }, shape: e.shape, expected: expectsBinding(e), name: e.name ?? '', sub: e.class, ...fields(e) })

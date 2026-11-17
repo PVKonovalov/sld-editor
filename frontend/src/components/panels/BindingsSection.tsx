@@ -6,7 +6,14 @@ import { t, type TranslationKey } from '../../i18n'
 import * as api from '../../lib/api'
 import * as diagramOps from '../../lib/diagramOps'
 import type { BindingTarget, StaleBinding } from '../../lib/diagramOps'
-import { draggedObject, isObjectDrag, optionFor, useBindingDictionaries } from '../../lib/bindingDictionaries'
+import {
+  componentTypeName,
+  draggedObject,
+  isObjectDrag,
+  optionFor,
+  typeOfShape,
+  useBindingDictionaries,
+} from '../../lib/bindingDictionaries'
 import { itemTitle } from '../../lib/bindingOverview'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import type { Binding, BindingDictionaries, BindingKind, Diagram, SchemeRef } from '../../types'
@@ -356,12 +363,16 @@ export function BindingsSection({
   bindings,
   precision,
   features,
+  componentType,
+  shape,
 }: {
   provider: string
   target: BindingTarget
   bindings?: Binding[]
   precision?: number
   features?: string
+  componentType?: string
+  shape: string
 }) {
   const { updateDiagram } = useDiagramContext()
   const [collapsed, toggle] = useCollapsed()
@@ -430,7 +441,32 @@ export function BindingsSection({
               <Detail label={t('bindings.features')} value={features} />
             )}
           </div>
-          {(own.length > 0 || !!precision || !!features) && (
+          {dict?.componentTypes && dict.componentTypes.length > 0 && (
+            <label className="block text-xs">
+              <span className="block text-gray-400 mb-0.5">{t('bindings.componentType')}</span>
+              <select
+                className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                value={componentType ?? ''}
+                title={t('bindings.componentTypeHint')}
+                onChange={e => updateDiagram(d => diagramOps.setItemBindingExtras(d, target, { componentType: e.target.value }))}
+              >
+                <option value="">
+                  {typeOfShape(dict)(shape)
+                    ? t('bindings.componentTypeByShape', { type: componentTypeName(dict, typeOfShape(dict)(shape)) })
+                    : t('bindings.componentTypeNone')}
+                </option>
+                {componentType && !dict.componentTypes.some(c => c.id === componentType) && (
+                  <option value={componentType}>{componentType}</option>
+                )}
+                {dict.componentTypes.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {componentTypeName(dict, c.id)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {(own.length > 0 || !!precision || !!features || !!componentType) && (
             <RemoveAll onRemove={() => updateDiagram(d => diagramOps.removeAllItemBindings(d, target, provider))} />
           )}
         </div>

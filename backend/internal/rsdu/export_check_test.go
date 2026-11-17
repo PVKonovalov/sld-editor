@@ -20,7 +20,7 @@ func exportDB() *fakeDB {
 			if args[0].(int64) != 518 {
 				return nil
 			}
-			return [][]any{{int64(6), int64(41)}, {int64(567), int64(134)}}
+			return [][]any{{int64(6), "Breaker", int64(41)}, {int64(567), "Device", int64(134)}, {int64(2000023), "Kiosk", nil}}
 		case strings.Contains(q, "FROM rsduadmin.VS_FORM f"):
 			return [][]any{
 				{int64(10), int64(2), int64(518), "Sub", nil, "MODUS", `region\sub.xsde`, nil},

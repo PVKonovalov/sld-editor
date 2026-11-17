@@ -740,8 +740,10 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             bindings={connector.bindings}
             precision={connector.precision}
             features={connector.features}
+            componentType={connector.componentType}
+            shape={''}
           />
-          <ImportedBindings id={connector.id} bindings={connector.bindings} precision={connector.precision} features={connector.features} />
+          <ImportedBindings id={connector.id} bindings={connector.bindings} precision={connector.precision} features={connector.features} componentType={connector.componentType} />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: connector.id })}</p>
           <DeleteButton label={t('properties.deleteConnector')} onDelete={deleteSelected} />
         </div>
@@ -883,6 +885,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             bindings={label.bindings}
             precision={label.precision}
             features={label.features}
+            componentType={label.componentType}
+            shape={LABEL_SHAPE}
           />
           <ImportedBindings
             id={label.id}
@@ -890,6 +894,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             bindings={label.bindings}
             precision={label.precision}
             features={label.features}
+            componentType={label.componentType}
           />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: label.id })}</p>
           <DeleteButton label={t('properties.deleteLabel')} onDelete={deleteSelected} />
@@ -1004,6 +1009,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             bindings={digitalDevice.bindings}
             precision={digitalDevice.precision}
             features={digitalDevice.features}
+            componentType={digitalDevice.componentType}
+            shape={DIGITAL_DEVICE_SHAPE}
           />
           <ImportedBindings
             id={digitalDevice.id}
@@ -1011,6 +1018,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             bindings={digitalDevice.bindings}
             precision={digitalDevice.precision}
             features={digitalDevice.features}
+            componentType={digitalDevice.componentType}
           />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: digitalDevice.id })}</p>
           <DeleteButton label={t('properties.deleteDigitalDevice')} onDelete={deleteSelected} />
@@ -1204,8 +1212,10 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           bindings={el.bindings}
           precision={el.precision}
           features={el.features}
+          componentType={el.componentType}
+          shape={el.shape}
         />
-        <ImportedBindings id={el.id} shape={el.shape} bindings={el.bindings} precision={el.precision} features={el.features} />
+        <ImportedBindings id={el.id} shape={el.shape} bindings={el.bindings} precision={el.precision} features={el.features} componentType={el.componentType} />
         {(typeSymbol?.cim?.length ?? 0) > 1 && (
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.cimClass')}</span>

@@ -58,3 +58,16 @@ export function draggedObject(dt: DataTransfer): DraggedObject | null {
 export function isObjectDrag(dt: DataTransfer): boolean {
   return Array.from(dt.types).includes(OBJECT_DRAG_TYPE)
 }
+
+/** The component type of an item of shape without one of its own: the provider's type standing for that shape. */
+export function typeOfShape(dict: BindingDictionaries | null): (shape: string) => string | undefined {
+  const byShape = new Map((dict?.componentTypes ?? []).filter(c => c.shape).map(c => [c.shape!, c.id]))
+  return shape => byShape.get(shape)
+}
+
+/** Names component type id: "name (id)", or the id alone when the provider doesn't list it. */
+export function componentTypeName(dict: BindingDictionaries | null, id: string | undefined): string {
+  if (!id) return ''
+  const c = dict?.componentTypes?.find(c => c.id === id)
+  return c ? `${c.name} (${id})` : id
+}

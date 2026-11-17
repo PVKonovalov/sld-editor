@@ -269,7 +269,7 @@ func TestExportLabelsAndWires(t *testing.T) {
 	rows := f.rows
 	f.rows = func(q string, args []any) [][]any {
 		if strings.Contains(q, "FROM rsduadmin.VS_TCOMP") {
-			return [][]any{{int64(6), int64(41)}, {int64(7), int64(5)}}
+			return [][]any{{int64(6), "Breaker", int64(41)}, {int64(7), "Label", int64(5)}}
 		}
 		return rows(q, args)
 	}
@@ -309,5 +309,46 @@ func TestExportLabelsAndWires(t *testing.T) {
 	}
 	if len(comps) != 2 || fmt.Sprint(comps[0][2:4]) != "[7 20]" || fmt.Sprint(comps[1][2:4]) != "[1489 21]" {
 		t.Errorf("components %v", comps)
+	}
+}
+
+// TestExportComponentTypes: an item's own component type wins when the scheme type has it; one it lacks is reported
+// and the shape decides, by MODUS_TYPE or else bindings.rsdu.component_types.
+func TestExportComponentTypes(t *testing.T) {
+	f := newTxDB()
+	p := exportProvider(t, f, config.DriverPostgres)
+	p.cfg.ComponentTypes = map[string]int64{"385": 2000023, "41": 99}
+	eq := func(ref string) []slddoc.Binding {
+		return []slddoc.Binding{{Source: "rsdu", Kind: slddoc.BindingEquipment, Ref: ref}}
+	}
+	d := &slddoc.Diagram{
+		Scheme: &slddoc.SchemeRef{Source: "rsdu", Ref: "10"},
+		Elements: []slddoc.Element{
+			{ID: 1, Shape: "999", ComponentType: "2000023", Bindings: eq("1024:1")},
+			{ID: 2, Shape: "41", ComponentType: "12345", Bindings: eq("1024:2")},
+			{ID: 3, Shape: "385", Bindings: eq("1024:3")},
+			{ID: 4, Shape: "41", Bindings: eq("1024:4")},
+		},
+	}
+	check, err := p.CheckExport(context.Background(), "region/sub", d, d.Scheme)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := codesOf(check.Issues); !slices.Contains(got, "badComponentType:2") || slices.Contains(got, "noComponentType:1") ||
+		slices.Contains(got, "noComponentType:2") || slices.Contains(got, "noComponentType:3") {
+		t.Errorf("issues %v", got)
+	}
+	if _, err := p.Export(context.Background(), "region/sub", d, binding.ExportRequest{}); err != nil {
+		t.Fatal(err)
+	}
+	var types []string
+	for i, q := range f.execs {
+		if strings.HasPrefix(q, "INSERT INTO rsduadmin.VS_COMP ") {
+			types = append(types, fmt.Sprint(f.args[i][3], ":", f.args[i][2]))
+		}
+	}
+	// The scheme type's MODUS_TYPE 41 wins over the configured 99.
+	if want := []string{"1:2000023", "2:6", "3:2000023", "4:6"}; !slices.Equal(types, want) {
+		t.Errorf("component types %v, want %v", types, want)
 	}
 }

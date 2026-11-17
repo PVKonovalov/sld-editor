@@ -36,6 +36,7 @@ const (
 	IssueDuplicate         = "duplicate"         // a binding the provider can't store twice for one item; skipped
 	IssueBadComponent      = "badComponent"      // a component whose name is not an item id; skipped
 	IssueMissingObject     = "missingObject"     // a binding's object no longer exists; kept, without a name
+	IssueBadComponentType  = "badComponentType"  // an item's own component type isn't one of the scheme type's
 )
 
 // ExportIssue is one finding of an export check. Item, Kind (element or device) and Shape name the diagram item it is
@@ -136,6 +137,7 @@ type SchemeBindings struct {
 type Component struct {
 	Item      int              `json:"item"`
 	Shape     string           `json:"shape,omitempty"`
+	Type      string           `json:"type,omitempty"`
 	Precision int              `json:"precision,omitempty"`
 	Features  string           `json:"features,omitempty"`
 	Bindings  []slddoc.Binding `json:"bindings"`

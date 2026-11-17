@@ -1099,6 +1099,10 @@ Below the rows:
 
 - **Precision**: the number of decimal places of a shown value, 0 to 10 (0 = unset).
 - **Features**: the system's display features; tick the ones the item uses.
+- **Component type**: the system's type the item is exported as (RSDU: `VS_TCOMP`). *By shape* (the default) takes the
+  type that stands for the item's shape, or `bindings.rsdu.component_types` / `wire_types` from the
+  [configuration](#configuration-bindings); RSDU has some types with no shape of their own (a kiosk substation, a
+  cable joint, a point), which an [import](#bindings-import) sets here.
 - **Remove all bindings** removes the item's bindings of the configured system, its precision and its features. It
   asks once more before it acts. Bindings of another system stay.
 
@@ -1198,7 +1202,7 @@ save the diagram first, since the link of the saved file is read. Nothing change
 
 Each scheme component is matched to the element, digital device, text label or wire whose id is the component's name. The component's
 regime gives the kind (*Equipment*, *Parameters*, *Additional parameters*); a *Parameters* binding to a scheme, frame, panel or
-report with the complex option is a **jump**. Its option, scale, precision and features come along, and the object
+report with the complex option is a **jump**. Its option, scale, precision, features and component type come along, and the object
 names are read again. The scheme's own object becomes the diagram object.
 
 The [Bindings overview](#bindings-overview) then shows what will change: only the items whose bindings differ, each
@@ -1392,6 +1396,7 @@ bindings:
 | `rsdu.schema` | no | The schema (owner) of RSDU's tables, not the database; default `rsduadmin`. On PostgreSQL it is a schema inside the database named in `database`. Letters, digits, `_` and `$` only. |
 | `rsdu.dsn` | with `rsdu` | The connection to the RSDU database (keys below), for reading objects and for export. |
 | `rsdu.export` | no | `true` enables export to RSDU; the `dsn` account must then be allowed to write. Default `false`. |
+| `rsdu.component_types` | no | The RSDU component type (`VS_TCOMP.ID`) an item of a shape is exported as when the scheme type has no type with that `MODUS_TYPE` and the item has no component type of its own (see [Bindings](#properties-bindings)): a map of shape code to a positive id, e.g. `"385": 2000023`. Default: none. |
 | `rsdu.wire_types` | no | The RSDU component type (`VS_TCOMP.ID`) a bound wire of each kind is exported as, since wires have no Modus shape: a map of `BusWork`, `OverheadLine`, `CableLine`, `LinkToObject`, `BusbarWire` to a positive id. Absent: RSDU's standard types `BusWork: 1489`, `OverheadLine: 112`, `CableLine: 115`, `LinkToObject: 1014`, `BusbarWire: 113`; a configured map replaces them all, and a bound wire of a kind it lacks is skipped by the export. A text label is exported as the component type of shape 5. |
 | `rsdu.scheme_type` | no | The RSDU scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`), usually 518 (MODUS scheme): an element is exported only when `VS_TCOMP` has a row of this type for its shape. 0 or more, default 0 = not set; the [export check](#rsdu-export) then refuses the export. |
 | `rsdu.svg.dir` | no | The folder ctrlroom reads scheme pictures from (its `backend.path_to_sld`); the export and later saves [deliver the SVG](#rsdu-svg) there. The editor needs write access to it. |

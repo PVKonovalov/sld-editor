@@ -45,11 +45,11 @@ func importDB() *fakeDB {
 				return [][]any{{int64(1), "One", "F1"}, {int64(2), "Two", "F2"}, {int64(4), "Four", "F4"}}
 			case strings.Contains(q, "FROM rsduadmin.VS_COMP c LEFT JOIN"):
 				return [][]any{
-					{int64(501), "3", int64(2), int64(5), int64(41)},
-					{int64(502), " 5 ", nil, nil, int64(134)},
-					{int64(503), "x1", nil, nil, nil},
-					{int64(504), "7", nil, nil, int64(41)},
-					{int64(505), "8", nil, nil, nil},
+					{int64(501), "3", int64(2), int64(5), int64(41), int64(6)},
+					{int64(502), " 5 ", nil, nil, int64(134), int64(567)},
+					{int64(503), "x1", nil, nil, nil, nil},
+					{int64(504), "7", nil, nil, int64(41), int64(6)},
+					{int64(505), "8", nil, nil, nil, int64(2000023)},
 				}
 			case strings.Contains(q, "FROM rsduadmin.VS_REGIM_TUNE t"):
 				return [][]any{
@@ -118,7 +118,7 @@ func TestSchemeBindings(t *testing.T) {
 				t.Fatalf("items %v", items)
 			}
 			c := res.Components[0]
-			if c.Shape != "41" || c.Precision != 2 || c.Features != "F1,F4" {
+			if c.Shape != "41" || c.Type != "6" || c.Precision != 2 || c.Features != "F1,F4" {
 				t.Errorf("component 3: %+v", c)
 			}
 			var got []string
@@ -144,7 +144,7 @@ func TestSchemeBindings(t *testing.T) {
 				t.Errorf("component 7: %+v", c)
 			}
 			// A complex parameter binding is a jump only to a scheme, frame, panel or report.
-			if c := res.Components[3]; c.Shape != "" || len(c.Bindings) != 1 || c.Bindings[0].Kind != slddoc.BindingMeas1 || c.Bindings[0].Name != "Line" {
+			if c := res.Components[3]; c.Shape != "" || c.Type != "2000023" || len(c.Bindings) != 1 || c.Bindings[0].Kind != slddoc.BindingMeas1 || c.Bindings[0].Name != "Line" {
 				t.Errorf("component 8: %+v", c)
 			}
 			var issues []string

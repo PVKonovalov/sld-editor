@@ -19,6 +19,22 @@ export interface ImportSide {
   bindings: Binding[];
   precision?: number;
   features?: string;
+  /** The component type (the file's own, absent: by shape). */
+  componentType?: string;
+}
+
+/** The component type of an item of shape that has none of its own, from the provider's component types. */
+export type TypeOfShape = (shape: string) => string | undefined;
+
+/** Reports whether precision, features or (for a component with bindings) the component type differ; an item without
+ * its own type has its shape's. */
+function displayDiffers(own: ImportSide, shape: string, theirs: ImportSide, typeOf: TypeOfShape): boolean {
+  return (
+    (own.precision ?? 0) !== (theirs.precision ?? 0) ||
+    featureKey(own.features) !== featureKey(theirs.features) ||
+    (theirs.bindings.length > 0 &&
+      (own.componentType || typeOf(shape) || "") !== (theirs.componentType || ""))
+  );
 }
 
 export interface ImportRow {
@@ -71,6 +87,7 @@ export function importPlan(
   scheme: SchemeBindings,
   provider: string,
   defaultOption: (k: BindingKind) => string | undefined,
+  typeOf: TypeOfShape,
 ): ImportPlan {
   const items = new Map<
     number,
@@ -84,6 +101,7 @@ export function importPlan(
         bindings: (b.bindings ?? []).filter((x) => x.source === provider),
         precision: b.precision,
         features: b.features,
+        componentType: b.componentType,
       },
     });
   }
@@ -106,15 +124,14 @@ export function importPlan(
       bindings: c.bindings,
       precision: c.precision,
       features: c.features,
+      componentType: c.type,
     };
     const kinds = differingKinds(
       item.side.bindings,
       theirs.bindings,
       defaultOption,
     );
-    const display =
-      (item.side.precision ?? 0) !== (theirs.precision ?? 0) ||
-      featureKey(item.side.features) !== featureKey(theirs.features);
+    const display = displayDiffers(item.side, item.shape, theirs, typeOf);
     if (kinds.length === 0 && !display) {
       plan.same++;
       continue;
@@ -185,6 +202,7 @@ export function importedItems(plan: ImportPlan): ImportedItem[] {
     bindings: r.scheme?.bindings ?? [],
     precision: r.scheme?.precision,
     features: r.scheme?.features,
+    componentType: r.scheme?.componentType,
   }));
 }
 
@@ -197,8 +215,10 @@ export function importedObject(plan: ImportPlan): Binding | null | undefined {
  * either side). */
 export function compareItem(
   own: ImportSide,
+  shape: string,
   component: SchemeComponent | undefined,
   defaultOption: (k: BindingKind) => string | undefined,
+  typeOf: TypeOfShape,
 ): { status: ImportStatus | null; kinds: BindingKind[]; display: boolean } {
   if (!component) {
     return own.bindings.length
@@ -206,9 +226,12 @@ export function compareItem(
       : { status: null, kinds: [], display: false };
   }
   const kinds = differingKinds(own.bindings, component.bindings, defaultOption);
-  const display =
-    (own.precision ?? 0) !== (component.precision ?? 0) ||
-    featureKey(own.features) !== featureKey(component.features);
+  const display = displayDiffers(
+    own,
+    shape,
+    { bindings: component.bindings, precision: component.precision, features: component.features, componentType: component.type },
+    typeOf,
+  );
   if (!kinds.length && !display) return { status: null, kinds, display };
   return { status: own.bindings.length ? "conflict" : "new", kinds, display };
 }

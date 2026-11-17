@@ -48,9 +48,18 @@ type Feature struct {
 
 // Dictionaries are a provider's reference lists.
 type Dictionaries struct {
-	Kinds    []KindInfo `json:"kinds"`
-	Options  []Option   `json:"options"`
-	Features []Feature  `json:"features"`
+	Kinds          []KindInfo      `json:"kinds"`
+	Options        []Option        `json:"options"`
+	Features       []Feature       `json:"features"`
+	ComponentTypes []ComponentType `json:"componentTypes"`
+}
+
+// ComponentType is a type an item can be exported as (RSDU: a VS_TCOMP row of the scheme type); Shape is the symbol
+// code it stands for, empty when none.
+type ComponentType struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Shape string `json:"shape,omitempty"`
 }
 
 // Section is one node of the provider's top-level object tree (RSDU: SYS_TREE21). Section, when set, is the id

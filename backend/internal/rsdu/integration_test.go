@@ -516,7 +516,7 @@ func TestIntegrationExportCheck(t *testing.T) {
 				t.Fatalf("scheme types %+v, %v", types, err)
 			}
 			tcomp, err := p.componentTypes(ctx, 518)
-			if err != nil || tcomp["41"] == 0 || tcomp[deviceShape] == 0 {
+			if err != nil || tcomp.byShape["41"] == 0 || tcomp.byShape[deviceShape] == 0 || !tcomp.known[2000023] {
 				t.Fatalf("component types %v, %v", tcomp, err)
 			}
 			schemes, err := p.allSchemes(ctx)
@@ -565,7 +565,7 @@ func TestIntegrationExportCheck(t *testing.T) {
 			}) {
 				t.Errorf("new scheme at %s: %+v", file, c.Issues)
 			}
-			t.Logf("scheme %s: %d issues; component types for %d shapes", linked.Ref, len(c.Issues), len(tcomp))
+			t.Logf("scheme %s: %d issues; component types for %d shapes", linked.Ref, len(c.Issues), len(tcomp.byShape))
 		})
 	}
 }

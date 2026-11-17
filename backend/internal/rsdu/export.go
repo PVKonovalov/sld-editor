@@ -163,12 +163,12 @@ func (p *Provider) plan(ctx context.Context, d *slddoc.Diagram, req binding.Expo
 		pl.skipped = append(pl.skipped, binding.ExportIssue{Code: code, Severity: binding.SeverityWarning, Item: item, Kind: kind, Shape: shape, Detail: detail})
 	}
 	for _, i := range check.Issues {
-		if i.Code == binding.IssueNoComponentType || i.Code == binding.IssueOtherSource {
+		if i.Code == binding.IssueNoComponentType || i.Code == binding.IssueOtherSource || i.Code == binding.IssueBadComponentType {
 			pl.skipped = append(pl.skipped, i)
 		}
 	}
-	item := func(kind string, id int, shape string, precision int, features string, bs []slddoc.Binding) {
-		tctrl, ok := tcomp[strings.TrimSpace(shape)]
+	item := func(kind string, id int, shape, stored string, precision int, features string, bs []slddoc.Binding) {
+		tctrl, ok, _ := tcomp.of(shape, stored)
 		if !ok || id <= 0 {
 			return
 		}
@@ -219,16 +219,16 @@ func (p *Provider) plan(ctx context.Context, d *slddoc.Diagram, req binding.Expo
 		pl.bindings += len(c.tunes)
 	}
 	for _, e := range d.Elements {
-		item("element", e.ID, e.Shape, e.Precision, e.Features, e.Bindings)
+		item("element", e.ID, e.Shape, e.ComponentType, e.Precision, e.Features, e.Bindings)
 	}
 	for _, dd := range d.DigitalDevices {
-		item("device", dd.ID, deviceShape, dd.Precision, dd.Features, dd.Bindings)
+		item("device", dd.ID, deviceShape, dd.ComponentType, dd.Precision, dd.Features, dd.Bindings)
 	}
 	for _, l := range d.Labels {
-		item("label", l.ID, labelShape, l.Precision, l.Features, l.Bindings)
+		item("label", l.ID, labelShape, l.ComponentType, l.Precision, l.Features, l.Bindings)
 	}
 	for _, w := range d.Connectors {
-		item("wire", w.ID, wireShape+string(w.Kind), w.Precision, w.Features, w.Bindings)
+		item("wire", w.ID, wireShape+string(w.Kind), w.ComponentType, w.Precision, w.Features, w.Bindings)
 	}
 	if o := d.Object; o != nil && o.Source == p.Name() {
 		if table, param, err := parseRef(o.Ref); err == nil {
