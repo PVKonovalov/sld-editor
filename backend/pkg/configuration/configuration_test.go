@@ -3,6 +3,7 @@ package configuration
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 )
 
@@ -135,5 +136,38 @@ func TestReadFromEnv_BoolAcceptsOne(t *testing.T) {
 	}
 	if !c.Api.Sync {
 		t.Error("Sync = false, want true for \"1\"")
+	}
+}
+
+func TestReadFromEnv_NestedNamesUseFullPath(t *testing.T) {
+	type dsn struct {
+		Password string `yaml:"password" env:"true"`
+	}
+	var c struct {
+		Top    string `yaml:"top" env:"true"`
+		Server struct {
+			Bind string `yaml:"bind" env:"true"`
+		} `yaml:"server"`
+		Bindings struct {
+			RSDU struct {
+				Read  dsn `yaml:"read"`
+				Write dsn `yaml:"write"`
+			} `yaml:"rsdu"`
+		} `yaml:"bindings"`
+	}
+	withEnvFile(t, "N_", "")
+	t.Setenv("N_TOP", "t")
+	t.Setenv("N_SERVER_BIND", "b")
+	t.Setenv("N_BINDINGS_RSDU_READ_PASSWORD", "r")
+	t.Setenv("N_BINDINGS_RSDU_WRITE_PASSWORD", "w")
+	if err := ReadFromEnv(&c); err != nil {
+		t.Fatal(err)
+	}
+	if c.Top != "t" || c.Server.Bind != "b" || c.Bindings.RSDU.Read.Password != "r" || c.Bindings.RSDU.Write.Password != "w" {
+		t.Errorf("got %+v", c)
+	}
+	want := []string{"N_TOP", "N_SERVER_BIND", "N_BINDINGS_RSDU_READ_PASSWORD", "N_BINDINGS_RSDU_WRITE_PASSWORD"}
+	if got := ListEnv(&c); !slices.Equal(got, want) {
+		t.Errorf("ListEnv = %v, want %v", got, want)
 	}
 }

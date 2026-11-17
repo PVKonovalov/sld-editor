@@ -1,5 +1,56 @@
 # Release notes
 
+2026-11-17: SCADA bindings, step 4: the RSDU provider reads an RSDU database, Oracle or PostgreSQL
+(`bindings.rsdu.driver`), with the pure-Go drivers ctrlroom uses (`go-ora/v2`, `lib/pq`), so the release builds for
+every platform still compile. The connection is opened on the first binding request (never at startup), keeps at most
+4 connections, is dropped after a connection failure so the next request reconnects, and each query fails after 30 s
+(a watchdog). SQL is written once; `rsdu.Dialect` gives the schema prefix (`bindings.rsdu.schema`, default
+`rsduadmin`, checked at startup), bind parameters (`:pr1` / `$1`), sequence calls, the column dictionary
+(`ALL_TAB_COLUMNS` / `information_schema.columns`, cached per table), GUID and flag decoding. A table name read from
+the database is put into SQL only if it is a plain identifier and exists. `GET /api/bindings/dictionaries` returns the
+binding kinds (`VS_REGIM`: equipment, parameters, additional parameters, plus the virtual jumps), value options
+(`SYS_GTOPT` with their `SYS_GTYP` group) and display features (`VS_COMP_FEATURE` with their mask), named as in the
+database; they are cached until `?refresh=1`. Checked on a PostgreSQL and an Oracle RSDU: same tables, columns and
+sequences, and identical dictionaries JSON. User guides: `#configuration-bindings` (schema rule, connection use,
+reference lists). - **Tests:** `TestDialectSQL`, `TestDialectNextValAndColumns`, `TestNewDialectRejects`,
+`TestGUIDAndBool`, `TestTableValidation`, `TestDictionaries`, `TestDictionariesError`, `TestBindingsDataSourceDown`,
+`TestBindingDictionariesRefresh`; `TestIntegrationDictionaries` runs when `RSDU_TEST_ORACLE` / `RSDU_TEST_POSTGRES`
+hold a DSN URL.
+
+2026-11-17: SCADA bindings, step 3: `sld-editor.yaml` → `bindings` turns bindings on and selects the provider
+(`provider`: `""` = off, shipped; `rsdu`). The `rsdu` section has `driver` (`oracle`/`postgres`), `schema`, `read` and
+optional `write` connections with the field names of ctrlroom's `database.dsn` (export needs `write`), `scheme_type`
+and `svg.dir`/`full_path`. `Config.ValidateBindings` checks it at startup without contacting the database. Database
+credentials go in `.env` (or the environment): every connection key has a variable
+(`BINDINGS_RSDU_{READ|WRITE}_{HOST|PORT|USER|PASSWORD|SID|DATABASE|ENGINE}`), since nested config keys now get
+variables named after their full path; existing names are unchanged. New package `internal/binding`: the source-neutral `Provider` interface (`Dictionaries`, `Sections`,
+`Catalog`, `List`, `Resolve`, `Suggest`, optional `Exporter`/`Importer`) and a provider registry; `internal/rsdu`
+registers a stub answering 501. `/api/config` returns `bindings: {provider, canExport}`; `/api/bindings/*` (so far
+`GET /api/bindings/dictionaries`) exists only with a provider configured. The frontend hides the Bindings groups when
+bindings are off (stored bindings are still saved) and marks bindings of another provider with a lock, read-only.
+User guides: **Bindings (bindings)** (`#configuration-bindings`). - **Tests:** `TestValidateBindings`,
+`TestConfigBindings`, `TestBindingsNotImplemented`, `TestReadFromEnv_NestedNamesUseFullPath`,
+`TestBindingsCredentialsFromDotEnv`.
+
+2026-11-17: SCADA bindings, step 2: Properties shows a diagram's bindings, read-only. A selected device or digital
+device with a binding, precision or features gets a collapsible **Bindings** group (`BindingsSection.tsx`): rows
+Equipment, Parameters, Additional parameters and Jumps, each with the bound object's cached name (else its key), type,
+option, scale (1 when unset) and source tag, "—" when empty, then precision and features. With nothing selected, the
+group shows the diagram's scheme and bound object. Copy, paste and Alt-drag keep bindings, precision and features;
+"Save as custom element" (`extractSelection(..., forCustomElement)`) and placing a custom element from the palette
+(`placeCustomElement(..., dropBindings)`) drop them. User guides: **Bindings** (`#properties-bindings`). Checked in the
+browser on a hand-written test diagram: element, digital device and diagram views, a paste keeping its bindings
+through save, a saved custom element without them, and a hand-edited custom element with bindings placed without them.
+
+2026-11-17: SCADA bindings, step 1: the diagram model can hold bindings of elements and
+digital devices to SCADA objects (slddoc `Binding`, `Element`/`DigitalDevice` `Bindings`/`Precision`/`Features`,
+`Diagram.Scheme`/`Object`; `.xsld` format in slddoc's `XSLD_FORMAT.md` §4.10). Saving a diagram rejects invalid
+bindings with 400 (`slddoc.ValidateBindings`: unknown kind, empty source/ref, two bindings of one kind on an item).
+`types/index.ts` mirrors the new fields (`Binding`, `BindingKind`, `SchemeRef`). No UI yet; diagrams without bindings
+are saved unchanged: loading and saving every `.xsld` under `diagrams/` and `custom-elements/` gives the same bytes as
+before (a `<digitalDevice>` without bindings was briefly written as an open/close pair; fixed in slddoc's `Save`).
+- **Test:** `TestSaveBindings`.
+
 2026-11-11: CIM import takes voltage classes from the model even when its BaseVoltage objects are missing (CGMES
 keeps them in a boundary set that often isn't sent along). Before, every device whose BaseVoltage could not be found
 fell back to the voltage class chosen in the import dialog. Now each referenced BaseVoltage without a nominal voltage

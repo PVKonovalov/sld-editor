@@ -347,3 +347,27 @@ cim:
     EquivalentInjection:               "330002"  # Network infeed
     EnergySource:                      "330002"  # Network infeed
     StaticVarCompensator:              "330003"  # Static var compensator
+
+# SCADA bindings: links of diagram items to objects of a SCADA data provider (user guide: Configuration → Bindings).
+# provider: "" (or absent) turns bindings off; "rsdu" reads objects from an RSDU database. Checked at startup; the
+# database is not contacted until a binding call. Keep database credentials out of this file: put them in .env in
+# the folder the editor is started in (or in the environment, which wins), e.g.
+#   BINDINGS_RSDU_READ_USER=rsduadmin
+#   BINDINGS_RSDU_READ_PASSWORD=secret
+# Every connection key has one: BINDINGS_RSDU_{READ|WRITE}_{HOST|PORT|USER|PASSWORD|SID|DATABASE|ENGINE}.
+bindings:
+  provider: ""
+  # rsdu:
+  #   driver: oracle          # oracle | postgres
+  #   schema: rsduadmin
+  #   read:                   # same fields as an entry of ctrlroom's database.dsn
+  #     host: 127.0.0.1
+  #     port: 1521
+  #     user: ""              # from .env: BINDINGS_RSDU_READ_USER
+  #     password: ""          # from .env: BINDINGS_RSDU_READ_PASSWORD
+  #     sid: RSDU             # Oracle SID; or database: (service name / PostgreSQL database)
+  #   write: {}               # optional; without it export to RSDU is off
+  #   scheme_type: 0          # VS_FORM.ID_TYPE / VS_TCOMP.ID_DTYP of exported schemes
+  #   svg:
+  #     dir: ""               # where ctrlroom reads scheme SVGs (its backend.path_to_sld)
+  #     full_path: true       # as ctrlroom's backend.use_full_path_for_sld

@@ -134,6 +134,10 @@ func (s *Server) saveDiagram(c *gin.Context) {
 		errJSON(c, http.StatusBadRequest, err)
 		return
 	}
+	if err := slddoc.ValidateBindings(&d); err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
 
 	// The history is kept server-side: SaveRevision replaces d's own with
 	// the one on disk, plus this save.

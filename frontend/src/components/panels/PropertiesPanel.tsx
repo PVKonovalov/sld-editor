@@ -10,6 +10,7 @@ import { PictureSection } from './PictureSection'
 import { ConnectionsSection } from './ConnectionsSection'
 import { MridRow } from './MridRow'
 import { ElectricalSection } from './ElectricalSection'
+import { BindingsSection, DiagramBindingsSection } from './BindingsSection'
 import {
   connectorElectricalFields,
   elementElectricalFields,
@@ -471,6 +472,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const label = diagram?.labels.find(l => l.id === selectedLabelId) ?? null
   const digitalDevice = diagram?.digitalDevices.find(dd => dd.id === selectedDigitalDeviceId) ?? null
   const voltageOptions = diagram ? diagramOps.voltageClassOptions(diagram, config) : []
+  const bindingProvider = config?.bindings?.provider ?? ''
 
   function moveItemToLayer(id: number, kind: string, layer: number) {
     updateDiagram(d => diagramOps.setItemsLayer(d, new Map([[id, kind]]), layer))
@@ -550,6 +552,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
           <SnapToGridSection />
           <DiagramFileSection />
+          <DiagramBindingsSection provider={bindingProvider} scheme={diagram.scheme} object={diagram.object} />
           <FindSection />
           <LayersSection />
           <VoltageClassesSection />
@@ -972,6 +975,12 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             </select>
           </label>
           <LayerSelect layers={diagram.layers} value={digitalDevice.layer} onChange={layer => moveItemToLayer(digitalDevice.id, 'digitaldevice', layer)} />
+          <BindingsSection
+            provider={bindingProvider}
+            bindings={digitalDevice.bindings}
+            precision={digitalDevice.precision}
+            features={digitalDevice.features}
+          />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: digitalDevice.id })}</p>
           <DeleteButton label={t('properties.deleteDigitalDevice')} onDelete={deleteSelected} />
         </div>
@@ -1158,6 +1167,12 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
         )}
 
         <MridRow key={el.mrid} mrid={el.mrid} />
+        <BindingsSection
+          provider={bindingProvider}
+          bindings={el.bindings}
+          precision={el.precision}
+          features={el.features}
+        />
         {(typeSymbol?.cim?.length ?? 0) > 1 && (
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.cimClass')}</span>

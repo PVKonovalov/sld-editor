@@ -223,6 +223,30 @@ export interface Electrical {
   slope?: number
 }
 
+// Matches slddoc.BindingKind: what a binding supplies to its item.
+export type BindingKind = 'equipment' | 'meas1' | 'meas2' | 'jump'
+
+// Matches slddoc.Binding: a link of a diagram item to an object of a SCADA data provider.
+export interface Binding {
+  source: string
+  kind: BindingKind
+  // Provider's key of the object, opaque outside the provider (RSDU: "tableId:id").
+  ref: string
+  option?: string
+  // Unset/0 means 1; negative inverts a discrete value.
+  scale?: number
+  // Cached from the provider for display.
+  name?: string
+  type?: string
+  uid?: string
+}
+
+// Matches slddoc.SchemeRef: the provider's scheme a diagram is exported to.
+export interface SchemeRef {
+  source: string
+  ref: string
+}
+
 export interface DiagramElement {
   id: number
   class: ElementClass
@@ -403,6 +427,11 @@ export interface DiagramElement {
   // The mRID of the CIM equipment it was imported from, which a CIM export keeps; unset for items drawn here or
   // copied (lib/diagramOps' placeCustomElement and extractSelection drop it).
   mrid?: string
+  // Decimal places of a shown value, the provider's display features (comma-separated), and the SCADA bindings
+  // (at most one per kind) — slddoc's Element.Precision/Features/Bindings.
+  precision?: number
+  features?: string
+  bindings?: Binding[]
 }
 
 // Matches slddoc.TableCell — one real cell of a Table2
@@ -498,6 +527,10 @@ export interface DigitalDevice {
   name?: string
   value: string
   unit?: string
+  // As in DiagramElement.
+  precision?: number
+  features?: string
+  bindings?: Binding[]
 }
 
 // One unsupported xsde2svg data-type code an .svg import skipped: its
@@ -571,6 +604,9 @@ export interface Diagram {
   // anything into yet.
   lastId?: number
   editor?: EditorSettings
+  // The provider's scheme this diagram is exported to, and the object the whole diagram is bound to.
+  scheme?: SchemeRef
+  object?: Binding
   layers: Layer[]
   voltageClasses: VoltageClass[]
   // Absent until the diagram is first saved; the server then copies config.stateColors in.
@@ -802,4 +838,12 @@ export interface EditorConfig {
   hotKeys?: Record<string, string>
   // The CIM classes a connector kind exported as equipment can stand for, default first (cim.classes "28").
   cimConnectorClasses?: Partial<Record<ConnectorKind, string[]>>
+  // The SCADA binding provider ("" = bindings off, no binding UI) and whether it can export (backend config
+  // bindings). Absent from an older server.
+  bindings?: BindingsConfig
+}
+
+export interface BindingsConfig {
+  provider: string
+  canExport: boolean
 }

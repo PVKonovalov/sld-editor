@@ -15,6 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/PVKonovalov/slddoc"
+	"sld-editor/internal/binding"
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
 	"sld-editor/internal/presence"
@@ -47,12 +48,15 @@ type Server struct {
 	presence *presence.Registry
 	// cimClasses is the CIM class table of config.CIM, both ways.
 	cimClasses slddoc.CIMClassTable
+	// bindings is the configured SCADA binding provider; nil when bindings are off.
+	bindings binding.Provider
 }
 
 // NewServer builds a ready-to-run Server. custom is the custom-elements
 // store (config.Config.CustomElements.Dir), read-only from the API's side;
-// nil serves an empty custom-elements list.
-func NewServer(store, custom *storage.Store, lib *elements.Library, cfg *config.Config) *Server {
+// nil serves an empty custom-elements list. bindings is the configured binding provider, nil when off: then no
+// /api/bindings route exists.
+func NewServer(store, custom *storage.Store, lib *elements.Library, cfg *config.Config, bindings binding.Provider) *Server {
 	r := gin.Default()
 	// A diagram's rendered SVG and its JSON are repetitive text, so both
 	// directions are compressed for the big-diagram-over-a-slow-link case:
@@ -67,7 +71,7 @@ func NewServer(store, custom *storage.Store, lib *elements.Library, cfg *config.
 	// connecting directly cannot fake it.
 	_ = r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
 
-	s := &Server{router: r, store: store, custom: custom, lib: lib, cfg: cfg, presence: presence.New(presenceTTL)}
+	s := &Server{router: r, store: store, custom: custom, lib: lib, cfg: cfg, presence: presence.New(presenceTTL), bindings: bindings}
 	// main.go has checked cfg.CIM; an invalid table here (tests) maps nothing.
 	s.cimClasses, _, _ = slddoc.NewCIMClassTable(lib.Classes(), cfg.CIM.Classes, cfg.CIM.Import)
 	s.routes()
@@ -144,6 +148,9 @@ func (s *Server) routes() {
 	grp.GET("/user-guide", s.getUserGuide)
 	grp.GET("/user-guide/images/:name", s.getUserGuideImage)
 	grp.POST("/presence", s.touchPresence)
+	if s.bindings != nil {
+		s.bindingRoutes(grp)
+	}
 	grp.GET("/presence/open", s.openTabs)
 
 	s.mountWebUI()

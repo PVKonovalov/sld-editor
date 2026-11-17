@@ -82,7 +82,7 @@ func newCIMTestServer(t *testing.T) (*Server, *elements.Library) {
 	cfg := &config.Config{}
 	cfg.Editor.GridSpacing = 10
 	cfg.CIM = shipped.CIM
-	return NewServer(store, store, lib, cfg), lib
+	return NewServer(store, store, lib, cfg, nil), lib
 }
 
 func TestCIMRoundTrip(t *testing.T) {

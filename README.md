@@ -28,6 +28,10 @@ go vet ./...
 go test ./...
 ```
 
+The RSDU binding provider's integration tests (`internal/rsdu`) run only against a real RSDU database given as a
+DSN URL, read-only: `RSDU_TEST_ORACLE=oracle://user:password@host:1521/service?sid=SID`,
+`RSDU_TEST_POSTGRES=postgres://user:password@host:5432/rsdu` (both may add `&schema=` / `?schema=`).
+
 The backend depends on the sibling `slddoc` module (`../../slddoc` relative to this
 repo, via a `replace` directive in `backend/go.mod`) — check that repo out next to
 this one before building. It also depends on the `xsde2svg` converter (the `.xsde` import), resolved the same way

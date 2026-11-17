@@ -125,18 +125,10 @@ func readFromEnv(v reflect.Value, parentTag string, dotEnv map[string]string) er
 
 		switch field.Type.Kind() {
 		case reflect.Struct:
-			err = readFromEnv(val, field.Tag.Get("yaml"), dotEnv)
+			err = readFromEnv(val, envPath(parentTag, field), dotEnv)
 		default:
 			if field.Tag.Get("env") == "true" {
-				ptg := strings.Split(parentTag, ",")
-				tg := strings.Split(field.Tag.Get("yaml"), ",")
-
-				envVar := ""
-				if ptg[0] != "" {
-					envVar = strings.ToUpper(ptg[0] + "_" + tg[0])
-				} else {
-					envVar = strings.ToUpper(tg[0])
-				}
+				envVar := strings.ToUpper(envPath(parentTag, field))
 
 				envFullName := fmt.Sprintf("%s%s", EnvVarPrefix, envVar)
 				envVal := lookupEnv(envFullName, dotEnv)
@@ -185,6 +177,16 @@ func readFromEnv(v reflect.Value, parentTag string, dotEnv map[string]string) er
 	return err
 }
 
+// envPath returns the environment variable name (before upper-casing and EnvVarPrefix) of field under path: the
+// yaml names of every enclosing struct and the field, joined by "_", e.g. "bindings_rsdu_read_password".
+func envPath(path string, field reflect.StructField) string {
+	name, _, _ := strings.Cut(field.Tag.Get("yaml"), ",")
+	if path == "" {
+		return name
+	}
+	return path + "_" + name
+}
+
 // listEnv lists all environment variables that can be used to override configuration values
 func listEnv(v reflect.Value, parentTag string) []string {
 
@@ -196,17 +198,10 @@ func listEnv(v reflect.Value, parentTag string) []string {
 
 		switch field.Type.Kind() {
 		case reflect.Struct:
-			envVarList = append(envVarList, listEnv(val, field.Tag.Get("yaml"))...)
+			envVarList = append(envVarList, listEnv(val, envPath(parentTag, field))...)
 		default:
 			if field.Tag.Get("env") == "true" {
-				ptg := strings.Split(parentTag, ",")
-				tg := strings.Split(field.Tag.Get("yaml"), ",")
-
-				if ptg[0] != "" {
-					envVarList = append(envVarList, strings.ToUpper(EnvVarPrefix+ptg[0]+"_"+tg[0]))
-				} else {
-					envVarList = append(envVarList, strings.ToUpper(EnvVarPrefix+tg[0]))
-				}
+				envVarList = append(envVarList, strings.ToUpper(EnvVarPrefix+envPath(parentTag, field)))
 			}
 		}
 	}

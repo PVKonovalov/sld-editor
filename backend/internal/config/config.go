@@ -151,6 +151,9 @@ type Config struct {
 		Classes map[string][]string `yaml:"classes"`
 		Import  map[string]string   `yaml:"import"`
 	} `yaml:"cim"`
+
+	// Bindings selects the SCADA data provider (ValidateBindings checks it at startup).
+	Bindings Bindings `yaml:"bindings"`
 }
 
 // DefaultVoltageColorTolerance is VoltageColorTolerance when unset.

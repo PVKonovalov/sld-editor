@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/PVKonovalov/slddoc"
+	"sld-editor/internal/binding"
 	"sld-editor/internal/config"
 	"sld-editor/internal/elements"
 	"sld-editor/internal/presence"
@@ -26,6 +27,12 @@ import (
 )
 
 func newTestServer(t *testing.T) *Server {
+	t.Helper()
+	return newTestServerWithBindings(t, nil, config.Bindings{})
+}
+
+// newTestServerWithBindings is newTestServer with a binding provider (nil = off) and its configuration.
+func newTestServerWithBindings(t *testing.T, provider binding.Provider, bindings config.Bindings) *Server {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 
@@ -45,13 +52,14 @@ func newTestServer(t *testing.T) *Server {
 	cfg.Editor.Snap = true
 	cfg.Editor.Background = "#12161d"
 	cfg.VoltageColors = []config.VoltageColor{{Name: "10 kV", Color: "#962896"}}
+	cfg.Bindings = bindings
 
 	custom, err := storage.New(t.TempDir(), lib.SymbolLibrary(), "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	return NewServer(store, custom, lib, cfg)
+	return NewServer(store, custom, lib, cfg, provider)
 }
 
 func doJSON(t *testing.T, s *Server, method, path string, body any) *httptest.ResponseRecorder {
@@ -224,6 +232,36 @@ func TestSaveHistoryAndPresence(t *testing.T) {
 	}
 	if len(st.Others) != 1 || st.Others[0].IP != "192.0.2.1" || st.Others[0].Since.IsZero() || st.LastSave == nil || *st.LastSave != resp.Diagram.History[1] {
 		t.Errorf("presence after save: %+v", st)
+	}
+}
+
+func TestSaveBindings(t *testing.T) {
+	s := newTestServer(t)
+	if rec := doJSON(t, s, http.MethodPost, "/api/diagrams", createDiagramRequest{Name: "sub-1"}); rec.Code != http.StatusCreated {
+		t.Fatalf("create: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	d := slddoc.Diagram{Width: 10, Height: 10, Elements: []slddoc.Element{{
+		ID: 1, Class: slddoc.ClassBreaker, Shape: "41", Precision: 2,
+		Bindings: []slddoc.Binding{{Source: "rsdu", Kind: slddoc.BindingMeas1, Ref: "2011:9", Option: "GLT_BOOL_OPT_INSTANT"}},
+	}}}
+
+	if rec := doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=sub-1", d); rec.Code != http.StatusOK {
+		t.Fatalf("save: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	rec := doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=sub-1", nil)
+	var resp struct {
+		Diagram slddoc.Diagram `json:"diagram"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil || rec.Code != http.StatusOK {
+		t.Fatalf("get: status = %d, body = %s", rec.Code, rec.Body.String())
+	}
+	if got := resp.Diagram.Elements; len(got) != 1 || len(got[0].Bindings) != 1 || got[0].Bindings[0] != d.Elements[0].Bindings[0] || got[0].Precision != 2 {
+		t.Errorf("bindings after reload = %+v", got)
+	}
+
+	d.Elements[0].Bindings = append(d.Elements[0].Bindings, d.Elements[0].Bindings[0])
+	if rec := doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=sub-1", d); rec.Code != http.StatusBadRequest {
+		t.Errorf("duplicate binding kind: status = %d, want 400", rec.Code)
 	}
 }
 
