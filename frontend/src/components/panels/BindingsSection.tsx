@@ -1,6 +1,7 @@
 import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
 import { Loader2, Lock, RefreshCw, X } from 'lucide-react'
 import { GroupHeader } from './GroupHeader'
+import { SchemeLinkRow } from './SchemeLinkRow'
 import { t, type TranslationKey } from '../../i18n'
 import * as api from '../../lib/api'
 import * as diagramOps from '../../lib/diagramOps'
@@ -476,7 +477,7 @@ function RefreshBindings({ provider }: { provider: string }) {
   )
 }
 
-/** The diagram's scheme (read-only) and the object the whole diagram is bound to, set by dropping an Objects-panel
+/** The diagram's scheme link (SchemeLinkRow) and the object the whole diagram is bound to, set by dropping an Objects-panel
  * object on its row; Refresh bindings for every binding of the diagram. Nothing when bindings are off. */
 export function DiagramBindingsSection({
   provider,
@@ -487,7 +488,7 @@ export function DiagramBindingsSection({
   scheme?: SchemeRef
   object?: Binding
 }) {
-  const { updateDiagram } = useDiagramContext()
+  const { updateDiagram, config } = useDiagramContext()
   const [collapsed, toggle] = useCollapsed()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -513,22 +514,7 @@ export function DiagramBindingsSection({
       <GroupHeader label={t('bindings.title')} collapsed={collapsed} onToggle={toggle} topic="properties-bindings" />
       {!collapsed && (
         <div className="space-y-2">
-          <div className="text-xs">
-            <span className="block text-gray-400 mb-0.5">{t('bindings.scheme')}</span>
-            {scheme ? (
-              <div className="flex items-center gap-1 rounded border border-surface-600 bg-surface-800 px-2 py-1">
-                <span className="flex-1 truncate font-mono text-gray-200">{scheme.ref}</span>
-                {scheme.source !== provider && (
-                  <span title={t('bindings.otherSource', { source: scheme.source })} className="text-gray-400">
-                    <Lock size={12} aria-label={t('bindings.otherSource', { source: scheme.source })} />
-                  </span>
-                )}
-                <SourceTag source={scheme.source} />
-              </div>
-            ) : (
-              <span className="block text-gray-500 px-2">—</span>
-            )}
-          </div>
+          <SchemeLinkRow provider={provider} scheme={scheme} schemes={!!config?.bindings?.schemes} />
           <BindingRow
             title={t('bindings.object')}
             binding={object}

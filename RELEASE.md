@@ -1,5 +1,18 @@
 # Release notes
 
+2026-11-17: SCADA bindings, step 10: diagram <-> RSDU scheme link. The store keeps an in-memory index scheme -> diagram
+(`internal/storage/index.go`), built at startup from the `<scheme>` header of every `.xsld` (`slddoc.ReadScheme`) and
+kept current by save, rename, folder rename/move and delete; a save that would link a scheme another diagram holds is
+refused with 409 `{error, linkedTo}`. The diagram list carries each diagram's scheme and status (`linked`, `exported`,
+`changed`); the File panel adds `missing`/`unknown` with a lazy `POST /api/bindings/schemes/exist` and shows a status
+icon per diagram. New read-only routes (`internal/api/schemes.go`, only for a provider implementing
+`binding.Linker`; RSDU reads `VS_GROUP`/`VS_FORM`): scheme tree with linked diagrams, one scheme, candidates ranked by
+`FILE_NAME` (path match first, backslash read as `/`, then same-name matches) and existence. Frontend: Link/Change/
+Unlink in the diagram's Bindings group via a scheme picker (`SchemePicker.tsx`, undoable `setDiagramScheme`), an
+"RSDU schemes" tab in the File panel (filter, open the linked diagram, create a new diagram linked to a scheme), an
+offer to link after an `.xsde` import, and a delete warning for linked diagrams. Registering a new scheme comes with
+export (step 12). Guide section `#rsdu-schemes`.
+
 2026-11-17: SCADA bindings, step 9: bindings overview. A new left-rail button (only when bindings are on) opens a
 resizable table docked under the canvas (`components/BindingsOverview.tsx`), which stays open together with Objects
 and Properties. It lists every element expected to be bound and every digital device: id, name, type and the bound

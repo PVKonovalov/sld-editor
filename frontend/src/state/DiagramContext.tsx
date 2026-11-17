@@ -12,6 +12,7 @@ import type {
   CimHeader,
   CimSameVoltageTransformer,
   Diagram,
+  SchemeRef,
   DiagramEntry,
   CustomElement,
   ElementSymbol,
@@ -32,6 +33,7 @@ import {
   type PendingImport,
   type PreRendered,
   type SelectionKind,
+  type SchemeOffer,
   type UnsavedChoice,
   type VoltageColorsPrompt,
   type CimLayoutPrompt,
@@ -589,11 +591,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // so the very first .xsld on disk already carries it, not just an
   // in-memory, still-dirty value waiting on the user's next explicit Save.
   const newDiagramNow = useCallback(
-    async (name: string, width?: number, height?: number, defaultVoltageName?: string) => {
+    async (name: string, width?: number, height?: number, defaultVoltageName?: string, scheme?: SchemeRef) => {
       startLoading(name)
       let result
       try {
-        result = await api.createDiagram(name, width, height)
+        result = await api.createDiagram(name, width, height, scheme)
       } catch (e) {
         stopLoading()
         throw e
@@ -684,9 +686,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   }, [diagramName])
 
   const newDiagram = useCallback(
-    async (name: string, width?: number, height?: number, defaultVoltageName?: string) => {
+    async (name: string, width?: number, height?: number, defaultVoltageName?: string, scheme?: SchemeRef) => {
       if (!(await confirmLeave())) return false
-      await newDiagramNow(name, width, height, defaultVoltageName)
+      await newDiagramNow(name, width, height, defaultVoltageName, scheme)
       return true
     },
     [confirmLeave, newDiagramNow],
@@ -869,6 +871,26 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // inside the File panel's current folder) and, if so, parks the prepared
   // file as pendingImport, with that name fixed, for ConfirmReloadDialog to
   // ask "Reload or not"; otherwise it loads immediately.
+  // After an .xsde import, the schemes proposed for the new diagram, offered once (SchemeOffer).
+  const [schemeOffer, setSchemeOffer] = useState<SchemeOffer | null>(null)
+  const offerScheme = useCallback(
+    (name: string, fileName: string) => {
+      setSchemeOffer(null)
+      if (diagramFileKind(fileName) !== 'xsde' || !config?.bindings?.provider || !config.bindings.schemes) return
+      api.suggestSchemes(name, fileName).then(
+        candidates => {
+          if (candidates.some(c => !c.diagram)) setSchemeOffer({ name, source: fileName, candidates })
+        },
+        () => undefined,
+      )
+    },
+    [config],
+  )
+  const dismissSchemeOffer = useCallback(() => setSchemeOffer(null), [])
+  useEffect(() => {
+    setSchemeOffer(prev => (prev && prev.name !== diagramName ? null : prev))
+  }, [diagramName])
+
   const importDiagramFile = useCallback(
     async (file: File) => {
       if (!diagramFileKind(file.name)) throw new Error(t('file.invalidDiagramFile', { name: file.name }))
@@ -893,9 +915,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           return
         }
         await loadDiagramFromFile(pages[0], file.name, name, save)
+        offerScheme(name, file.name)
       })
     },
     [
+      offerScheme,
       loadDiagramFromFile,
       saveImportedPages,
       choosePageVoltageColors,
@@ -916,8 +940,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const confirmPendingImport = useCallback(async () => {
     if (!pendingImport) return
     await loadDiagramFromFile(pendingImport.prepared, pendingImport.fileName, pendingImport.name, pendingImport.save)
+    offerScheme(pendingImport.name, pendingImport.fileName)
     setPendingImport(null)
-  }, [pendingImport, loadDiagramFromFile])
+  }, [pendingImport, loadDiagramFromFile, offerScheme])
 
   const importDiagramFiles = useCallback(
     async (files: File[]) => {
@@ -1235,6 +1260,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selection,
       toggleSelection,
       selectMany,
+      schemeOffer,
+      dismissSchemeOffer,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,
@@ -1341,6 +1368,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selection,
       toggleSelection,
       selectMany,
+      schemeOffer,
+      dismissSchemeOffer,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,

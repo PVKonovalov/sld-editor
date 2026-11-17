@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -56,8 +57,10 @@ type Store struct {
 	fpiColors      []slddoc.StateColor
 	defaultFPIText string
 	// mu serializes writes, so Create's existence check and SaveRevision's
-	// read-modify-write of the history see no concurrent save.
-	mu sync.Mutex
+	// read-modify-write of the history see no concurrent save. It also guards links.
+	mu            sync.Mutex
+	links         *linkIndex
+	indexWarnings []string
 }
 
 // New opens (creating if necessary) dir as a diagram store. lib is used to
@@ -75,7 +78,9 @@ func New(dir string, lib *slddoc.SymbolLibrary, defaultFPIText string, fpiColors
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("storage: creating diagrams directory %s: %w", dir, err)
 	}
-	return &Store{dir: dir, lib: lib, stateColors: stateColors, fpiColors: fpiColors, defaultFPIText: defaultFPIText}, nil
+	s := &Store{dir: dir, lib: lib, stateColors: stateColors, fpiColors: fpiColors, defaultFPIText: defaultFPIText}
+	s.indexWarnings = s.buildIndex()
+	return s, nil
 }
 
 // Entry describes one item in a single directory's listing, for the File >
@@ -88,6 +93,9 @@ type Entry struct {
 	Name    string    `json:"name"`
 	IsDir   bool      `json:"isDir"`
 	ModTime time.Time `json:"modTime"`
+	// Scheme is the scheme the diagram is linked to and SchemeStatus its link status (SchemeLinked, ...).
+	Scheme       *slddoc.SchemeRef `json:"scheme,omitempty"`
+	SchemeStatus string            `json:"schemeStatus,omitempty"`
 }
 
 // List returns one directory's immediate contents — dir is a path relative
@@ -117,7 +125,12 @@ func (s *Store) List(dir string) ([]Entry, error) {
 		if filepath.Ext(e.Name()) != xmlExt {
 			continue
 		}
-		files = append(files, Entry{Name: strings.TrimSuffix(e.Name(), xmlExt), ModTime: fi.ModTime()})
+		entry := Entry{Name: strings.TrimSuffix(e.Name(), xmlExt), ModTime: fi.ModTime()}
+		if ref := s.SchemeOf(path.Join(dir, entry.Name)); ref != nil {
+			entry.Scheme = ref
+			entry.SchemeStatus = schemeStatus(*ref, entry.ModTime)
+		}
+		files = append(files, entry)
 	}
 	byName := func(entries []Entry) func(i, j int) bool {
 		return func(i, j int) bool {
@@ -221,6 +234,9 @@ func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error)
 		return nil, fmt.Errorf("storage: creating directory for %s: %w", name, err)
 	}
 
+	if err := s.checkLink(name, d.Scheme); err != nil {
+		return nil, err
+	}
 	slddoc.SeedStateColors(d, s.stateColors)
 	var xml bytes.Buffer
 	if err := d.Save(&xml); err != nil {
@@ -229,6 +245,7 @@ func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error)
 	if err := replaceFile(xmlPath, xml.Bytes()); err != nil {
 		return nil, err
 	}
+	s.links.set(name, d.Scheme)
 
 	// Always Static: the saved .svg is a downloadable artifact, meant to
 	// stay a clean, xsde2svg-faithful document — never carries this
@@ -286,6 +303,7 @@ func (s *Store) Rename(from, to string) error {
 	if err := os.Rename(fromXML, toXML); err != nil {
 		return fmt.Errorf("storage: renaming %s: %w", from, err)
 	}
+	s.links.rename(from, to, false)
 	if err := os.Rename(fromSVG, toSVG); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("storage: renaming %s: %w", from, err)
 	}
@@ -317,6 +335,7 @@ func (s *Store) RenameDir(from, to string) error {
 	if err := os.Rename(fromPath, toPath); err != nil {
 		return fmt.Errorf("storage: renaming %s: %w", from, err)
 	}
+	s.links.rename(from, to, true)
 	return nil
 }
 
@@ -358,6 +377,7 @@ func (s *Store) Delete(name string) error {
 		}
 		return fmt.Errorf("storage: deleting %s: %w", name, err)
 	}
+	s.links.drop(name)
 	if err := os.Remove(svgPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("storage: deleting %s: %w", name, err)
 	}

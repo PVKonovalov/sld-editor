@@ -428,3 +428,75 @@ func TestIntegrationSuggest(t *testing.T) {
 		})
 	}
 }
+
+// TestIntegrationSchemes reads the scheme tree, one scheme and existence on a real RSDU.
+func TestIntegrationSchemes(t *testing.T) {
+	for _, db := range testDSNs {
+		t.Run(db.driver, func(t *testing.T) {
+			p := integrationProvider(t, db.env, db.driver)
+			ctx := context.Background()
+			tree, err := p.Schemes(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(tree.Groups) == 0 || len(tree.Schemes) == 0 {
+				t.Fatalf("groups %d, schemes %d", len(tree.Groups), len(tree.Schemes))
+			}
+			groups := map[string]bool{}
+			for _, g := range tree.Groups {
+				groups[g.ID] = true
+			}
+			files, updated := 0, 0
+			for _, s := range tree.Schemes {
+				if !groups[s.Group] {
+					t.Errorf("scheme %s in unknown group %q", s.Ref, s.Group)
+				}
+				if s.FileName != "" {
+					files++
+				}
+				if s.Updated != nil {
+					updated++
+				}
+			}
+			first := tree.Schemes[0]
+			one, err := p.Scheme(ctx, first.Ref)
+			if err != nil || one.Name != first.Name || one.FileName != first.FileName {
+				t.Errorf("Scheme(%s) = %+v, %v", first.Ref, one, err)
+			}
+			if _, err := p.Scheme(ctx, "999999999999"); !errors.Is(err, binding.ErrNotFound) {
+				t.Errorf("missing scheme: %v", err)
+			}
+			refs := []string{"999999999999", "bad"}
+			for _, s := range tree.Schemes {
+				refs = append(refs, s.Ref)
+			}
+			exist, err := p.SchemesExist(ctx, refs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			n := 0
+			for _, ok := range exist {
+				if ok {
+					n++
+				}
+			}
+			if n != len(tree.Schemes) || exist["bad"] || exist["999999999999"] {
+				t.Errorf("exist: %d of %d", n, len(tree.Schemes))
+			}
+			// A diagram named after a scheme's file gets that scheme among its candidates.
+			var named binding.Scheme
+			for _, s := range tree.Schemes {
+				if s.FileName != "" {
+					named = s
+					break
+				}
+			}
+			c := binding.RankCandidates(tree.Schemes, "sub/"+named.FileName, "")
+			if !slices.ContainsFunc(c, func(x binding.Candidate) bool { return x.Ref == named.Ref }) {
+				t.Errorf("scheme %s (%s) not among %d candidates", named.Ref, named.FileName, len(c))
+			}
+			t.Logf("groups %d, schemes %d (%d with a file name, %d with an update time); %d candidates for one name",
+				len(tree.Groups), len(tree.Schemes), files, updated, len(c))
+		})
+	}
+}

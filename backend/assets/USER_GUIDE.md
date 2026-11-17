@@ -541,6 +541,46 @@ each tab first checked in again. The editor knows people only by IP address; you
 Every save is recorded in the diagram file (`<history>` in the `.xsld`): the time and the IP address it came from.
 With nothing selected, the **History** section of Properties lists them, newest first. The last 200 saves are kept.
 
+### RSDU schemes {#rsdu-schemes}
+
+Only when [bindings](#configuration-bindings) are on with a provider that has schemes (RSDU). A diagram can be
+**linked** to one RSDU scheme (`VS_FORM`): export to RSDU and import of a scheme's bindings work through that link.
+The link is the scheme's identifier, stored in the diagram file, never its file name; one scheme belongs to at most one
+diagram. Renaming or moving a diagram, or its folder, keeps its link.
+
+**In the file list** a linked diagram has an icon after its name; hover it for the status:
+
+- grey link: linked, never exported;
+- green link: exported, not changed since;
+- amber link: saved after the last export;
+- red crossed link: the scheme no longer exists in RSDU;
+- grey question mark: RSDU can't be reached to check it. The list never waits for RSDU.
+
+**Linking.** With nothing selected, open the **Bindings** group in Properties. **Link to RSDU scheme…** (or
+**Change…**) opens a window:
+
+- on top, the schemes proposed for this diagram by their file name (`FILE_NAME`, `\` read as `/`, without the
+  extension, letter case ignored). A scheme whose path matches the diagram's path (or the reverse, with folders)
+  comes first. One that matches only by the base name is marked *(same name only)*: the same name is often used in
+  several folders, so check it. When exactly one scheme matches by path it is chosen already;
+- below, every scheme by RSDU group, with a filter.
+
+A scheme linked to another diagram is shown with that diagram's name and can't be chosen. **Link** links the open
+diagram; **Unlink** removes the link. Both are edits like any other: undo reverts them, and they take effect when the
+diagram is saved. A save that would link a scheme another diagram already holds is refused with that diagram's name.
+RSDU itself is not changed. Registering a new scheme in RSDU comes with export to RSDU.
+
+After importing an `.xsde` file, if any free scheme matches its name, a note at the bottom of the canvas offers to
+link one: **Choose…** opens the same window.
+
+**The RSDU schemes tab** of the File panel lists every scheme by group, each with the diagram linked to it. Filter by
+name, file name, id or diagram, and show all schemes, the linked ones or those without a diagram. The folder button
+opens a linked diagram. For a scheme without a diagram, the new-file button creates an empty diagram linked to it,
+named after the scheme, in the folder you type (the File panel's current one by default).
+
+**Deleting** a linked diagram keeps the RSDU scheme and the scheme's SVG for ctrlroom; the confirmation says which
+scheme it is.
+
 ## Moving around the canvas {#navigation}
 
 | Action | How |
@@ -991,7 +1031,7 @@ Below the rows:
 Every change is one step of [undo](#undo) and is saved with the diagram.
 
 With nothing selected, the **Bindings** group shows the diagram's own **Scheme** (the system's scheme it is exported
-to, read-only) and **Object**: the object the whole diagram is bound to, for example its substation. Drop an object
+to; link or change it there, see [RSDU schemes](#rsdu-schemes)) and **Object**: the object the whole diagram is bound to, for example its substation. Drop an object
 on the **Object** row to set it; **×** clears it. **Refresh bindings** is there too (see
 [Refreshing bindings](#bindings-refresh)).
 

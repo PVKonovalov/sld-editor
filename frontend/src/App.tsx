@@ -9,6 +9,7 @@ import { PropertiesPanel } from './components/panels/PropertiesPanel'
 import { ObjectsPanel } from './components/panels/ObjectsPanel'
 import { Canvas } from './components/Canvas'
 import { BindingsOverview } from './components/BindingsOverview'
+import { SchemeOfferBanner } from './components/SchemeOfferBanner'
 import type { GapKind } from './lib/bindingOverview'
 import { ImportLogDialog } from './components/ImportLogDialog'
 import { ConfirmReloadDialog } from './components/ConfirmReloadDialog'
@@ -232,6 +233,7 @@ function Shell() {
         <VoltageColorsDialog />
         <CimLayoutDialog />
         <CimWindingsDialog />
+        <SchemeOfferBanner />
         {guide && <GuideWindow topic={guide.topic} requestId={guide.requestId} onClose={() => setGuide(null)} />}
         {dropError && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-red-900/90 text-red-100 text-xs rounded px-3 py-2 shadow">

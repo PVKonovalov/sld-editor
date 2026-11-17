@@ -40,6 +40,8 @@ type createDiagramRequest struct {
 	Name   string  `json:"name" binding:"required"`
 	Width  float64 `json:"width"`
 	Height float64 `json:"height"`
+	// Scheme, when set, links the new diagram to that scheme (RSDU schemes view).
+	Scheme *slddoc.SchemeRef `json:"scheme"`
 }
 
 // createDiagram implements File > New: it seeds a blank diagram (this
@@ -71,18 +73,17 @@ func (s *Server) createDiagram(c *gin.Context) {
 		Layers:  []slddoc.Layer{{ID: slddoc.BaseLayer, Name: "Base"}},
 		History: []slddoc.Revision{newRevision(c)},
 	}
+	if req.Scheme != nil {
+		d.Scheme = &slddoc.SchemeRef{Source: req.Scheme.Source, Ref: req.Scheme.Ref}
+		if err := slddoc.ValidateBindings(d); err != nil {
+			errJSON(c, http.StatusBadRequest, err)
+			return
+		}
+	}
 
 	warn, err := s.store.Create(req.Name, d)
-	if errors.Is(err, storage.ErrExists) {
-		errJSON(c, http.StatusConflict, err)
-		return
-	}
-	if errors.Is(err, storage.ErrInvalidName) {
-		errJSON(c, http.StatusBadRequest, err)
-		return
-	}
 	if err != nil {
-		errJSON(c, http.StatusInternalServerError, err)
+		storageError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, diagramResponse(d, warn))
@@ -144,12 +145,8 @@ func (s *Server) saveDiagram(c *gin.Context) {
 	name := c.Query("name")
 	rev := newRevision(c)
 	warn, err := s.store.SaveRevision(name, &d, rev)
-	if errors.Is(err, storage.ErrInvalidName) {
-		errJSON(c, http.StatusBadRequest, err)
-		return
-	}
 	if err != nil {
-		errJSON(c, http.StatusInternalServerError, err)
+		storageError(c, err)
 		return
 	}
 	s.presence.Saved(name, rev)

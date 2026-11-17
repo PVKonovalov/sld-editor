@@ -1,5 +1,6 @@
 import type {
   Diagram,
+  SchemeRef,
   DiagramElement,
   DiagramNode,
   Connector,
@@ -5344,6 +5345,13 @@ export function setItemBindingExtras(
 }
 
 /** Sets (or, with undefined, clears) the object the whole diagram is bound to. */
+/** Links the diagram to scheme, or with undefined unlinks it. */
+export function setDiagramScheme(diagram: Diagram, scheme: SchemeRef | undefined): Diagram {
+  const next = { ...diagram, scheme }
+  if (!scheme) delete next.scheme
+  return next
+}
+
 export function setDiagramObject(diagram: Diagram, object: Binding | undefined): Diagram {
   const next = { ...diagram, object }
   if (!object) delete next.object

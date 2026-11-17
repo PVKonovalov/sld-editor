@@ -1,5 +1,9 @@
 import type {
   Binding,
+  ProviderScheme,
+  SchemeCandidate,
+  SchemeRef,
+  SchemeTree,
   BindingDictionaries,
   BindingResolved,
   BindingResolveResult,
@@ -26,6 +30,7 @@ import type {
   VoltageColor,
 } from '../types'
 import { stripPictureHrefs } from './picture'
+import { t } from '../i18n'
 
 const BASE = '/api'
 
@@ -44,6 +49,7 @@ async function jsonBody(method: string, value: unknown): Promise<RequestInit> {
 async function asJSON<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null)
+    if (body && body.linkedTo) throw new Error(t('schemes.linkedElsewhere', { name: body.linkedTo }))
     throw new Error((body && body.error) || `${res.status} ${res.statusText}`)
   }
   return res.json() as Promise<T>
@@ -103,11 +109,12 @@ export async function createDiagram(
   name: string,
   width?: number,
   height?: number,
+  scheme?: SchemeRef,
 ): Promise<{ diagram: Diagram; warning?: string }> {
   const res = await fetch(`${BASE}/diagrams`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, width, height }),
+    body: JSON.stringify({ name, width, height, scheme }),
   })
   const data = await asJSON<DiagramResponse>(res)
   return { diagram: normalizeDiagram(data.diagram), warning: data.warning }
@@ -437,6 +444,41 @@ export async function suggestBindings(ref: string, element: { shape: string; cla
   const res = await fetch(`${BASE}/bindings/suggest`, await jsonBody('POST', { ref, element }))
   const body: { bindings: Binding[] } = await asJSON(res)
   return body.bindings ?? []
+}
+
+/** The provider's scheme groups and schemes, each scheme with the diagram linked to it (GET /api/bindings/schemes). */
+export async function listSchemes(): Promise<SchemeTree> {
+  const tree: SchemeTree = await asJSON(await fetch(`${BASE}/bindings/schemes`))
+  return { groups: tree.groups ?? [], schemes: tree.schemes ?? [] }
+}
+
+/** Thrown by getScheme for a scheme the provider no longer has. */
+export class SchemeNotFoundError extends Error {
+  constructor(ref: string) {
+    super(t('schemes.missing', { ref }))
+  }
+}
+
+/** The scheme ref with its linked diagram; rejects with SchemeNotFoundError when the scheme is gone. */
+export async function getScheme(ref: string): Promise<ProviderScheme> {
+  const res = await fetch(`${BASE}/bindings/scheme?ref=${encodeURIComponent(ref)}`)
+  if (res.status === 404) throw new SchemeNotFoundError(ref)
+  return asJSON(res)
+}
+
+/** Schemes proposed for the diagram name (its path) imported from source, best first. */
+export async function suggestSchemes(name: string, source?: string): Promise<SchemeCandidate[]> {
+  const q = new URLSearchParams({ name, source: source ?? '' })
+  const body: { candidates: SchemeCandidate[] } = await asJSON(await fetch(`${BASE}/bindings/schemes/suggest?${q}`))
+  return body.candidates ?? []
+}
+
+/** Which of the scheme refs exist at the provider. */
+export async function schemesExist(refs: string[]): Promise<Record<string, boolean>> {
+  const body: { exist: Record<string, boolean> } = await asJSON(
+    await fetch(`${BASE}/bindings/schemes/exist`, await jsonBody('POST', { refs })),
+  )
+  return body.exist ?? {}
 }
 
 /** The drag data type of an object dragged from the Objects panel; its value is a JSON DraggedObject. */

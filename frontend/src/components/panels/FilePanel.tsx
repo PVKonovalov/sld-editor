@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Folder, ArrowUp, FolderPlus, Pencil, Trash2 } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import { PanelShell } from './PanelShell'
@@ -6,6 +6,14 @@ import { NewDiagramDialog } from '../NewDiagramDialog'
 import { FolderActionDialog, type FolderAction } from '../FolderActionDialog'
 import { t } from '../../i18n'
 import { joinDiagramPath, parentDir } from '../../lib/diagramPath'
+import * as api from '../../lib/api'
+import { SchemeStatusIcon } from '../SchemeTreeList'
+import { SchemesView } from './SchemesView'
+import type { DiagramEntry, SchemeStatus } from '../../types'
+
+type Tab = 'diagrams' | 'schemes'
+// The tab survives closing and reopening the panel.
+let lastTab: Tab = 'diagrams'
 
 export function FilePanel({ onClose }: { onClose: () => void }) {
   const {
@@ -22,7 +30,43 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
     clearError,
     loading,
     importing,
+    config,
   } = useDiagramContext()
+  const provider = config?.bindings?.provider ?? ''
+  const schemesOn = !!provider && !!config?.bindings?.schemes
+  const [tab, setTabState] = useState<Tab>(lastTab)
+  const setTab = (next: Tab) => {
+    lastTab = next
+    setTabState(next)
+  }
+  const shownTab = schemesOn ? tab : 'diagrams'
+  // Whether each linked scheme of the listed folder still exists; null before the first answer, 'unknown' when it
+  // can't be told.
+  const [exist, setExist] = useState<Record<string, boolean> | 'unknown' | null>(null)
+  // The previous answer stays until the new one arrives, so a re-listing doesn't flicker.
+  useEffect(() => {
+    if (!schemesOn) return
+    const refs = diagrams.filter(d => !d.isDir && d.scheme?.source === provider).map(d => d.scheme!.ref)
+    if (refs.length === 0) {
+      setExist(null)
+      return
+    }
+    let live = true
+    api.schemesExist(refs).then(
+      e => live && setExist(e),
+      () => live && setExist('unknown'),
+    )
+    return () => {
+      live = false
+    }
+  }, [diagrams, schemesOn, provider])
+
+  function schemeStatus(d: DiagramEntry): SchemeStatus | null {
+    if (!schemesOn || !d.scheme || d.scheme.source !== provider || !d.schemeStatus) return null
+    if (exist === 'unknown') return 'unknown'
+    if (exist && exist[d.scheme.ref] === false) return 'missing'
+    return d.schemeStatus
+  }
   const [newDialogOpen, setNewDialogOpen] = useState(false)
   const [folderAction, setFolderAction] = useState<FolderAction | null>(null)
   const [busy, setBusy] = useState(false)
@@ -43,7 +87,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
   }
 
   // Rename and Delete for one row, shown while the row is hovered or one of them has focus.
-  function rowActions(path: string, isDir: boolean) {
+  function rowActions(path: string, isDir: boolean, entry?: DiagramEntry) {
     const disabled = busy || loading !== null || importing !== null
     const cls =
       'p-1 text-gray-400 hover:text-gray-100 opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:hidden'
@@ -62,7 +106,7 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
           type="button"
           title={t('file.delete')}
           disabled={disabled}
-          onClick={() => setFolderAction({ kind: 'delete', path, isDir })}
+          onClick={() => setFolderAction({ kind: 'delete', path, isDir, scheme: entry?.scheme })}
           className={cls}
         >
           <Trash2 size={12} />
@@ -99,6 +143,27 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
           {folderAction && <FolderActionDialog action={folderAction} onClose={() => setFolderAction(null)} />}
         </section>
 
+        {schemesOn && (
+          <div role="tablist" className="flex border-b border-surface-600 text-xs">
+            {(['diagrams', 'schemes'] as const).map(id => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={shownTab === id}
+                onClick={() => setTab(id)}
+                className={`px-3 py-1 -mb-px border-b-2 ${
+                  shownTab === id ? 'border-accent text-gray-100' : 'border-transparent text-gray-400 hover:text-gray-200'
+                }`}
+              >
+                {t(id === 'diagrams' ? 'schemes.tabDiagrams' : 'schemes.tabSchemes')}
+              </button>
+            ))}
+          </div>
+        )}
+        {shownTab === 'schemes' && <SchemesView provider={provider} />}
+
+        {shownTab === 'diagrams' && (
         <section>
           <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{t('file.open')}</h3>
           <p className="text-[11px] text-gray-500 mb-1 truncate">
@@ -146,17 +211,19 @@ export function FilePanel({ onClose }: { onClose: () => void }) {
                     type="button"
                     disabled={busy || loading !== null || importing !== null}
                     onClick={() => run(() => openDiagram(joinDiagramPath(currentDir, d.name)))}
-                    className="flex-1 min-w-0 text-left px-2 py-1 text-xs truncate"
+                    className="flex-1 min-w-0 flex items-center gap-1.5 text-left px-2 py-1 text-xs"
                     title={d.name}
                   >
-                    {d.name}
+                    <span className="truncate">{d.name}</span>
+                    {schemeStatus(d) && <SchemeStatusIcon status={schemeStatus(d)!} scheme={d.scheme!.ref} />}
                   </button>
-                  {rowActions(joinDiagramPath(currentDir, d.name), false)}
+                  {rowActions(joinDiagramPath(currentDir, d.name), false, d)}
                 </li>
               ),
             )}
           </ul>
         </section>
+        )}
 
         <section>
           <h3 className="text-xs uppercase tracking-wide text-gray-400 mb-1">{t('file.import')}</h3>

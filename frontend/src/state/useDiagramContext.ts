@@ -3,6 +3,8 @@ import type {
   CimHeader,
   CimSameVoltageTransformer,
   Diagram,
+  SchemeRef,
+  SchemeCandidate,
   DiagramEntry,
   CustomElement,
   ElementSymbol,
@@ -101,6 +103,13 @@ export type UnsavedChoice = 'save' | 'discard' | 'cancel'
 // The four selectable kinds a mixed multi-selection can hold — matches
 // Render/RenderFragments' own data-editor-kind values ("digitaldevice",
 // not "digitalDevice").
+/** Schemes offered for linking the diagram name, imported from the file source. */
+export interface SchemeOffer {
+  name: string
+  source: string
+  candidates: SchemeCandidate[]
+}
+
 export type SelectionKind = 'element' | 'connector' | 'label' | 'digitaldevice'
 
 export interface DiagramContextValue {
@@ -187,6 +196,10 @@ export interface DiagramContextValue {
   // single-item select* functions.
   selectMany: (entries: Map<number, SelectionKind>) => void
 
+  // After an .xsde import, the schemes proposed for the imported diagram (null when none or dismissed).
+  schemeOffer: SchemeOffer | null
+  dismissSchemeOffer: () => void
+
   // The last voltage class the user picked in Properties (or Settings, or
   // the New Diagram dialog), remembered for the lifetime of the session
   // (not persisted itself — see Diagram.editor.defaultVoltage for the
@@ -221,7 +234,13 @@ export interface DiagramContextValue {
   // newDiagram, openDiagram and importDiagramFile first ask (unsavedPrompt)
   // when the open diagram has unsaved edits; newDiagram resolves false when
   // that was cancelled.
-  newDiagram: (name: string, width?: number, height?: number, defaultVoltageName?: string) => Promise<boolean>
+  newDiagram: (
+    name: string,
+    width?: number,
+    height?: number,
+    defaultVoltageName?: string,
+    scheme?: SchemeRef,
+  ) => Promise<boolean>
   openDiagram: (name: string) => Promise<void>
   // Parses a .xsld file's own text — or reconstructs a diagram from an
   // xsde2svg-style .svg's (lib/importDiagram's prepareImport) — and makes it

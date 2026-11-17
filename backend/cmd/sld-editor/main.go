@@ -108,6 +108,9 @@ func main() {
 	if err != nil {
 		llog.Logger.Fatalf("opening diagrams directory (%s): %v", cfg.Diagrams.Dir, err)
 	}
+	for _, w := range store.IndexWarnings() {
+		llog.Logger.Warnf("scheme links: %s", w)
+	}
 
 	custom, err := storage.New(cfg.CustomElements.Dir, symbols, cfg.Indicators.DefaultFPIText, fpiColors, stateColors...)
 	if err != nil {

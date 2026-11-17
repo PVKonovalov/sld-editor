@@ -241,11 +241,46 @@ export interface Binding {
   uid?: string
 }
 
-// Matches slddoc.SchemeRef: the provider's scheme a diagram is exported to.
+// Matches slddoc.SchemeRef: the provider's scheme a diagram is linked and exported to; exported (RFC 3339) is when
+// it was last exported, absent = never.
 export interface SchemeRef {
   source: string
   ref: string
+  exported?: string
 }
+
+// Matches binding.SchemeGroup: a folder of the provider's schemes; parent absent for a root group.
+export interface SchemeGroup {
+  id: string
+  parent?: string
+  name: string
+}
+
+// Matches binding.Scheme: a provider's scheme; diagram is the editor diagram linked to it.
+export interface ProviderScheme {
+  ref: string
+  group: string
+  name: string
+  type?: string
+  fileName?: string
+  updated?: string
+  diagram?: string
+}
+
+export interface SchemeTree {
+  groups: SchemeGroup[]
+  schemes: ProviderScheme[]
+}
+
+// Matches binding.Candidate: a scheme proposed for a diagram; 'path' when its file name matches the diagram's path,
+// 'name' when only the base name matches (ambiguous).
+export interface SchemeCandidate extends ProviderScheme {
+  match: 'path' | 'name'
+}
+
+// A diagram's link to a scheme as the file list shows it: the first three from the server (storage.Scheme*), the
+// last two after asking the provider whether the scheme exists.
+export type SchemeStatus = 'linked' | 'exported' | 'changed' | 'missing' | 'unknown'
 
 export interface DiagramElement {
   id: number
@@ -662,6 +697,9 @@ export interface DiagramEntry {
   name: string
   isDir: boolean
   modTime: string
+  // The scheme the diagram is linked to and its status, as the server knows it.
+  scheme?: SchemeRef
+  schemeStatus?: 'linked' | 'exported' | 'changed'
 }
 
 // Matches backend/internal/elements.Symbol. shape is a symbol-library key
@@ -846,6 +884,8 @@ export interface EditorConfig {
 export interface BindingsConfig {
   provider: string
   canExport: boolean
+  // Diagrams can be linked to the provider's schemes.
+  schemes?: boolean
 }
 
 // Matches binding.KindInfo: a binding kind as the provider offers it; an empty name is named by the frontend.

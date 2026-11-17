@@ -16,13 +16,16 @@ import (
 type bindingsConfig struct {
 	Provider  string `json:"provider"`
 	CanExport bool   `json:"canExport"`
+	// Schemes tells that diagrams can be linked to the provider's schemes (binding.Linker).
+	Schemes bool `json:"schemes"`
 }
 
 func (s *Server) bindingsConfig() bindingsConfig {
 	if s.bindings == nil {
 		return bindingsConfig{}
 	}
-	return bindingsConfig{Provider: s.bindings.Name(), CanExport: binding.CanExport(s.bindings, s.cfg.Bindings)}
+	_, linker := s.bindings.(binding.Linker)
+	return bindingsConfig{Provider: s.bindings.Name(), CanExport: binding.CanExport(s.bindings, s.cfg.Bindings), Schemes: linker}
 }
 
 // bindingRoutes registers /api/bindings/* on grp; called only with a provider configured.
@@ -36,6 +39,9 @@ func (s *Server) bindingRoutes(grp *gin.RouterGroup) {
 	b.GET("/object", s.getBindingObject)
 	b.POST("/objects", s.resolveBindingObjects)
 	b.POST("/suggest", s.suggestBindings)
+	if l, ok := s.bindings.(binding.Linker); ok {
+		s.schemeRoutes(b, l)
+	}
 }
 
 // suggestBindings answers {bindings} the provider proposes for the body's {ref, element} (automatic binding).
