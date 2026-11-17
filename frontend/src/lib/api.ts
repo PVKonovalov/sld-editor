@@ -1,5 +1,8 @@
 import type {
+  Binding,
   BindingDictionaries,
+  BindingResolved,
+  BindingResolveResult,
   BindingNode,
   BindingObject,
   BindingSearchResult,
@@ -414,6 +417,26 @@ export async function searchBindings(section: string, q: string, limit?: number)
   if (limit) params.set('limit', String(limit))
   const res = await fetch(`${BASE}/bindings/search?${params}`)
   return asJSON(res)
+}
+
+/** The object ref with the binding kind and option the provider suggests for it. */
+export async function resolveBinding(ref: string): Promise<BindingResolved> {
+  const res = await fetch(`${BASE}/bindings/object?${new URLSearchParams({ ref })}`)
+  return asJSON(res)
+}
+
+/** Every ref resolved at once: the objects found, and the refs that don't exist or can't be bound. */
+export async function resolveBindings(refs: string[]): Promise<BindingResolveResult> {
+  const res = await fetch(`${BASE}/bindings/objects`, await jsonBody('POST', { refs }))
+  return asJSON(res)
+}
+
+/** The bindings the provider proposes for binding object ref to an element automatically (none when it proposes
+ * nothing for that object). */
+export async function suggestBindings(ref: string, element: { shape: string; class: string }): Promise<Binding[]> {
+  const res = await fetch(`${BASE}/bindings/suggest`, await jsonBody('POST', { ref, element }))
+  const body: { bindings: Binding[] } = await asJSON(res)
+  return body.bindings ?? []
 }
 
 /** The drag data type of an object dragged from the Objects panel; its value is a JSON DraggedObject. */

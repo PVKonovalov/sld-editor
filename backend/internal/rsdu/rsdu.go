@@ -6,8 +6,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/PVKonovalov/slddoc"
-
 	"sld-editor/internal/binding"
 	"sld-editor/internal/config"
 )
@@ -22,9 +20,11 @@ type Provider struct {
 	d      Dialect
 	read   Querier
 	tables *tables
+	infos  tableInfos
 
-	mu   sync.Mutex
-	dict *dictionaries
+	mu    sync.Mutex
+	dict  *dictionaries
+	model *model
 }
 
 // New builds the provider from cfg.RSDU without connecting to the database.
@@ -43,12 +43,16 @@ func newProvider(cfg config.RSDUBindings, d Dialect, q Querier) *Provider {
 
 func (p *Provider) Name() string { return config.ProviderRSDU }
 
-// Refresh drops the cached dictionaries and column dictionary.
+// Refresh drops the cached dictionaries, type model, column dictionary and table information.
 func (p *Provider) Refresh() {
 	p.mu.Lock()
 	p.dict = nil
+	p.model = nil
 	p.mu.Unlock()
 	p.tables.reset()
+	p.infos.mu.Lock()
+	p.infos.m = nil
+	p.infos.mu.Unlock()
 }
 
 func (p *Provider) dictionaries(ctx context.Context) (*dictionaries, error) {
@@ -71,12 +75,4 @@ func (p *Provider) Dictionaries(ctx context.Context) (*binding.Dictionaries, err
 		return nil, err
 	}
 	return &dict.public, nil
-}
-
-func (p *Provider) Resolve(context.Context, string) (*binding.Object, error) {
-	return nil, binding.ErrNotImplemented
-}
-
-func (p *Provider) Suggest(context.Context, string, string) ([]slddoc.Binding, error) {
-	return nil, binding.ErrNotImplemented
 }

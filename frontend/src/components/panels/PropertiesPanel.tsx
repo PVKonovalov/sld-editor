@@ -977,6 +977,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           <LayerSelect layers={diagram.layers} value={digitalDevice.layer} onChange={layer => moveItemToLayer(digitalDevice.id, 'digitaldevice', layer)} />
           <BindingsSection
             provider={bindingProvider}
+            target={{ kind: 'digitaldevice', id: digitalDevice.id }}
             bindings={digitalDevice.bindings}
             precision={digitalDevice.precision}
             features={digitalDevice.features}
@@ -1169,6 +1170,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
         <MridRow key={el.mrid} mrid={el.mrid} />
         <BindingsSection
           provider={bindingProvider}
+          target={{ kind: 'element', id: el.id }}
           bindings={el.bindings}
           precision={el.precision}
           features={el.features}

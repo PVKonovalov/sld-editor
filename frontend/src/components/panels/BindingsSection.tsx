@@ -1,10 +1,34 @@
-import { useState } from 'react'
-import { Lock } from 'lucide-react'
+import { useEffect, useState, type DragEvent, type ReactNode } from 'react'
+import { Loader2, Lock, RefreshCw, X } from 'lucide-react'
 import { GroupHeader } from './GroupHeader'
 import { t, type TranslationKey } from '../../i18n'
-import type { Binding, BindingKind, SchemeRef } from '../../types'
+import * as api from '../../lib/api'
+import * as diagramOps from '../../lib/diagramOps'
+import type { BindingTarget, StaleBinding } from '../../lib/diagramOps'
+import { draggedObject, isObjectDrag, optionFor, useBindingDictionaries } from '../../lib/bindingDictionaries'
+import { useDiagramContext } from '../../state/useDiagramContext'
+import type { Binding, BindingDictionaries, BindingKind, SchemeRef } from '../../types'
 
 const KINDS: BindingKind[] = ['equipment', 'meas1', 'meas2', 'jump']
+
+// Whether the Bindings groups are collapsed, kept while the selection changes.
+let collapsedState = true
+
+function useCollapsed(): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState(collapsedState)
+  return [
+    collapsed,
+    () =>
+      setCollapsed(c => {
+        collapsedState = !c
+        return !c
+      }),
+  ]
+}
+
+function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
 
 function SourceTag({ source }: { source: string }) {
   return (
@@ -24,77 +48,436 @@ function Detail({ label, value }: { label: string; value?: string | number }) {
   )
 }
 
-/** One binding (or "—" for none) under its title: name (else ref) with the source tag, then type, option, scale.
- * A binding of a provider other than the active one gets a lock: it is kept but can't be edited or exported. */
-export function BindingRow({ title, binding, provider }: { title: string; binding?: Binding; provider: string }) {
-  const foreign = binding !== undefined && binding.source !== provider
+/** The provider's options as a combo grouped by global type; a value the dictionaries don't know is kept as is. */
+export function OptionSelect({
+  dict,
+  value,
+  onChange,
+  className = '',
+}: {
+  dict: BindingDictionaries | null
+  value?: string
+  onChange: (alias: string) => void
+  className?: string
+}) {
+  const groups = new Map<string, { name: string; options: BindingDictionaries['options'] }>()
+  for (const o of dict?.options ?? []) {
+    const key = o.group ?? ''
+    if (!groups.has(key)) groups.set(key, { name: o.groupName || o.group || '', options: [] })
+    groups.get(key)!.options.push(o)
+  }
+  const known = dict?.options.some(o => o.alias === value)
   return (
-    <div className="text-xs">
-      <span className="block text-gray-400 mb-0.5">{title}</span>
-      {binding ? (
-        <div className="rounded border border-surface-600 bg-surface-800 px-2 py-1 space-y-0.5">
-          <div className="flex items-center gap-1" title={binding.ref}>
-            <span className="flex-1 truncate text-gray-200">{binding.name || binding.ref}</span>
-            {foreign && (
-              <span title={t('bindings.otherSource', { source: binding.source })} className="text-gray-400">
-                <Lock size={12} aria-label={t('bindings.otherSource', { source: binding.source })} />
-              </span>
+    <select
+      value={value ?? ''}
+      onChange={e => onChange(e.target.value)}
+      className={`bg-surface-800 border border-surface-600 rounded px-1 py-0.5 text-[11px] text-gray-200 ${className}`}
+    >
+      {!value && <option value="">—</option>}
+      {value && !known && <option value={value}>{value}</option>}
+      {[...groups.values()].map(g => (
+        <optgroup key={g.name} label={g.name}>
+          {g.options.map(o => (
+            <option key={o.alias} value={o.alias} title={o.alias}>
+              {o.name || o.alias}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
+  )
+}
+
+/** A whole number field committed on Enter or blur; check returns whether a value is allowed. */
+function IntField({
+  value,
+  check,
+  onCommit,
+  title,
+}: {
+  value: number
+  check: (n: number) => boolean
+  onCommit: (n: number) => void
+  title?: string
+}) {
+  const [text, setText] = useState(String(value))
+  useEffect(() => setText(String(value)), [value])
+  const n = Number(text.trim())
+  const valid = text.trim() !== '' && Number.isInteger(n) && check(n)
+  const commit = () => {
+    if (valid && n !== value) onCommit(n)
+    else if (!valid) setText(String(value))
+  }
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={text}
+      title={title}
+      onChange={e => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={e => {
+        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+        if (e.key === 'Escape') setText(String(value))
+      }}
+      className={`w-14 bg-surface-800 border rounded px-1 py-0.5 text-[11px] text-gray-200 ${
+        valid ? 'border-surface-600' : 'border-red-500'
+      }`}
+    />
+  )
+}
+
+/** A drop zone for Objects-panel objects of the active provider: onObject gets the dragged ref. */
+function useObjectDrop(enabled: boolean, provider: string, onObject: (ref: string) => void) {
+  const [over, setOver] = useState(false)
+  if (!enabled) return { over: false, props: {} }
+  return {
+    over,
+    props: {
+      onDragOver: (e: DragEvent) => {
+        if (!isObjectDrag(e.dataTransfer)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        setOver(true)
+      },
+      onDragLeave: () => setOver(false),
+      onDrop: (e: DragEvent) => {
+        setOver(false)
+        const obj = draggedObject(e.dataTransfer)
+        if (!obj) return
+        e.preventDefault()
+        if (obj.source === provider) onObject(obj.ref)
+      },
+    },
+  }
+}
+
+/** One binding (or "—" for none) under its title. Editable (option, scale, remove, drop an object to rebind) when
+ * it is of the active provider; a binding of another provider gets a lock and stays read-only. */
+function BindingRow({
+  title,
+  binding,
+  provider,
+  dict,
+  editable,
+  busy,
+  error,
+  onDropRef,
+  onOption,
+  onScale,
+  onRemove,
+}: {
+  title: string
+  binding?: Binding
+  provider: string
+  dict: BindingDictionaries | null
+  editable: boolean
+  busy?: boolean
+  error?: string | null
+  onDropRef?: (ref: string) => void
+  onOption?: (alias: string) => void
+  onScale?: (scale: number) => void
+  onRemove?: () => void
+}) {
+  const foreign = binding !== undefined && binding.source !== provider
+  const canEdit = editable && !foreign
+  const drop = useObjectDrop(editable && !!onDropRef, provider, ref => onDropRef?.(ref))
+  return (
+    <div className="text-xs" {...drop.props}>
+      <span className="flex items-center gap-1 text-gray-400 mb-0.5">
+        {title}
+        {busy && <Loader2 size={11} className="animate-spin" />}
+      </span>
+      <div
+        className={`rounded border px-2 py-1 space-y-0.5 ${
+          drop.over ? 'border-accent bg-accent/10' : binding ? 'border-surface-600 bg-surface-800' : 'border-dashed border-surface-600'
+        }`}
+      >
+        {binding ? (
+          <>
+            <div className="flex items-center gap-1" title={binding.ref}>
+              <span className="flex-1 truncate text-gray-200">{binding.name || binding.ref}</span>
+              {foreign && (
+                <span title={t('bindings.otherSource', { source: binding.source })} className="text-gray-400">
+                  <Lock size={12} aria-label={t('bindings.otherSource', { source: binding.source })} />
+                </span>
+              )}
+              <SourceTag source={binding.source} />
+              {canEdit && onRemove && (
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  title={t('bindings.remove')}
+                  aria-label={t('bindings.remove')}
+                  className="text-gray-400 hover:text-red-300"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+            <Detail label={t('bindings.type')} value={binding.type} />
+            {canEdit && onOption ? (
+              <label className="flex items-center gap-1 text-[11px]">
+                <span className="text-gray-500 w-14 shrink-0">{t('bindings.option')}:</span>
+                <OptionSelect dict={dict} value={binding.option} onChange={onOption} className="flex-1 min-w-0" />
+              </label>
+            ) : (
+              <Detail label={t('bindings.option')} value={binding.option} />
             )}
-            <SourceTag source={binding.source} />
-          </div>
-          <Detail label={t('bindings.type')} value={binding.type} />
-          <Detail label={t('bindings.option')} value={binding.option} />
-          <Detail label={t('bindings.scale')} value={binding.scale || 1} />
-        </div>
-      ) : (
-        <span className="block text-gray-500 px-2">—</span>
-      )}
+            {canEdit && onScale ? (
+              <label className="flex items-center gap-1 text-[11px]">
+                <span className="text-gray-500 w-14 shrink-0">{t('bindings.scale')}:</span>
+                <IntField value={binding.scale || 1} check={n => n !== 0} onCommit={onScale} title={t('bindings.scaleHint')} />
+              </label>
+            ) : (
+              onScale !== undefined || binding.scale ? <Detail label={t('bindings.scale')} value={binding.scale || 1} /> : null
+            )}
+          </>
+        ) : (
+          <span className="block text-gray-500 text-[11px]">{editable ? t('bindings.dropHere') : '—'}</span>
+        )}
+      </div>
+      {error && <p className="mt-0.5 text-[11px] text-red-300 break-words">{error}</p>}
     </div>
   )
 }
 
-/** The read-only Bindings group of a selected element or digital device; nothing when bindings are off (provider
- * "") or it has no binding, precision or features. */
+/** The Features checkboxes: a comma-separated list of the provider's feature aliases; unknown aliases are kept. */
+function FeaturesField({ dict, value, onChange }: { dict: BindingDictionaries; value?: string; onChange: (v: string) => void }) {
+  const set = new Set((value ?? '').split(',').map(s => s.trim()).filter(Boolean))
+  return (
+    <div className="space-y-0.5">
+      {dict.features.map(f => (
+        <label key={f.alias} className="flex items-center gap-1.5 text-[11px] text-gray-300" title={f.alias}>
+          <input
+            type="checkbox"
+            checked={set.has(f.alias)}
+            onChange={e => {
+              const next = new Set(set)
+              if (e.target.checked) next.add(f.alias)
+              else next.delete(f.alias)
+              onChange([...next].join(','))
+            }}
+          />
+          {f.name || f.alias}
+        </label>
+      ))}
+    </div>
+  )
+}
+
+/** "Remove all", asking once more before it acts. */
+function RemoveAll({ onRemove }: { onRemove: () => void }) {
+  const [asking, setAsking] = useState(false)
+  if (!asking) {
+    return (
+      <button type="button" onClick={() => setAsking(true)} className="text-[11px] text-red-300 hover:underline">
+        {t('bindings.removeAll')}
+      </button>
+    )
+  }
+  return (
+    <div className="flex items-center gap-2 text-[11px]">
+      <span className="text-gray-300">{t('bindings.removeAllConfirm')}</span>
+      <button
+        type="button"
+        onClick={() => {
+          setAsking(false)
+          onRemove()
+        }}
+        className="rounded bg-red-900 px-1.5 text-red-100 hover:bg-red-800"
+      >
+        {t('bindings.removeAllYes')}
+      </button>
+      <button type="button" onClick={() => setAsking(false)} className="text-gray-400 hover:text-white">
+        {t('common.cancel')}
+      </button>
+    </div>
+  )
+}
+
+/** The Bindings group of a selected element or digital device; nothing when bindings are off (provider ""). Every
+ * kind can be bound by dropping an Objects-panel object on its row. */
 export function BindingsSection({
   provider,
+  target,
   bindings,
   precision,
   features,
 }: {
   provider: string
+  target: BindingTarget
   bindings?: Binding[]
   precision?: number
   features?: string
 }) {
-  const [collapsed, setCollapsed] = useState(true)
-  if (!provider || (!bindings?.length && !precision && !features)) return null
+  const { updateDiagram } = useDiagramContext()
+  const [collapsed, toggle] = useCollapsed()
+  const { dict, error: dictError } = useBindingDictionaries(!!provider && !collapsed)
+  const [busy, setBusy] = useState<BindingKind | null>(null)
+  const [dropError, setDropError] = useState<{ kind: BindingKind; error: string } | null>(null)
+  useEffect(() => setDropError(null), [target.kind, target.id])
+  if (!provider) return null
+
+  const own = bindings?.filter(b => b.source === provider) ?? []
+  function bindRef(kind: BindingKind, ref: string) {
+    setBusy(kind)
+    setDropError(null)
+    api.resolveBinding(ref).then(
+      obj => {
+        setBusy(null)
+        updateDiagram(d => diagramOps.setItemBinding(d, target, diagramOps.bindingFromResolved(provider, obj, kind, optionFor(kind, obj, dict))))
+      },
+      e => {
+        setBusy(null)
+        setDropError({ kind, error: t('bindings.resolveFailed', { error: errorText(e) }) })
+      },
+    )
+  }
+
   return (
     <div>
-      <GroupHeader
-        label={t('bindings.title')}
-        collapsed={collapsed}
-        onToggle={() => setCollapsed(c => !c)}
-        topic="properties-bindings"
-      />
+      <GroupHeader label={t('bindings.title')} collapsed={collapsed} onToggle={toggle} topic="properties-bindings" />
       {!collapsed && (
         <div className="space-y-2">
+          {dictError && <p className="text-[11px] text-red-300">{t('bindings.dictionariesFailed', { error: dictError })}</p>}
           {KINDS.map(kind => (
             <BindingRow
               key={kind}
               title={t(`bindings.kind.${kind}` as TranslationKey)}
               binding={bindings?.find(b => b.kind === kind)}
               provider={provider}
+              dict={dict}
+              editable
+              busy={busy === kind}
+              error={dropError?.kind === kind ? dropError.error : null}
+              onDropRef={ref => bindRef(kind, ref)}
+              onOption={option => updateDiagram(d => diagramOps.updateItemBinding(d, target, kind, { option }))}
+              onScale={scale => updateDiagram(d => diagramOps.updateItemBinding(d, target, kind, { scale }))}
+              onRemove={() => updateDiagram(d => diagramOps.removeItemBinding(d, target, kind))}
             />
           ))}
-          <Detail label={t('bindings.precision')} value={precision || undefined} />
-          <Detail label={t('bindings.features')} value={features} />
+          <label className="flex items-center gap-1 text-xs">
+            <span className="text-gray-400 flex-1">{t('bindings.precision')}</span>
+            <IntField
+              value={precision ?? 0}
+              check={n => n >= 0 && n <= 10}
+              onCommit={n => updateDiagram(d => diagramOps.setItemBindingExtras(d, target, { precision: n }))}
+              title={t('bindings.precisionHint')}
+            />
+          </label>
+          <div className="text-xs">
+            <span className="block text-gray-400 mb-0.5">{t('bindings.features')}</span>
+            {dict ? (
+              <FeaturesField
+                dict={dict}
+                value={features}
+                onChange={v => updateDiagram(d => diagramOps.setItemBindingExtras(d, target, { features: v }))}
+              />
+            ) : (
+              <Detail label={t('bindings.features')} value={features} />
+            )}
+          </div>
+          {(own.length > 0 || !!precision || !!features) && (
+            <RemoveAll onRemove={() => updateDiagram(d => diagramOps.removeAllItemBindings(d, target, provider))} />
+          )}
         </div>
       )}
     </div>
   )
 }
 
-/** The diagram's own scheme and bound object, read-only; nothing when bindings are off or it has neither. */
+function staleLabel(s: StaleBinding, elementName: (id: number) => string): string {
+  if (!s.target) return t('bindings.object')
+  const item = s.target.kind === 'element' ? elementName(s.target.id) : t('bindings.staleDigitalDevice', { id: s.target.id })
+  return `${item} · ${t(`bindings.kind.${s.kind}` as TranslationKey)}`
+}
+
+/** Refresh bindings: re-reads every binding of the active provider and updates what it caches (one undo step),
+ * then reports the bindings whose object is gone. */
+function RefreshBindings({ provider }: { provider: string }) {
+  const { diagram, updateDiagram, selectElement, selectDigitalDevice } = useDiagramContext()
+  const [state, setState] = useState<
+    { status: 'idle' } | { status: 'busy' } | { status: 'error'; error: string } | { status: 'done'; updated: number; total: number; stale: StaleBinding[] }
+  >({ status: 'idle' })
+  if (!diagram) return null
+
+  function run() {
+    const refs = diagramOps.bindingRefs(diagram!, provider)
+    if (refs.length === 0) {
+      setState({ status: 'done', updated: 0, total: 0, stale: [] })
+      return
+    }
+    setState({ status: 'busy' })
+    api.resolveBindings(refs).then(
+      res => {
+        let report = { updated: 0, stale: [] as StaleBinding[] }
+        updateDiagram(d => {
+          const r = diagramOps.refreshBindings(d, provider, res.objects, res.missing)
+          report = { updated: r.updated, stale: r.stale }
+          return r.diagram
+        })
+        setState({ status: 'done', total: refs.length, ...report })
+      },
+      e => setState({ status: 'error', error: errorText(e) }),
+    )
+  }
+
+  const elementName = (id: number) => {
+    const el = diagram.elements.find(e => e.id === id)
+    return el?.name ? `${el.name} (${id})` : t('bindings.staleElement', { id })
+  }
+  let body: ReactNode = null
+  if (state.status === 'error') body = <p className="text-[11px] text-red-300 break-words">{t('bindings.refreshFailed', { error: state.error })}</p>
+  if (state.status === 'done') {
+    body = (
+      <div className="space-y-1 text-[11px]">
+        <p className="text-gray-300">
+          {t('bindings.refreshDone', { total: state.total, updated: state.updated, missing: state.stale.length })}
+        </p>
+        {state.stale.length > 0 && (
+          <ul className="space-y-0.5">
+            {state.stale.map((s, i) => (
+              <li key={i} className="flex items-center gap-1">
+                <span className="flex-1 truncate text-amber-300" title={s.ref}>
+                  {staleLabel(s, elementName)}
+                </span>
+                <span className="font-mono text-gray-500">{s.ref}</span>
+                {s.target && (
+                  <button
+                    type="button"
+                    onClick={() => (s.target!.kind === 'element' ? selectElement(s.target!.id) : selectDigitalDevice(s.target!.id))}
+                    className="text-accent hover:underline"
+                  >
+                    {t('bindings.staleSelect')}
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        onClick={run}
+        disabled={state.status === 'busy'}
+        title={t('bindings.refreshHint')}
+        className="flex items-center gap-1.5 rounded bg-surface-600 px-2 py-1 text-xs text-gray-100 hover:bg-surface-500 disabled:opacity-60"
+      >
+        {state.status === 'busy' ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+        {t('bindings.refresh')}
+      </button>
+      {body}
+    </div>
+  )
+}
+
+/** The diagram's scheme (read-only) and the object the whole diagram is bound to, set by dropping an Objects-panel
+ * object on its row; Refresh bindings for every binding of the diagram. Nothing when bindings are off. */
 export function DiagramBindingsSection({
   provider,
   scheme,
@@ -104,16 +487,30 @@ export function DiagramBindingsSection({
   scheme?: SchemeRef
   object?: Binding
 }) {
-  const [collapsed, setCollapsed] = useState(true)
-  if (!provider || (!scheme && !object)) return null
+  const { updateDiagram } = useDiagramContext()
+  const [collapsed, toggle] = useCollapsed()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  if (!provider) return null
+
+  function bindRef(ref: string) {
+    setBusy(true)
+    setError(null)
+    api.resolveBinding(ref).then(
+      obj => {
+        setBusy(false)
+        updateDiagram(d => diagramOps.setDiagramObject(d, diagramOps.bindingFromResolved(provider, obj, 'equipment')))
+      },
+      e => {
+        setBusy(false)
+        setError(t('bindings.resolveFailed', { error: errorText(e) }))
+      },
+    )
+  }
+
   return (
     <div>
-      <GroupHeader
-        label={t('bindings.title')}
-        collapsed={collapsed}
-        onToggle={() => setCollapsed(c => !c)}
-        topic="properties-bindings"
-      />
+      <GroupHeader label={t('bindings.title')} collapsed={collapsed} onToggle={toggle} topic="properties-bindings" />
       {!collapsed && (
         <div className="space-y-2">
           <div className="text-xs">
@@ -132,7 +529,18 @@ export function DiagramBindingsSection({
               <span className="block text-gray-500 px-2">—</span>
             )}
           </div>
-          <BindingRow title={t('bindings.object')} binding={object} provider={provider} />
+          <BindingRow
+            title={t('bindings.object')}
+            binding={object}
+            provider={provider}
+            dict={null}
+            editable
+            busy={busy}
+            error={error}
+            onDropRef={bindRef}
+            onRemove={() => updateDiagram(d => diagramOps.setDiagramObject(d, undefined))}
+          />
+          <RefreshBindings provider={provider} />
         </div>
       )}
     </div>

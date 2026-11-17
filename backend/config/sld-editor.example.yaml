@@ -359,15 +359,31 @@ bindings:
   provider: ""
   # rsdu:
   #   driver: oracle          # oracle | postgres
-  #   schema: rsduadmin
+  #   schema: rsduadmin       # schema (owner) of the RSDU tables, not the database
   #   read:                   # same fields as an entry of ctrlroom's database.dsn
   #     host: 127.0.0.1
   #     port: 1521
   #     user: ""              # from .env: BINDINGS_RSDU_READ_USER
   #     password: ""          # from .env: BINDINGS_RSDU_READ_PASSWORD
-  #     sid: RSDU             # Oracle SID; or database: (service name / PostgreSQL database)
+  #     sid: RSDU             # Oracle: the instance SID; or database: the service name
   #   write: {}               # optional; without it export to RSDU is off
   #   scheme_type: 0          # VS_FORM.ID_TYPE / VS_TCOMP.ID_DTYP of exported schemes
   #   svg:
   #     dir: ""               # where ctrlroom reads scheme SVGs (its backend.path_to_sld)
   #     full_path: true       # as ctrlroom's backend.use_full_path_for_sld
+  #
+  # The same for PostgreSQL: only driver, port and the database name differ.
+  # rsdu:
+  #   driver: postgres
+  #   schema: rsduadmin       # a schema inside the database below
+  #   read:
+  #     host: 127.0.0.1
+  #     port: 5432
+  #     user: ""              # from .env: BINDINGS_RSDU_READ_USER
+  #     password: ""          # from .env: BINDINGS_RSDU_READ_PASSWORD
+  #     database: rsdu        # PostgreSQL: the database name
+  #   write: {}
+  #   scheme_type: 0
+  #   svg:
+  #     dir: ""
+  #     full_path: true

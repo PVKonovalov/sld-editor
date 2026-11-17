@@ -894,8 +894,8 @@ nothing else needs to be installed or started.
   in the SCADA system. Expanded sections stay expanded.
 - **Errors**: when the database can't be reached, the panel shows the message where the data should be, with a
   **Retry** button.
-- **Dragging**: sections, catalog nodes, objects and search matches can be dragged. Dropping them onto the diagram to
-  bind an item comes in a later version.
+- **Dragging**: sections, catalog nodes, objects and search matches can be dragged. Drop one on an element or digital device to
+  bind it (see [Binding an object](#binding-objects)).
 
 The panel keeps its tree, selection and search while you switch to another panel.
 
@@ -955,10 +955,9 @@ piece keeps the parameters and the new piece starts empty.
 ### Bindings {#properties-bindings}
 
 A device or digital device can be bound to objects of a SCADA system (for example RSDU). The collapsible **Bindings**
-group in Properties shows these bindings. It appears only when bindings are turned on in the configuration (see
-[Bindings](#configuration-bindings)) and the item has a binding, a precision or features. For now it is read-only:
-bindings come with the diagram file. With bindings off the group is hidden, but bindings stored in a diagram are kept
-when it is saved.
+group in Properties shows and edits these bindings. It appears only when bindings are turned on in the configuration
+(see [Bindings](#configuration-bindings)). With bindings off the group is hidden, but bindings stored in a diagram are
+kept when it is saved.
 
 | Row | What it binds |
 |---|---|
@@ -967,14 +966,84 @@ when it is saved.
 | Additional parameters | a second value |
 | Jumps | a scheme, panel or report opened from the item |
 
-Each row shows the object's name (its key when the name is unknown; hover to see the key), its type, the **Option**
-(how the value is read) and the **Scale** (1 when unset; a negative scale inverts a discrete value), with the
-system's name as a tag. An empty row shows "—". A binding made with another system than the configured one shows a
-lock: it is kept, but can't be edited or exported. **Precision** is the number of decimal places of a shown value and
-**Features** are the system's display features.
+Each row shows the bound object's name (its key when the name is unknown; hover to see the key), its type and the
+system's name as a tag, and lets you change:
+
+- **Option**: how the value is read, from the system's list (grouped by kind of value).
+- **Scale**: a whole number other than 0; 1 when unset; a negative scale inverts a discrete value. A value that isn't
+  allowed is marked red and not kept. Press Enter or leave the field to apply it.
+- **×** removes that binding.
+
+An empty row reads "Drop an object here from the Objects panel". Dropping an object on a row binds it as that row's
+kind (see [Binding an object](#binding-objects)). A binding made with another system than the configured one shows a
+lock: it is kept, but can't be edited or exported.
+
+Below the rows:
+
+- **Precision**: the number of decimal places of a shown value, 0 to 10 (0 = unset).
+- **Features**: the system's display features; tick the ones the item uses.
+- **Remove all bindings** removes the item's bindings of the configured system, its precision and its features. It
+  asks once more before it acts. Bindings of another system stay.
+
+Every change is one step of [undo](#undo) and is saved with the diagram.
 
 With nothing selected, the **Bindings** group shows the diagram's own **Scheme** (the system's scheme it is exported
-to) and **Object** (the object the whole diagram is bound to), when it has them.
+to, read-only) and **Object**: the object the whole diagram is bound to, for example its substation. Drop an object
+on the **Object** row to set it; **×** clears it. **Refresh bindings** is there too (see
+[Refreshing bindings](#bindings-refresh)).
+
+#### Binding an object {#binding-objects}
+
+Open the [Objects](#objects) panel and find the object in its tree, list or search.
+
+- **Drop it on an element or digital device on the canvas.** The editor selects the item, reads the object from the
+  database and opens **Bind object**. The window shows:
+  - the object's name and type;
+  - **Auto** (chosen when the system proposes anything): every binding the system proposes for the object, as RSDU's
+    scheme editor's automatic choice does, each with a checkbox; untick the ones you don't want. See
+    [Automatic binding](#binding-auto);
+  - or one binding kind, with the system's suggestion marked:
+    - equipment for an object of the equipment tree;
+    - **Jumps** for a scheme, frame, panel or report;
+    - **Parameters** for a measured value;
+  - the **Option**, preset as the system's own scheme editor does: a complex object for equipment and jumps;
+    instantaneous state for a state or enumeration value; instantaneous value otherwise. Choosing another kind resets
+    the option to that kind's default.
+
+  If the item already has a binding of a chosen kind, the window says which one **Bind** replaces. **Bind** writes
+  every chosen binding in one step (one undo reverts it). **Cancel**,
+  Escape or a click outside closes it without a change. Dropping anywhere else on the canvas does nothing.
+- **Drop it on a row of the Bindings group** in Properties to bind it as that row's kind directly, without the
+  window. The option is the suggested one when the kind matches, else the kind's default.
+
+An object that can't be bound (a section of the tree) or can't be read shows the error, and nothing changes.
+
+#### Automatic binding {#binding-auto}
+
+**Auto** proposes what RSDU's scheme editor proposes with its automatic choice ("Автовыбор") for the dropped object:
+
+| Dropped object | Proposed bindings |
+|---|---|
+| a scheme, frame, panel, report or journal (an information view or a device panel) | **Jumps**: the object |
+| a switching device (a breaker, disconnector, grounding switch, recloser… or any switch type) | **Equipment**: the device; **Parameters**: its position; **Additional parameters**: its withdrawable part's position, when it has one |
+| any other equipment | **Equipment**: the object |
+| a switch position measurement | **Parameters**: the measurement; **Equipment**: its device; for a withdrawable device also **Additional parameters**: the withdrawable part's position |
+| the position of a withdrawable part | **Additional parameters**: the measurement; **Equipment**: its device; **Parameters**: the device's position |
+| another measurement | **Parameters**: the measurement |
+
+Measurements get the option by their kind of value (state or enumeration: instantaneous state; otherwise
+instantaneous value), equipment and jumps a complex object. A measurement listed in several measurement lists (for
+example the switch positions and their archive) is taken from the first list, as RSDU's own schemes store it. For
+an object without a type the system knows (for example a data acquisition parameter) **Auto** proposes nothing and
+the window starts with a binding kind instead.
+
+#### Refreshing bindings {#bindings-refresh}
+
+A binding stores the object's name, type and identifier as they were when it was made. **Refresh bindings** (in the
+diagram's Bindings group) reads every object bound in the diagram from the database again and updates them in one
+step (one undo reverts it). It then reports how many objects it checked, how many bindings changed, and the bindings
+whose object no longer exists, with the item and kind. **Select** selects that item to rebind or remove it. Refresh
+never removes a binding.
 
 Copy, paste and Alt-drag keep bindings, precision and features: several pictures may show one object. A
 [custom element](#custom-elements) never has them: saving a selection as a custom element and placing one from the
@@ -1149,7 +1218,7 @@ bindings:
 |---|---|---|
 | `provider` | no | `""` or absent: bindings are off and the editor shows no binding controls. `rsdu`: objects come from an RSDU database. |
 | `rsdu.driver` | with `rsdu` | The RSDU database: `oracle` or `postgres`. |
-| `rsdu.schema` | no | The schema (owner) of RSDU's tables; default `rsduadmin`. Letters, digits, `_` and `$` only. |
+| `rsdu.schema` | no | The schema (owner) of RSDU's tables, not the database; default `rsduadmin`. On PostgreSQL it is a schema inside the database named in `database`. Letters, digits, `_` and `$` only. |
 | `rsdu.read` | with `rsdu` | The connection objects are read through (keys below). |
 | `rsdu.write` | no | The connection diagrams are exported to RSDU through, same keys. Without it export to RSDU is off. It may be the same account as `read`. |
 | `rsdu.scheme_type` | no | The RSDU scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`); 0 or more, default 0. Used by export. |
@@ -1165,14 +1234,15 @@ copied between the two files:
 | `port` | yes | Port, e.g. `1521` (Oracle) or `5432` (PostgreSQL). |
 | `user` | yes | Account name. |
 | `password` | no | Password in plain text; better kept in `.env` (below). |
-| `sid` / `database` | one of them | Oracle: the SID, or the service name in `database`. PostgreSQL: the database in `database`. |
+| `sid` / `database` | one of them | Which database to connect to. Oracle: the SID in `sid`, or the service name in `database`. PostgreSQL: the database name in `database` (a `sid` is taken as the database name when `database` is empty). |
 | `engine` | no | If given, must equal `driver`. |
 | `trace` | no | Accepted for compatibility with ctrlroom. |
 | `password_encrypted` | no | Must be `false`: encrypted passwords are not supported. |
 
-Example:
+Examples, for each database:
 
 ```yaml
+# Oracle: tables of schema rsduadmin, instance SID RSDU
 bindings:
   provider: rsdu
   rsdu:
@@ -1181,7 +1251,24 @@ bindings:
     read:
       host: 10.0.0.5
       port: 1521
-      sid: RSDU
+      sid: RSDU               # or, by service name: database: RSDU
+    scheme_type: 0
+    svg:
+      dir: /opt/ctrlroom/sld
+      full_path: true
+```
+
+```yaml
+# PostgreSQL: tables of schema rsduadmin inside database rsdu
+bindings:
+  provider: rsdu
+  rsdu:
+    driver: postgres
+    schema: rsduadmin
+    read:
+      host: 10.0.0.6
+      port: 5432
+      database: rsdu
     scheme_type: 0
     svg:
       dir: /opt/ctrlroom/sld

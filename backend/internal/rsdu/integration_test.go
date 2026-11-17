@@ -224,3 +224,207 @@ func TestIntegrationBrowse(t *testing.T) {
 		})
 	}
 }
+
+// firstID returns the smallest ID of rows of query, 0 when there are none.
+func firstID(t *testing.T, p *Provider, query string, args ...any) int64 {
+	t.Helper()
+	var id int64
+	err := each(context.Background(), p.read, p.d.SQL(query), func(r Rows) error {
+		var v *int64
+		if err := r.Scan(&v); err != nil {
+			return err
+		}
+		if v != nil {
+			id = *v
+		}
+		return nil
+	}, args...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func TestIntegrationResolve(t *testing.T) {
+	for _, db := range testDSNs {
+		t.Run(db.driver, func(t *testing.T) {
+			p := integrationProvider(t, db.env, db.driver)
+			ctx := context.Background()
+			tid := func(name string) int64 {
+				id, err := p.tableID(ctx, name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return id
+			}
+			cases := []struct {
+				name, table, where string
+				kind               slddoc.BindingKind
+				option             string
+				parent             bool
+			}{
+				{"data acquisition bool", "DA_V_LST_1", "ID_TYPE IN (SELECT d.ID FROM {s}.SYS_DTYP d JOIN {s}.SYS_GTYP g ON g.ID = d.ID_GTYPE WHERE g.DEFINE_ALIAS = 'GLOBAL_TYPE_BOOL')", slddoc.BindingMeas1, optionBool, true},
+				{"data acquisition analog", "DA_V_LST_1", "ID_TYPE IN (SELECT d.ID FROM {s}.SYS_DTYP d JOIN {s}.SYS_GTYP g ON g.ID = d.ID_GTYPE WHERE g.DEFINE_ALIAS = 'GLOBAL_TYPE_ANALOG')", slddoc.BindingMeas1, optionAnalog, true},
+				{"electrical mode", "ELREG_LIST_V", "1 = 1", slddoc.BindingMeas1, optionAnalog, true},
+				{"equipment", "OBJ_TREE_PIN_V", "1 = 1", slddoc.BindingEquipment, optionComplex, false},
+				{"scheme (jump)", "VS_FORM", "1 = 1", slddoc.BindingJump, optionComplex, false},
+			}
+			for _, c := range cases {
+				id := firstID(t, p, "SELECT MIN(ID) FROM {s}."+c.table+" WHERE "+c.where)
+				if id == 0 {
+					t.Logf("%s: no object in %s, skipped", c.name, c.table)
+					continue
+				}
+				r := ref(tid(c.table), id)
+				start := time.Now()
+				obj, err := p.Resolve(ctx, r)
+				if err != nil {
+					t.Fatalf("%s %s: %v", c.name, r, err)
+				}
+				t.Logf("%s %s: %+v, %v", c.name, r, *obj, time.Since(start))
+				if obj.Ref != r || obj.Name == "" || obj.Kind != c.kind || obj.Option != c.option {
+					t.Errorf("%s: %+v, want kind %s option %s", c.name, *obj, c.kind, c.option)
+				}
+				if c.parent && obj.ParentRef == "" {
+					t.Errorf("%s: no parent", c.name)
+				}
+			}
+
+			// A catalog node of the electrical mode: its parent is in the same table.
+			sec, err := p.section(ctx, "29")
+			if err != nil {
+				t.Fatal(err)
+			}
+			node := firstID(t, p, "SELECT MIN(ID) FROM {s}."+sec.dir+" WHERE ID_PARENT > 0")
+			obj, err := p.Resolve(ctx, ref(sec.dirID, node))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if obj.Name == "" || !strings.HasPrefix(obj.ParentRef, strconv.FormatInt(sec.dirID, 10)+":") {
+				t.Errorf("catalog node = %+v", *obj)
+			}
+
+			// A section of the object tree can't be bound; an object that doesn't exist isn't found.
+			if _, err := p.Resolve(ctx, ref(tid(treeTableName), rootSection)); !errors.Is(err, binding.ErrInvalid) {
+				t.Errorf("section: err = %v, want ErrInvalid", err)
+			}
+			if _, err := p.Resolve(ctx, ref(tid("VS_FORM"), 1<<40)); !errors.Is(err, binding.ErrNotFound) {
+				t.Errorf("missing object: err = %v, want ErrNotFound", err)
+			}
+		})
+	}
+}
+
+// TestIntegrationSuggest checks the automatic binding rules on real objects found in the database, then compares
+// with what RSDU's own schemes store for components bound to a switch: every stored equipment, meas1 and meas2
+// binding must be the one proposed for that switch (a scheme may store fewer, when bound by hand).
+func TestIntegrationSuggest(t *testing.T) {
+	for _, db := range testDSNs {
+		t.Run(db.driver, func(t *testing.T) {
+			p := integrationProvider(t, db.env, db.driver)
+			ctx := context.Background()
+			id := func(q string) string { return strconv.FormatInt(firstID(t, p, q), 10) }
+			switchWith := func(otyp, meas string) string {
+				return id("SELECT MIN(o.ID) FROM {s}.OBJ_TREE o JOIN {s}.SYS_OTYP t ON t.ID = o.ID_TYPE WHERE t.DEFINE_ALIAS = '" + otyp +
+					"' AND EXISTS (SELECT 1 FROM {s}.MEAS_LIST m JOIN {s}.SYS_MEAS_TYPES mt ON mt.ID = m.ID_MEAS_TYPE WHERE m.ID_OBJ = o.ID AND mt.DEFINE_ALIAS = '" + meas + "')")
+			}
+			measOf := func(obj, meas string) string {
+				return id("SELECT MIN(m.ID) FROM {s}.MEAS_LIST m JOIN {s}.SYS_MEAS_TYPES mt ON mt.ID = m.ID_MEAS_TYPE WHERE mt.DEFINE_ALIAS = '" + meas + "' AND m.ID_OBJ = " + obj)
+			}
+			ps, wd := switchWith("OTYP_POWER_SWITCH", measSwitchState), switchWith("OTYP_POWER_SWITCH_WITHDRAWABLE", measSwitchStateDraw)
+			tid := func(name string) string {
+				n, err := p.tableID(ctx, name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return strconv.FormatInt(n, 10)
+			}
+			pswt := tid("PSWT_LIST_V")
+			cases := []struct {
+				name, ref, kinds string
+			}{
+				{"power switch", "1024:" + ps, "equipment meas1"},
+				{"withdrawable switch", "1024:" + wd, "equipment meas1 meas2"},
+				{"switch state of a withdrawable", pswt + ":" + measOf(wd, measSwitchState), "equipment meas1 meas2"},
+				{"drawer state", pswt + ":" + measOf(wd, measSwitchStateDraw), "equipment meas1 meas2"},
+				{"device panel", tid("VP_PANEL") + ":" + id("SELECT MIN(p.ID) FROM {s}.VP_PANEL p JOIN {s}.SYS_OTYP t ON t.ID = p.ID_TYPE WHERE t.DEFINE_ALIAS = 'OTYP_DEVICE_PANEL'"), "jump"},
+				{"scheme", tid("VS_FORM") + ":" + id("SELECT MIN(ID) FROM {s}.VS_FORM"), "jump"},
+				{"transformer", "1024:" + id("SELECT MIN(o.ID) FROM {s}.OBJ_TREE o JOIN {s}.SYS_OTYP t ON t.ID = o.ID_TYPE WHERE t.DEFINE_ALIAS = 'OTYP_TWO_WINDING_TRANSFORMER'"), "equipment"},
+				{"voltage", tid("ELREG_LIST_V") + ":" + id("SELECT MIN(v.ID) FROM {s}.ELREG_LIST_V v JOIN {s}.MEAS_LIST m ON m.ID = v.ID JOIN {s}.SYS_MEAS_TYPES mt ON mt.ID = m.ID_MEAS_TYPE WHERE mt.DEFINE_ALIAS = 'MEAS_U'"), "meas1"},
+				{"data acquisition parameter", tid("DA_V_LST_1") + ":" + id("SELECT MIN(ID) FROM {s}.DA_V_LST_1"), ""},
+			}
+			for _, c := range cases {
+				if strings.HasSuffix(c.ref, ":0") {
+					t.Logf("%s: none in this database, skipped", c.name)
+					continue
+				}
+				start := time.Now()
+				bs, err := p.Suggest(ctx, c.ref, binding.Element{})
+				if err != nil {
+					t.Fatalf("%s %s: %v", c.name, c.ref, err)
+				}
+				var kinds []string
+				for _, b := range bs {
+					kinds = append(kinds, string(b.Kind))
+					t.Logf("%s %s → %s %s %s %q, %v", c.name, c.ref, b.Kind, b.Ref, b.Option, b.Name, time.Since(start))
+				}
+				if strings.Join(kinds, " ") != c.kinds {
+					t.Errorf("%s %s: kinds %v, want %s", c.name, c.ref, kinds, c.kinds)
+				}
+			}
+
+			dict, err := p.dictionaries(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			kindOf := map[int64]slddoc.BindingKind{}
+			for _, k := range []slddoc.BindingKind{slddoc.BindingEquipment, slddoc.BindingMeas1, slddoc.BindingMeas2} {
+				kindOf[dict.regimID[k]] = k
+			}
+			stored := map[int64]map[slddoc.BindingKind]string{}
+			var comps []int64
+			q := `SELECT r.ID_OWNLST, r.ID_REGIM, r.ID_TABLE, r.ID_PARAM FROM {s}.VS_REGIM_TUNE r WHERE r.ID_OWNLST IN (
+				SELECT e.ID_OWNLST FROM {s}.VS_REGIM_TUNE e JOIN {s}.OBJ_TREE o ON o.ID = e.ID_PARAM JOIN {s}.SYS_OTYP t ON t.ID = o.ID_TYPE
+				WHERE e.ID_REGIM = ? AND e.ID_TABLE = 1024 AND t.DEFINE_ALIAS LIKE '%SWITCH%') ORDER BY r.ID_OWNLST`
+			err = each(ctx, p.read, p.d.SQL(q), func(r Rows) error {
+				var comp, regim, table, param int64
+				if err := r.Scan(&comp, &regim, &table, &param); err != nil {
+					return err
+				}
+				k, ok := kindOf[regim]
+				if !ok || (len(comps) >= 60 && stored[comp] == nil) {
+					return nil
+				}
+				if stored[comp] == nil {
+					stored[comp] = map[slddoc.BindingKind]string{}
+					comps = append(comps, comp)
+				}
+				stored[comp][k] = ref(table, param)
+				return nil
+			}, dict.regimID[slddoc.BindingEquipment])
+			if err != nil {
+				t.Fatal(err)
+			}
+			same := 0
+			for _, c := range comps {
+				bs, err := p.Suggest(ctx, stored[c][slddoc.BindingEquipment], binding.Element{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				got := map[slddoc.BindingKind]string{}
+				for _, b := range bs {
+					got[b.Kind] = b.Ref
+				}
+				for k, v := range stored[c] {
+					if got[k] != v {
+						t.Errorf("component %d: stored %s %s, proposed %q", c, k, v, got[k])
+					}
+				}
+				if len(got) == len(stored[c]) {
+					same++
+				}
+			}
+			t.Logf("components bound to a switch: %d compared, %d store exactly the proposed bindings, the others a subset", len(comps), same)
+		})
+	}
+}

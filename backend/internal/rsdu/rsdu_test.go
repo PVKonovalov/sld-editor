@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"slices"
 	"strings"
 	"testing"
@@ -52,6 +53,8 @@ func (r *fakeRows) Scan(dest ...any) error {
 			*d = row[i].(int64)
 		case *string:
 			*d = row[i].(string)
+		case *any:
+			*d = row[i]
 		case sql.Scanner:
 			if err := d.Scan(row[i]); err != nil {
 				return err
@@ -195,10 +198,10 @@ func TestDictionaries(t *testing.T) {
 				t.Fatal(err)
 			}
 			wantKinds := []binding.KindInfo{
-				{Kind: slddoc.BindingEquipment, Name: "Equipment-db"},
-				{Kind: slddoc.BindingMeas1, Name: "Parameters-db"},
-				{Kind: slddoc.BindingMeas2, Name: "Additional-db"},
-				{Kind: slddoc.BindingJump},
+				{Kind: slddoc.BindingEquipment, Name: "Equipment-db", DefaultOption: optionComplex},
+				{Kind: slddoc.BindingMeas1, Name: "Parameters-db", DefaultOption: optionBool},
+				{Kind: slddoc.BindingMeas2, Name: "Additional-db", DefaultOption: optionBool},
+				{Kind: slddoc.BindingJump, DefaultOption: optionComplex},
 			}
 			if !slices.Equal(got.Kinds, wantKinds) {
 				t.Errorf("kinds = %+v", got.Kinds)
@@ -239,5 +242,26 @@ func TestDictionariesError(t *testing.T) {
 	}
 	if p.dict != nil {
 		t.Error("failed load cached")
+	}
+}
+
+func TestPostgresURLDatabase(t *testing.T) {
+	cases := []struct {
+		name string
+		dsn  config.DSN
+		want string
+	}{
+		{"database", config.DSN{User: "u", Host: "h", Port: 5432, Database: "rsdu"}, "/rsdu"},
+		{"sid when database is empty", config.DSN{User: "u", Host: "h", Port: 5432, Sid: "rsdu"}, "/rsdu"},
+		{"database wins over sid", config.DSN{User: "u", Host: "h", Port: 5432, Database: "a", Sid: "b"}, "/a"},
+	}
+	for _, c := range cases {
+		u, err := url.Parse(postgresURL(c.dsn))
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+		if u.Path != c.want {
+			t.Errorf("%s: path %q, want %q", c.name, u.Path, c.want)
+		}
 	}
 }

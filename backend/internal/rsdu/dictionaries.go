@@ -24,6 +24,15 @@ var regimKinds = map[string]slddoc.BindingKind{
 	regimMeas2:     slddoc.BindingMeas2,
 }
 
+// kindOptions are the option each kind defaults to in RSDU's scheme editor; a measurement bound by Resolve's
+// suggestion gets bool or analog by its type instead.
+var kindOptions = map[slddoc.BindingKind]string{
+	slddoc.BindingEquipment: optionComplex,
+	slddoc.BindingMeas1:     optionBool,
+	slddoc.BindingMeas2:     optionBool,
+	slddoc.BindingJump:      optionComplex,
+}
+
 var kindOrder = []slddoc.BindingKind{slddoc.BindingEquipment, slddoc.BindingMeas1, slddoc.BindingMeas2, slddoc.BindingJump}
 
 const (
@@ -73,7 +82,7 @@ func loadDictionaries(ctx context.Context, q Querier, d Dialect) (*dictionaries,
 	}
 	for _, k := range kindOrder {
 		if _, ok := dict.regimID[k]; ok {
-			dict.public.Kinds = append(dict.public.Kinds, binding.KindInfo{Kind: k, Name: names[k]})
+			dict.public.Kinds = append(dict.public.Kinds, binding.KindInfo{Kind: k, Name: names[k], DefaultOption: kindOptions[k]})
 		}
 	}
 

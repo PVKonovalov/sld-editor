@@ -1,5 +1,73 @@
 # Release notes
 
+2026-11-17: SCADA bindings, step 8: automatic binding. The **Bind object** window opened by dropping an object on an
+element or digital device has a new **Auto** choice, chosen when the system proposes anything. It lists every binding
+proposed for the object, each with a checkbox, and **Bind** writes the ticked ones in one undo step, each replacing
+the item's binding of its kind (`diagramOps.setItemBindings`). When nothing is proposed (for example for a data
+acquisition parameter), Auto is disabled with a note and the window starts with the suggested kind. New
+`POST /api/bindings/suggest` (`{ref, element: {shape, class}}` → `{bindings}`); the provider's `Suggest` takes a
+`binding.Element`. RSDU (`internal/rsdu/suggest.go`) ports `SchemeTuneService.GetTunesAsync`:
+- a device panel, or a descendant of `OTYP_INFORMATION_VIEW`, → jump;
+- other equipment → equipment; for a switch (`OTYP_SWITCH` or a descendant) also its position → Parameters and its
+  withdrawable part's position → Additional parameters;
+- a measurement → Parameters (option by its global type); for a switch position also its device → equipment and,
+  for a `*_WITHDRAWABLE` device, the other position (a dropped drawer position becomes Additional parameters).
+
+What RSDU takes from its model cache is read from the database once and kept until Refresh:
+- type ancestors (`SYS_OTYP.ID_PARENT`);
+- measurement global types (`SYS_MEAS_TYPES` → `SYS_PTYP` → `SYS_GTYP`);
+- the measurement list tables (`SYS_TBLREF` `ID_LINK = 5` to `MEAS_LIST_GEN`), queried in one `UNION ALL`;
+- the equipment table: alias `OBJ_TREE_GEN`, else the table named `OBJ_TREE` (PostgreSQL has only `OBJ_TREE_DIR`).
+
+Two deliberate differences from RSDU's code. A measurement in several lists takes the first by table id, where
+RSDU's unordered query keeps the last; real schemes store switch positions only with `PSWT_LIST_V`, never its
+archive. And a dropped drawer position is paired with the `MEAS_SWITCH_STATE` measurement, where RSDU's prefix
+search can find the drawer itself or nothing. Checked on the PostgreSQL and the Oracle RSDU with real objects: power
+switch, withdrawable switch, its position, its drawer position, device panel, scheme, transformer, voltage,
+data acquisition parameter. On both databases, 150 components of real schemes bound to a switch were compared:
+none stores a binding other than the proposed one; 133 store exactly the proposal; 17 store only the equipment
+(bound by hand). RSDU's own scheme editor was not run. In the browser: Auto on a withdrawable switch with one binding
+unticked, Auto disabled for a parameter, a drawer position on a digital device, save, undo. User guides: **Binding an
+object** (`#binding-objects`) gains Auto; new **Automatic binding** (`#binding-auto`) with the rules. - **Tests:**
+`TestSuggest`, `TestSuggestErrors`, `TestBindingSuggest`, `TestIntegrationSuggest` (both databases).
+
+2026-11-17: SCADA bindings, step 7: binding objects by hand. Dropping an object from the **Objects** panel on an
+element or digital device opens **Bind object** (`BindChooser.tsx`): the object's name and type, the binding kind and
+the option, preset as RSDU's scheme editor does. **Bind** writes the binding, replacing one of the same kind, and says
+so first. Properties → **Bindings** is now editable for bindings of the active provider: the option (combo grouped by
+global type), the scale (a non-zero whole number), remove one, **Remove all** (asks once more), the precision (0–10)
+and the features (checkboxes). Dropping an object on a kind's row binds it directly. With nothing selected, an object
+dropped on the diagram's **Object** row binds the whole diagram. **Refresh bindings** re-reads every bound object in
+one request, updates the cached name, type and identifier in one undo step, and lists the bindings whose object is
+gone, each with **Select**. Every edit is a pure `diagramOps` function (`setItemBinding`, `updateItemBinding`,
+`removeItemBinding`, `removeAllItemBindings`, `setItemBindingExtras`, `setDiagramObject`, `refreshBindings`) run
+through `updateDiagram`; untouched items keep their objects. Backend: `GET /api/bindings/object?ref=` resolves a ref
+into `{ref, name, type, typeName, uid, parentRef, kind, option}`, and `POST /api/bindings/objects` (`{refs}`) answers
+`{objects, missing}`. The provider's `Resolve` returns the new `binding.Resolved`; `binding.ResolveAll` serves the
+batch. RSDU (`internal/rsdu/resolve.go`) reads the object as RSDU's object information service does: the table's kind
+(LST or DIR, `SYS_OTYP`) and types table, then the name, type, GUID (only when the column exists) and the parent
+(`ID_NODE` or `ID_PARENT`). Table information is cached until Refresh. The suggestion:
+- jump for `VS_FORM_LST`, `R_KADR_LST`, `VP_PANEL_LST` and `RPT_LST_LST`;
+- equipment for objects typed by `SYS_OTYP`;
+- else Parameters, with `GLT_BOOL_OPT_INSTANT` when the measurement's global type is bool or enumeration (through
+  `SYS_DTYP.ID_GTYPE` for data acquisition types, else `SYS_MEAS_TYPES` → `SYS_PTYP.ID_GTYP`) and
+  `GLT_ANALOG_OPT_INSTANT` otherwise.
+
+A section of the object tree answers 400 (can't be bound), a missing object 404. The dictionaries' kinds now carry
+`defaultOption`. Checked in a browser on the PostgreSQL and the Oracle RSDU: all four kinds on an element, a digital
+device bound by dropping on its row, option, scale, precision and features edits, removing one binding, the diagram
+object, a section refused, refresh with an outdated name and a missing object, save, reopen, and undo/redo. User
+guides: **Bindings** (`#properties-bindings`) rewritten, new **Binding an object** (`#binding-objects`) and
+**Refreshing bindings** (`#bindings-refresh`). - **Tests:** `TestResolve`, `TestResolveErrors`, `TestResolveAll`,
+`TestIntegrationResolve` (both databases), `TestBindingObject`, `TestBindingObjects`.
+
+2026-11-17: RSDU bindings on PostgreSQL connect to the database named in `sid` when `database` is empty. Before, such
+a connection had no database name, so PostgreSQL used the user name instead (for example "database rsduadmin does
+not exist"), while the error message showed the `sid`. `database` still wins when both are set. The example config and
+the user guides now say what each key means: `schema` is the schema (owner) of the RSDU tables, `sid`/`database`
+name the database to connect to (Oracle SID or service name; PostgreSQL database). Both have an Oracle and a
+PostgreSQL example. - **Test:** `TestPostgresURLDatabase`.
+
 2026-11-17: SCADA bindings, step 6: **Objects** panel, the editor's own object browser (RSDU's Adjust inside the
 editor). With bindings on, the left rail has an **Objects** button (`ObjectsPanel.tsx`): the provider's sections as a
 tree, each section's catalog loaded when first expanded, and the objects of the selected catalog node below, sortable

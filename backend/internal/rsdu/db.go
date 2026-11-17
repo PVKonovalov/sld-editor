@@ -136,7 +136,7 @@ func (c *conn) Close() {
 // dsnString describes the connection without its password.
 func (c *conn) dsnString() string {
 	db := c.dsn.Database
-	if c.dsn.Sid != "" {
+	if c.dsn.Sid != "" && (c.driver != config.DriverPostgres || db == "") {
 		db = c.dsn.Sid
 	}
 	return fmt.Sprintf("%s://%s@%s:%d/%s", c.driver, c.dsn.User, c.dsn.Host, c.dsn.Port, db)
@@ -156,7 +156,11 @@ func oracleURL(d config.DSN) string {
 	return oracle.BuildUrl(d.Host, d.Port, service, d.User, d.Password, opts)
 }
 
+// postgresURL builds a lib/pq URL; the database is Database, or Sid when Database is empty.
 func postgresURL(d config.DSN) string {
+	if d.Database == "" {
+		d.Database = d.Sid
+	}
 	u := url.URL{
 		Scheme:   "postgres",
 		User:     url.UserPassword(d.User, d.Password),

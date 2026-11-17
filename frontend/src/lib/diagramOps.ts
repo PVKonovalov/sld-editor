@@ -16,6 +16,9 @@ import type {
   DigitalDevice,
   TerminalDirection,
   TableCell,
+  Binding,
+  BindingKind,
+  BindingResolved,
 } from '../types'
 import { t } from '../i18n'
 import { circularArcThrough, defaultArcBulge } from './arc'
@@ -5243,4 +5246,170 @@ export function addJunctionPoints(prev: Diagram, next: Diagram, symbols: Element
   }
   if (added.length === 0) return next
   return { ...next, lastId: ids.lastId, elements: [...next.elements, ...added] }
+}
+
+// ---- SCADA bindings ----
+
+/** An item that carries bindings: an element or a digital device. */
+export interface BindingTarget {
+  kind: 'element' | 'digitaldevice'
+  id: number
+}
+
+type BindingFields = { bindings?: Binding[]; precision?: number; features?: string }
+
+// patchBindable applies patch to the target's binding fields; every other entry keeps its object.
+function patchBindable(diagram: Diagram, target: BindingTarget, patch: (item: BindingFields) => BindingFields): Diagram {
+  const apply = <T extends BindingFields>(item: T): T => {
+    const next = { ...item, ...patch(item) }
+    if (!next.bindings?.length) delete next.bindings
+    if (!next.precision) delete next.precision
+    if (!next.features) delete next.features
+    return next
+  }
+  if (target.kind === 'element') {
+    return { ...diagram, elements: diagram.elements.map(e => (e.id === target.id ? apply(e) : e)) }
+  }
+  return { ...diagram, digitalDevices: diagram.digitalDevices.map(dd => (dd.id === target.id ? apply(dd) : dd)) }
+}
+
+/** Binds the target: binding replaces the target's binding of the same kind. */
+export function setItemBinding(diagram: Diagram, target: BindingTarget, binding: Binding): Diagram {
+  return patchBindable(diagram, target, item => ({
+    bindings: [...(item.bindings ?? []).filter(b => b.kind !== binding.kind), binding],
+  }))
+}
+
+/** Binds the target with every binding of bindings at once (one undo step), each replacing the target's binding of
+ * its kind. */
+export function setItemBindings(diagram: Diagram, target: BindingTarget, bindings: Binding[]): Diagram {
+  const kinds = new Set(bindings.map(b => b.kind))
+  return patchBindable(diagram, target, item => ({
+    bindings: [...(item.bindings ?? []).filter(b => !kinds.has(b.kind)), ...bindings.map(normalizeBinding)],
+  }))
+}
+
+/** Changes fields of the target's binding of kind (option, scale); scale 0 or 1 is stored as unset. */
+export function updateItemBinding(
+  diagram: Diagram,
+  target: BindingTarget,
+  kind: BindingKind,
+  patch: Partial<Pick<Binding, 'option' | 'scale'>>,
+): Diagram {
+  return patchBindable(diagram, target, item => ({
+    bindings: (item.bindings ?? []).map(b => (b.kind === kind ? normalizeBinding({ ...b, ...patch }) : b)),
+  }))
+}
+
+/** Removes the target's binding of kind. */
+export function removeItemBinding(diagram: Diagram, target: BindingTarget, kind: BindingKind): Diagram {
+  return patchBindable(diagram, target, item => ({ bindings: (item.bindings ?? []).filter(b => b.kind !== kind) }))
+}
+
+/** Removes the target's bindings of source, its precision and its features; bindings of other sources stay. */
+export function removeAllItemBindings(diagram: Diagram, target: BindingTarget, source: string): Diagram {
+  return patchBindable(diagram, target, item => ({
+    bindings: (item.bindings ?? []).filter(b => b.source !== source),
+    precision: undefined,
+    features: undefined,
+  }))
+}
+
+/** Sets the target's precision (decimal places, 0 = unset) and/or features (comma-separated aliases). */
+export function setItemBindingExtras(
+  diagram: Diagram,
+  target: BindingTarget,
+  patch: { precision?: number; features?: string },
+): Diagram {
+  return patchBindable(diagram, target, () => patch)
+}
+
+/** Sets (or, with undefined, clears) the object the whole diagram is bound to. */
+export function setDiagramObject(diagram: Diagram, object: Binding | undefined): Diagram {
+  const next = { ...diagram, object }
+  if (!object) delete next.object
+  return next
+}
+
+function normalizeBinding(b: Binding): Binding {
+  const next = { ...b }
+  if (!next.scale || next.scale === 1) delete next.scale
+  if (!next.option) delete next.option
+  return next
+}
+
+/** A binding of source made from a resolved object, of kind with option. */
+export function bindingFromResolved(source: string, obj: BindingResolved, kind: BindingKind, option?: string): Binding {
+  return normalizeBinding({
+    source,
+    kind,
+    ref: obj.ref,
+    option,
+    name: obj.name || undefined,
+    type: obj.typeName || obj.type || undefined,
+    uid: obj.uid || undefined,
+  })
+}
+
+/** A binding that no longer resolves, found by refreshBindings. */
+export interface StaleBinding {
+  target: BindingTarget | null
+  kind: BindingKind | null
+  ref: string
+}
+
+/** The refs of every binding of source (the diagram object included). */
+export function bindingRefs(diagram: Diagram, source: string): string[] {
+  const refs = new Set<string>()
+  const add = (bs?: Binding[]) => bs?.forEach(b => b.source === source && refs.add(b.ref))
+  diagram.elements.forEach(e => add(e.bindings))
+  diagram.digitalDevices.forEach(dd => add(dd.bindings))
+  if (diagram.object) add([diagram.object])
+  return [...refs]
+}
+
+/** Updates the cached name, type and uid of every binding of source from objects (ref → object); only items whose
+ * cache changes get a new object. Returns the diagram, how many bindings changed, and the bindings whose ref is in
+ * missing (null target: the diagram object). */
+export function refreshBindings(
+  diagram: Diagram,
+  source: string,
+  objects: Record<string, BindingResolved>,
+  missing: string[],
+): { diagram: Diagram; updated: number; stale: StaleBinding[] } {
+  const gone = new Set(missing)
+  const stale: StaleBinding[] = []
+  let updated = 0
+  const refresh = (b: Binding, target: BindingTarget | null): Binding => {
+    if (b.source !== source) return b
+    if (gone.has(b.ref)) {
+      stale.push({ target, kind: target ? b.kind : null, ref: b.ref })
+      return b
+    }
+    const obj = objects[b.ref]
+    if (!obj) return b
+    const fresh = bindingFromResolved(source, obj, b.kind, b.option)
+    if (b.scale) fresh.scale = b.scale
+    if (fresh.name === b.name && fresh.type === b.type && fresh.uid === b.uid) return b
+    updated++
+    return fresh
+  }
+  const items = <T extends { id: number; bindings?: Binding[] }>(list: T[], kind: BindingTarget['kind']): T[] => {
+    let changed = false
+    const out = list.map(item => {
+      if (!item.bindings?.length) return item
+      const bs = item.bindings.map(b => refresh(b, { kind, id: item.id }))
+      if (bs.every((b, i) => b === item.bindings![i])) return item
+      changed = true
+      return { ...item, bindings: bs }
+    })
+    return changed ? out : list
+  }
+  const elements = items(diagram.elements, 'element')
+  const digitalDevices = items(diagram.digitalDevices, 'digitaldevice')
+  const object = diagram.object ? refresh(diagram.object, null) : undefined
+  if (elements === diagram.elements && digitalDevices === diagram.digitalDevices && object === diagram.object) {
+    return { diagram, updated, stale }
+  }
+  return { diagram: { ...diagram, elements, digitalDevices, ...(object ? { object } : {}) }, updated, stale }
 }

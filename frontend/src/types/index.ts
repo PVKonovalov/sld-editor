@@ -896,6 +896,25 @@ export interface BindingObject {
   scale?: number
 }
 
+// Matches binding.Resolved (GET /api/bindings/object): an object with what a binding caches of it and the kind and
+// option the provider suggests.
+export interface BindingResolved {
+  ref: string
+  name: string
+  type?: string
+  typeName?: string
+  uid?: string
+  parentRef?: string
+  kind: BindingKind
+  option?: string
+}
+
+// POST /api/bindings/objects: the refs found, and those that don't exist or can't be bound.
+export interface BindingResolveResult {
+  objects: Record<string, BindingResolved>
+  missing: string[]
+}
+
 // Matches binding.Hit: a search match; node is the catalog node to reveal.
 export interface BindingHit {
   ref: string

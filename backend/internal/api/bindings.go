@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/PVKonovalov/slddoc"
 	"github.com/gin-gonic/gin"
 
 	"sld-editor/internal/binding"
@@ -32,6 +33,60 @@ func (s *Server) bindingRoutes(grp *gin.RouterGroup) {
 	b.GET("/catalog", s.getBindingCatalog)
 	b.GET("/list", s.getBindingList)
 	b.GET("/search", s.searchBindingObjects)
+	b.GET("/object", s.getBindingObject)
+	b.POST("/objects", s.resolveBindingObjects)
+	b.POST("/suggest", s.suggestBindings)
+}
+
+// suggestBindings answers {bindings} the provider proposes for the body's {ref, element} (automatic binding).
+func (s *Server) suggestBindings(c *gin.Context) {
+	var req struct {
+		Ref     string          `json:"ref"`
+		Element binding.Element `json:"element"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+	bs, err := s.bindings.Suggest(c.Request.Context(), req.Ref, req.Element)
+	if err != nil {
+		bindingError(c, err)
+		return
+	}
+	if bs == nil {
+		bs = []slddoc.Binding{}
+	}
+	c.JSON(http.StatusOK, gin.H{"bindings": bs})
+}
+
+// maxResolveRefs bounds one /objects request.
+const maxResolveRefs = 10000
+
+// getBindingObject answers the object ?ref= with the binding kind and option suggested for it.
+func (s *Server) getBindingObject(c *gin.Context) {
+	answerBinding(c, func() (any, error) { return s.bindings.Resolve(c.Request.Context(), c.Query("ref")) })
+}
+
+// resolveBindingObjects answers {objects: ref → object, missing: refs that don't exist or can't be bound} for the
+// body's {refs}.
+func (s *Server) resolveBindingObjects(c *gin.Context) {
+	var req struct {
+		Refs []string `json:"refs"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errJSON(c, http.StatusBadRequest, err)
+		return
+	}
+	if len(req.Refs) > maxResolveRefs {
+		errJSON(c, http.StatusBadRequest, fmt.Errorf("more than %d refs", maxResolveRefs))
+		return
+	}
+	found, missing, err := binding.ResolveAll(c.Request.Context(), s.bindings, req.Refs)
+	if err != nil {
+		bindingError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"objects": found, "missing": missing})
 }
 
 // getBindingSections answers the provider's top-level object tree.

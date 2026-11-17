@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo, type DragEvent as ReactDragEvent } from 'react'
 import { TransformWrapper, TransformComponent, useControls, type ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, X as XIcon, Loader2 } from 'lucide-react'
 import { useDiagramContext, type SelectionKind } from '../state/useDiagramContext'
@@ -13,6 +13,8 @@ import { t } from '../i18n'
 import { ContextMenu, withSeparators, type ContextMenuEntry, type ContextMenuItem } from './ContextMenu'
 import { SaveCustomElementDialog } from './SaveCustomElementDialog'
 import { PresenceBanner } from './PresenceBanner'
+import { BindChooser, type BindDrop } from './BindChooser'
+import { draggedObject, isObjectDrag } from '../lib/bindingDictionaries'
 import type { Diagram, DiagramElement, Connector, ConnectorKind, Label, DigitalDevice, Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
@@ -532,6 +534,7 @@ export function Canvas() {
 
   const [svg, setSvg] = useState('')
   const [warning, setWarning] = useState<string | null>(null)
+  const [bindDrop, setBindDrop] = useState<BindDrop | null>(null)
   const [ghost, setGhost] = useState<Ghost | null>(null)
   const [newBusbar, setNewBusbar] = useState<NewBusbar | null>(null)
   const [pointDrag, setPointDrag] = useState<PointDrag | null>(null)
@@ -1786,6 +1789,36 @@ export function Canvas() {
   const snapEnabled = diagram.editor?.snap ?? config?.editor.snap ?? true
   const showGrid = diagram.editor?.showGrid ?? config?.editor.showGrid ?? true
   const showNodes = diagram.editor?.showNodes ?? true
+
+  const bindingProvider = config?.bindings?.provider ?? ''
+
+  // An Objects-panel object dropped on an element or digital device (its drawn node, else an element's box) opens
+  // the binding chooser; anywhere else it is ignored.
+  function bindDropTarget(e: ReactDragEvent): BindDrop['target'] | null {
+    const hit = (e.target as HTMLElement).closest('[data-editor-kind]') as HTMLElement | null
+    const kind = hit?.dataset.editorKind
+    if (hit && (kind === 'element' || kind === 'digitaldevice')) return { kind, id: Number(hit.id) }
+    const id = findElementBoxHit(toPoint(e.clientX, e.clientY))
+    return id === null ? null : { kind: 'element', id }
+  }
+
+  function handleObjectDragOver(e: ReactDragEvent) {
+    if (!bindingProvider || !isObjectDrag(e.dataTransfer)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = bindDropTarget(e) ? 'copy' : 'none'
+  }
+
+  function handleObjectDrop(e: ReactDragEvent) {
+    if (!bindingProvider) return
+    const obj = draggedObject(e.dataTransfer)
+    if (!obj) return
+    e.preventDefault()
+    const target = bindDropTarget(e)
+    if (!target || obj.source !== bindingProvider) return
+    if (target.kind === 'element') selectElement(target.id)
+    else selectDigitalDevice(target.id)
+    setBindDrop({ ref: obj.ref, name: obj.name, target, x: e.clientX, y: e.clientY })
+  }
 
   function toPoint(clientX: number, clientY: number): Point {
     const rect = wrapperRef.current!.getBoundingClientRect()
@@ -3203,6 +3236,8 @@ export function Canvas() {
             onMouseLeave={() => showCursor(null)}
             onDoubleClick={handleWrapperDoubleClick}
             onContextMenu={handleContextMenu}
+            onDragOver={handleObjectDragOver}
+            onDrop={handleObjectDrop}
             style={{
               position: 'relative',
               width: diagram.width,
@@ -4043,6 +4078,9 @@ export function Canvas() {
       )}
       {customElementTemplate && (
         <SaveCustomElementDialog template={customElementTemplate} onClose={() => setCustomElementTemplate(null)} />
+      )}
+      {bindDrop && bindingProvider && (
+        <BindChooser drop={bindDrop} provider={bindingProvider} onClose={() => setBindDrop(null)} />
       )}
       {loadingOverlay}
     </div>

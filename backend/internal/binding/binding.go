@@ -88,6 +88,25 @@ type Object struct {
 	Scale     *float64 `json:"scale,omitempty"`
 }
 
+// Resolved is an object found by its ref, with what a binding caches of it (Name, Type as the type's alias,
+// TypeName, UID), its parent, and the binding kind and option the provider suggests for it.
+type Resolved struct {
+	Ref       string             `json:"ref"`
+	Name      string             `json:"name"`
+	Type      string             `json:"type,omitempty"`
+	TypeName  string             `json:"typeName,omitempty"`
+	UID       string             `json:"uid,omitempty"`
+	ParentRef string             `json:"parentRef,omitempty"`
+	Kind      slddoc.BindingKind `json:"kind"`
+	Option    string             `json:"option,omitempty"`
+}
+
+// Element is the diagram item an object is dropped on, as Suggest sees it.
+type Element struct {
+	Shape string `json:"shape"`
+	Class string `json:"class"`
+}
+
 // Hit kinds of a SearchResult.
 const (
 	HitCatalog = "catalog"
@@ -122,9 +141,11 @@ type Provider interface {
 	List(ctx context.Context, section, node string) ([]Object, error)
 	// Search finds catalog nodes and objects of section whose name contains q, case-insensitively.
 	Search(ctx context.Context, section, q string, limit int) (*SearchResult, error)
-	Resolve(ctx context.Context, ref string) (*Object, error)
-	// Suggest returns the bindings an element of shape gets when bound to the object ref.
-	Suggest(ctx context.Context, ref, shape string) ([]slddoc.Binding, error)
+	// Resolve finds the object ref; ErrNotFound when it does not exist, ErrInvalid when it can't be bound.
+	Resolve(ctx context.Context, ref string) (*Resolved, error)
+	// Suggest returns the bindings an element gets when bound to the object ref automatically, at most one per kind;
+	// none when the provider proposes nothing for that object.
+	Suggest(ctx context.Context, ref string, el Element) ([]slddoc.Binding, error)
 }
 
 // Refresher is a Provider caching its data source's reference data; Refresh makes the next calls re-read it.
@@ -199,4 +220,28 @@ func CanExport(p Provider, cfg config.Bindings) bool {
 		return cfg.RSDU.Write.IsSet()
 	}
 	return false
+}
+
+// ResolveAll resolves every distinct ref with p. Refs that don't exist or can't be bound (ErrNotFound, ErrInvalid)
+// are listed in missing; any other error (the data source failing) stops it.
+func ResolveAll(ctx context.Context, p Provider, refs []string) (map[string]*Resolved, []string, error) {
+	found := map[string]*Resolved{}
+	missing := []string{}
+	seen := map[string]bool{}
+	for _, r := range refs {
+		if seen[r] {
+			continue
+		}
+		seen[r] = true
+		obj, err := p.Resolve(ctx, r)
+		switch {
+		case err == nil:
+			found[r] = obj
+		case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalid):
+			missing = append(missing, r)
+		default:
+			return nil, nil, err
+		}
+	}
+	return found, missing, nil
 }
