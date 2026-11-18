@@ -5,7 +5,8 @@ file (the source of truth) together with an `.svg` rendering in the xsde2svg for
 
 This guide describes how to work with the editor. For installing and running it, see `README.md`.
 
-New to the editor? Start with [How to: draw a diagram step by step](#how-to).
+New to the editor? Start with [How to: draw a diagram step by step](#how-to). Working with RSDU schemes? See
+[How to: work with RSDU](#rsdu-howto).
 
 ## The window {#window}
 
@@ -550,7 +551,8 @@ With nothing selected, the **History** section of Properties lists them, newest 
 Only when [bindings](#configuration-bindings) are on with a provider that has schemes (RSDU). A diagram can be
 **linked** to one RSDU scheme (`VS_FORM`): export to RSDU and import of a scheme's bindings work through that link.
 The link is the scheme's identifier, stored in the diagram file, never its file name; one scheme belongs to at most one
-diagram. Renaming or moving a diagram, or its folder, keeps its link.
+diagram. Renaming or moving a diagram, or its folder, keeps its link. Step-by-step examples are in
+[How to: work with RSDU](#rsdu-howto).
 
 **In the file list** a linked diagram has an icon after its name; hover it for the status:
 
@@ -709,6 +711,235 @@ says why. The export window shows where the SVG went.
 - Before the first delivery to a scheme the editor did not register (linked from RSDU, or after an `.xsde` import),
   the picture already there is copied once to `<name>.orig.svg` beside it, in the folder and in the Minio bucket alike.
   That copy is never overwritten.
+
+## How to: work with RSDU {#rsdu-howto}
+
+These walk-throughs cover the usual jobs with RSDU schemes, step by step. They need [bindings](#configuration-bindings)
+on with RSDU as the provider; writing to RSDU also needs `bindings.rsdu.export: true`. Each one links to the
+reference sections for the details.
+
+What each action writes:
+
+| Action | In the editor | In the RSDU database | The scheme's picture (SVG for ctrlroom) |
+|---|---|---|---|
+| **Save** | the `.xsld` and `.svg` | nothing | delivered again, once the diagram has been exported (or its picture delivered) at least once |
+| **Export** (after **Confirm export**) | saved with the link and the export time, marks cleared | a new scheme: everything; a linked one: only what is marked (new, changed, deleted bindings, changed components) and the scheme row when its fields changed | delivered |
+| **Export diagram only** | saved with the export time; marks stay | nothing | delivered |
+| **Compare with RSDU**, **Import bindings from RSDU…** | nothing until you **Apply** | nothing (read only) | nothing |
+
+The editor marks every binding change as you make it: a binding you add, or point at another object, is **new, not
+exported**; one whose option or scale you change is **changed, not exported** (both show as a tag in Properties); a
+binding you remove, with the binding or with its element, is remembered as deleted. A deleted binding stays deleted:
+one you add again in its place is new. An export writes exactly these marks and nothing else, so what you didn't touch
+in the editor is never changed or deleted in RSDU. See [Export to RSDU](#rsdu-export).
+
+### 1. A new diagram registered in RSDU with its bindings {#howto-new-scheme}
+
+Use this for a substation that has no scheme in RSDU yet.
+
+1. **Create the diagram.** **File** on the left rail → go to the folder → **New** → name, size and default voltage →
+   confirm (see [Creating and opening](#create-open)). The folder and name become the scheme's file name in RSDU
+   (`<folder>/<name>.svg`), which ctrlroom uses to find its picture, so choose them as they should be in RSDU.
+2. **Draw it** (see [How to: draw a diagram step by step](#how-to)). Every element that ctrlroom shows values on
+   needs a positive whole-number id; the editor gives every new item one.
+3. **Bind the elements.** Open **Objects** on the left rail and find the substation's equipment in the tree or by
+   search. Drag an object onto its element on the canvas: **Bind object** opens with **Auto** proposing what RSDU's
+   scheme editor would (for a breaker: the breaker as **Equipment** and its position as **Parameters**). Untick what you
+   don't want and click **Bind**. See [Binding an object](#binding-objects) and [Automatic binding](#binding-auto).
+   - A label that opens another scheme or panel: drop that scheme or panel on the label; it becomes a **Jumps** binding.
+   - The whole diagram's object (usually the substation): with nothing selected, drop it on the **Object** row of the
+     **Bindings** group in Properties.
+   - Set **Precision** and **Features** of a measured value in Properties, under its bindings.
+   Each new binding shows the tag **new, not exported**.
+4. **Find what is still unbound.** **Bindings overview** on the left rail → **Unbound only**, and **Highlight
+   unbound** to frame those elements on the canvas. Click a row to select the element and bind it. See
+   [Bindings overview](#bindings-overview).
+5. **Save** (Ctrl+S / Cmd+S).
+6. **Open the export window.** With nothing selected, **Export to RSDU…** in the **Bindings** group of Properties.
+7. **Choose Register a new scheme** and fill in:
+   - **Scheme name**: the scheme's name in RSDU (the diagram's name by default);
+   - **Alias**: its short name (the name when empty);
+   - **Group**: the RSDU group (folder) it belongs to; the group of the scheme exported last is proposed.
+   Check **File name** and **SVG for ctrlroom**: that is where ctrlroom will look for the picture.
+8. **Read the check.** Red findings stop the export; fix them, save and click the refresh button. Amber warnings
+   don't: an element whose shape has no RSDU component type, for example, is skipped (see the list in
+   [Export to RSDU](#rsdu-export)). **Bound items** says how many elements will be written.
+9. **Export.** The window first only counts: "The export will add *N* rows…". For a new scheme everything is added: one
+   scheme row, one component per bound element, one row per binding, and the diagram's object. Nothing is changed or
+   deleted.
+10. **Confirm export.** The result lists the components and bindings written and where the SVG went. The diagram is
+    saved, now linked to the new scheme, and reopened; its icon in the file list turns into a green link.
+11. **Make the scheme reachable in RSDU.** A new scheme must be added to the users' menus (`US_MENU`) with RSDU's own
+    tools before ctrlroom shows it.
+
+From now on, see [3. Changing the bindings](#howto-bindings) and [2. Changing the picture](#howto-picture).
+
+### 2. Changing the picture of a scheme already in RSDU {#howto-picture}
+
+Use this to redraw, move or add things on a scheme that RSDU already has, without touching its bindings.
+
+**If the editor doesn't have the diagram yet:**
+
+1. **File** on the left rail → the **RSDU schemes** tab. Show the schemes **Without a diagram** and filter by name. See [RSDU schemes](#rsdu-schemes).
+2. Click the cloud button, **Edit from RSDU…**, of the scheme. It reads the scheme's current picture from where
+   ctrlroom reads it.
+3. Check the form: what was recognised and what was lost, the folder and the name of the new diagram. **Create and
+   open**. The diagram is saved linked to the scheme and opens with its import log. See
+   [Editing a scheme from RSDU](#rsdu-edit).
+4. The **Bindings overview** opens with the scheme's bindings from RSDU. Click **Apply** to take them into the diagram
+   (recommended: see [a. Taking over an RSDU scheme](#howto-take-over)), or **Cancel import** to leave them out. Either
+   way nothing is written to RSDU.
+
+**Then (or if the diagram is already in the editor):**
+
+5. Edit the drawing: move, add, rename, rewire. Keep the elements RSDU shows values on: ctrlroom finds them by their
+   id. Don't delete such an element to draw it anew: the new one gets a new id, so ctrlroom shows nothing on it until
+   it is bound and exported again (see [3. Changing the bindings](#howto-bindings)).
+6. **Save.**
+7. **The first time only**, deliver the picture: **Export to RSDU…**. With no binding marked, the window says
+   *Nothing to export* and that the picture has not been delivered yet. Click **Export diagram only**. The result
+   lists where the SVG went; RSDU's own picture is kept once as `<name>.orig.svg` beside it (see
+   [The SVG for ctrlroom](#rsdu-svg)). The database is not written.
+8. **After that, every save delivers the picture.** Nothing else is needed. A save whose delivery fails is still saved
+   and says why; save again once the folder or bucket is reachable.
+9. RSDU clients that have the scheme open must reopen it to see the new picture.
+
+Notes:
+
+- If the diagram was exported before (its icon is a green or amber link), step 7 isn't needed: saves already deliver
+  the picture. The amber link only means "saved after the last export"; the picture is delivered anyway.
+- If someone changed the scheme's picture in RSDU's own scheme editor after you took it into the editor, your next
+  save overwrites it. To start again from RSDU's version, use **Re-fetch from RSDU** in the **Scheme** row of the
+  diagram's **Bindings** group (it replaces the diagram; the previous version stays in [history](#history)).
+- Changing only the drawing never needs **Export**: the export note at the bottom of the canvas appears only when
+  bindings changed.
+
+### 3. Changing the bindings of a scheme already registered {#howto-bindings}
+
+Use this to bind new elements, rebind, change options or scales, or remove bindings of a diagram linked to an RSDU
+scheme.
+
+1. **Open the diagram.**
+2. **Make the changes.** Select an element; Properties → **Bindings** (see [Bindings](#properties-bindings)):
+   - **Add** a binding: drop an object from **Objects** on the element or on a row. Tag: **new, not exported**.
+   - **Point a binding at another object**: drop the other object on the same row (or on the element and choose
+     that kind). The old binding is marked deleted and the new one **new, not exported**.
+   - **Change the option or the scale**: tag **changed, not exported**.
+   - **Remove** a binding: **×** on the row, **Remove all bindings**, or **Remove** in the
+     [Bindings overview](#bindings-overview). It is marked deleted (it simply disappears from Properties).
+   - **Change precision, features or the component type**: the element's component is marked changed.
+   - **Delete an element** that is bound: all its bindings are marked deleted.
+   - **Bind a new element**: as in [1](#howto-new-scheme), step 3.
+   Undo takes a change back together with its marks.
+3. **Save.** A note at the bottom of the canvas says the bindings changed and are not yet exported, with
+   **Export to RSDU…**. Nothing is written until you export, so you can collect changes over several sessions.
+4. **Export to RSDU…** (from the note, or from the diagram's **Bindings** group). The window shows the scheme with its
+   name, alias and group, and **Changed items**: how many elements have marks.
+5. **Export.** The window counts what will be written, for example:
+   - one binding pointed at another object: 1 row deleted, 1 added;
+   - a scale or option changed: 1 row changed;
+   - a new element with **Equipment** and **Parameters**: 3 rows added (its component and two bindings);
+   - a bound element deleted: its bindings' rows and its component deleted.
+   Deletions are shown in red: they are the bindings you removed or replaced. If a number looks wrong, **Cancel**,
+   look at the elements (the tags in Properties) and fix them first.
+6. **Confirm export.** Only those rows are written, in one transaction (on an error nothing is). The marks are cleared,
+   the diagram is saved and reopened, and the picture is delivered too.
+7. RSDU clients that have the scheme open must reopen it.
+
+A binding the export can't write (an object that no longer exists, an option RSDU doesn't know) is listed as skipped;
+its element keeps its marks and the next export tries again.
+
+### a. Taking over an RSDU scheme with its bindings {#howto-take-over}
+
+Use this when the editor gets a scheme that RSDU already has with its bindings, so the diagram holds them too and
+further changes can be made in the editor.
+
+1. Take the picture: **Edit from RSDU…** ([2](#howto-picture), steps 1–3), or [link a diagram you already
+   have](#howto-link).
+2. With the scheme's bindings in the **Bindings overview** (it opens by itself after **Edit from RSDU…**; otherwise
+   save the diagram and click **Import bindings from RSDU…** in the diagram's **Bindings** group), read the summary:
+   - **New**: RSDU has bindings for the element, the diagram none;
+   - **Differs**: both have bindings and they differ (RSDU's values in amber);
+   - **Not in RSDU**: the diagram binds an element RSDU has no component for;
+   - the summary link lists RSDU components with no element of that id in the diagram, and rows that were skipped.
+   Select a row to see the element on the canvas and **In RSDU (import)** in Properties. See
+   [Import bindings from RSDU](#bindings-import).
+3. **Apply (N)** takes RSDU's bindings, precision, features and component types into the diagram, and RSDU's object
+   as the diagram object. They are RSDU's own, so they get **no marks**: there is nothing to export afterwards.
+4. **Save.**
+
+If you skip **Apply**, nothing is lost in RSDU: an export writes only what you mark. But the diagram then doesn't show
+RSDU's bindings, so you can't see or change them in the editor.
+
+### b. Linking a diagram you already have to an existing RSDU scheme {#howto-link}
+
+Use this for a diagram made in the editor or imported (for example from the scheme's `.xsde`) that should take the
+place of a scheme RSDU already has.
+
+1. Open the diagram. With nothing selected, Properties → **Bindings** → **Link to RSDU scheme…** (after an `.xsde`
+   import a note at the bottom of the canvas may offer **Choose…** instead). Schemes whose file name matches the
+   diagram's path come first; a scheme already linked to another diagram can't be chosen. **Link**.
+   The export window offers the same: **Use an existing scheme** → **Link to an existing scheme…**.
+2. **Save.** The link takes effect with the save.
+3. Take the scheme's bindings: **Import bindings from RSDU…** → **Apply** → **Save**
+   ([a. Taking over](#howto-take-over)). They match the diagram's elements by id: a diagram imported from the scheme's
+   own `.xsde` or SVG has RSDU's ids. A diagram drawn anew has other ids; then RSDU's components show under the
+   summary link, with no element, and the elements have to be bound again (step 3 of [1](#howto-new-scheme)) and
+   exported.
+4. Deliver the picture: **Export to RSDU…** → **Export diagram only** ([2](#howto-picture), step 7), or **Export** if
+   you marked binding changes.
+
+### c. After someone changed the scheme in RSDU {#howto-compare}
+
+Use this when bindings were changed in RSDU's own scheme editor (or by hand) after the diagram got them.
+
+1. Save the diagram. **Export to RSDU…** → **Compare with RSDU** (or **Import bindings from RSDU…** in the diagram's
+   **Bindings** group). The **Bindings overview** lists only the elements whose bindings differ (see
+   [a](#howto-take-over), step 2 for what each status means). Nothing is written to RSDU.
+2. Choose:
+   - **Take RSDU's version**: **Apply (N)**. It applies every listed element. The diagram then matches RSDU, with no
+     marks.
+   - **Keep the diagram's version** for an element: after **Apply**, set that element's binding back in Properties;
+     it gets a mark, and the next export writes it to RSDU.
+   - **Change nothing**: **Cancel import**.
+3. **Save**, and export if you marked anything ([3](#howto-bindings)).
+
+An export never overwrites or deletes what you didn't mark, so RSDU's changes stay until you decide.
+A changed picture is a different matter: the next save delivers the diagram's picture over it (see the notes of
+[2](#howto-picture)).
+
+### d. Renaming or moving a diagram, or renaming its scheme {#howto-rename}
+
+**Moving or renaming the diagram** (drag it to another folder, or rename it in the **File** panel) keeps its link.
+
+- **A scheme registered by the editor** follows the diagram's path. Until you export, saves deliver the picture under
+  the old file name, which ctrlroom still reads. To move it: **Export to RSDU…** → **Show the export** (when nothing is
+  marked) → **File name** shows the new path → **Export** ("change 1 row") → **Confirm export**. The SVG is then
+  delivered under the new name; the one under the old name stays (delete it by hand), and ctrlroom needs a restart to
+  read the new file name.
+- **A scheme linked from RSDU** keeps its own file name: nothing to do.
+
+**Renaming the scheme in RSDU**, or moving it to another group: **Export to RSDU…** → **Show the export** → change
+**Scheme name**, **Alias** or **Group** → **Export** → **Confirm export**. Only the scheme row is changed.
+
+### e. Going back to RSDU's original picture {#howto-restore-picture}
+
+The first delivery to a scheme the editor didn't register keeps RSDU's picture as `<name>.orig.svg` beside the
+scheme's SVG, in the folder and in the Minio bucket alike (see [The SVG for ctrlroom](#rsdu-svg)). It is never
+overwritten. To go back to it:
+
+1. Stop the deliveries first: unlink the diagram (Properties → **Bindings** → **Change…** → **Unlink**, then **Save**)
+   or delete the diagram ([f](#howto-delete)). Otherwise the next save delivers the diagram's picture again.
+2. Copy `<name>.orig.svg` over `<name>.svg` by hand, in the folder and in the bucket.
+3. RSDU clients reopen the scheme.
+
+Bindings already exported stay in RSDU; an unlinked diagram no longer exports to the scheme.
+
+### f. Deleting a diagram {#howto-delete}
+
+Delete it in the **File** panel; the confirmation names the RSDU scheme it is linked to. The scheme, its components,
+its bindings and its SVG stay in RSDU, as does `<name>.orig.svg`. The scheme then shows **without a diagram** in the
+**RSDU schemes** tab, and **Edit from RSDU…** can take it into the editor again: it reads the picture delivered last.
 
 ## Moving around the canvas {#navigation}
 

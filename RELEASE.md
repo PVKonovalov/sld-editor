@@ -1,5 +1,19 @@
 # Release notes
 
+2026-11-18: User guide (en, ru): a new section, "How to: work with RSDU" (`#rsdu-howto`), with step-by-step examples:
+- `#howto-new-scheme`: a new diagram registered in RSDU with its bindings;
+- `#howto-picture`: changing only the picture of a scheme already in RSDU;
+- `#howto-bindings`: changing the bindings of a registered scheme;
+- `#howto-take-over`: taking over an RSDU scheme with its bindings;
+- `#howto-link`: linking a diagram you already have to an existing scheme;
+- `#howto-compare`: after the scheme was changed in RSDU;
+- `#howto-rename`: renaming or moving a diagram, or renaming its scheme;
+- `#howto-restore-picture`: going back to RSDU's original picture;
+- `#howto-delete`: deleting a diagram.
+
+It opens with a table of what Save, Export, Export diagram only and Compare write. Linked from the guide's
+introduction and from "RSDU schemes".
+
 2026-11-18: Short-circuiter (398) is drawn exactly as xsde2svg writes it, on the canvas and in the saved `.svg`: both
 states, each in its own `<g data-state>`, with only the current one visible. The editor's own look (a rod and arrow
 like the Sectionalizer's) is gone. The editor's earlier drawing wasn't xsde2svg's, so its saved SVGs failed to import
