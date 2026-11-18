@@ -51,7 +51,7 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
 ## Index
 
 - Docs: `README.md` (build/run/packaging), `backend/assets/USER_GUIDE.md` + `.ru.md` (in-app guide), `TODO.md`,
-  `elements.md` (xsde2svg shapes being ported), `docs/CIM_INTEROP.md`.
+  `elements.md` (xsde2svg shapes being ported), `docs/CIM_INTEROP.md`, `docs/OPEN_QUESTIONS.md` (undecided questions).
 - Backend: `cmd/sld-editor/main.go`; `internal/config` (`config/sld-editor.yaml`: palette, hot keys, voltage/state
   colors, `cim`, `xsde:`, `bindings`), `internal/elements` (XML symbol libraries, `assets/elements/base.xml`,
   palette/hot-key validation at startup), `internal/storage` (filesystem store, `.xsld` + rendered `.svg`, history),

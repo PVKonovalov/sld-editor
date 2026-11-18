@@ -362,6 +362,23 @@ Then check and reload: `sudo nginx -t && sudo nginx -s reload`. Use
 `client_max_body_size 0;` to switch the check off when nginx serves only the
 editor.
 
+# RSDU clients after export
+
+Export to RSDU (bindings with `bindings.rsdu.export: true`, see [Configuration](#configuration)) writes the scheme
+and its bindings to the RSDU database and delivers the SVG for ctrlroom, but **notifies no one**. RSDU's own scheme
+editor publishes `SchemeEvent(SAVE)` to the MQ exchange `Events` so running clients reload the scheme; the editor has
+no MQ connection and publishes nothing.
+
+- **RSDU clients** that have the scheme open keep showing its old bindings until the scheme is reopened.
+- **ctrlroom** gets the new SVG on every save of an exported diagram (into `bindings.rsdu.svg.dir` and/or MinIO) and
+  the bindings from RSDU on export. It keeps each scheme's file name (`VS_FORM.FILE_NAME`) until it restarts: when a
+  scheme the editor registered follows a renamed or moved diagram, the next export writes the SVG under the new name
+  and ctrlroom needs a restart to read it. The SVG under the old name is left in place.
+- **New schemes** are not visible in ctrlroom until they are added to users' menus (`US_MENU`) with RSDU's tools.
+
+The user guide's [Export to RSDU](backend/assets/USER_GUIDE.md) and "The SVG for ctrlroom" sections describe the same
+from the user's side.
+
 # CIM with other tools
 
 [`docs/CIM_INTEROP.md`](docs/CIM_INTEROP.md) shows how to view the editor's CGMES export in the CGMES

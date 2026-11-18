@@ -1,5 +1,10 @@
 # Release notes
 
+2026-11-18: README: new "RSDU clients after export" section. Export to RSDU publishes no `SchemeEvent(SAVE)` (no MQ
+connection): RSDU clients reopen the scheme, ctrlroom needs a restart after a registered scheme's file name changes,
+new schemes need `US_MENU` entries. New `docs/OPEN_QUESTIONS.md` lists undecided questions: SCADA bindings' jumps to
+other editor diagrams, registering a scheme without export, and the default RSDU group per folder.
+
 2026-11-18: README: new Configuration section, a full reference of `sld-editor.yaml` — how it is read (YAML, then
 `.env`, then the environment; variable naming, list appending, path resolution, reload, startup validation) and every
 key with its type, environment override, default and meaning, including `bindings.rsdu` with its `dsn` and MinIO
