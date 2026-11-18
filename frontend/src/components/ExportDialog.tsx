@@ -68,7 +68,9 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     group: null,
   })
   const [picking, setPicking] = useState(false)
-  const [busy, setBusy] = useState(false)
+  // The action running, its button showing a spinner; every button is off meanwhile.
+  const [running, setRunning] = useState<'save' | 'picture' | 'compare' | 'export' | null>(null)
+  const busy = running !== null
   const [result, setResult] = useState<ExportResult | null>(null)
   // The result of Export diagram only.
   const [pictureResult, setPictureResult] = useState<SVGExportResult | null>(null)
@@ -133,8 +135,8 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     updateDiagram(d => diagramOps.setDiagramScheme(d, { source: provider, ref: s.ref }))
   }
 
-  async function run(action: () => Promise<void>) {
-    setBusy(true)
+  async function run(which: NonNullable<typeof running>, action: () => Promise<void>) {
+    setRunning(which)
     setError(null)
     try {
       await action()
@@ -142,12 +144,12 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
       if (e instanceof api.ExportRefusedError) setCheck(e.check)
       else setError(errorText(e))
     } finally {
-      setBusy(false)
+      setRunning(null)
     }
   }
 
   const saveAndCheck = () =>
-    run(async () => {
+    run('save', async () => {
       await saveDiagram()
       setSeq(n => n + 1)
     })
@@ -158,7 +160,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
 
   // Delivers only the picture to the linked scheme; the database is not written.
   const exportPicture = () =>
-    run(async () => {
+    run('picture', async () => {
       const res = await api.exportDiagramPicture(name)
       setPreview(null)
       setPictureResult(res)
@@ -167,14 +169,14 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
 
   // Compare with the provider: the bindings overview with the scheme's bindings; it changes nothing in the scheme.
   const compare = () =>
-    run(async () => {
+    run('compare', async () => {
       setBindingImport(await api.importBindings(name))
       onClose()
     })
 
   // The first click previews what the export would write; Confirm writes it.
   const doExport = () =>
-    run(async () => {
+    run('export', async () => {
       if (!preview) {
         setPreview(await api.exportDiagram(name, { ...request(), preview: true }))
         return
@@ -271,7 +273,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
       title={dirty ? t('bindingImport.saveFirst') : t('exportCheck.compareHint')}
       className="flex items-center gap-1 rounded border border-surface-500 px-2 py-0.5 hover:bg-surface-600 disabled:opacity-50"
     >
-      <RefreshCw size={12} />
+      {running === 'compare' ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
       {t('exportCheck.compare')}
     </button>
   )
@@ -284,7 +286,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
       title={dirty ? t('bindingImport.saveFirst') : t('exportCheck.pictureOnlyHint')}
       className="flex items-center gap-1 rounded border border-surface-500 px-2 py-1 hover:bg-surface-600 disabled:opacity-50"
     >
-      {busy && <Loader2 size={12} className="animate-spin" />}
+      {running === 'picture' && <Loader2 size={12} className="animate-spin" />}
       {t('exportCheck.pictureOnly')}
     </button>
   )
@@ -510,7 +512,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 onClick={doExport}
                 className="flex items-center gap-1 rounded bg-accent px-3 py-1 text-white hover:opacity-90 disabled:opacity-50"
               >
-                {busy && <Loader2 size={12} className="animate-spin" />}
+                {running === 'export' && <Loader2 size={12} className="animate-spin" />}
                 {t(preview ? 'exportCheck.confirm' : 'exportCheck.export')}
               </button>
             )}

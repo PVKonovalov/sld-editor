@@ -5,7 +5,8 @@ It is in the "Nothing to export" window and next to **Export**, and is served by
 /api/bindings/export/svg`. Nothing is written to the RSDU database and the binding marks stay. The diagram is saved
 with that time as its export time, so every later save delivers the picture too. "Nothing to export" no longer
 claims the picture is delivered on every save when the diagram has never been exported (for example, linked through
-**Edit from RSDU…**).
+**Edit from RSDU…**). In the export window the spinner shows on the button of the action that is running; all
+buttons stay off meanwhile.
 
 2026-11-18: Export to RSDU acts only on flags. The export writes just the bindings the editor marked, one row each:
 `new` is inserted (or updated when RSDU has the row), `edited` is updated, a deleted binding (`deletedBindings`, which
