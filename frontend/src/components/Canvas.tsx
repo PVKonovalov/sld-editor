@@ -27,6 +27,7 @@ const ARROW_SHAPE = '2'
 const BUTTON_SHAPE = '113'
 const WINDOW_ICON_SHAPE = '302'
 const AUTOMATION_DEVICE_SHAPE = '103'
+const DISPLAY_PANEL_SHAPE = '102'
 const ROAD_SHAPE = '335'
 const LINE_SHAPE = '1'
 const POLYGON_SHAPE = '16'
@@ -80,6 +81,7 @@ const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
   BUTTON_SHAPE,
   WINDOW_ICON_SHAPE,
   AUTOMATION_DEVICE_SHAPE,
+  DISPLAY_PANEL_SHAPE,
   ARC_SHAPE,
   TABLE_SHAPE,
 ])
@@ -1389,7 +1391,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
         continue
       }
       if (
-        (el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'Table') &&
+        (el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'DisplayPanel' || el.class === 'Table') &&
         el.points
       ) {
         const [p0, p1] = el.points
@@ -1868,10 +1870,12 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     'Button',
     'WindowIcon',
     'AutomationDevice',
+    'DisplayPanel',
     'Road',
     'PostPole',
     'LampOnPole',
     'LED',
+    'Device',
     'Line',
     'Polygon',
     'Container',
@@ -2309,7 +2313,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
         const [p0, p1] = el.points
         const angle = (Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180) / Math.PI
         node.setAttribute('transform', `translate(${p0.x + dx},${p0.y + dy}) rotate(${angle})`)
-      } else if ((el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice') && el.points) {
+      } else if ((el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'DisplayPanel') && el.points) {
         // Unlike Rectangle's bare <rect>, a Button's own <rect>/<text> live
         // inside a wrapping <g> with no transform of its own (matching real
         // xsde2svg's own absolute-coordinate markup — see writeButton), so
@@ -2324,7 +2328,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
         rect?.setAttribute('y', String(y))
         const text = node.querySelector('text')
         text?.setAttribute('x', String(x + w / 2))
-        text?.setAttribute('y', String(y + h / 2 + (el.class === 'WindowIcon' || el.class === 'AutomationDevice' ? 2 : 0)))
+        text?.setAttribute('y', String(y + h / 2 + (el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'DisplayPanel' ? 2 : 0)))
       } else if (el.class === 'Table' && el.points) {
         // Same wrapping-<g>-of-absolute-coordinate-children structure as
         // Button just above (see writeTable) — its own label additionally
@@ -2500,8 +2504,8 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
                       ? diagramOps.placeButton(d, start, snappedEnd)
                       : shape === WINDOW_ICON_SHAPE
                         ? diagramOps.placeWindowIcon(d, start, snappedEnd)
-                      : shape === AUTOMATION_DEVICE_SHAPE
-                        ? diagramOps.placeAutomationDevice(d, start, snappedEnd)
+                      : shape === AUTOMATION_DEVICE_SHAPE || shape === DISPLAY_PANEL_SHAPE
+                        ? diagramOps.placeStatusTile(d, shape, start, snappedEnd)
                           : shape === ARC_SHAPE
                             ? diagramOps.placeArc(d, start, snappedEnd)
                             : shape === TABLE_SHAPE
@@ -3552,7 +3556,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
                       />
                     )
                   }
-                  if ((el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'Table') && el.points) {
+                  if ((el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'DisplayPanel' || el.class === 'Table') && el.points) {
                     const [p0, p1] = el.points
                     return (
                       <rect
@@ -3785,6 +3789,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
                 armedSymbol?.shape === BUTTON_SHAPE ||
                 armedSymbol?.shape === WINDOW_ICON_SHAPE ||
                 armedSymbol?.shape === AUTOMATION_DEVICE_SHAPE ||
+                armedSymbol?.shape === DISPLAY_PANEL_SHAPE ||
                 armedSymbol?.shape === TABLE_SHAPE) ? (
                 <rect
                   x={Math.min(newBusbar.start.x, newBusbar.current.x)}
@@ -3853,6 +3858,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
                   selectedElement.class === 'Button' ||
                   selectedElement.class === 'WindowIcon' ||
                   selectedElement.class === 'AutomationDevice' ||
+                  selectedElement.class === 'DisplayPanel' ||
                   selectedElement.class === 'Road' ||
                   selectedElement.class === 'Line' ||
                   selectedElement.class === 'Polygon' ||
@@ -3871,7 +3877,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
                     pointDrag.elementId === selectedElement.id &&
                     (() => {
                       const pts = selectedElement.points!.map((p, i) => (i === pointDrag.pointIndex ? pointDrag.point : p))
-                      if (selectedElement.class === 'Rectangle' || selectedElement.class === 'SmallWindow' || selectedElement.class === 'Picture' || selectedElement.class === 'Button' || selectedElement.class === 'WindowIcon' || selectedElement.class === 'AutomationDevice' || selectedElement.class === 'Table') {
+                      if (selectedElement.class === 'Rectangle' || selectedElement.class === 'SmallWindow' || selectedElement.class === 'Picture' || selectedElement.class === 'Button' || selectedElement.class === 'WindowIcon' || selectedElement.class === 'AutomationDevice' || selectedElement.class === 'DisplayPanel' || selectedElement.class === 'Table') {
                         const [p0, p1] = pts
                         return (
                           <rect

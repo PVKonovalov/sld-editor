@@ -51,6 +51,7 @@ const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'Button',
   'WindowIcon',
   'AutomationDevice',
+  'DisplayPanel',
   'Road',
   'Line',
   'Polygon',
@@ -789,22 +790,37 @@ const AUTOMATION_DEVICE_DEFAULTS = {
   stroke: '#000000',
 }
 
-/** Places a new Automation device (shape 103) spanning start..end: a
- * decorative two-state status tile (see slddoc's ClassAutomationDevice), no
- * Voltage, no Ports, never a routing target. */
-export function placeAutomationDevice(diagram: Diagram, start: Point, end: Point): Diagram {
+// A freshly placed Display panel starts Off: xsde2svg's gray tile and border, lawngreen when On.
+const DISPLAY_PANEL_DEFAULTS = {
+  state: 0,
+  fillOff: 'gray',
+  fillOn: 'lawngreen',
+  textColor: '#000000',
+  textColorOn: '#000000',
+  stroke: 'gray',
+}
+
+const STATUS_TILES = {
+  '103': { class: 'AutomationDevice', name: 'Automation', defaults: AUTOMATION_DEVICE_DEFAULTS },
+  '102': { class: 'DisplayPanel', name: 'Panel', defaults: DISPLAY_PANEL_DEFAULTS },
+} as const
+
+/** Places a new status tile spanning start..end: an Automation device (shape 103) or a Display panel (102), a
+ * decorative two-state tile (see slddoc's ClassAutomationDevice), no Voltage, no Ports, never a routing target. */
+export function placeStatusTile(diagram: Diagram, shape: '103' | '102', start: Point, end: Point): Diagram {
+  const tile = STATUS_TILES[shape]
   const ids = new IdSequence(diagram)
   const id = ids.take()
   const element: DiagramElement = {
     id,
-    class: 'AutomationDevice',
-    shape: '103',
-    name: `Automation-${id}`,
+    class: tile.class,
+    shape,
+    name: `${tile.name}-${id}`,
     layer: defaultLayer(diagram),
     x: (start.x + end.x) / 2,
     y: (start.y + end.y) / 2,
     points: [start, end],
-    ...AUTOMATION_DEVICE_DEFAULTS,
+    ...tile.defaults,
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -4889,7 +4905,7 @@ export function ungroupItems(d: Diagram, selection: Map<number, GroupItemKind>):
 // orientation (Table's and Line's own label rotation is a separate field).
 const POINTS_DRAWN_CLASSES = new Set([
   'BusBarSection', 'Rectangle', 'SmallWindow', 'Picture', 'Arrow', 'Button', 'WindowIcon',
-  'AutomationDevice', 'Road', 'Line', 'Polygon', 'Container', 'Arc', 'Table',
+  'AutomationDevice', 'DisplayPanel', 'Road', 'Line', 'Polygon', 'Container', 'Arc', 'Table',
 ])
 // Look and connect the same at every orientation, or (Table2) have none.
 const NO_ORIENT_CLASSES = new Set(['Lamp', 'PostPole', 'LampOnPole', 'ConnectorArrow', 'ConnectorPoint', 'Table2'])

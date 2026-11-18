@@ -1060,7 +1060,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isArrow = el.class === 'Arrow'
   const isButton = el.class === 'Button'
   const isWindowIcon = el.class === 'WindowIcon'
-  const isAutomationDevice = el.class === 'AutomationDevice'
+  const isAutomationDevice = el.class === 'AutomationDevice' || el.class === 'DisplayPanel'
   const isRoad = el.class === 'Road'
   const isPostPole = el.class === 'PostPole'
   const isLampOnPole = el.class === 'LampOnPole'

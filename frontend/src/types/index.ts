@@ -110,6 +110,8 @@ export type ElementClass =
   | 'Lamp'
   | 'LampOnPole'
   | 'LED'
+  | 'Device'
+  | 'ZoneDivision'
   | 'ConnectorPoint'
   | 'ConnectorArrow'
   | 'FaultPassageIndicator'
@@ -120,6 +122,7 @@ export type ElementClass =
   | 'PowerPlant'
   | 'AnchorPole'
   | 'AutomationDevice'
+  | 'DisplayPanel'
   | 'Picture'
   | 'Arrow'
   | 'Circle'
@@ -450,7 +453,7 @@ export interface DiagramElement {
   rowHeights?: number[]
   columnWidths?: number[]
   cells?: TableCell[]
-  // An AutomationDevice's (shape 103) On text and text color; propertyText/
+  // An AutomationDevice's (shape 103) or DisplayPanel's (102) On text and text color; propertyText/
   // textColor are its Off ones.
   propertyTextOn?: string
   textColorOn?: string

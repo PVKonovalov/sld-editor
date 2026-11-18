@@ -209,7 +209,7 @@ palette:
   - name: "Annotations"
     items: [ "3", "2", "4", "113", "302", "319", "11", "335", "5", "292", "1", "16", "310", "9", "312", "313" ]
   - name: "Wiring"
-    items: [ "7", "10", "26", "14", "56", "32", "146", "19" ]
+    items: [ "7", "10", "26", "14", "56", "32", "146", "19", "60" ]
   - name: "Switching devices"
     items: [ "41", "43", "42", "162", "164", "163", "399", "49", "50", "51", "76", "44", "175" ]
   - name: "Grounding"
@@ -219,13 +219,13 @@ palette:
   - name: "Generation"
     items: [ "173", "174", "39", "38" ]
   - name: "Measurement"
-    items: [ "34", "55" ]
+    items: [ "34", "55", "130" ]
   - name: "Other equipment"
     items: [ "33", "37", "397", "389", "388", "172", "330001", "330002", "330003", "156", "157", "52", "385", "386", "360" ]
   - name: "Protection"
     items: [ "35", "29", "168", "203", "154", "166" ]
   - name: "Indicators"
-    items: [ "106", "320002", "320007", "134", "320003", "320001", "103" ]
+    items: [ "106", "320002", "320007", "134", "320003", "320001", "102" ]
 
 # Placement hot keys: pressing the key (without Ctrl/Cmd/Alt) arms that
 # palette item, the same as clicking its button; pressing it again disarms it.
@@ -275,6 +275,8 @@ cim:
     "399":    [ Breaker ]                                                          # Power circuit breaker
     "42":     [ LoadBreakSwitch ]                                                  # Load-break switch
     "162":    [ Disconnector ]                                                     # Disconnector
+    "71":     [ Disconnector ]                                                     # Railway connection, disconnector
+    "320006": [ Disconnector ]                                                     # Arc-extinguishing contact
     "49":     [ Disconnector ]                                                     # Disconnector (withdrawable)
     "44":     [ Disconnector ]                                                     # Knife switch
     "175":    [ Disconnector ]                                                     # 3-position knife switch

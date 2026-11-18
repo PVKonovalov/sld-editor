@@ -24,6 +24,7 @@ var extractRoundTripGaps = map[string]string{
 	"113":    "3D button: anchor read as its center",
 	"302":    "window icon: anchor read as its center",
 	"103":    "automation device: anchor read as its center",
+	"102":    "display panel: anchor read as its center",
 	"319":    "small window: anchor read as its center",
 	"11":     "picture: anchor read as its center, no orientation",
 	"335":    "road: orientation lives in its points",

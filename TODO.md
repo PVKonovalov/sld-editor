@@ -104,13 +104,12 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 - [+] 39 Synchronous motor
 - [+] 44 Knife switch
 - [+] 50 Withdrawable sectionalizer
-- [ ] 60 Zone division
-- [ ] 71 Custom connection, disconnector. Porting it as its own type means removing the legacy `71` → `162` rewrite in
-      `slddoc.Load` (`shapeDisconnectorLegacy`).
+- [+] 60 Zone division (inline on a wire, conducting; CIM pass-through)
+- [+] 71 Railway connection, disconnector (drawn as 162)
 - [+] 83 Connector arrow
-- [ ] 102 Panel/board
+- [+] 102 Display panel (Panel/board; Automation device's tile, gray by default)
 - [+] 103 Automation device
-- [ ] 130 Device (generic placeholder; check what it actually draws first)
+- [+] 130 Device (an energy meter: square, line and "Wh")
 - [+] 146 Power pole
 - [+] 156 Resistor
 - [+] 157 Thyristor
@@ -125,7 +124,7 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 - [+] 360 Substation (pictogram)
 - [+] 389 Blocking filter
 - [+] 391 RTF text (imported as a plain Text label (5); not drawn or saved as 391)
-- [ ] 3206 Customer connection, disconnector, arc-extinguishing contacts
+- [+] 3206 Arc-extinguishing contact (written as `data-type="320006"`; a Disconnector, its two Modus names are its states)
 - [+] 320002 Lamp on pole
 - [+] 320007 LED
 

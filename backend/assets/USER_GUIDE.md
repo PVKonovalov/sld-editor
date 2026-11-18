@@ -194,6 +194,10 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
   reported with the reason. The converter's colors and settings come from `xsde2svg.yml` and `workplace.xml`; see
   [Configuration](#configuration-xsde). A file whose header says UTF-8 but whose text is really Windows-1251 (as some Modus
   exports are) is read as Windows-1251, with a warning in the converter messages.
+- Element types that draw like another one are imported as that one: Railway connection (71) and arc-extinguishing
+  contact (320006) become a **Disconnector** (162), an automation device (103) a **Display panel** (102), an image
+  file (12) a **Backdrop** (11). An arc-extinguishing contact keeps its longer leads (**Leads**), so its wires stay
+  connected. Diagrams saved earlier keep their elements as they are.
 - Texts keep their turn: a Modus text's tilt angle (counter-clockwise) and its orientation (vertical down, reversed,
   vertical up) together turn the label as xsde2svg draws it, about the label's own anchor.
 - xsde2svg draws each device at its own size step (each step √2 larger). An `.svg` import recovers the step from where
@@ -704,6 +708,11 @@ Some elements are drawn instead of clicked:
 Newly placed elements start at the default voltage (switching devices start closed). A device's fixed connection
 points (its **terminals**) are shown as small crosses while it is selected: green where something is connected (a wire,
 or another device's terminal on the same point), red where the terminal is still free.
+
+The palette has one button per drawing. Railway connection (71) and arc-extinguishing contact (320006) are placed as a
+**Disconnector**, an automation device (103) as a **Display panel**, an image file (12) as a **Backdrop/image file**.
+Lengthen a disconnector's leads with **Leads** in Properties. Older diagrams that still hold these types open and draw
+as before (see [Importing](#import)).
 
 ## Selecting {#selecting}
 

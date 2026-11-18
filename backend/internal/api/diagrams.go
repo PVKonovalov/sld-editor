@@ -370,6 +370,7 @@ func (s *Server) importDiagramSVG(c *gin.Context) {
 		errJSON(c, http.StatusBadRequest, err)
 		return
 	}
+	rewriteImportedShapes(d)
 	s.prepareDiagram(d, true)
 	c.JSON(http.StatusOK, gin.H{
 		"diagram": d,
@@ -420,6 +421,7 @@ func (s *Server) importDiagramXSDE(c *gin.Context) {
 			messages = append(messages, xsde2svg.Message{Level: "ERROR", Page: i + 1, Text: err.Error()})
 			continue
 		}
+		rewriteImportedShapes(d)
 		s.prepareDiagram(d, true)
 		out = append(out, importedPage{Page: i + 1, Title: p.Title, Diagram: d, Report: newImportReport(report)})
 	}

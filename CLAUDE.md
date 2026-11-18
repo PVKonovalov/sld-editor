@@ -75,7 +75,9 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
   functions — keep the two in step.** Repair never moves an existing node.
 - Ports are fixed per shape (N terminals → ports `"1"…"N"`); a BusBarSection is the exception (one port per
   connection point; downstream topology merges them).
-- `Load` rewrites shape `"71"` → `"162"`: drop that rewrite once shape 71 is ported as its own type.
+- `.svg`/`.xsde` import rewrites shapes drawn like another (`rewriteImportedShapes`, `internal/api/import_shapes.go`):
+  71 and 320006 → 162 (320006 keeps its terminals through `span`), 103 → 102; 12 is already read as 11. Their
+  symbols stay in the library (not the palette) so saved diagrams still render; saved diagrams aren't rewritten.
 - `RenderMode.Static` (saved `.svg`, downloads) must stay xsde2svg-faithful (absolute coordinates); `Interactive` is
   canvas-only (local frames, `data-editor-kind`, wider hit targets). Connector kinds use type codes 21/22/23/28.
 - Every edit goes through `updateDiagram` + `diagramOps`; untouched entries keep their object reference

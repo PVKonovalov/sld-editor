@@ -1,5 +1,42 @@
 # Release notes
 
+2026-11-18: User guide, Placing elements: a note on which palette button replaces the look-alike types the import
+rewrites (71, 320006, 103, 12), with a link to Importing.
+
+2026-11-18: `.svg`/`.xsde` import turns shapes drawn like another into that one: 71 (Railway connection) and 320006
+(arc-extinguishing contact) into Disconnector 162, the latter with its terminals kept through Leads (span), and 103
+(Automation device) into Display panel 102; 12 was already read as 11. 71, 320006 and 103 left the palette; their
+symbols stay so diagrams saved with them still open, and saved diagrams aren't rewritten.
+
+2026-11-18: Arc-extinguishing contact (xsde2svg 3206, written as `data-type="320006"`) is ported as a Disconnector:
+the disconnector's body and blade with fixed legs (terminals at ±21), closed or open by its state (Modus's two names
+"Контакт размык./замык. дугогасит."), in the Switching devices palette after 71, exported to CIM as `Disconnector`.
+No real export has one yet; the import was checked on the source's output format.
+
+2026-11-18: Shape 60 (Zone division, "Деление зон" in xsde2svg) is ported: the boundary of two zones on a wire, a
+10-long stroke in the voltage color under a magenta "Z", with terminals at both ends, in the Wiring palette. Real
+exports place it inline on a buswork wire; the import connects the wires on both ends. The CIM export passes through
+it (one node, no equipment), like a cable joint.
+
+2026-11-18: Shape 130 (Device, "Устройство" in xsde2svg) is ported: an energy meter, a 30x30 square with a line
+and an upright "Wh" in its voltage color, no terminals, in the Measurement palette. Real exports write it as a bare
+`<path>` followed by an untyped `<text>Wh</text>`; the import reads that text as part of the meter instead of a free
+label. The saved SVG wraps path and text in one `<g>` like every symbol.
+
+2026-11-18: Shape 102 (Display panel, "Табло" in xsde2svg) is ported: Automation device's two-state tile (two corners,
+On/Off fill, text and text color) with xsde2svg's gray fill and border by default, in the Indicators palette after
+103. Real exports import with their fill, text and colors as the Off look; the label is written in Arial like 103's.
+Placement, resizing and Properties are shared with the Automation device.
+
+2026-11-18: Shape 71 (Railway connection, disconnector) is its own element type: a Disconnector drawn exactly as 162 (as
+xsde2svg draws both), in the Switching devices palette after 162, exported to CIM as `Disconnector`. Imported 71s stay
+71 on save and reopen (slddoc's `Load` no longer rewrites them to 162); elements already saved as 162 by that rewrite
+stay 162.
+
+2026-11-18: Planned "Edit from RSDU" (fetch a scheme's SVG from ctrlroom's storage, import, link, import its
+bindings, keep the original SVG); its undecided points (concurrent edits, SVGs not made by xsde2svg, folder of the
+fetched diagram) added to `docs/OPEN_QUESTIONS.md`.
+
 2026-11-18: README: new "RSDU clients after export" section. Export to RSDU publishes no `SchemeEvent(SAVE)` (no MQ
 connection): RSDU clients reopen the scheme, ctrlroom needs a restart after a registered scheme's file name changes,
 new schemes need `US_MENU` entries. New `docs/OPEN_QUESTIONS.md` lists undecided questions: SCADA bindings' jumps to

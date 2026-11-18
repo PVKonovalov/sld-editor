@@ -203,6 +203,12 @@
     <template></template>
   </symbol>
 
+  <symbol shape="102" class="DisplayPanel" name="Display panel">
+    <!-- xsde2svg element_102.go: Automation device's two-state tile with a gray fill and border by default, drawn by
+         slddoc.Render from its own Points. -->
+    <template></template>
+  </symbol>
+
   <symbol shape="302" class="WindowIcon" name="Window icon">
     <!-- Button's smaller sibling (xsde2svg element_302.go): the same
          two-corner box with a centered label, drawn by slddoc.Render from
@@ -248,6 +254,19 @@
        Element.Radius/Fill's own doc comments (slddoc internal/model/model.go) for the
        real corpus evidence and slddoc internal/render/render.go's own
        junctionRadius/junctionFill for the fallback logic itself. -->
+  <!-- 60 Zone division (xsde2svg element_60.go): the boundary of two zones on a wire, a 10-long stroke down from the
+       anchor in the voltage color under a magenta "Z"; terminals at both ends of the stroke. -->
+  <symbol shape="60" class="ZoneDivision" name="Zone division">
+    <terminals>
+      <terminal x="0" y="0"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 10" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -5 0 h 10 l -10 10 h 10" style="fill:none;stroke:magenta;stroke-width:2" />
+]]></template>
+  </symbol>
+
   <symbol shape="7" class="JunctionPoint" name="Junction point">
     <template><![CDATA[
 <circle cx="0" cy="0" r="{junctionRadius}" style="fill:{junctionFill};stroke:{color};stroke-width:1" />
@@ -444,6 +463,34 @@
   </symbol>
 
   <symbol shape="162" class="Disconnector" name="Disconnector">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="{state:M 0 6 v -13|M -6 0 h 13|M -4.6 -4.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -4 -9 h 8 m 0 18 h -8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -9 v -1 M 0 9 v 1" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- 320006 Arc-extinguishing contact (xsde2svg element_3206.go, Modus custom elements "Контакт размык./замык.
+       дугогасит."): Disconnector 162's body and blade with fixed 12-long legs, so its terminals sit at ±21. Modus's
+       two names are its two states (closed / open). -->
+  <symbol shape="320006" class="Disconnector" name="Arc-extinguishing contact">
+    <terminals>
+      <terminal x="0" y="-21"/>
+      <terminal x="0" y="21"/>
+    </terminals>
+    <template><![CDATA[
+<path d="{state:M 0 6 v -13|M -6 0 h 13|M -4.6 -4.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -4 -9 h 8 m 0 18 h -8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -9 v -12 M 0 9 v 12" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- 71 Railway connection, disconnector: its own type, drawn exactly as 162 (xsde2svg element71 draws both). -->
+  <symbol shape="71" class="Disconnector" name="Railway connection, disconnector">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -970,6 +1017,17 @@
        color and the secondary (bottom circle) a fixed gray, matching a
        real corpus instance exactly (e.g. sld-viewer's
        PS_110kV_Example.svg, id="4473"). -->
+  <!-- 130 Device (xsde2svg element_130.go): an energy meter, a 30x30 square with a line 10 above its center, and an
+       upright "Wh" (the source rotates only the square). No terminals. -->
+  <symbol shape="130" class="Device" name="Device">
+    <template><![CDATA[
+<path d="M -15 -15 h 30 v 30 h -30 z M -15 -10 h 30" style="fill:none;stroke:{color};stroke-width:1" />
+<g transform="rotate({counterRotate})">
+<text x="0" y="2" style="fill:{color};text-anchor:middle;dominant-baseline:middle;font-size:18px;font-family:Arial">Wh</text>
+</g>
+]]></template>
+  </symbol>
+
   <symbol shape="55" class="VoltageTransformer" name="Voltage transformer">
     <terminals>
       <terminal x="0" y="0"/>
