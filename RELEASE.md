@@ -1,5 +1,12 @@
 # Release notes
 
+2026-11-18: Short-circuiter (398) is drawn exactly as xsde2svg writes it, on the canvas and in the saved `.svg`: both
+states, each in its own `<g data-state>`, with only the current one visible. The editor's own look (a rod and arrow
+like the Sectionalizer's) is gone. The editor's earlier drawing wasn't xsde2svg's, so its saved SVGs failed to import
+("Missing: Short-circuiter"). A saved `.svg` gets the new markup on its next save. The lead starts 11 below the
+anchor as in xsde2svg; the terminal stays on the grid at 10. A new test renders 398 in both states, rotated and
+not, compares it with xsde2svg's markup and imports it back.
+
 2026-11-18: Export to RSDU: **Export diagram only** delivers just the diagram's picture (SVG) to its linked scheme.
 It is in the "Nothing to export" window and next to **Export**, and is served by the new `POST
 /api/bindings/export/svg`. Nothing is written to the RSDU database and the binding marks stay. The diagram is saved
