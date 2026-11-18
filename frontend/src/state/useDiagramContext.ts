@@ -313,7 +313,8 @@ export interface DiagramContextValue {
   repairDiagram: () => Promise<boolean>
   // opts.automatic false skips what every edit otherwise gets: wire jumps (diagramOps.jumpChangedCrossings) and
   // junction points on new busbar–buswork connections (diagramOps.addJunctionPoints).
-  updateDiagram: (updater: (d: Diagram) => Diagram, opts?: { automatic?: boolean }) => void
+  // untracked: the edit sets no export statuses (it makes items match the provider).
+  updateDiagram: (updater: (d: Diagram) => Diagram, opts?: { automatic?: boolean; untracked?: boolean }) => void
   // Set while an edit would join different voltage classes at these connection points (diagramOps.
   // withVoltagePolicy) and waits for the answer: resolveVoltagePrompt(true) applies it with those joins, false
   // without them (the ends stay free).

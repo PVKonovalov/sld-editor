@@ -115,7 +115,54 @@ func (exportingProvider) Export(_ context.Context, _ string, d *slddoc.Diagram, 
 	}
 	ref := *d.Scheme
 	ref.Exported = &at
-	return &binding.ExportResult{Scheme: ref, Components: 1, Bindings: 2, Skipped: []binding.ExportIssue{}}, nil
+	return &binding.ExportResult{Scheme: ref, Components: 1, Bindings: 2, Skipped: []binding.ExportIssue{{Code: binding.IssueNoComponentType, Item: 7}}}, nil
+}
+
+// TestExportStatuses: a preview changes nothing; after an export the statuses are cleared, except those of an item the
+// export skipped.
+func TestExportStatuses(t *testing.T) {
+	s := newTestServerWithBindings(t, exportingProvider{}, rsduBindings(true))
+	save := func(d slddoc.Diagram) {
+		t.Helper()
+		if rec := doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=s/one", d); rec.Code != http.StatusOK {
+			t.Fatalf("save: %d %s", rec.Code, rec.Body.String())
+		}
+	}
+	export := func() binding.ExportResult {
+		t.Helper()
+		rec := doJSON(t, s, http.MethodPost, "/api/bindings/export?name=s/one", map[string]any{})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("export: %d %s", rec.Code, rec.Body.String())
+		}
+		return decode[binding.ExportResult](t, rec.Body.String())
+	}
+	b := func(kind slddoc.BindingKind, status slddoc.BindingStatus) []slddoc.Binding {
+		return []slddoc.Binding{{Source: "fake", Kind: kind, Ref: "1:2", Status: status}}
+	}
+	d := slddoc.Diagram{Width: 10, Height: 10, Scheme: &slddoc.SchemeRef{Source: "fake", Ref: "1"},
+		Labels: []slddoc.Label{{ID: 6, Text: "a", Bindings: b(slddoc.BindingJump, "")}}}
+	save(d)
+
+	d.Labels = []slddoc.Label{
+		{ID: 6, Text: "a", ComponentEdited: true, Bindings: b(slddoc.BindingJump, slddoc.BindingEdited)},
+		{ID: 7, Text: "b", Bindings: b(slddoc.BindingJump, slddoc.BindingNew)},
+	}
+	d.DeletedBindings = []slddoc.DeletedBinding{{Item: 3, Source: "fake", Kind: slddoc.BindingJump, Ref: "1:1"}, {Item: 4, Source: "other", Kind: slddoc.BindingJump, Ref: "1:1"}}
+	save(d)
+	if rec := doJSON(t, s, http.MethodPost, "/api/bindings/export?name=s/one", map[string]any{"preview": true}); rec.Code != http.StatusOK {
+		t.Fatalf("preview: %d %s", rec.Code, rec.Body.String())
+	}
+	if kept := decode[struct{ Diagram slddoc.Diagram }](t, doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=s/one", nil).Body.String()).Diagram; len(kept.DeletedBindings) != 2 || kept.Labels[0].Bindings[0].Status == "" {
+		t.Errorf("a preview changed the diagram: %+v", kept)
+	}
+	if res := export(); res.Bindings != 2 {
+		t.Errorf("pending: %+v", res)
+	}
+	got := decode[struct{ Diagram slddoc.Diagram }](t, doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=s/one", nil).Body.String()).Diagram
+	if l := got.Labels; l[0].ComponentEdited || l[0].Bindings[0].Status != "" || l[1].Bindings[0].Status != slddoc.BindingNew ||
+		len(got.DeletedBindings) != 1 || got.DeletedBindings[0].Source != "other" {
+		t.Errorf("after export: %+v %+v %+v", got.Labels, got.Scheme, got.DeletedBindings)
+	}
 }
 
 func TestExport(t *testing.T) {
@@ -234,6 +281,43 @@ func TestDeliverSVGOnExportAndSave(t *testing.T) {
 	}
 	if _, ok := p.got["6"]; ok {
 		t.Error("delivered with export off")
+	}
+}
+
+// TestExportSVGOnly: Export diagram only delivers the picture of a never exported, linked diagram, saves its export
+// time and keeps its binding statuses; an unlinked diagram, a failed delivery and export off are refused.
+func TestExportSVGOnly(t *testing.T) {
+	fail := false
+	p := deliveringProvider{got: map[string]string{}, fail: &fail}
+	s := newTestServerWithBindings(t, p, rsduBindings(true))
+	d := slddoc.Diagram{Width: 10, Height: 10, Scheme: &slddoc.SchemeRef{Source: "fake", Ref: "5"},
+		Labels: []slddoc.Label{{ID: 3, Text: "x", Bindings: []slddoc.Binding{{Source: "fake", Kind: slddoc.BindingMeas1, Ref: "1:2", Status: slddoc.BindingNew}}}}}
+	doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=e/one", d)
+	if _, ok := p.got["5"]; ok {
+		t.Fatal("a never exported diagram was delivered on save")
+	}
+	rec := doJSON(t, s, http.MethodPost, "/api/bindings/export/svg?name=e/one", nil)
+	res := decode[SVGExportResult](t, rec.Body.String())
+	if rec.Code != http.StatusOK || !strings.Contains(p.got["5"], "<svg") || len(res.SVG) != 1 || res.Scheme.Exported == nil {
+		t.Fatalf("export svg: %d %s", rec.Code, rec.Body.String())
+	}
+	got := decode[struct{ Diagram slddoc.Diagram }](t, doJSON(t, s, http.MethodGet, "/api/diagrams/open?name=e/one", nil).Body.String()).Diagram
+	if got.Scheme.Exported == nil || got.Labels[0].Bindings[0].Status != slddoc.BindingNew {
+		t.Errorf("after: %+v %+v", got.Scheme, got.Labels)
+	}
+
+	fail = true
+	if rec := doJSON(t, s, http.MethodPost, "/api/bindings/export/svg?name=e/one", nil); rec.Code != http.StatusBadGateway {
+		t.Errorf("failed delivery: %d %s", rec.Code, rec.Body.String())
+	}
+	fail = false
+	doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=e/two", slddoc.Diagram{Width: 10, Height: 10})
+	if rec := doJSON(t, s, http.MethodPost, "/api/bindings/export/svg?name=e/two", nil); rec.Code != http.StatusConflict {
+		t.Errorf("unlinked: %d", rec.Code)
+	}
+	off := newTestServerWithBindings(t, p, rsduBindings(false))
+	if rec := doJSON(t, off, http.MethodPost, "/api/bindings/export/svg?name=e/one", nil); rec.Code != http.StatusForbidden {
+		t.Errorf("export off: %d", rec.Code)
 	}
 }
 

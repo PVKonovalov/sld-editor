@@ -121,8 +121,9 @@ export function BindingImportView({
   function apply() {
     const items = importedItems(plan!);
     const object = importedObject(plan!);
-    updateDiagram((d) =>
-      diagramOps.applyImportedBindings(d, provider, items, object),
+    updateDiagram(
+      (d) => diagramOps.applyImportedBindings(d, provider, items, object),
+      { untracked: true },
     );
     setBindingImport(null);
   }

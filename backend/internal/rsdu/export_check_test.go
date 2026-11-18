@@ -83,7 +83,7 @@ func TestCheckExport(t *testing.T) {
 	p.cfg.SVG.FullPath = false
 	c, _ = p.CheckExport(ctx, "region/sub", &slddoc.Diagram{}, &slddoc.SchemeRef{Source: "rsdu", Ref: "10"})
 	i := slices.IndexFunc(c.Issues, func(i binding.ExportIssue) bool { return i.Code == binding.IssueSVGClash })
-	if c.OK || i < 0 || len(c.Issues[i].Schemes) != 1 || c.Issues[i].Schemes[0].Ref != "11" || c.SVGPath != "/srv/sld/sub.svg" {
+	if !c.OK || i < 0 || c.Issues[i].Severity != binding.SeverityWarning || len(c.Issues[i].Schemes) != 1 || c.Issues[i].Schemes[0].Ref != "11" || c.SVGPath != "/srv/sld/sub.svg" {
 		t.Errorf("base-name clash: %+v", c)
 	}
 

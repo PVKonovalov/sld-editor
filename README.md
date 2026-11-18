@@ -378,8 +378,13 @@ no MQ connection and publishes nothing.
 - **The original SVG is kept.** Before the first delivery to a scheme the editor did not register (linked from RSDU,
   through **Edit from RSDU…** or after an `.xsde` import), the SVG ctrlroom had is copied once to `<name>.orig.svg`
   beside it, in the folder and in MinIO. The copy is never overwritten; restore it by hand to go back.
-- **Edits in RSDU's own scheme editor** made after the editor fetched or exported a scheme are not detected; the
-  later export wins.
+- **Edits in RSDU's own scheme editor** are never overwritten: an export writes only the bindings and components the
+  editor marked (new, changed, deleted), one row each, and nothing unmarked. **Compare with RSDU** in the export window
+  opens the bindings overview, which shows how the scheme differs from the diagram and writes nothing to RSDU.
+- **Nothing is written when nothing changed.** A save of an exported diagram delivers the SVG; the export itself
+  reads and writes the database only for marked binding changes (see the guide), so `VS_FORM.LAST_UPDATE` changes only
+  then. **Export diagram only** (`POST /api/bindings/export/svg`) delivers just the SVG of a linked diagram and never
+  writes the database.
 
 The user guide's [Export to RSDU](backend/assets/USER_GUIDE.md) and "The SVG for ctrlroom" sections describe the same
 from the user's side.

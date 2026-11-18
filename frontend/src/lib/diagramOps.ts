@@ -5412,26 +5412,33 @@ export interface ImportedItem {
 
 /** Sets each item's bindings of source, precision, features and component type to the imported ones (no bindings: cleared); its
  * bindings of other sources stay. object sets the diagram's object (null removes it, undefined leaves it). Items not
- * listed keep their object. */
+ * listed keep their object. What is applied matches the provider: no export statuses, no pending deletions (the edit
+ * goes through updateDiagram with untracked). */
 export function applyImportedBindings(diagram: Diagram, source: string, items: ImportedItem[], object?: Binding | null): Diagram {
   const byTarget = new Map(items.map(i => [`${i.target.kind}:${i.target.id}`, i]))
   let next = mapBindables(diagram, (item, kind) => {
     const imported = byTarget.get(`${kind}:${item.id}`)
     if (!imported) return item
-    return cleanBindable({
+    const applied = cleanBindable({
       ...item,
       bindings: [...(item.bindings ?? []).filter(b => b.source !== source), ...imported.bindings.map(normalizeBinding)],
       precision: imported.precision,
       features: imported.features,
       componentType: imported.componentType,
-    })
+    }) as typeof item & { componentEdited?: boolean }
+    delete applied.componentEdited
+    return applied
   })
   if (object !== undefined) next = setDiagramObject(next, object ? normalizeBinding(object) : undefined)
+  const applied = new Set(items.map(i => i.target.id))
+  if (object !== undefined) applied.add(0)
+  const deleted = next.deletedBindings?.filter(x => x.source !== source || !applied.has(x.item))
+  if (deleted?.length !== next.deletedBindings?.length) next = { ...next, deletedBindings: deleted?.length ? deleted : undefined }
   return next
 }
 
 function normalizeBinding(b: Binding): Binding {
-  const next = { ...b }
+  const { status: _, ...next } = b
   if (!next.scale || next.scale === 1) delete next.scale
   if (!next.option) delete next.option
   return next

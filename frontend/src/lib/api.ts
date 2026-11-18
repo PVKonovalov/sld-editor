@@ -5,6 +5,7 @@ import type {
   ExportCheck,
   ExportRequest,
   ExportResult,
+  SVGExportResult,
   SchemeBindings,
   SchemeGroup,
   SchemeType,
@@ -508,6 +509,14 @@ export class ExportRefusedError extends Error {
 
 /** Exports the saved diagram name to the provider as req chose; the server saves the diagram's new scheme link.
  * Throws ExportRefusedError when the check fails. */
+/** Delivers only the saved picture of the diagram name to its linked scheme (nothing in the database) and saves the
+ * diagram with that export time (POST /api/bindings/export/svg). */
+export async function exportDiagramPicture(name: string): Promise<SVGExportResult> {
+  const res = await fetch(`${BASE}/bindings/export/svg?name=${encodeURIComponent(name)}`, { method: 'POST' })
+  const r: SVGExportResult = await asJSON(res)
+  return { ...r, svg: r.svg ?? [] }
+}
+
 export async function exportDiagram(name: string, req: ExportRequest): Promise<ExportResult> {
   const res = await fetch(`${BASE}/bindings/export?name=${encodeURIComponent(name)}`, {
     method: 'POST',

@@ -174,9 +174,9 @@ func svgSinks(cfg config.RSDUBindings) ([]svgSink, error) {
 }
 
 // DeliverSVG writes svg where ctrlroom's PathToSld looks for scheme ref: VS_FORM.FILE_NAME resolved by
-// svg.full_path, under svg.dir and in the svg.object_storage Minio bucket. It refuses a file another scheme resolves to
-// as well (letter case ignored), so as not to replace that scheme's picture. With keep, the SVG it replaces is first
-// copied to <name>.orig.svg, once (see keepOriginal). It stops at the first place that fails.
+// svg.full_path, under svg.dir and in the svg.object_storage Minio bucket; a file another scheme resolves to as well is
+// written too (the export check warns of it). With keep, the SVG it replaces is first copied to <name>.orig.svg, once
+// (see keepOriginal). It stops at the first place that fails.
 func (p *Provider) DeliverSVG(ctx context.Context, ref string, svg []byte, keep bool) ([]string, error) {
 	if len(p.sinks) == 0 {
 		return nil, nil
@@ -188,13 +188,6 @@ func (p *Provider) DeliverSVG(ctx context.Context, ref string, svg []byte, keep 
 	file, err := svgFile(s.FileName, p.cfg.SVG.FullPath)
 	if err != nil {
 		return nil, fmt.Errorf("rsdu: scheme %s: %w", ref, err)
-	}
-	all, err := p.allSchemes(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if clash := svgClash(file, ref, all, p.cfg.SVG.FullPath); len(clash) > 0 {
-		return nil, fmt.Errorf("rsdu: %s is also the SVG of scheme %s (%s); not delivered", file, clash[0].Ref, clash[0].Name)
 	}
 	var where []string
 	for _, sink := range p.sinks {

@@ -88,15 +88,27 @@ type ExportRequest struct {
 	Name     string `json:"name"`
 	Alias    string `json:"alias"`
 	Group    string `json:"group"`
+	// Preview only counts the rows the export would change; nothing is written or saved.
+	Preview bool `json:"preview"`
 }
 
-// ExportResult is what an export wrote: the scheme link to save in the diagram, how many components and bindings,
-// what was skipped, and where the scheme's SVG was delivered (SVGError when that failed).
+// ExportChanges counts the rows an export inserted, updated and deleted.
+type ExportChanges struct {
+	Inserted int `json:"inserted"`
+	Updated  int `json:"updated"`
+	Deleted  int `json:"deleted"`
+}
+
+// ExportResult is what an export wrote: the scheme link to save in the diagram, how many components and bindings the
+// scheme has from the diagram, the rows changed, what was skipped, and where the scheme's SVG was delivered (SVGError
+// when that failed). Preview: Changes are what the export would write; nothing was.
 type ExportResult struct {
 	Scheme     slddoc.SchemeRef `json:"scheme"`
 	Registered bool             `json:"registered"`
+	Preview    bool             `json:"preview,omitempty"`
 	Components int              `json:"components"`
 	Bindings   int              `json:"bindings"`
+	Changes    ExportChanges    `json:"changes"`
 	Skipped    []ExportIssue    `json:"skipped"`
 	SVG        []string         `json:"svg,omitempty"`
 	SVGError   string           `json:"svgError,omitempty"`

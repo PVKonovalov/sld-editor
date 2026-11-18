@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import * as api from '../lib/api'
+import { hasPendingBindings, trackBindingChanges } from '../lib/bindingStatus'
 import * as diagramOps from '../lib/diagramOps'
 import { baseName, joinDiagramPath, parentDir } from '../lib/diagramPath'
 import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
@@ -993,7 +994,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setDirty(false)
     setError(warning ?? null)
     const b = config?.bindings
-    setExportNudge(!!b?.canExport && d.scheme?.source === b.provider && !!d.scheme.exported)
+    setExportNudge(
+      !!b?.canExport && d.scheme?.source === b.provider && !!d.scheme.ref && hasPendingBindings(d, b.provider),
+    )
     await browseDir(currentDir)
   }, [diagramName, diagram, browseDir, currentDir, commitDiagram, config])
 
@@ -1076,10 +1079,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [currentDir, browseDir, commitDiagram],
   )
 
-  // Records next, made from prev, as one edit (undo step, dirty flag).
+  // Records next, made from prev, as one edit (undo step, dirty flag), with its export statuses unless untracked.
   const applyEdit = useCallback(
-    (prev: Diagram, next: Diagram) => {
-      if (next === prev) return
+    (prev: Diagram, edited: Diagram, untracked?: boolean) => {
+      if (edited === prev) return
+      const next = untracked ? edited : trackBindingChanges(prev, edited)
       const h = historyRef.current
       const field = editingField()
       const now = Date.now()
@@ -1108,7 +1112,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // (jumpChangedCrossings) and a junction point on each busbar–buswork connection it made (addJunctionPoints),
   // except with opts.automatic false.
   const updateDiagram = useCallback(
-    (edit: (d: Diagram) => Diagram, opts?: { automatic?: boolean }) => {
+    (edit: (d: Diagram) => Diagram, opts?: { automatic?: boolean; untracked?: boolean }) => {
       const updater =
         opts?.automatic === false
           ? edit
@@ -1130,7 +1134,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       if (!prev) return
       const { result, mismatches } = diagramOps.withVoltagePolicy(true, () => updater(prev))
       if (mismatches.length === 0) {
-        applyEdit(prev, result)
+        applyEdit(prev, result, opts?.untracked)
         return
       }
       pendingEditRef.current = [updater]

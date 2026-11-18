@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, CircleX, Link2, Loader2, RefreshCw, Save } from 'lucide-react'
 import { t, type TranslationKey } from '../i18n'
 import * as api from '../lib/api'
+import { hasPendingBindings, pendingItemCount } from '../lib/bindingStatus'
 import * as diagramOps from '../lib/diagramOps'
 import { nestSchemes, type SchemeGroupNode } from '../lib/schemes'
 import { useEscapeKey } from '../lib/useEscapeKey'
 import { useDiagramContext, type SelectionKind } from '../state/useDiagramContext'
 import { GuideButton } from './GuideButton'
 import { SchemePicker } from './SchemePicker'
-import type { ExportCheck, ExportIssue, ExportResult, ProviderScheme, SchemeGroup } from '../types'
+import type { ExportCheck, ExportIssue, ExportResult, ProviderScheme, SchemeGroup, SVGExportResult } from '../types'
 
 /** Groups as select options: depth-first, each with its depth. */
 function flattenGroups(nodes: SchemeGroupNode[], depth = 0, out: { group: SchemeGroup; depth: number }[] = []) {
@@ -51,7 +52,7 @@ type Target = 'register' | 'existing'
  * scheme exported last) or to link an existing one. The check of the saved diagram lists what stops the export and
  * what is skipped; Export runs it, then reopens the diagram with its new link. */
 export function ExportDialog({ onClose }: { onClose: () => void }) {
-  const { diagram, diagramName, dirty, saveDiagram, updateDiagram, selectMany, focusItem, openDiagram, config } =
+  const { diagram, diagramName, dirty, saveDiagram, updateDiagram, selectMany, focusItem, openDiagram, config, setBindingImport } =
     useDiagramContext()
   const provider = config?.bindings?.provider ?? ''
   const canExport = !!config?.bindings?.canExport
@@ -69,10 +70,20 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const [picking, setPicking] = useState(false)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<ExportResult | null>(null)
+  // The result of Export diagram only.
+  const [pictureResult, setPictureResult] = useState<SVGExportResult | null>(null)
+  // The user opened the export of a diagram with nothing pending (to rename the scheme, say).
+  const [details, setDetails] = useState(false)
+  // What the export would write, shown for confirmation before it does.
+  const [preview, setPreview] = useState<ExportResult | null>(null)
 
   const register = target === 'register'
+  const own = !!diagram?.scheme?.ref && diagram.scheme.source === provider
+  const pendingItems = diagram && own ? pendingItemCount(diagram, provider) : 0
+  // No export statuses: nothing to export, so nothing to check or read.
+  const quiet = own && !dirty && !register && !details && !!diagram && !hasPendingBindings(diagram, provider)
   useEffect(() => {
-    if (result) return
+    if (result || quiet) return
     let live = true
     setError(null)
     api.checkExport(name, register).then(
@@ -82,7 +93,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     return () => {
       live = false
     }
-  }, [name, seq, register, result])
+  }, [name, seq, register, result, quiet])
 
   // A linked scheme's own name, alias and group are the starting values.
   const linked = check?.scheme ?? null
@@ -92,7 +103,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   }, [linkedRef])
 
   useEffect(() => {
-    if (groups) return
+    if (groups || quiet) return
     let live = true
     api.listSchemeGroups().then(
       g => live && setGroups(g),
@@ -101,7 +112,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     return () => {
       live = false
     }
-  }, [groups])
+  }, [groups, quiet])
 
   useEscapeKey(onClose, !picking)
 
@@ -141,14 +152,35 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
       setSeq(n => n + 1)
     })
 
+  useEffect(() => setPreview(null), [register, form, seq, check])
+
+  const request = () => ({ register, name: form.name.trim(), alias: form.alias.trim(), group: chosenGroup })
+
+  // Delivers only the picture to the linked scheme; the database is not written.
+  const exportPicture = () =>
+    run(async () => {
+      const res = await api.exportDiagramPicture(name)
+      setPreview(null)
+      setPictureResult(res)
+      await openDiagram(name)
+    })
+
+  // Compare with the provider: the bindings overview with the scheme's bindings; it changes nothing in the scheme.
+  const compare = () =>
+    run(async () => {
+      setBindingImport(await api.importBindings(name))
+      onClose()
+    })
+
+  // The first click previews what the export would write; Confirm writes it.
   const doExport = () =>
     run(async () => {
-      const res = await api.exportDiagram(name, {
-        register,
-        name: form.name.trim(),
-        alias: form.alias.trim(),
-        group: chosenGroup,
-      })
+      if (!preview) {
+        setPreview(await api.exportDiagram(name, { ...request(), preview: true }))
+        return
+      }
+      const res = await api.exportDiagram(name, request())
+      setPreview(null)
       setResult(res)
       await openDiagram(name)
     })
@@ -231,7 +263,56 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     </>
   )
 
-  const body = result ? (
+  const compareButton = config?.bindings?.import && own && !register && (
+    <button
+      type="button"
+      onClick={compare}
+      disabled={busy || dirty}
+      title={dirty ? t('bindingImport.saveFirst') : t('exportCheck.compareHint')}
+      className="flex items-center gap-1 rounded border border-surface-500 px-2 py-0.5 hover:bg-surface-600 disabled:opacity-50"
+    >
+      <RefreshCw size={12} />
+      {t('exportCheck.compare')}
+    </button>
+  )
+
+  const pictureButton = own && !register && (
+    <button
+      type="button"
+      onClick={exportPicture}
+      disabled={busy || dirty}
+      title={dirty ? t('bindingImport.saveFirst') : t('exportCheck.pictureOnlyHint')}
+      className="flex items-center gap-1 rounded border border-surface-500 px-2 py-1 hover:bg-surface-600 disabled:opacity-50"
+    >
+      {busy && <Loader2 size={12} className="animate-spin" />}
+      {t('exportCheck.pictureOnly')}
+    </button>
+  )
+
+  const delivered = (svg: string[]) =>
+    svg.length ? (
+      <div className="text-gray-300">
+        {t('exportCheck.svgDelivered')}
+        <ul className="text-gray-400 break-all">
+          {svg.map(w => (
+            <li key={w}>{w}</li>
+          ))}
+        </ul>
+      </div>
+    ) : (
+      <p className="text-amber-300">{t('exportCheck.svgNowhere')}</p>
+    )
+
+  const body = pictureResult ? (
+    <section className="space-y-2">
+      <p className="flex items-start gap-1.5 text-emerald-300">
+        <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+        {t('exportCheck.pictureDone', { ref: pictureResult.scheme.ref })}
+      </p>
+      {delivered(pictureResult.svg)}
+      <p className="text-gray-400">{t('exportCheck.reloadNote')}</p>
+    </section>
+  ) : result ? (
     <section className="space-y-2">
       <p className="flex items-start gap-1.5 text-emerald-300">
         <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
@@ -241,6 +322,9 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
           components: result.components,
           bindings: result.bindings,
         })}
+      </p>
+      <p className="text-gray-300">
+        {t('exportCheck.changes', { ...result.changes })}
       </p>
       {issueList(result.skipped, 'warning', t('exportCheck.skipped', { count: result.skipped.length }))}
       {result.svgError ? (
@@ -259,6 +343,26 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
       )}
       {result.registered && <p className="text-gray-300">{t('exportCheck.menuNote')}</p>}
       <p className="text-gray-400">{t('exportCheck.reloadNote')}</p>
+      {error && <p className="text-red-300 break-words">{error}</p>}
+    </section>
+  ) : quiet ? (
+    <section className="space-y-2">
+      <p className="flex items-start gap-1.5 text-emerald-300">
+        <CheckCircle2 size={14} className="mt-0.5 shrink-0" />
+        {t(diagram?.scheme?.exported ? 'exportCheck.nothingPending' : 'exportCheck.nothingPendingNoPicture')}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {pictureButton}
+        {compareButton}
+        <button
+          type="button"
+          onClick={() => setDetails(true)}
+          className="rounded border border-surface-500 px-2 py-0.5 hover:bg-surface-600"
+        >
+          {t('exportCheck.showDetails')}
+        </button>
+      </div>
+      <p className="text-gray-400">{t('exportCheck.compareHint')}</p>
       {error && <p className="text-red-300 break-words">{error}</p>}
     </section>
   ) : error && !check ? (
@@ -315,7 +419,14 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
         <dd className="text-gray-200 break-all">{check.svgPath || '—'}</dd>
         <dt className="text-gray-400">{t('exportCheck.bound')}</dt>
         <dd className="text-gray-200">{check.bound}</dd>
+        {own && !register && (
+          <>
+            <dt className="text-gray-400">{t('exportCheck.pending')}</dt>
+            <dd className="text-gray-200">{pendingItems}</dd>
+          </>
+        )}
       </dl>
+      {linked && compareButton}
       {issueList(errors, 'error', t('exportCheck.errors', { count: errors.length }))}
       {issueList(warnings, 'warning', t('exportCheck.warnings', { count: warnings.length }))}
       {check.issues.length === 0 && <p className="text-emerald-300">{t('exportCheck.allGood')}</p>}
@@ -335,7 +446,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
           <h2 className="flex items-center gap-1.5 text-sm font-semibold text-gray-100">
             {t('exportCheck.title')}
             <GuideButton topic="rsdu-export" />
-            {!result && (
+            {!result && !pictureResult && !quiet && (
               <button
                 type="button"
                 onClick={() => setSeq(n => n + 1)}
@@ -350,7 +461,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
           <p className="text-gray-400 truncate" title={name}>
             {t('schemes.pickFor', { name })}
           </p>
-          {dirty && !result && (
+          {dirty && !result && !pictureResult && (
             <div className="flex items-center gap-2 rounded border border-amber-700 bg-amber-950/40 px-2 py-1 text-amber-200">
               <span className="flex-1">{t('exportCheck.unsaved')}</span>
               <button
@@ -365,17 +476,34 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
             </div>
           )}
           <div className="flex-1 min-h-0 overflow-auto space-y-3">{body}</div>
-          {check && !result && (
+          {check && !result && !pictureResult && !quiet && (
             <p className={check.ok ? 'text-emerald-300' : 'text-red-300'}>
               {t(check.ok ? 'exportCheck.ok' : 'exportCheck.notOk')}
             </p>
           )}
-          {blocker && !result && <p className="text-[11px] text-gray-400">{blocker}</p>}
+          {blocker && !result && !pictureResult && <p className="text-[11px] text-gray-400">{blocker}</p>}
+          {preview && !result && (
+            <div
+              className={`rounded border px-2 py-1 ${
+                preview.changes.deleted > 0 ? 'border-red-700 bg-red-950/40 text-red-200' : 'border-amber-700 bg-amber-950/40 text-amber-200'
+              }`}
+            >
+              <p>{t('exportCheck.preview', { ...preview.changes })}</p>
+              {preview.changes.deleted > 0 && <p className="mt-0.5 font-semibold">{t('exportCheck.previewDeletes', { deleted: preview.changes.deleted })}</p>}
+            </div>
+          )}
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={onClose} className="px-2 py-1 text-gray-300 hover:text-white">
-              {t('common.close')}
-            </button>
-            {!result && (
+            {preview && !result ? (
+              <button type="button" onClick={() => setPreview(null)} className="px-2 py-1 text-gray-300 hover:text-white">
+                {t('common.cancel')}
+              </button>
+            ) : (
+              <button type="button" onClick={onClose} className="px-2 py-1 text-gray-300 hover:text-white">
+                {t('common.close')}
+              </button>
+            )}
+            {!result && !pictureResult && !quiet && !preview && pictureButton}
+            {!result && !pictureResult && !quiet && (
               <button
                 type="button"
                 disabled={!ready}
@@ -383,7 +511,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 className="flex items-center gap-1 rounded bg-accent px-3 py-1 text-white hover:opacity-90 disabled:opacity-50"
               >
                 {busy && <Loader2 size={12} className="animate-spin" />}
-                {t('exportCheck.export')}
+                {t(preview ? 'exportCheck.confirm' : 'exportCheck.export')}
               </button>
             )}
           </div>

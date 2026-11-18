@@ -47,20 +47,15 @@ func TestDeliverSVG(t *testing.T) {
 		want     map[string]string
 	}{
 		{true, map[string]string{"1": "C:/Modus/north/sub.svg", "2": "south/sub.svg", "3": "north/Sub-2.svg"}},
-		{false, map[string]string{"3": "Sub-2.svg"}},
+		{false, map[string]string{"1": "sub.svg", "2": "sub.svg", "3": "Sub-2.svg"}},
 	} {
 		dir := t.TempDir()
 		cfg := config.RSDUBindings{}
 		cfg.SVG.Dir, cfg.SVG.FullPath = dir, c.fullPath
 		p := newProvider(cfg, mustDialect(t), fileNamesDB(files))
 		p.sinks, _ = svgSinks(cfg)
+		// Without full paths schemes 1 and 2 share sub.svg; each delivery writes it.
 		for _, ref := range []string{"1", "2", "3"} {
-			if c.want[ref] == "" {
-				if _, err := p.DeliverSVG(context.Background(), ref, nil, false); err == nil || !strings.Contains(err.Error(), "also the SVG of") {
-					t.Errorf("full_path %v, scheme %s: a shared file name was delivered: %v", c.fullPath, ref, err)
-				}
-				continue
-			}
 			where, err := p.DeliverSVG(context.Background(), ref, []byte("<svg id='"+ref+"'/>"), false)
 			want := filepath.Join(dir, filepath.FromSlash(c.want[ref]))
 			if err != nil || !slices.Equal(where, []string{want}) {

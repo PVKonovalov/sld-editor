@@ -39,6 +39,9 @@ func (s *Server) exportCheckRoutes(b *gin.RouterGroup, x binding.ExportChecker) 
 	if e, ok := s.bindings.(binding.Exporter); ok {
 		b.POST("/export", func(c *gin.Context) { s.exportDiagram(c, x, e) })
 	}
+	if _, ok := s.bindings.(binding.SVGDeliverer); ok {
+		b.POST("/export/svg", s.exportSVG)
+	}
 }
 
 // checkExport answers the binding.ExportCheck of the saved diagram ?name=, for registering a new scheme when
@@ -114,8 +117,10 @@ func (s *Server) exportCheck(ctx context.Context, x binding.ExportChecker, name 
 	return check, nil
 }
 
-// exportDiagram exports the saved diagram ?name= as the body's binding.ExportRequest, one export at a time. After the
-// provider commits, the diagram is saved with its scheme link and export time (a history entry like any save).
+// exportDiagram exports the saved diagram ?name= as the body's binding.ExportRequest, one export at a time; with
+// Preview only what the export would change. After the provider commits,
+// the diagram is saved with its scheme link and export time and its statuses cleared (a history entry like any
+// save).
 // 403 when export is off, 409 {error, check} when the check fails.
 func (s *Server) exportDiagram(c *gin.Context, x binding.ExportChecker, e binding.Exporter) {
 	if !binding.CanExport(s.bindings, s.cfg.Bindings) {
@@ -136,6 +141,7 @@ func (s *Server) exportDiagram(c *gin.Context, x binding.ExportChecker, e bindin
 		storageError(c, err)
 		return
 	}
+	provider := s.bindings.Name()
 	ctx := c.Request.Context()
 	check, err := s.exportCheck(ctx, x, name, d, req.Register)
 	if err != nil {
@@ -156,6 +162,17 @@ func (s *Server) exportDiagram(c *gin.Context, x binding.ExportChecker, e bindin
 		bindingError(c, err)
 		return
 	}
+	if req.Preview {
+		c.JSON(http.StatusOK, res)
+		return
+	}
+	keep := map[int]bool{}
+	for _, i := range res.Skipped {
+		if i.Item > 0 {
+			keep[i.Item] = true
+		}
+	}
+	binding.ClearExported(d, provider, keep)
 	d.Scheme = &res.Scheme
 	rev := newRevision(c)
 	rev.Time = *res.Scheme.Exported
@@ -171,6 +188,57 @@ func (s *Server) exportDiagram(c *gin.Context, x binding.ExportChecker, e bindin
 		res.SVGError = err.Error()
 	}
 	c.JSON(http.StatusOK, res)
+}
+
+// SVGExportResult answers POST /bindings/export/svg: the diagram's scheme link with its new export time and where the
+// picture went.
+type SVGExportResult struct {
+	Scheme slddoc.SchemeRef `json:"scheme"`
+	SVG    []string         `json:"svg"`
+}
+
+// exportSVG delivers only the saved SVG of the diagram ?name= to the provider's scheme it is linked to, writing
+// nothing in the provider's database, and saves the diagram with that time as its export time, so later saves deliver
+// it too; its binding statuses stay. 403 when export is off, 409 when the diagram isn't linked to a scheme of the
+// provider, 502 when the delivery fails.
+func (s *Server) exportSVG(c *gin.Context) {
+	if !binding.CanExport(s.bindings, s.cfg.Bindings) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "export to the provider is off (bindings.rsdu.export)"})
+		return
+	}
+	s.exportMu.Lock()
+	defer s.exportMu.Unlock()
+
+	name := c.Query("name")
+	d, err := s.store.Load(name)
+	if err != nil {
+		storageError(c, err)
+		return
+	}
+	if d.Scheme == nil || d.Scheme.Ref == "" || d.Scheme.Source != s.bindings.Name() {
+		c.JSON(http.StatusConflict, gin.H{"error": "the diagram is not linked to a scheme of " + s.bindings.Name()})
+		return
+	}
+	at := time.Now().UTC().Truncate(time.Second)
+	scheme := *d.Scheme
+	scheme.Exported = &at
+	where, err := s.deliverSVG(c.Request.Context(), name, &scheme)
+	if err != nil {
+		bindingError(c, err)
+		return
+	}
+	d.Scheme = &scheme
+	rev := newRevision(c)
+	rev.Time = at
+	if _, err := s.store.SaveExported(name, d, rev); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("the picture was delivered, but saving the diagram failed: %v", err)})
+		return
+	}
+	s.presence.Saved(name, rev)
+	if where == nil {
+		where = []string{}
+	}
+	c.JSON(http.StatusOK, SVGExportResult{Scheme: scheme, SVG: where})
 }
 
 // svgDeliveryTimeout is a watchdog: a delivery still running after it fails with an error.

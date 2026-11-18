@@ -600,7 +600,7 @@ existing diagram is never overwritten: choose another name.
 - The import loses what it can't read, as for any `.svg` (see [Importing](#import)): skipped and failed items are
   counted in the form and listed in the import log. A picture made by an **older xsde2svg**, whose wires carry no
   `data-type`, comes in **without wires**; import the scheme's `.xsde` instead when you have it.
-- The first export delivers the diagram's SVG over the scheme's picture. The picture there is first copied once to
+- The first export (or **Export diagram only**) delivers the diagram's SVG over the scheme's picture. The picture there is first copied once to
   `<name>.orig.svg` beside it (see [The SVG for ctrlroom](#rsdu-svg)).
 - Edits made meanwhile in RSDU's own scheme editor are not detected: the later export wins.
 
@@ -635,31 +635,58 @@ saved diagram whose check found nothing that stops it, and only with `bindings.r
   - the linked scheme's file name is the path of another diagram of the editor (the two would share one SVG);
   - **Register a new scheme** chosen while the linked scheme still exists;
   - an item bound to RSDU whose id is not a positive integer (ctrlroom finds an element by its number);
-  - a scheme file name that ctrlroom can't show (not `.svg` or `.xsde`, or leaving its folder);
-  - another RSDU scheme whose SVG is the same file (letter case ignored): the same base name when `svg.full_path` is
-    off, the same path when it is on.
+  - a scheme file name that ctrlroom can't show (not `.svg` or `.xsde`, or leaving its folder).
 - **Warnings**, which don't stop it:
   - an item whose shape has no RSDU component type of the scheme type (`VS_TCOMP.MODUS_TYPE`, a digital device counts
     as shape 134); it is skipped;
   - bindings of another provider, skipped;
+  - another RSDU scheme whose SVG is the same file (letter case ignored): the same base name when `svg.full_path` is
+    off, the same path when it is on. The export writes the file, so that scheme shows this picture too;
   - nothing bound to RSDU; no SVG folder configured; a linked scheme of another type; a new scheme to be registered.
 
 Click a finding about an item to select it and show it on the canvas. The refresh button checks again.
 
-**Export** writes, in one transaction (on any error nothing is written):
+The editor marks what the next export has to write. Every edit marks a binding it adds, or whose object it changes,
+as **new, not exported**, one whose value option or scale it changes as **changed, not exported** (Properties), the
+items whose precision, features or component type it changes, and the bindings RSDU has that it removes (with the
+binding, or with its item). A removed binding stays deleted: one added again in its place is new, never changed.
+Bindings applied from the [bindings overview](#bindings-import) are RSDU's own and get no marks. Undo takes the marks
+back with the edit. After saving, a note at the bottom of the canvas offers **Export to RSDU…** only
+when something is marked. A change to the drawing alone needs no export: every save delivers the picture
+([below](#rsdu-svg)).
 
-- the scheme row (`VS_FORM`): a new one, or the linked one updated with its name, alias, group, scheme type and the
-  export time. A scheme registered by the editor follows the diagram: when the diagram is moved or renamed, the next
-  export sets its file name to the new path. A scheme linked from RSDU keeps its own file name;
-- the diagram's object (`VS_OBJ_TUNE`), a component (`VS_COMP`) per item bound to RSDU whose shape has a component
-  type, and its bindings (`VS_REGIM_TUNE`). The scheme's previous components and bindings are replaced, as RSDU's
-  scheme editor saves them. A jump is stored as a parameter binding to an object. A binding that can't be written (a
-  bad object, a binding type or value option RSDU doesn't know, a second binding of one type to the same table) is
-  skipped and listed.
+**Export** writes, in one transaction (on any error nothing is written), only what the marks name; nothing unmarked
+is ever written or deleted, and untouched rows keep their ids:
 
-Then the diagram is saved with its link to the scheme and the export time (a history entry, like any save) and
-reopened; its status in [RSDU schemes](#rsdu-schemes) is **exported** until it is changed again. RSDU clients that have
-the scheme open must reopen it to see the changes.
+- **Nothing marked**: the window says so and the export reads and writes nothing, first export or not.
+  **Export diagram only** (here, and next to **Export** in the full window) delivers just the diagram's picture to
+  the scheme ([below](#rsdu-svg)) and writes nothing to the database; the bindings' marks stay. Use it for a diagram
+  linked from RSDU whose picture has not been delivered yet: the window says so, and from then on every save delivers
+  it.
+- **Marked changes**: only the marked items' components (`VS_COMP`) and bindings (`VS_REGIM_TUNE`) are read. A deleted
+  binding's row is deleted (and its component, when it has nothing left), a changed one is updated in place, a new one
+  is inserted (updated if RSDU already has it), a marked component is updated, and an item new to RSDU gets its
+  component. **Changed items** in the window counts them.
+- A **new scheme** gets everything inserted.
+
+**Compare with RSDU** in the export window opens the [bindings overview](#bindings-import): RSDU's bindings of the
+scheme next to the diagram's. It only shows the differences and changes nothing in RSDU; edits made in RSDU's own scheme
+editor are brought into the diagram from there.
+
+A component is an item bound to RSDU whose shape has a component type; a jump is stored as a parameter binding to an
+object. A binding that can't be written (a bad object, a binding type or value option RSDU doesn't know, a second
+binding of one type to the same table) is skipped and listed; its item stays marked, so a later export tries it again.
+The scheme row (`VS_FORM`: name, alias, group, scheme type, export time) is written when the scheme is new, when one of
+its fields changed, or when anything else was written. A scheme registered by the editor follows the diagram: when the
+diagram is moved or renamed, the next export sets its file name to the new path. A scheme linked from RSDU keeps its
+own file name. The diagram's object (`VS_OBJ_TUNE`) is marked and written like the bindings.
+
+**Export** first only counts: the window shows how many rows the export will add, change and delete in RSDU (in red
+when it deletes any: the bindings removed or replaced in the diagram) and nothing is written until **Confirm export**;
+**Cancel** goes back. The result lists how many rows were added, changed and deleted. Then the diagram is saved with its link to the scheme,
+the export time and its marks cleared (a history entry, like any save) and reopened; its status in
+[RSDU schemes](#rsdu-schemes) is **exported** until it is changed again. RSDU clients that have the scheme open must
+reopen it to see the changes.
 
 #### The SVG for ctrlroom {#rsdu-svg}
 
@@ -668,7 +695,7 @@ extension replaced by `.svg`) — the whole path with `svg.full_path: true`, onl
 folder (`backend.path_to_sld`) or in its Minio bucket (`use_object_storage: minio`). The export delivers the
 diagram's saved SVG there: into `bindings.rsdu.svg.dir` (subfolders created, the old file replaced in one step) and
 into the Minio bucket of `bindings.rsdu.svg.object_storage` with `use_object_storage: minio`, whichever are
-configured. After that, **every save** of the diagram
+configured. **Export diagram only** delivers only the SVG, without writing the database. After either, **every save** of the diagram
 delivers its SVG again; its bindings in RSDU change only with **Export**. A save whose delivery fails is still saved and
 says why. The export window shows where the SVG went.
 
@@ -677,8 +704,8 @@ says why. The export window shows where the SVG went.
   keeps each scheme's file name until it restarts, needs a restart to read the new one.
 - Each item ctrlroom shows values on is an SVG element whose `id` is the item's number, with `data-type` (its shape)
   and, as xsde2svg writes them, `data-name`.
-- With `svg.full_path: false` two schemes with the same file name in different folders would share one SVG; the
-  [export check](#rsdu-export) refuses that.
+- With `svg.full_path: false` two schemes with the same file name in different folders share one SVG; the
+  [export check](#rsdu-export) warns of it, and each delivery replaces the picture of both.
 - Before the first delivery to a scheme the editor did not register (linked from RSDU, or after an `.xsde` import),
   the picture already there is copied once to `<name>.orig.svg` beside it, in the folder and in the Minio bucket alike.
   That copy is never overwritten.

@@ -78,6 +78,17 @@ func (d Dialect) NextVals(seq string, n int) string {
 	return "SELECT " + d.NextVal(seq) + " FROM generate_series(1, " + strconv.Itoa(n) + ")"
 }
 
+// InsertRows is the statement inserting n rows of cols into the schema's table, with "?" parameters row by row:
+// PostgreSQL a multi-row VALUES, Oracle INSERT ALL.
+func (d Dialect) InsertRows(table string, cols []string, n int) string {
+	into := "{s}." + table + " (" + strings.Join(cols, ", ") + ")"
+	values := "(" + strings.TrimSuffix(strings.Repeat("?, ", len(cols)), ", ") + ")"
+	if d.Driver == config.DriverOracle {
+		return "INSERT ALL" + strings.Repeat(" INTO "+into+" VALUES "+values, n) + " SELECT 1 FROM DUAL"
+	}
+	return "INSERT INTO " + into + " VALUES " + strings.TrimSuffix(strings.Repeat(values+", ", n), ", ")
+}
+
 // ColumnsQuery returns the query listing the column names of table, with its arguments.
 func (d Dialect) ColumnsQuery(table string) (string, []any) {
 	if d.Driver == config.DriverOracle {

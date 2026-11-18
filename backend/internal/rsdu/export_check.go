@@ -253,8 +253,8 @@ func sortedKeys(m map[string]bool) []string {
 	return out
 }
 
-// checkSVG sets where the scheme's SVG goes and refuses when another scheme resolves to the same file (letter case
-// ignored): the same base name without svg.full_path, the same path with it.
+// checkSVG sets where the scheme's SVG goes and warns when another scheme resolves to the same file (letter case
+// ignored): the same base name without svg.full_path, the same path with it; that scheme then shows this picture.
 func (p *Provider) checkSVG(c *binding.ExportCheck, schemes []binding.Scheme) {
 	full := p.cfg.SVG.FullPath
 	file, err := svgFile(c.FileName, full)
@@ -275,7 +275,7 @@ func (p *Provider) checkSVG(c *binding.ExportCheck, schemes []binding.Scheme) {
 		self = c.Scheme.Ref
 	}
 	if clash := svgClash(file, self, schemes, full); len(clash) > 0 {
-		c.Add(binding.ExportIssue{Code: binding.IssueSVGClash, Severity: binding.SeverityError, Schemes: clash, Detail: file})
+		c.Add(binding.ExportIssue{Code: binding.IssueSVGClash, Severity: binding.SeverityWarning, Schemes: clash, Detail: file})
 	}
 }
 

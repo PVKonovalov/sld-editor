@@ -80,6 +80,12 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
   symbols stay in the library (not the palette) so saved diagrams still render; saved diagrams aren't rewritten.
 - `RenderMode.Static` (saved `.svg`, downloads) must stay xsde2svg-faithful (absolute coordinates); `Interactive` is
   canvas-only (local frames, `data-editor-kind`, wider hit targets). Connector kinds use type codes 21/22/23/28.
+- Export to RSDU writes only what is flagged, never compares or deletes unflagged rows: `applyEdit` runs
+  `trackBindingChanges` (`lib/bindingStatus.ts`) on every edit, marking bindings `new`/`edited`, items
+  `componentEdited` and removed bindings (with their ref) in `deletedBindings`; a removed binding added again is
+  `deleted` + `new`, never `edited`. The export clears them (`binding.ClearExported`). Applying RSDU's own bindings
+  (bindings overview) is an `untracked` edit. A diagram write that bypasses `applyEdit` must not change bindings, or
+  the change never reaches RSDU.
 - Every edit goes through `updateDiagram` + `diagramOps`; untouched entries keep their object reference
   (`diffDiagramForRender` relies on it). Other diagram writes go through `commitDiagram`. Selection and armed tools are
   mutually exclusive, except selecting doesn't clear `armedWireKind`.

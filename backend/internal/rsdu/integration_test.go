@@ -560,8 +560,8 @@ func TestIntegrationExportCheck(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if c.OK || !slices.ContainsFunc(c.Issues, func(i binding.ExportIssue) bool {
-				return i.Code == binding.IssueSVGClash && slices.ContainsFunc(i.Schemes, func(s binding.Scheme) bool { return s.Ref == linked.Ref })
+			if !slices.ContainsFunc(c.Issues, func(i binding.ExportIssue) bool {
+				return i.Code == binding.IssueSVGClash && i.Severity == binding.SeverityWarning && slices.ContainsFunc(i.Schemes, func(s binding.Scheme) bool { return s.Ref == linked.Ref })
 			}) {
 				t.Errorf("new scheme at %s: %+v", file, c.Issues)
 			}
@@ -769,6 +769,56 @@ func TestIntegrationExport(t *testing.T) {
 				t.Errorf("VS_OBJ_TUNE %d:%d, %v", objTable, objParam, err)
 			}
 			t.Logf("scheme %d (rolled back): %d components, %d bindings; %d tunes and %d ctrlroom settings read back", form, res.Components, res.Bindings, len(got), len(settings))
+
+			// A later export to the same scheme writes only what its statuses name: 900001's component and meas1 scale
+			// edited and its equipment binding deleted, 900002's only binding deleted (its component goes), 900003 new;
+			// the same statuses again change nothing.
+			next := *pl
+			next.form.Ref = res.Scheme.Ref
+			next.orig = next.form
+			next.orig.Group = strconv.FormatInt(next.group, 10)
+			next.orig.TypeID = strconv.Itoa(p.cfg.SchemeType)
+			next.orig.FileName = next.fileName
+			first := next.comps[0]
+			first.precision++
+			first.edited = true
+			first.tunes, first.statuses = nil, nil
+			var eqTune tune
+			meas := pl.comps[1].tunes[0]
+			for _, tn := range pl.comps[0].tunes {
+				switch {
+				case tn.regim == meas.regim && tn.table == meas.table:
+					tn.scale = 1
+					first.tunes = append(first.tunes, tn)
+					first.statuses = append(first.statuses, slddoc.BindingEdited)
+				case eqTune.table == 0 && tn.table == eq.table:
+					eqTune = tn
+				default:
+					first.tunes = append(first.tunes, tn)
+					first.statuses = append(first.statuses, "")
+				}
+			}
+			next.comps = []component{first, {name: "900003", tctrl: first.tctrl, tunes: []tune{eqTune}, statuses: []slddoc.BindingStatus{slddoc.BindingNew}}}
+			next.deleted = []gone{{"900001", eqTune.regim, eqTune.table}, {"900002", meas.regim, meas.table}}
+			_, changed, err := p.write(ctx, tx, &next, time.Now())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if want := (binding.ExportChanges{Inserted: 2, Updated: 3, Deleted: 3}); changed != want {
+				t.Errorf("changes %+v, want %+v", changed, want)
+			}
+			have, err := p.readComps(ctx, tx, form, []string{"900001", "900002", "900003"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(have) != 2 || len(have["900001"]) != 1 || len(have["900003"]) != 1 || have["900001"][0].precision != first.precision ||
+				len(have["900001"][0].tunes) != len(first.tunes) || len(have["900003"][0].tunes) != 1 {
+				t.Errorf("after the second export: %v", have)
+			}
+			if _, changed, err = p.write(ctx, tx, &next, time.Now()); err != nil || changed != (binding.ExportChanges{}) {
+				t.Errorf("same statuses again: %+v, %v", changed, err)
+			}
+			t.Logf("second export %+v, the same statuses again write nothing", binding.ExportChanges{Inserted: 2, Updated: 3, Deleted: 3})
 		})
 	}
 }

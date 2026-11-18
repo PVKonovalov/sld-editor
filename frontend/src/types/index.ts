@@ -242,6 +242,19 @@ export interface Binding {
   name?: string
   type?: string
   uid?: string
+  // What the next export writes: added (or its ref changed), or its option/scale changed; absent: the provider has it.
+  status?: BindingStatus
+}
+
+export type BindingStatus = 'new' | 'edited'
+
+// Matches slddoc.DeletedBinding: the provider's kind binding with ref of item (0: the diagram's object), removed or
+// replaced by one with another ref; the next export deletes it.
+export interface DeletedBinding {
+  item: number
+  source: string
+  kind: BindingKind
+  ref: string
 }
 
 // Matches slddoc.SchemeRef: the provider's scheme a diagram is linked and exported to; exported (RFC 3339) is when
@@ -474,6 +487,8 @@ export interface DiagramElement {
   features?: string
   // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
   componentType?: string
+  // precision, features or componentType changed since the last export.
+  componentEdited?: boolean
   bindings?: Binding[]
 }
 
@@ -533,6 +548,8 @@ export interface Connector {
   features?: string
   // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
   componentType?: string
+  // precision, features or componentType changed since the last export.
+  componentEdited?: boolean
   bindings?: Binding[]
 }
 
@@ -559,6 +576,8 @@ export interface Label {
   features?: string
   // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
   componentType?: string
+  // precision, features or componentType changed since the last export.
+  componentEdited?: boolean
   bindings?: Binding[]
 }
 
@@ -587,6 +606,8 @@ export interface DigitalDevice {
   features?: string
   // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
   componentType?: string
+  // precision, features or componentType changed since the last export.
+  componentEdited?: boolean
   bindings?: Binding[]
 }
 
@@ -664,6 +685,7 @@ export interface Diagram {
   // The provider's scheme this diagram is exported to, and the object the whole diagram is bound to.
   scheme?: SchemeRef
   object?: Binding
+  deletedBindings?: DeletedBinding[]
   layers: Layer[]
   voltageClasses: VoltageClass[]
   // Absent until the diagram is first saved; the server then copies config.stateColors in.
@@ -962,14 +984,32 @@ export interface ExportRequest {
   name: string
   alias: string
   group: string
+  // Only count what the export would write; nothing is written or saved.
+  preview?: boolean
+}
+
+// Matches binding.ExportChanges: rows an export wrote.
+export interface ExportChanges {
+  inserted: number
+  updated: number
+  deleted: number
+}
+
+// Matches api.SVGExportResult: the scheme link with its new export time and where the picture went.
+export interface SVGExportResult {
+  scheme: SchemeRef
+  svg: string[]
 }
 
 // Matches binding.ExportResult.
 export interface ExportResult {
   scheme: SchemeRef
   registered: boolean
+  // changes are what the export would write (a preview); nothing was.
+  preview?: boolean
   components: number
   bindings: number
+  changes: ExportChanges
   skipped: ExportIssue[]
   svg?: string[]
   svgError?: string

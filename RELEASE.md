@@ -1,5 +1,42 @@
 # Release notes
 
+2026-11-18: Export to RSDU: **Export diagram only** delivers just the diagram's picture (SVG) to its linked scheme.
+It is in the "Nothing to export" window and next to **Export**, and is served by the new `POST
+/api/bindings/export/svg`. Nothing is written to the RSDU database and the binding marks stay. The diagram is saved
+with that time as its export time, so every later save delivers the picture too. "Nothing to export" no longer
+claims the picture is delivered on every save when the diagram has never been exported (for example, linked through
+**Edit from RSDU…**).
+
+2026-11-18: Export to RSDU acts only on flags. The export writes just the bindings the editor marked, one row each:
+`new` is inserted (or updated when RSDU has the row), `edited` is updated, a deleted binding (`deletedBindings`, which
+now stores its `ref`) is deleted by component, regime and table, and `componentEdited` updates `VS_COMP`. A component
+is deleted only when its deleted bindings leave it with nothing. Unflagged rows are never read, compared or deleted,
+and nothing is done when nothing is flagged, even on the first export. The automatic first-export comparison, the
+`synced` scheme attribute and the export's compare mode are removed. A binding removed and added again is `deleted` +
+`new`, never `edited`, and a ref change is `deleted` + `new`. Tracking is always on. Bindings applied from the bindings
+overview are an untracked edit and clear the applied items' marks. **Compare with RSDU** in the export window now
+opens the bindings overview, which shows the differences and writes nothing.
+
+2026-11-18: Export to RSDU asks before writing: **Export** first runs a preview (`preview` in the export request;
+the provider reads and rolls back, counting the rows without using sequence values) and shows how many rows the export
+will add, change and delete, in red when it deletes any; **Confirm export** writes. Prompted by an export that deleted
+a scheme's 799 rows because the diagram's bindings had not been added from the bindings overview.
+
+2026-11-18: Export to RSDU: another scheme whose SVG is the same file (`svgClash`) is now a warning instead of an error;
+the export runs and the SVG is delivered to that file, so the other scheme shows this picture too.
+
+2026-11-18: Export to RSDU writes only what changed. The editor marks, while a diagram's scheme is `synced`, every
+binding an edit adds or changes (`status` new/edited, shown in Properties), every item whose precision, features or
+component type changes (`componentEdited`) and every removed binding or bound item (`deletedBindings`); undo takes the
+marks back. Export then reads only the marked items' `VS_COMP`/`VS_REGIM_TUNE` rows and deletes, updates in place or
+inserts just the differences (row ids kept, `VS_FORM` written only when something changed); with nothing marked it
+reads and writes nothing ("nothing to export"). The first export of a diagram to a scheme and the new "Compare with
+RSDU" check box compare the whole scheme the same way (extra components and duplicates removed) instead of the former
+delete-all-and-insert. Inserts go in batches of 100 rows (PostgreSQL multi-row `VALUES`, Oracle `INSERT ALL`), so a
+first export takes a few round trips instead of one per row: the former export made one statement per row (~0.3 s
+each to a remote database) and could pass its 2-minute limit and roll back. The result shows rows added, changed and
+deleted; the export nudge appears only when something is marked (a save already delivers the picture).
+
 2026-11-18: Import (slddoc): a Sectionalizer (164) in an SVG from an older xsde2svg, drawn as flat paths of only its
 current state, now imports with its state and position instead of failing. Such SVGs' wires still have no type and are
 not imported.

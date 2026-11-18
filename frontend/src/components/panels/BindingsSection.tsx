@@ -228,6 +228,11 @@ function BindingRow({
       <span className="flex items-center gap-1 text-gray-400 mb-0.5">
         {title}
         {busy && <Loader2 size={11} className="animate-spin" />}
+        {binding?.status && (
+          <span title={t('bindings.statusHint')} className="ml-auto text-[10px] text-amber-300">
+            {t(binding.status === 'new' ? 'bindings.statusNew' : 'bindings.statusEdited')}
+          </span>
+        )}
       </span>
       <div
         className={`rounded border px-2 py-1 space-y-0.5 ${
