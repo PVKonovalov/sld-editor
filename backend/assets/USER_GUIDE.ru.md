@@ -1333,7 +1333,7 @@ Close, Intermediate, Faulty) для этой схемы. Цвета сохран
 
 ```nginx
 location / {
-    proxy_pass http://127.0.0.1:8090;
+    proxy_pass http://127.0.0.1:8099;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
@@ -1347,7 +1347,7 @@ location / {
 
 | Ключ | Что задаёт |
 |---|---|
-| `server.bind` | Адрес и порт, на котором работает редактор, например `0.0.0.0:8090`. |
+| `server.bind` | Адрес и порт, на котором работает редактор, например `0.0.0.0:8099`. |
 | `logging.level` | Подробность журнала сервера: `trace`, `debug`, `info`, `warn` или `error`. |
 | `diagrams.dir` | Папка, где хранятся схемы (корень панели «Файл»). |
 | `custom_elements.dir` | Папка, файлы `.xsld` из которой составляют группу **Пользовательские элементы**. |

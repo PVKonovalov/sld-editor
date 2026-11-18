@@ -1287,7 +1287,7 @@ the "Also open by" message show real IP addresses instead of `127.0.0.1`. The ed
 
 ```nginx
 location / {
-    proxy_pass http://127.0.0.1:8090;
+    proxy_pass http://127.0.0.1:8099;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
@@ -1301,7 +1301,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 
 | Key | What it sets |
 |---|---|
-| `server.bind` | Address and port the editor listens on, e.g. `0.0.0.0:8090`. |
+| `server.bind` | Address and port the editor listens on, e.g. `0.0.0.0:8099`. |
 | `logging.level` | Server log detail: `trace`, `debug`, `info`, `warn` or `error`. |
 | `diagrams.dir` | Folder where diagrams are stored (the File panel's root). |
 | `custom_elements.dir` | Folder whose `.xsld` files make the palette's **Custom elements** group. |

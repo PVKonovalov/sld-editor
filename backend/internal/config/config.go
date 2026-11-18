@@ -12,7 +12,7 @@ import (
 // overrides (env:"true" tags, read by pkg/configuration).
 type Config struct {
 	Server struct {
-		// Bind is the address the HTTP API listens on, e.g. "0.0.0.0:8090".
+		// Bind is the address the HTTP API listens on, e.g. "0.0.0.0:8099".
 		Bind string `yaml:"bind" env:"true"`
 	} `yaml:"server"`
 

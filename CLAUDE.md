@@ -37,9 +37,9 @@ export) and React + Vite + TS + Tailwind frontend (interactive canvas). No datab
 
 ```
 cd backend && cp config/sld-editor.example.yaml config/sld-editor.yaml   # once; the local config is not in git
-cd backend && go run ./cmd/sld-editor -config config/sld-editor.yaml [-open-browser]   # :8090
+cd backend && go run ./cmd/sld-editor -config config/sld-editor.yaml [-open-browser]   # server.bind, :8099 shipped
 cd backend && go build ./... && go vet ./... && go test ./...
-cd frontend && npm run dev | dev:ru     # :5173, proxies /api to :8090
+cd frontend && npm run dev | dev:ru     # :5173, proxies /api to :8099
 cd frontend && npm run build            # the only frontend check (no tests, no linter)
 make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|release|clean
 ```
@@ -87,7 +87,8 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
   config (`make package` and the "shipped config" tests read it). Add or change config keys there, and keep secrets
   (database credentials) in `backend/.env`, never in either yaml.
 - Guide heading ids (`{#id}`) must be identical in both languages and stable (dialogs link to them). Every config key
-  and the xsde2svg files are documented in the guides' `#configuration` section — keep it in step.
+  and the xsde2svg files are documented in the guides' `#configuration` section and in README's `# Configuration`
+  (types, defaults, env overrides, validation) — keep all three in step.
 - The symbol ↔ CIM class mapping, both ways, lives only in the YAML's `cim:` (`classes` for export, `import` for
   import); slddoc has no built-in table. A new exported symbol needs a `classes` row, a new CIM class an `import` row.
 - Router trusts `X-Forwarded-For` only from loopback.

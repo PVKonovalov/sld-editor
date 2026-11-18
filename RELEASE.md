@@ -1,5 +1,11 @@
 # Release notes
 
+2026-11-18: README: new Configuration section, a full reference of `sld-editor.yaml` — how it is read (YAML, then
+`.env`, then the environment; variable naming, list appending, path resolution, reload, startup validation) and every
+key with its type, environment override, default and meaning, including `bindings.rsdu` with its `dsn` and MinIO
+fields. Port references in README, both user guides and the `server.bind` doc comment now follow the shipped config
+(`:8099`); CLAUDE.md keeps README in step with the guides' configuration section.
+
 2026-11-17: Component types: every bindable item can carry the provider's component type (`componentType`, RSDU
 `VS_TCOMP.ID`). The RSDU import reads each component's type and Apply stores it, Properties lists the scheme type's
 types to choose from (default: by shape), and export uses the item's own type when the scheme type has it (else
