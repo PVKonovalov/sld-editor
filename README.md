@@ -375,6 +375,11 @@ no MQ connection and publishes nothing.
   scheme the editor registered follows a renamed or moved diagram, the next export writes the SVG under the new name
   and ctrlroom needs a restart to read it. The SVG under the old name is left in place.
 - **New schemes** are not visible in ctrlroom until they are added to users' menus (`US_MENU`) with RSDU's tools.
+- **The original SVG is kept.** Before the first delivery to a scheme the editor did not register (linked from RSDU,
+  through **Edit from RSDU…** or after an `.xsde` import), the SVG ctrlroom had is copied once to `<name>.orig.svg`
+  beside it, in the folder and in MinIO. The copy is never overwritten; restore it by hand to go back.
+- **Edits in RSDU's own scheme editor** made after the editor fetched or exported a scheme are not detected; the
+  later export wins.
 
 The user guide's [Export to RSDU](backend/assets/USER_GUIDE.md) and "The SVG for ctrlroom" sections describe the same
 from the user's side.

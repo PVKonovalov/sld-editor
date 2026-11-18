@@ -1,12 +1,13 @@
 import { useState } from 'react'
-import { FilePlus, FolderOpen, Loader2, RefreshCw, Search } from 'lucide-react'
+import { CloudDownload, FilePlus, FolderOpen, Loader2, RefreshCw, Search } from 'lucide-react'
 import { t } from '../../i18n'
+import * as api from '../../lib/api'
 import { joinDiagramPath } from '../../lib/diagramPath'
 import { useSchemeTree } from '../../lib/schemes'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import { GuideButton } from '../GuideButton'
 import { SchemeTreeList } from '../SchemeTreeList'
-import type { ProviderScheme } from '../../types'
+import type { FetchedScheme, ProviderScheme } from '../../types'
 
 type Filter = 'all' | 'linked' | 'unlinked'
 
@@ -17,13 +18,20 @@ function diagramNameOf(s: ProviderScheme): string {
 
 /** The File panel's RSDU schemes tab: the provider's group → scheme tree, each scheme with its linked diagram. A
  * linked scheme opens its diagram; an unlinked one can get a new empty diagram linked to it, named after the scheme,
- * in a folder the user types (the File panel's current one by default). */
+ * in a folder the user types (the File panel's current one by default), or, when the provider can fetch it, a diagram
+ * imported from the scheme's own picture (Edit from RSDU…), in the folder of its file name or the current one. */
 export function SchemesView({ provider }: { provider: string }) {
-  const { openDiagram, newDiagram, currentDir, diagramName } = useDiagramContext()
+  const { openDiagram, newDiagram, editFromScheme, currentDir, diagramName, config } = useDiagramContext()
+  const canFetch = !!config?.bindings?.fetch
   const { tree, error, reload } = useSchemeTree(true)
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<Filter>('all')
-  const [creating, setCreating] = useState<{ scheme: ProviderScheme; folder: string; name: string } | null>(null)
+  const [creating, setCreating] = useState<{
+    scheme: ProviderScheme
+    folder: string
+    name: string
+    fetched?: FetchedScheme
+  } | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
 
@@ -42,11 +50,22 @@ export function SchemesView({ provider }: { provider: string }) {
   function create() {
     if (!creating) return
     const name = joinDiagramPath(creating.folder.trim().replace(/^\/+|\/+$/g, ''), creating.name.trim())
+    const { scheme, fetched } = creating
     run(async () => {
-      if (await newDiagram(name, undefined, undefined, undefined, { source: provider, ref: creating.scheme.ref })) {
+      const done = fetched
+        ? await editFromScheme(fetched, scheme.ref, name)
+        : await newDiagram(name, undefined, undefined, undefined, { source: provider, ref: scheme.ref })
+      if (done) {
         setCreating(null)
         reload()
       }
+    })
+  }
+
+  function fetchScheme(s: ProviderScheme) {
+    run(async () => {
+      const fetched = await api.fetchScheme(s.ref)
+      setCreating({ scheme: s, folder: fetched.folder || currentDir, name: fetched.name, fetched })
     })
   }
 
@@ -68,16 +87,32 @@ export function SchemesView({ provider }: { provider: string }) {
               <FolderOpen size={12} />
             </button>
           ) : (
-            <button
-              type="button"
-              disabled={busy}
-              title={t('schemes.newDiagram')}
-              aria-label={t('schemes.newDiagram')}
-              onClick={() => setCreating(isCreating ? null : { scheme: s, folder: currentDir, name: diagramNameOf(s) })}
-              className="shrink-0 p-0.5 text-gray-400 hover:text-white disabled:opacity-40"
-            >
-              <FilePlus size={12} />
-            </button>
+            <>
+              {canFetch && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  title={t('schemes.editFromProvider')}
+                  aria-label={t('schemes.editFromProvider')}
+                  onClick={() => (isCreating && creating?.fetched ? setCreating(null) : fetchScheme(s))}
+                  className="shrink-0 p-0.5 text-gray-400 hover:text-white disabled:opacity-40"
+                >
+                  <CloudDownload size={12} />
+                </button>
+              )}
+              <button
+                type="button"
+                disabled={busy}
+                title={t('schemes.newDiagram')}
+                aria-label={t('schemes.newDiagram')}
+                onClick={() =>
+                  setCreating(isCreating && !creating?.fetched ? null : { scheme: s, folder: currentDir, name: diagramNameOf(s) })
+                }
+                className="shrink-0 p-0.5 text-gray-400 hover:text-white disabled:opacity-40"
+              >
+                <FilePlus size={12} />
+              </button>
+            </>
           )}
         </div>
         <div className="truncate text-[11px] text-gray-500">
@@ -85,6 +120,7 @@ export function SchemesView({ provider }: { provider: string }) {
         </div>
         {isCreating && creating && (
           <div className="mt-1 space-y-1 rounded border border-surface-600 bg-surface-800 p-1.5">
+            {creating.fetched && <FetchedSummary fetched={creating.fetched} />}
             <label className="block">
               <span className="block text-gray-400">{t('schemes.folder')}</span>
               <input
@@ -114,7 +150,7 @@ export function SchemesView({ provider }: { provider: string }) {
                 onClick={create}
                 className="rounded bg-accent px-2 py-0.5 text-white hover:opacity-90 disabled:opacity-50"
               >
-                {t('schemes.create')}
+                {creating.fetched ? t('schemes.createFetched') : t('schemes.create')}
               </button>
             </div>
           </div>
@@ -181,5 +217,23 @@ export function SchemesView({ provider }: { provider: string }) {
       )}
       {actionError && <p className="text-red-300 break-words">{actionError}</p>}
     </section>
+  )
+}
+
+/** What Edit from RSDU… read: the file and what its import recognised and skipped (the full import log opens with the
+ * diagram). */
+function FetchedSummary({ fetched }: { fetched: FetchedScheme }) {
+  const r = fetched.report
+  const skipped = r.skipped.reduce((n, e) => n + e.count, 0)
+  return (
+    <div className="space-y-0.5 text-[11px]">
+      <div className="truncate text-gray-400" title={fetched.file}>
+        {t('schemes.fetchedFile', { file: fetched.file })}
+      </div>
+      <div className="text-gray-300">{t('schemes.fetchedCounts', { elements: r.elements, connectors: r.connectors })}</div>
+      {(skipped > 0 || r.failed.length > 0) && (
+        <div className="text-amber-300">{t('schemes.fetchedLost', { skipped, failed: r.failed.length })}</div>
+      )}
+    </div>
   )
 }

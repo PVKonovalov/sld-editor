@@ -1,5 +1,20 @@
 # Release notes
 
+2026-11-18: Import (slddoc): a Sectionalizer (164) in an SVG from an older xsde2svg, drawn as flat paths of only its
+current state, now imports with its state and position instead of failing. Such SVGs' wires still have no type and are
+not imported.
+
+2026-11-18: Edit from RSDU (SCADA bindings step 15). A scheme without a diagram in the RSDU schemes view gets **Edit
+from RSDU…**: the scheme's SVG is read where ctrlroom reads it (Minio bucket first, then `svg.dir`; new
+`POST /api/bindings/schemes/fetch`, optional provider capability `SVGFetcher`, `/api/config` `bindings.fetch`) and
+imported as an `.svg` import; a form shows what was recognised and lost and proposes the folder (`FILE_NAME`'s with
+`full_path: true`) and name; the diagram is saved linked from RSDU (not registered), opened with its import log, and
+the scheme's bindings are read into the bindings overview. **Re-fetch from RSDU** in the scheme link replaces a linked
+diagram after a confirmation. Before the first delivery to a scheme the editor did not register, the SVG there is
+copied once to `<name>.orig.svg` (folder and Minio). After a save of an exported diagram a non-modal note offers
+**Export to RSDU…**. Guides (new section "Editing a scheme from RSDU") and README updated. Pictures made by an older
+xsde2svg (untyped wire polylines) import without wires; the guide says so.
+
 2026-11-18: User guide, Placing elements: a note on which palette button replaces the look-alike types the import
 rewrites (71, 320006, 103, 12), with a link to Importing.
 

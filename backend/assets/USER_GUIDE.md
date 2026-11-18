@@ -582,6 +582,31 @@ name, file name, id or diagram, and show all schemes, the linked ones or those w
 opens a linked diagram. For a scheme without a diagram, the new-file button creates an empty diagram linked to it,
 named after the scheme, in the folder you type (the File panel's current one by default).
 
+#### Editing a scheme from RSDU {#rsdu-edit}
+
+When RSDU's scheme pictures are reachable (`bindings.rsdu.svg.dir` or its Minio bucket, see
+[The SVG for ctrlroom](#rsdu-svg)), a scheme without a diagram also has the cloud button, **Edit from RSDU…**. It reads
+the scheme's SVG where ctrlroom reads it (the Minio bucket first, then the folder) and imports it like an `.svg` file.
+A form then shows the file read and what was recognised and lost, with the folder and name of the new diagram: with
+`svg.full_path: true` the folder of the scheme's file name, otherwise the File panel's current folder; the name is the
+file's. **Create and open** saves the diagram linked to the scheme, opens it with its [import log](#import) and reads
+the scheme's bindings into the bindings overview, to compare and **Apply** as with [Import bindings from RSDU…](#bindings-import). An
+existing diagram is never overwritten: choose another name.
+
+- The diagram is linked, not registered: the scheme keeps its file name in RSDU. From then on the diagram is the
+  master: the scheme opens its diagram, and only **Re-fetch from RSDU** (in the scheme link in Properties) reads the
+  SVG again. Re-fetch replaces the diagram after a confirmation, saved, keeping the link; the previous version stays
+  in [history](#history).
+- The import loses what it can't read, as for any `.svg` (see [Importing](#import)): skipped and failed items are
+  counted in the form and listed in the import log. A picture made by an **older xsde2svg**, whose wires carry no
+  `data-type`, comes in **without wires**; import the scheme's `.xsde` instead when you have it.
+- The first export delivers the diagram's SVG over the scheme's picture. The picture there is first copied once to
+  `<name>.orig.svg` beside it (see [The SVG for ctrlroom](#rsdu-svg)).
+- Edits made meanwhile in RSDU's own scheme editor are not detected: the later export wins.
+
+After a save of a diagram exported to RSDU, a note at the bottom of the canvas offers **Export to RSDU…**, since RSDU
+still has the exported version. Nothing is exported until you do.
+
 **Deleting** a linked diagram keeps the RSDU scheme and the scheme's SVG for ctrlroom; the confirmation says which
 scheme it is.
 
@@ -654,6 +679,9 @@ says why. The export window shows where the SVG went.
   and, as xsde2svg writes them, `data-name`.
 - With `svg.full_path: false` two schemes with the same file name in different folders would share one SVG; the
   [export check](#rsdu-export) refuses that.
+- Before the first delivery to a scheme the editor did not register (linked from RSDU, or after an `.xsde` import),
+  the picture already there is copied once to `<name>.orig.svg` beside it, in the folder and in the Minio bucket alike.
+  That copy is never overwritten.
 
 ## Moving around the canvas {#navigation}
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link2, Link2Off, Loader2, Lock } from 'lucide-react'
+import { CloudDownload, Link2, Link2Off, Loader2, Lock } from 'lucide-react'
 import { t } from '../../i18n'
 import * as api from '../../lib/api'
 import * as diagramOps from '../../lib/diagramOps'
@@ -11,11 +11,13 @@ type Looked = { status: 'busy' } | { status: 'found'; scheme: ProviderScheme } |
 
 /** The scheme the open diagram is linked to: its name as the provider has it (missing when the provider no longer
  * has it), when it was last exported, Link… / Change… (the scheme picker) and Unlink. Both are undoable edits saved
- * with the diagram. schemes: the provider links diagrams to schemes; otherwise the link is shown read-only. */
+ * with the diagram. schemes: the provider links diagrams to schemes; otherwise the link is shown read-only. When the
+ * provider can fetch the scheme's picture, Re-fetch replaces the diagram with it after a confirmation. */
 export function SchemeLinkRow({ provider, scheme, schemes }: { provider: string; scheme?: SchemeRef; schemes: boolean }) {
-  const { diagram, diagramName, updateDiagram } = useDiagramContext()
+  const { diagram, diagramName, updateDiagram, refetchScheme, config } = useDiagramContext()
   const [looked, setLooked] = useState<Looked | null>(null)
   const [picking, setPicking] = useState(false)
+  const [refetch, setRefetch] = useState<{ status: 'confirm' | 'busy' } | { status: 'failed'; error: string } | null>(null)
   const own = !!scheme && scheme.source === provider
 
   useEffect(() => {
@@ -39,6 +41,14 @@ export function SchemeLinkRow({ provider, scheme, schemes }: { provider: string;
       live = false
     }
   }, [own, schemes, scheme?.ref])
+
+  function runRefetch() {
+    setRefetch({ status: 'busy' })
+    refetchScheme().then(
+      () => setRefetch(null),
+      e => setRefetch({ status: 'failed', error: e instanceof Error ? e.message : String(e) }),
+    )
+  }
 
   function pick(s: ProviderScheme) {
     setPicking(false)
@@ -95,6 +105,40 @@ export function SchemeLinkRow({ provider, scheme, schemes }: { provider: string;
               <Link2Off size={12} />
               {t('schemes.unlink')}
             </button>
+          )}
+        </div>
+      )}
+      {schemes && own && config?.bindings?.fetch && (
+        <div className="space-y-1">
+          {refetch?.status === 'confirm' ? (
+            <div className="rounded border border-amber-700/60 bg-surface-800 p-1.5 space-y-1">
+              <p className="text-amber-200">{t('schemes.refetchConfirm')}</p>
+              <div className="flex justify-end gap-2">
+                <button type="button" onClick={() => setRefetch(null)} className="px-1.5 text-gray-300 hover:text-white">
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={runRefetch}
+                  className="rounded bg-accent px-2 py-0.5 text-white hover:opacity-90"
+                >
+                  {t('schemes.refetch')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={refetch?.status === 'busy'}
+              onClick={() => setRefetch({ status: 'confirm' })}
+              className="flex items-center gap-1 rounded border border-surface-500 px-2 py-0.5 hover:bg-surface-600 disabled:opacity-50"
+            >
+              {refetch?.status === 'busy' ? <Loader2 size={12} className="animate-spin" /> : <CloudDownload size={12} />}
+              {t('schemes.refetch')}
+            </button>
+          )}
+          {refetch?.status === 'failed' && (
+            <p className="text-[11px] text-red-300 break-words">{t('schemes.refetchFailed', { error: refetch.error })}</p>
           )}
         </div>
       )}

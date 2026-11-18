@@ -106,7 +106,23 @@ type ExportResult struct {
 type SVGDeliverer interface {
 	// DeliverSVG puts svg where the viewer looks for the picture of scheme ref and returns where it went (none: no
 	// destination configured).
-	DeliverSVG(ctx context.Context, ref string, svg []byte) ([]string, error)
+	DeliverSVG(ctx context.Context, ref string, svg []byte, keepOriginal bool) ([]string, error)
+}
+
+// FetchedSVG is a scheme's picture read from where its viewer reads it. File is its path there, "/"-separated;
+// FullPath tells that the path's folder is the scheme's own (from its file name), not just the viewer's layout.
+type FetchedSVG struct {
+	Scheme   Scheme
+	File     string
+	FullPath bool
+	SVG      []byte
+}
+
+// SVGFetcher is a Provider that reads a scheme's picture from where its viewer reads it.
+type SVGFetcher interface {
+	// FetchSVG returns the picture of scheme ref; ErrNotFound when it is not there, ErrNotConfigured when there is
+	// no place to read it from.
+	FetchSVG(ctx context.Context, ref string) (*FetchedSVG, error)
 }
 
 // ErrExportRefused is returned by an export its check stops; Check tells why.

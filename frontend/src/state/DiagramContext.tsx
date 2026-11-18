@@ -23,6 +23,7 @@ import type {
   Revision,
   VoltageColor,
   SchemeBindings,
+  FetchedScheme,
 } from '../types'
 import {
   DiagramContext,
@@ -890,11 +891,17 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const dismissSchemeOffer = useCallback(() => setSchemeOffer(null), [])
   const [exportOpen, setExportOpen] = useState(false)
   const [bindingImport, setBindingImport] = useState<SchemeBindings | null>(null)
+  const [exportNudge, setExportNudge] = useState(false)
+  const dismissExportNudge = useCallback(() => setExportNudge(false), [])
   useEffect(() => {
     setSchemeOffer(prev => (prev && prev.name !== diagramName ? null : prev))
     setExportOpen(false)
     setBindingImport(null)
+    setExportNudge(false)
   }, [diagramName])
+  useEffect(() => {
+    if (exportOpen) setExportNudge(false)
+  }, [exportOpen])
 
   const importDiagramFile = useCallback(
     async (file: File) => {
@@ -985,8 +992,40 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     commitDiagram(d, { clean: d })
     setDirty(false)
     setError(warning ?? null)
+    const b = config?.bindings
+    setExportNudge(!!b?.canExport && d.scheme?.source === b.provider && !!d.scheme.exported)
     await browseDir(currentDir)
-  }, [diagramName, diagram, browseDir, currentDir, commitDiagram])
+  }, [diagramName, diagram, browseDir, currentDir, commitDiagram, config])
+
+  // Saves fetched (a scheme's picture, api.fetchScheme) as the new diagram name linked to the provider's scheme ref
+  // (linked from it, not registered), opens it with its import log and reads the scheme's bindings into the bindings
+  // overview. Throws for a name that exists; false when the user stays on the open diagram.
+  const editFromScheme = useCallback(
+    async (fetched: FetchedScheme, ref: string, name: string) => {
+      const b = config?.bindings
+      if (!b?.provider) return false
+      if (await new ExistingNames(false).has(name)) throw new Error(t('schemes.nameExists', { name }))
+      if (!(await confirmLeave())) return false
+      const diagram = { ...fetched.diagram, scheme: { source: b.provider, ref } }
+      await loadDiagramFromFile({ diagram, report: fetched.report, nameSuffix: '', messages: null }, baseName(fetched.file), name, true)
+      if (b.import) {
+        api.importBindings(name).then(setBindingImport, e =>
+          setError(t('bindingImport.failed', { error: e instanceof Error ? e.message : String(e) })),
+        )
+      }
+      return true
+    },
+    [config, confirmLeave, loadDiagramFromFile],
+  )
+
+  // Replaces the open diagram with a fresh fetch of the scheme it is linked to, saved, keeping the link.
+  const refetchScheme = useCallback(async () => {
+    const scheme = diagram?.scheme
+    if (!diagramName || !scheme) return
+    const fetched = await api.fetchScheme(scheme.ref, diagramName)
+    const prepared = { diagram: { ...fetched.diagram, scheme }, report: fetched.report, nameSuffix: '', messages: null }
+    await loadDiagramFromFile(prepared, baseName(fetched.file), diagramName, true)
+  }, [diagram, diagramName, loadDiagramFromFile])
 
   const saveDiagramAs = useCallback(
     async (name: string) => {
@@ -1271,6 +1310,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setExportOpen,
       bindingImport,
       setBindingImport,
+      exportNudge,
+      dismissExportNudge,
+      editFromScheme,
+      refetchScheme,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,
@@ -1383,6 +1426,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       setExportOpen,
       bindingImport,
       setBindingImport,
+      exportNudge,
+      dismissExportNudge,
+      editFromScheme,
+      refetchScheme,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,

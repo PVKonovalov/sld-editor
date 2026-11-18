@@ -23,6 +23,9 @@ var ErrNotFound = errors.New("not found")
 // ErrInvalid wraps a provider error for a malformed argument; the API answers 400.
 var ErrInvalid = errors.New("invalid argument")
 
+// ErrNotConfigured is returned when what a call needs is not set up in the configuration.
+var ErrNotConfigured = errors.New("not configured")
+
 // KindInfo is one binding kind as a provider offers it, with the option a new binding of it gets. An empty Name
 // leaves naming to the frontend.
 type KindInfo struct {

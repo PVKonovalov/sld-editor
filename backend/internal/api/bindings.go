@@ -25,6 +25,8 @@ type bindingsConfig struct {
 	ExportCheck bool `json:"exportCheck"`
 	// Import tells that a linked scheme's bindings can be read (binding.Importer).
 	Import bool `json:"import"`
+	// Fetch tells that a scheme's picture can be read from its viewer's storage and imported (binding.SVGFetcher).
+	Fetch bool `json:"fetch"`
 }
 
 func (s *Server) bindingsConfig() bindingsConfig {
@@ -34,8 +36,9 @@ func (s *Server) bindingsConfig() bindingsConfig {
 	_, linker := s.bindings.(binding.Linker)
 	_, checker := s.bindings.(binding.ExportChecker)
 	_, importer := s.bindings.(binding.Importer)
+	_, fetcher := s.bindings.(binding.SVGFetcher)
 	return bindingsConfig{Provider: s.bindings.Name(), CanExport: binding.CanExport(s.bindings, s.cfg.Bindings), Schemes: linker,
-		ExportCheck: checker, Import: importer}
+		ExportCheck: checker, Import: importer, Fetch: linker && fetcher}
 }
 
 // bindingRoutes registers /api/bindings/* on grp; called only with a provider configured.
@@ -52,6 +55,9 @@ func (s *Server) bindingRoutes(grp *gin.RouterGroup) {
 	b.POST("/suggest", s.suggestBindings)
 	if l, ok := s.bindings.(binding.Linker); ok {
 		s.schemeRoutes(b, l)
+		if f, ok := s.bindings.(binding.SVGFetcher); ok {
+			b.POST("/schemes/fetch", func(c *gin.Context) { s.fetchScheme(c, f) })
+		}
 	}
 	if im, ok := s.bindings.(binding.Importer); ok {
 		b.POST("/import", func(c *gin.Context) { s.importBindings(c, im) })
@@ -222,6 +228,8 @@ func bindingError(c *gin.Context, err error) {
 		errJSON(c, http.StatusNotFound, err)
 	case errors.Is(err, binding.ErrNotImplemented):
 		errJSON(c, http.StatusNotImplemented, err)
+	case errors.Is(err, binding.ErrNotConfigured):
+		errJSON(c, http.StatusServiceUnavailable, err)
 	default:
 		errJSON(c, http.StatusBadGateway, err)
 	}

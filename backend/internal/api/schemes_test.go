@@ -121,3 +121,55 @@ func TestSchemeRoutesNeedLinker(t *testing.T) {
 		t.Errorf("status %d", rec.Code)
 	}
 }
+
+// fetchingProvider holds the picture of scheme 1 at north/sub-2.svg (full path) and none of scheme 3.
+type fetchingProvider struct{ linkingProvider }
+
+func (fetchingProvider) FetchSVG(_ context.Context, ref string) (*binding.FetchedSVG, error) {
+	if ref != "1" {
+		return nil, fmt.Errorf("%w: the SVG of scheme %s", binding.ErrNotFound, ref)
+	}
+	svg := `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200">
+<g id="7" data-type="71" >
+<path d="M 50 106 v -13" data-state="1" style="fill:none;stroke:white;stroke-width:1" data-voltage="white" />
+<path d="M 46 91 h 8 m 0 18 h -8" style="fill:none;stroke:white;stroke-width:1" data-voltage="white" />
+<path d="M 50 91 v -1 M 50 109 v 1" style="fill:none;stroke:white;stroke-width:1" data-voltage="white" />
+</g>
+</svg>`
+	return &binding.FetchedSVG{Scheme: testSchemes[0], File: "C:/north/sub-2.svg", FullPath: true, SVG: []byte(svg)}, nil
+}
+
+func TestFetchScheme(t *testing.T) {
+	s := newTestServerWithBindings(t, fetchingProvider{}, rsduBindings(false))
+	if cfg := s.bindingsConfig(); !cfg.Fetch {
+		t.Errorf("config %+v", cfg)
+	}
+	rec := doJSON(t, s, http.MethodPost, "/api/bindings/schemes/fetch?ref=1", nil)
+	got := decode[struct {
+		Diagram slddoc.Diagram
+		Folder  string
+		Name    string
+		File    string
+	}](t, rec.Body.String())
+	if rec.Code != http.StatusOK || got.Folder != "north" || got.Name != "sub-2" || got.File != "C:/north/sub-2.svg" ||
+		len(got.Diagram.Elements) != 1 || got.Diagram.Elements[0].Shape != "162" {
+		t.Fatalf("fetch: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := doJSON(t, s, http.MethodPost, "/api/bindings/schemes/fetch?ref=3", nil); rec.Code != http.StatusNotFound {
+		t.Errorf("missing picture: %d %s", rec.Code, rec.Body.String())
+	}
+
+	doJSON(t, s, http.MethodPut, "/api/diagrams/save?name=north/sub-2", slddoc.Diagram{Width: 10, Height: 10, Scheme: &slddoc.SchemeRef{Source: "fake", Ref: "1"}})
+	rec = doJSON(t, s, http.MethodPost, "/api/bindings/schemes/fetch?ref=1", nil)
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), `"diagram":"north/sub-2"`) {
+		t.Errorf("linked scheme: %d %s", rec.Code, rec.Body.String())
+	}
+	if rec := doJSON(t, s, http.MethodPost, "/api/bindings/schemes/fetch?ref=1&diagram=north/sub-2", nil); rec.Code != http.StatusOK {
+		t.Errorf("re-fetch: %d %s", rec.Code, rec.Body.String())
+	}
+
+	plain := newTestServerWithBindings(t, linkingProvider{}, rsduBindings(false))
+	if rec := doJSON(t, plain, http.MethodPost, "/api/bindings/schemes/fetch?ref=1", nil); rec.Code != http.StatusNotFound {
+		t.Errorf("without the capability: %d", rec.Code)
+	}
+}

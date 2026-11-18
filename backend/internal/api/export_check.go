@@ -193,5 +193,5 @@ func (s *Server) deliverSVG(ctx context.Context, name string, scheme *slddoc.Sch
 	}
 	ctx, cancel := context.WithTimeout(ctx, svgDeliveryTimeout)
 	defer cancel()
-	return dl.DeliverSVG(ctx, scheme.Ref, svg)
+	return dl.DeliverSVG(ctx, scheme.Ref, svg, !scheme.Registered)
 }

@@ -18,6 +18,7 @@ import type {
   UnmatchedVoltage,
   VoltageColor,
   SchemeBindings,
+  FetchedScheme,
 } from '../types'
 import type { PreparedImport } from '../lib/importDiagram'
 import type { MisplacedPort, VoltageMismatch } from '../lib/diagramOps'
@@ -209,6 +210,17 @@ export interface DiagramContextValue {
   // import is in progress. It ends when another diagram opens.
   bindingImport: SchemeBindings | null
   setBindingImport: (b: SchemeBindings | null) => void
+
+  // After a save of a diagram exported to the provider (so changed since its export), when it can export: a
+  // non-modal offer to export it again. It ends when the export window opens or another diagram opens.
+  exportNudge: boolean
+  dismissExportNudge: () => void
+
+  // Edit from RSDU…: saves a scheme's fetched picture as the new diagram name linked to scheme ref, opens it and
+  // reads the scheme's bindings. Throws for a name that exists; false when the user stays on the open diagram.
+  editFromScheme: (fetched: FetchedScheme, ref: string, name: string) => Promise<boolean>
+  // Re-fetch from RSDU: replaces the open diagram with a fresh fetch of its linked scheme, saved, keeping the link.
+  refetchScheme: () => Promise<void>
 
   // The last voltage class the user picked in Properties (or Settings, or
   // the New Diagram dialog), remembered for the lifetime of the session

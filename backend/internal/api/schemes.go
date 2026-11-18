@@ -2,7 +2,11 @@ package api
 
 import (
 	"net/http"
+	"path"
+	"regexp"
+	"strings"
 
+	"github.com/PVKonovalov/slddoc"
 	"github.com/gin-gonic/gin"
 
 	"sld-editor/internal/binding"
@@ -85,4 +89,52 @@ func (s *Server) schemesExist(c *gin.Context, l binding.Linker) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"exist": exist})
+}
+
+// driveLetter is a Windows drive at the start of a scheme's file name ("C:").
+var driveLetter = regexp.MustCompile(`^[A-Za-z]:$`)
+
+// fetchedPlace proposes the folder and name of a diagram made from f: the file's base name without its extension,
+// and, when the file name carries the scheme's own folder (full_path), that folder without a drive letter.
+func fetchedPlace(f *binding.FetchedSVG) (folder, name string) {
+	name = strings.TrimSuffix(path.Base(f.File), path.Ext(f.File))
+	if !f.FullPath {
+		return "", name
+	}
+	parts := strings.Split(strings.Trim(path.Dir(f.File), "/."), "/")
+	if len(parts) > 0 && driveLetter.MatchString(parts[0]) {
+		parts = parts[1:]
+	}
+	return strings.Join(parts, "/"), name
+}
+
+// fetchScheme answers the scheme ?ref='s picture, read from where its viewer reads it, imported as an .svg import:
+// {diagram, report, folder, name}, folder and name proposed for a new diagram. 409 with {diagram} when the scheme is
+// linked to a diagram other than ?diagram= (the one being re-fetched).
+func (s *Server) fetchScheme(c *gin.Context, f binding.SVGFetcher) {
+	ref := c.Query("ref")
+	if linked := s.store.LinkedDiagrams(s.bindings.Name())[ref]; linked != "" && linked != c.Query("diagram") {
+		c.JSON(http.StatusConflict, gin.H{"error": "the scheme is linked to the diagram " + linked, "diagram": linked})
+		return
+	}
+	fetched, err := f.FetchSVG(c.Request.Context(), ref)
+	if err != nil {
+		bindingError(c, err)
+		return
+	}
+	d, report, err := slddoc.Extract(fetched.SVG, "", s.voltageHints())
+	if err != nil {
+		errJSON(c, http.StatusUnprocessableEntity, err)
+		return
+	}
+	rewriteImportedShapes(d)
+	s.prepareDiagram(d, true)
+	folder, name := fetchedPlace(fetched)
+	c.JSON(http.StatusOK, gin.H{
+		"diagram": d,
+		"report":  newImportReport(report),
+		"file":    fetched.File,
+		"folder":  folder,
+		"name":    name,
+	})
 }

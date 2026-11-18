@@ -912,6 +912,18 @@ export interface BindingsConfig {
   exportCheck?: boolean
   // A linked scheme's bindings can be imported.
   import?: boolean
+  // A scheme's picture can be read from its viewer's storage and imported (Edit from RSDU…).
+  fetch?: boolean
+}
+
+// POST /api/bindings/schemes/fetch: a scheme's picture imported as an .svg import, with the folder and name proposed
+// for its diagram.
+export interface FetchedScheme {
+  diagram: Diagram
+  report: ImportReport
+  file: string
+  folder: string
+  name: string
 }
 
 // Matches binding.SchemeType.

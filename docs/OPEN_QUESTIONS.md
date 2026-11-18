@@ -16,8 +16,15 @@ TODO.md) and remove it here.
    remember a group per folder?
 4. **Edit from RSDU: concurrent edits.** A scheme edited at the same time in RSDU's own scheme editor and in this
    editor: the later export wins. Detect it (compare `VS_FORM` / `VS_COMP` with what the last import read) or accept?
+   *Implemented 2026-11-18 with the default: not detected, the later export wins (stated in the guide and README).*
 5. **Edit from RSDU: SVGs not made by xsde2svg.** `Extract` reads xsde2svg's markup (and the editor's own). A scheme
    whose SVG came from another tool imports as "Missing" placeholders. Refuse such a scheme, or offer its `.xsde` when
    one is available?
+   *Implemented 2026-11-18 with the default: not refused; the form and import log show what was lost.* Found then:
+   the pictures in ctrlroom's MinIO came from an older xsde2svg whose wires (`<polyline>`) carry no `data-type`, so
+   they import without wires. Left as is (the guide says to import the `.xsde`); reading them by stroke style (width
+   1 → 21, 3 → 22, dashed → 23, 4 → 24, arrow marker → 28, checked on one scheme) was offered and declined.
 6. **Edit from RSDU: folder of the fetched diagram.** With `full_path: true`, mirror the folder part of `FILE_NAME`
    (a Modus path) under the diagrams directory, or always use the folder open in the File panel?
+   *Implemented 2026-11-18 with the default: with `full_path: true` the folder of `FILE_NAME` (drive letter dropped),
+   else the current folder; both editable, an existing diagram never overwritten.*

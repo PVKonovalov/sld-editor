@@ -188,7 +188,7 @@ type deliveringProvider struct {
 	fail *bool
 }
 
-func (p deliveringProvider) DeliverSVG(_ context.Context, ref string, svg []byte) ([]string, error) {
+func (p deliveringProvider) DeliverSVG(_ context.Context, ref string, svg []byte, _ bool) ([]string, error) {
 	if *p.fail {
 		return nil, errors.New("viewer folder unreachable")
 	}

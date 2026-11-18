@@ -11,6 +11,7 @@ import { Canvas } from './components/Canvas'
 import { BindingsOverview } from './components/BindingsOverview'
 import { SchemeOfferBanner } from './components/SchemeOfferBanner'
 import { ExportDialog } from './components/ExportDialog'
+import { ExportNudgeBanner } from './components/ExportNudgeBanner'
 import type { GapKind } from './lib/bindingOverview'
 import { ImportLogDialog } from './components/ImportLogDialog'
 import { ConfirmReloadDialog } from './components/ConfirmReloadDialog'
@@ -240,6 +241,7 @@ function Shell() {
         <CimLayoutDialog />
         <CimWindingsDialog />
         <SchemeOfferBanner />
+        <ExportNudgeBanner />
         <ExportDialogHost />
         {guide && <GuideWindow topic={guide.topic} requestId={guide.requestId} onClose={() => setGuide(null)} />}
         {dropError && (

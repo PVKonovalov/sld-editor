@@ -24,6 +24,7 @@ import type {
   DiagramEntry,
   ElementSymbol,
   EditorConfig,
+  FetchedScheme,
   ImportReport,
   ConverterMessage,
   OpenedDiagram,
@@ -471,6 +472,17 @@ export async function checkExport(name: string, register = false): Promise<Expor
   const q = `name=${encodeURIComponent(name)}${register ? '&register=true' : ''}`
   const c: ExportCheck = await asJSON(await fetch(`${BASE}/bindings/export/check?${q}`))
   return { ...c, issues: c.issues ?? [] }
+}
+
+/** The picture of scheme ref read from its viewer's storage and imported as an .svg import. diagram is the diagram
+ * being re-fetched, which may already be linked to the scheme. */
+export async function fetchScheme(ref: string, diagram?: string): Promise<FetchedScheme> {
+  const q = new URLSearchParams({ ref })
+  if (diagram) q.set('diagram', diagram)
+  const data = await asJSON<Omit<FetchedScheme, 'diagram'> & { diagram: DiagramWire }>(
+    await fetch(`${BASE}/bindings/schemes/fetch?${q}`, { method: 'POST' }),
+  )
+  return { ...data, diagram: normalizeDiagram(data.diagram) }
 }
 
 /** The bindings of the scheme the saved diagram name is linked to, read from the provider for import. */
