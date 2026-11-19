@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-19: Import: a Sectionalizer (164) keeps its mirroring (xsde2svg's `xMirror`, also when set on the whole type) and its leads (`distance` over 2): before, every one came in unmirrored, with the arrow pointing the other way, and without leads, its terminals short of the wires.
+
 2026-11-19: Import: a Fuse (withdrawable) (154) keeps its trolley position (Service/Normal/Test) and its size step; before, every one came in as Normal at size 0, drawn away from its connection points when scaled. Read from xsde2svg 1.4.26's `data-trolley` (which now draws 154 like the breaker 43), or from the drawing in SVGs of an older xsde2svg. `position_states` docs (README, example config) list shape 154.
 
 2026-11-19: Table (312) and Table 2 (313) no longer write `data-voltage` on their `<g>` in the canvas or the saved `.svg`: a table has no voltage. Their cells had none already.
