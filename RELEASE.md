@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-19: Import reads a device's size step and mirroring from xsde2svg 1.4.28's `data-scale` and `data-mirror`: every scaled device keeps its size, also one with a single connection point (a Capacitor bank, 172, came in at size 0 before). Mirroring is taken for the shapes whose **Mirror** matches xsde2svg's (checked against its drawing), now also 32, 34, 43, 168 and 398. Sizes go up to 5 (the **Size** list too). The Capacitor bank symbol (172) is xsde2svg's: stem 11, bars at 27 and 31 (was 8, 23, 27). An `.svg` of an older xsde2svg is read as before. User guides updated.
+
 2026-11-19: Import: a Power transformer (47) keeps its size step, its mirroring (`xMirror`), the side each winding is led from (**Terminal orientation**, e.g. down with `chassis`) and its regulated winding (the regulation arrow); before, every one came in at size 0, unmirrored, with default lead sides and without the arrow, its leads short of the wires. A transformer now has a **Size** in Properties; its terminals follow the size step (`diagramOps` `transformerLocalTerminals`). Read from xsde2svg 1.4.27's `data-tap-changer`, or from an older xsde2svg's arrow drawn after the group. User guides updated.
 
 2026-11-19: Import: a Sectionalizer (164) keeps its mirroring (xsde2svg's `xMirror`, also when set on the whole type) and its leads (`distance` over 2): before, every one came in unmirrored, with the arrow pointing the other way, and without leads, its terminals short of the wires.

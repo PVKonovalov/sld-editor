@@ -201,11 +201,13 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
   connected. Diagrams saved earlier keep their elements as they are.
 - Texts keep their turn: a Modus text's tilt angle (counter-clockwise) and its orientation (vertical down, reversed,
   vertical up) together turn the label as xsde2svg draws it, about the label's own anchor.
-- xsde2svg draws each device at its own size step (each step √2 larger). An `.svg` import recovers the step from where
-  the device's connection points lie, so the symbol fills the gap between its wires. Devices whose leads also stretch
-  per instance (breakers, disconnectors and similar) get their size from their drawn body and their **Leads** from
-  their two connection points. A power transformer gets its size from its circles, its mirroring and the side each
-  winding is led from (**Terminal orientation**) from the drawing, and its regulated winding from the regulation arrow.
+- xsde2svg draws each device at its own size step (each step √2 larger, from −2 to 5). Since xsde2svg 1.4.28 the
+  `.svg` names a device's step and mirroring (`data-scale`, `data-mirror`), and the import takes them from there. For
+  an `.svg` of an older xsde2svg, the import recovers the step from where the device's connection points lie, so the
+  symbol fills the gap between its wires. Devices whose leads also stretch per instance (breakers, disconnectors and
+  similar) get their size from their drawn body and their **Leads** from their two connection points. A power
+  transformer gets its size from its circles, its mirroring and the side each winding is led from (**Terminal
+  orientation**) from the drawing, and its regulated winding from the regulation arrow.
 - A device lead that ends a unit or two beside a wire (a T-tap, such as a ground switch on a feeder) is connected to
   that wire on import, splitting it there.
 - A wire that ends on the middle of another wire (a T-junction in buswork), alone or together with a device's lead,

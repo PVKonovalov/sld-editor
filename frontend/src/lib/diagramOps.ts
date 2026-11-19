@@ -2272,7 +2272,7 @@ export function defaultLeadSpan(el: DiagramElement, symbols: ElementSymbol[]): n
 
 /** The size steps (DiagramElement.scale) offered in Properties and tried
  * on SVG import. */
-export const SIZE_STEPS = [-2, -1, 0, 1, 2, 3, 4]
+export const SIZE_STEPS = [-2, -1, 0, 1, 2, 3, 4, 5]
 
 /** A size step's own scale factor, √2^step — slddoc's SizeFactor. */
 export function sizeFactor(step: number): number {
