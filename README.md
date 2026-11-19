@@ -143,7 +143,7 @@ Defaults of the Settings panel for a diagram that hasn't saved its own.
 |---|---|---|---|---|
 | `state_colors` | list of `{state, label, color}` | no | empty | Legend of a switching device's state fill (`data-state`, `data-fill` in the SVG) and the Properties **State** list: 0 Open, 1 Close, 2 Intermediate, 3 Faulty. Must match rdss-dms's state mapping. Only the starting colors of a diagram: one saved without its own takes them into its `.xsld` (`<stateColors>`). |
 | `fpi_state_colors` | list of `{state, label, color}` | no | empty | The same for fault passage indicators (320003), whose meaning is inverted: Open (no fault) green, Close (fault passed) red. |
-| `position_states` | list of `{position, label}` | no | empty | Labels of a withdrawable device's racking position (shapes 43, 49; `data-trolley`): 0 Service, 1 Normal, 2 Test. Position moves the body; it has no color. |
+| `position_states` | list of `{position, label}` | no | empty | Labels of a withdrawable device's racking position (shapes 43, 49, 154; `data-trolley`): 0 Service, 1 Normal, 2 Test. Position moves the body; it has no color. |
 
 ### line_halos
 
