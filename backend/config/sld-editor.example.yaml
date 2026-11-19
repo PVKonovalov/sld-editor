@@ -167,7 +167,7 @@ line_halos:
 # Global Service/Normal/Test legend a withdrawable device's own racking
 # position is labeled from (slddoc.Render's data-trolley attribute)
 # and the Properties panel's Position status dropdown offers — the withdrawable
-# Breaker/Disconnector/Fuse, shapes 43/49/154, use it. Unlike
+# Breaker/Disconnector/Fuse and the Chassis, shapes 43/49/154/51, use it. Unlike
 # state_colors, position carries no color of its own, only a label — it
 # drives a geometric offset (the withdrawable body sliding out of its cell),
 # not a fill.
