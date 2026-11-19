@@ -1,5 +1,11 @@
 # Release notes
 
+2026-11-19: Table (312) and Table 2 (313) no longer write `data-voltage` on their `<g>` in the canvas or the saved `.svg`: a table has no voltage. Their cells had none already.
+
+2026-11-19: Table 2 (313): cells keep bold/italic/underline, font size, horizontal and vertical alignment, several text lines and merged cells (rowSpan/colSpan), on the canvas, in the saved `.svg` (as xsde2svg draws them) and on `.xsde`/`.svg` import; before, all text was a centered 11px single line and a merged cell was drawn as one grid cell with holes beside it. The table's Properties are rebuilt (`Table2Editor`): a to-scale map of the cells; a cell is picked there or by clicking it on the canvas (Shift-click picks a range, outlined on the canvas); the picked cells get row height, column width, text, B/I/U, size, alignment, text color, background, and Merge/Unmerge, which follow Modus (merge: the top-left cell keeps its look and gets all the text joined column by column; unmerge: the text stays in the top-left cell, the rest are empty). Resizing the grid keeps merged cells, cutting them back at the new edge. User guide (en, ru) updated.
+
+2026-11-19: Import: an Arrow (2) drawn double-headed (`.xsde` `fDouble="1"`, or an editor-saved `.svg`) now imports as Double-headed instead of single-headed (slddoc `parseArrow`).
+
 2026-11-18: User guide (en, ru): a new section, "How to: work with RSDU" (`#rsdu-howto`), with step-by-step examples:
 - `#howto-new-scheme`: a new diagram registered in RSDU with its bindings;
 - `#howto-picture`: changing only the picture of a scheme already in RSDU;

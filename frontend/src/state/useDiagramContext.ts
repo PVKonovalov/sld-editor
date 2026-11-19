@@ -21,7 +21,7 @@ import type {
   FetchedScheme,
 } from '../types'
 import type { PreparedImport } from '../lib/importDiagram'
-import type { MisplacedPort, VoltageMismatch } from '../lib/diagramOps'
+import type { MisplacedPort, TableCellRange, VoltageMismatch } from '../lib/diagramOps'
 
 // A dropped/picked file whose target name (fileName minus extension)
 // already exists on the server — parked until ConfirmReloadDialog's
@@ -357,6 +357,10 @@ export interface DiagramContextValue {
   // changes or another document opens. highlightItem toggles it and pans the item into view.
   highlighted: { id: number; kind: SelectionKind } | null
   highlightItem: (id: number, kind: SelectionKind) => void
+  // The picked cells of the selected Table2 (canvas click or the Properties cell map); null once another item is
+  // selected.
+  tableCellRange: TableCellRange | null
+  setTableCellRange: (range: TableCellRange | null) => void
   // Centres the canvas on a diagram point and flashes a ring there (the
   // Connections section's node coordinates).
   focusPoint: (point: Point) => void

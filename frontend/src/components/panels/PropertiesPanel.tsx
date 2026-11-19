@@ -12,6 +12,7 @@ import { MridRow } from './MridRow'
 import { ElectricalSection } from './ElectricalSection'
 import { BindingsSection, DiagramBindingsSection } from './BindingsSection'
 import { ImportedBindings } from './ImportedBindings'
+import { Table2Editor } from './Table2Editor'
 import {
   connectorElectricalFields,
   elementElectricalFields,
@@ -2478,40 +2479,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
 
         {isTable2 && (
           <>
-            {/* Also reuses Rectangle's own Fill/Stroke i18n keys plus
-                Line's own LineStyle select — Table2's own grid-wide
-                default cell background/grid line color/dash, matching
-                writeTable2. Row/column count and per-row/column size are
-                its own new concept (no other shape has a resizable grid);
-                per-cell Fill/TextColor overrides aren't exposed here yet
-                (still preserved/rendered correctly for anything Extract
-                recovers — see TableCell's own doc comment). */}
-            <div className="grid grid-cols-2 gap-1">
-              <label className="block text-xs">
-                <span className="block text-gray-400 mb-1">{t('properties.tableRows')}</span>
-                <input
-                  type="number"
-                  min={1}
-                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
-                  value={el.rowHeights?.length ?? 1}
-                  onChange={e =>
-                    updateDiagram(d => diagramOps.resizeTable2(d, el.id, Number(e.target.value), el.columnWidths?.length ?? 1))
-                  }
-                />
-              </label>
-              <label className="block text-xs">
-                <span className="block text-gray-400 mb-1">{t('properties.tableColumns')}</span>
-                <input
-                  type="number"
-                  min={1}
-                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
-                  value={el.columnWidths?.length ?? 1}
-                  onChange={e =>
-                    updateDiagram(d => diagramOps.resizeTable2(d, el.id, el.rowHeights?.length ?? 1, Number(e.target.value)))
-                  }
-                />
-              </label>
-            </div>
+            {/* The table's default cell background and grid line color, width and dash; the grid and its cells
+                are Table2Editor's. */}
             <label className="block text-xs">
               <span className="flex items-center justify-between mb-1">
                 <span className="text-gray-400">{t('properties.rectangleFill')}</span>
@@ -2563,61 +2532,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 ))}
               </select>
             </label>
-            <div>
-              <span className="block text-xs text-gray-400 mb-1">{t('properties.tableRowHeights')}</span>
-              <div className="grid grid-cols-4 gap-1">
-                {(el.rowHeights ?? []).map((h, i) => (
-                  <input
-                    key={i}
-                    type="number"
-                    min={1}
-                    className="w-full bg-surface-800 border border-surface-600 rounded px-1 py-1 text-[11px]"
-                    value={h}
-                    onChange={e => updateDiagram(d => diagramOps.updateTable2RowHeight(d, el.id, i, Number(e.target.value)))}
-                  />
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="block text-xs text-gray-400 mb-1">{t('properties.tableColumnWidths')}</span>
-              <div className="grid grid-cols-4 gap-1">
-                {(el.columnWidths ?? []).map((w, i) => (
-                  <input
-                    key={i}
-                    type="number"
-                    min={1}
-                    className="w-full bg-surface-800 border border-surface-600 rounded px-1 py-1 text-[11px]"
-                    value={w}
-                    onChange={e => updateDiagram(d => diagramOps.updateTable2ColumnWidth(d, el.id, i, Number(e.target.value)))}
-                  />
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="block text-xs text-gray-400 mb-1">{t('properties.tableCells')}</span>
-              <div className="space-y-1">
-                {Array.from({ length: el.rowHeights?.length ?? 0 }, (_, row) => (
-                  <div
-                    key={row}
-                    className="grid gap-1"
-                    style={{ gridTemplateColumns: `repeat(${el.columnWidths?.length ?? 0}, minmax(0,1fr))` }}
-                  >
-                    {Array.from({ length: el.columnWidths?.length ?? 0 }, (_, col) => {
-                      const cell = el.cells?.find(c => c.row === row && c.col === col)
-                      return (
-                        <input
-                          key={col}
-                          type="text"
-                          className="w-full bg-surface-800 border border-surface-600 rounded px-1 py-0.5 text-[11px]"
-                          value={cell?.text ?? ''}
-                          onChange={e => updateDiagram(d => diagramOps.updateTable2CellText(d, el.id, row, col, e.target.value))}
-                        />
-                      )
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <Table2Editor el={el} swatchColor={swatchColor} />
           </>
         )}
 

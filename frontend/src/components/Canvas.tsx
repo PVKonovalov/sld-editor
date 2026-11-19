@@ -526,6 +526,8 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     hiddenLayers,
     focusRequest,
     highlighted,
+    tableCellRange,
+    setTableCellRange,
     requestFind,
     diagramName,
     loading,
@@ -1043,11 +1045,52 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
         return
       }
       if (!item) selectElement(null)
+      else if (item.kind === 'element' && pickTableCell(item.id, toPoint(clientX, clientY), toggle)) return
       else if (toggle) toggleItem(item.id, item.kind)
       else selectItem(item.id, item.kind, true)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+  }
+
+  // A click at p on Table2 id: selects the table and picks the cell under p; with extend, on the table already
+  // selected, stretches the picked cells to it. Returns false when id isn't a Table2 or p misses its grid.
+  function pickTableCell(id: number, p: Point, extend: boolean): boolean {
+    const el = diagram!.elements.find(e => e.id === id)
+    if (!el || el.class !== 'Table2') return false
+    const pos = diagramOps.table2PositionAt(el, p)
+    if (!pos) return false
+    if (extend && selectedElementId === id && tableCellRange?.id === id) {
+      setTableCellRange({ ...tableCellRange, focus: pos })
+      return true
+    }
+    if (extend) return false
+    const cell = diagramOps.table2CellOver(el, pos.row, pos.col) ?? pos
+    selectItem(id, 'element', true)
+    setTableCellRange({ id, anchor: { row: cell.row, col: cell.col }, focus: { row: cell.row, col: cell.col } })
+    return true
+  }
+
+  // The frame around the picked cells of the selected Table2.
+  function tableCellMark() {
+    if (!tableCellRange || !diagram || ghost) return null
+    const el = diagram.elements.find(e => e.id === tableCellRange.id)
+    const rect = el ? diagramOps.table2RangeRect(el, tableCellRange) : null
+    if (!el || !rect) return null
+    const box = diagramOps.table2RectBox(el, rect)
+    return (
+      <rect
+        x={box.x}
+        y={box.y}
+        width={box.width}
+        height={box.height}
+        fill={HIGHLIGHT}
+        fillOpacity={0.15}
+        stroke={HIGHLIGHT}
+        strokeWidth={2}
+        pointerEvents="none"
+      />
+    )
   }
 
   // A Ctrl/Cmd press on an item: dragging past MARQUEE_MIN_DRAG moves it
@@ -3397,6 +3440,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
                   strokeDasharray={marqueeCrossing ? '4 3' : undefined}
                 />
               )}
+              {tableCellMark()}
               {groupBox && (
                 <rect
                   x={groupBox.x}

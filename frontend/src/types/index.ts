@@ -459,10 +459,7 @@ export interface DiagramElement {
   // the grid's own top-left anchor (unlike every Points-based decorative
   // shape); rowHeights[i]/columnWidths[j] is row i's/column j's own real
   // size, cumulative-summed from that anchor to place each cell. A (row,
-  // col) with no matching TableCell entry at all is simply not drawn —
-  // see slddoc's own ClassTable2/TableCell doc comments
-  // for the full model (deliberately no cell-merging, no multi-paragraph
-  // cell text).
+  // col) with no matching TableCell entry, and not covered by a merged one, is not drawn.
   rowHeights?: number[]
   columnWidths?: number[]
   cells?: TableCell[]
@@ -492,20 +489,23 @@ export interface DiagramElement {
   bindings?: Binding[]
 }
 
-// Matches slddoc.TableCell — one real cell of a Table2
-// (shape 313) grid. Row/Col are 0-based positions into the owning
-// DiagramElement's own rowHeights/columnWidths. fill/textColor are
-// optional per-cell overrides of the table's own fill/black default —
-// empty means "use the table's own default" (see the Go type's own doc
-// comment); this editor's own Properties UI doesn't expose editing these
-// directly yet (see PropertiesPanel), but preserves whatever Extract
-// recovered from a real diagram.
+// Matches slddoc.TableCell: one cell of a Table2 (shape 313) grid at its top-left position row/col. A merged cell spans
+// rowSpan rows and colSpan columns (absent: 1); the positions it covers have no cell. text lines are split by "\n";
+// fontSize is in px (absent: 11); alignH absent is center, alignV absent is middle.
 export interface TableCell {
   row: number
   col: number
+  rowSpan?: number
+  colSpan?: number
   text?: string
   fill?: string
   textColor?: string
+  fontSize?: number
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  alignH?: 'left' | 'right'
+  alignV?: 'top' | 'bottom'
 }
 
 // Matches slddoc.ConnectorKind.

@@ -366,6 +366,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setFocusRequest(prev => ({ id, kind, seq: (prev?.seq ?? 0) + 1, reveal: true }))
   }, [])
   useEffect(() => setHighlighted(null), [selection, documentVersion])
+  const [tableCellRange, setTableCellRange] = useState<diagramOps.TableCellRange | null>(null)
+  useEffect(() => {
+    if (tableCellRange && tableCellRange.id !== selectedElementId) setTableCellRange(null)
+  }, [tableCellRange, selectedElementId])
 
   // Drops selected ids an edit removed (or a newly opened diagram doesn't
   // have), so the selection never points at an item that isn't there.
@@ -1386,6 +1390,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       focusPoint,
       highlighted,
       highlightItem,
+      tableCellRange,
+      setTableCellRange,
       findPinned,
       selectFromFind,
       unsavedPrompt,
@@ -1502,6 +1508,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       focusPoint,
       highlighted,
       highlightItem,
+      tableCellRange,
       findPinned,
       selectFromFind,
       unsavedPrompt,

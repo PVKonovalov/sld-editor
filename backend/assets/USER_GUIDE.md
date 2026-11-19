@@ -990,6 +990,14 @@ Some elements are drawn instead of clicked:
   picks another file and **Fit to image proportions** sets the frame's height from its width and the image's own
   aspect ratio.
 - **Text** places a free text label; **Digital device** places a SCADA value readout.
+- **Table 2**: click to place a 2×2 grid. In Properties, **Rows**/**Columns** set its size, and the **Cells** map
+  shows the grid to scale. Click a cell there, or on the canvas while the table is selected; Shift-click another cell
+  to pick a range (a merged cell is always picked whole). For the picked cells you can set the row height and column
+  width, the text (several lines in one cell), **B**/**I**/**U**, the size in px (empty = 11), left/center/right and
+  top/middle/bottom alignment, text color and background (**Default** goes back to black / the table's fill).
+  **Merge** joins the picked cells into the top-left one, as Modus does: it keeps that cell's look and gets every
+  cell's text joined column by column. **Unmerge** splits a merged cell: the text stays in the top-left cell, the others
+  come back empty. Tables imported from `.xsde`/`.svg` keep all of this.
 
 Newly placed elements start at the default voltage (switching devices start closed). A device's fixed connection
 points (its **terminals**) are shown as small crosses while it is selected: green where something is connected (a wire,

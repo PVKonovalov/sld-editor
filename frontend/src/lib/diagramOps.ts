@@ -917,74 +917,223 @@ function table2Defaults(): Pick<DiagramElement, 'rowHeights' | 'columnWidths' | 
   }
 }
 
-/** Resizes a Table2's own grid to exactly rows x cols (each clamped to at
- * least 1 — a table with zero rows or columns draws nothing at all, see
- * writeTable2's own doc comment), preserving every still-valid cell's own
- * real content (text/fill/textColor) and row height/column width. A newly
- * added row/column gets TABLE2_ROW_HEIGHT/TABLE2_COL_WIDTH, the same
- * default table2Defaults itself starts a freshly placed table with; every
- * (row, col) position in the new grid gets a real TableCell entry (blank
- * if none existed before), so the grid stays fully populated the same way
- * a freshly placed one always is. Used by Properties' own row/column
- * count fields. */
+// A rectangle of Table2 grid positions, inclusive.
+export interface TableRect {
+  row0: number
+  col0: number
+  row1: number
+  col1: number
+}
+
+// The selected cells of a Table2 (id): the cell clicked first and the one extended to.
+export interface TableCellRange {
+  id: number
+  anchor: { row: number; col: number }
+  focus: { row: number; col: number }
+}
+
+function cellSpans(c: TableCell): { rows: number; cols: number } {
+  return { rows: Math.max(c.rowSpan ?? 1, 1), cols: Math.max(c.colSpan ?? 1, 1) }
+}
+
+/** The cell drawn over (row, col) of el: the cell itself or the merged one covering it; undefined if none. */
+export function table2CellOver(el: DiagramElement, row: number, col: number): TableCell | undefined {
+  return (el.cells ?? []).find(c => {
+    const { rows, cols } = cellSpans(c)
+    return row >= c.row && row < c.row + rows && col >= c.col && col < c.col + cols
+  })
+}
+
+/** The rectangle spanned by a and b, grown until it cuts no merged cell in two, clipped to el's grid. */
+export function table2Rect(el: DiagramElement, a: { row: number; col: number }, b: { row: number; col: number }): TableRect {
+  const maxRow = (el.rowHeights?.length ?? 1) - 1
+  const maxCol = (el.columnWidths?.length ?? 1) - 1
+  const r: TableRect = {
+    row0: Math.max(0, Math.min(a.row, b.row)),
+    col0: Math.max(0, Math.min(a.col, b.col)),
+    row1: Math.min(maxRow, Math.max(a.row, b.row)),
+    col1: Math.min(maxCol, Math.max(a.col, b.col)),
+  }
+  for (let grown = true; grown; ) {
+    grown = false
+    for (const c of el.cells ?? []) {
+      const { rows, cols } = cellSpans(c)
+      const last = { row: c.row + rows - 1, col: c.col + cols - 1 }
+      if (c.row > r.row1 || last.row < r.row0 || c.col > r.col1 || last.col < r.col0) continue
+      const next = {
+        row0: Math.min(r.row0, c.row),
+        col0: Math.min(r.col0, c.col),
+        row1: Math.max(r.row1, last.row),
+        col1: Math.max(r.col1, last.col),
+      }
+      if (next.row0 !== r.row0 || next.col0 !== r.col0 || next.row1 !== r.row1 || next.col1 !== r.col1) {
+        Object.assign(r, next)
+        grown = true
+      }
+    }
+  }
+  return r
+}
+
+/** The rectangle of range, or null when range doesn't belong to el or lies outside its grid. */
+export function table2RangeRect(el: DiagramElement, range: TableCellRange | null): TableRect | null {
+  if (!range || range.id !== el.id || el.class !== 'Table2') return null
+  const rows = el.rowHeights?.length ?? 0
+  const cols = el.columnWidths?.length ?? 0
+  if (range.anchor.row >= rows || range.anchor.col >= cols) return null
+  return table2Rect(el, range.anchor, range.focus)
+}
+
+/** The cells of el whose top-left lies in r. */
+export function table2CellsIn(el: DiagramElement, r: TableRect): TableCell[] {
+  return (el.cells ?? []).filter(c => c.row >= r.row0 && c.row <= r.row1 && c.col >= r.col0 && c.col <= r.col1)
+}
+
+/** The diagram box of rectangle r of el's grid. */
+export function table2RectBox(el: DiagramElement, r: TableRect): { x: number; y: number; width: number; height: number } {
+  const heights = el.rowHeights ?? []
+  const widths = el.columnWidths ?? []
+  const sum = (list: number[], from: number, to: number) => list.slice(from, to).reduce((a, b) => a + b, 0)
+  return {
+    x: el.x + sum(widths, 0, r.col0),
+    y: el.y + sum(heights, 0, r.row0),
+    width: sum(widths, r.col0, r.col1 + 1),
+    height: sum(heights, r.row0, r.row1 + 1),
+  }
+}
+
+/** The grid position of el under diagram point p, or null outside the grid. */
+export function table2PositionAt(el: DiagramElement, p: Point): { row: number; col: number } | null {
+  const find = (sizes: number[], offset: number) => {
+    let edge = 0
+    for (let i = 0; i < sizes.length; i++) {
+      edge += sizes[i]
+      if (offset < edge) return offset >= 0 ? i : -1
+    }
+    return -1
+  }
+  const row = find(el.rowHeights ?? [], p.y - el.y)
+  const col = find(el.columnWidths ?? [], p.x - el.x)
+  return row < 0 || col < 0 ? null : { row, col }
+}
+
+function updateTable2(diagram: Diagram, id: number, fn: (e: DiagramElement) => DiagramElement): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => (e.id === id && e.class === 'Table2' ? fn(e) : e)),
+  }
+}
+
+// Every grid position of a rows x cols grid that no cell draws over gets a blank cell; cells keep the column-major
+// order xsde2svg draws them in.
+function fillTable2(cells: TableCell[], rows: number, cols: number): TableCell[] {
+  const covered = new Set<string>()
+  for (const c of cells) {
+    const { rows: rs, cols: cs } = cellSpans(c)
+    for (let r = c.row; r < c.row + rs; r++) for (let k = c.col; k < c.col + cs; k++) covered.add(`${r}:${k}`)
+  }
+  const out = [...cells]
+  for (let col = 0; col < cols; col++)
+    for (let row = 0; row < rows; row++) if (!covered.has(`${row}:${col}`)) out.push({ row, col })
+  return out.sort((a, b) => a.col - b.col || a.row - b.row)
+}
+
+/** Resizes a Table2's grid to rows x cols (at least 1 each), keeping the cells and sizes that still fit; a merged
+ * cell is cut back to the new edge, and every uncovered position gets a blank cell. */
 export function resizeTable2(diagram: Diagram, id: number, rows: number, cols: number): Diagram {
   const safeRows = Math.max(1, rows)
   const safeCols = Math.max(1, cols)
-  return {
-    ...diagram,
-    elements: diagram.elements.map(e => {
-      if (e.id !== id || e.class !== 'Table2') return e
-      const oldRowHeights = e.rowHeights ?? []
-      const oldColumnWidths = e.columnWidths ?? []
-      const rowHeights = Array.from({ length: safeRows }, (_, i) => oldRowHeights[i] ?? TABLE2_ROW_HEIGHT)
-      const columnWidths = Array.from({ length: safeCols }, (_, j) => oldColumnWidths[j] ?? TABLE2_COL_WIDTH)
-      const byPos = new Map((e.cells ?? []).map(c => [`${c.row}:${c.col}`, c]))
-      const cells: TableCell[] = []
-      for (let row = 0; row < safeRows; row++) {
-        for (let col = 0; col < safeCols; col++) {
-          cells.push(byPos.get(`${row}:${col}`) ?? { row, col })
-        }
-      }
-      return { ...e, rowHeights, columnWidths, cells }
-    }),
-  }
+  return updateTable2(diagram, id, e => {
+    const oldRowHeights = e.rowHeights ?? []
+    const oldColumnWidths = e.columnWidths ?? []
+    const rowHeights = Array.from({ length: safeRows }, (_, i) => oldRowHeights[i] ?? TABLE2_ROW_HEIGHT)
+    const columnWidths = Array.from({ length: safeCols }, (_, j) => oldColumnWidths[j] ?? TABLE2_COL_WIDTH)
+    const kept = (e.cells ?? [])
+      .filter(c => c.row < safeRows && c.col < safeCols)
+      .map(c => {
+        const { rows: rs, cols: cs } = cellSpans(c)
+        const rowSpan = Math.min(rs, safeRows - c.row)
+        const colSpan = Math.min(cs, safeCols - c.col)
+        return compactCell({ ...c, rowSpan, colSpan })
+      })
+    return { ...e, rowHeights, columnWidths, cells: fillTable2(kept, safeRows, safeCols) }
+  })
 }
 
 /** Updates one already-existing row's own height or column's own width in
  * place — row/col must already be a valid index (see resizeTable2 to add
  * or remove one); out of range is a no-op. */
 export function updateTable2RowHeight(diagram: Diagram, id: number, row: number, height: number): Diagram {
-  return {
-    ...diagram,
-    elements: diagram.elements.map(e => {
-      if (e.id !== id || e.class !== 'Table2' || !e.rowHeights || row < 0 || row >= e.rowHeights.length) return e
-      return { ...e, rowHeights: e.rowHeights.map((h, i) => (i === row ? height : h)) }
-    }),
-  }
+  return updateTable2(diagram, id, e =>
+    !e.rowHeights || row < 0 || row >= e.rowHeights.length
+      ? e
+      : { ...e, rowHeights: e.rowHeights.map((h, i) => (i === row ? height : h)) },
+  )
 }
 
 export function updateTable2ColumnWidth(diagram: Diagram, id: number, col: number, width: number): Diagram {
-  return {
-    ...diagram,
-    elements: diagram.elements.map(e => {
-      if (e.id !== id || e.class !== 'Table2' || !e.columnWidths || col < 0 || col >= e.columnWidths.length) return e
-      return { ...e, columnWidths: e.columnWidths.map((w, i) => (i === col ? width : w)) }
-    }),
-  }
+  return updateTable2(diagram, id, e =>
+    !e.columnWidths || col < 0 || col >= e.columnWidths.length
+      ? e
+      : { ...e, columnWidths: e.columnWidths.map((w, i) => (i === col ? width : w)) },
+  )
 }
 
-/** Updates one already-existing cell's own text — row/col must already be
- * a valid grid position (see resizeTable2); a (row, col) not currently
- * present is a no-op, which shouldn't happen in practice since resizeTable2
- * always keeps every valid position populated. */
-export function updateTable2CellText(diagram: Diagram, id: number, row: number, col: number, text: string): Diagram {
-  return {
-    ...diagram,
-    elements: diagram.elements.map(e => {
-      if (e.id !== id || e.class !== 'Table2' || !e.cells) return e
-      return { ...e, cells: e.cells.map(c => (c.row === row && c.col === col ? { ...c, text } : c)) }
-    }),
+// Drops a cell's unset fields (undefined, empty, false, 0, a span of 1), so it saves as slddoc writes it.
+function compactCell(c: TableCell): TableCell {
+  const out = { ...c } as Record<string, unknown>
+  for (const [k, v] of Object.entries(out)) {
+    if (k === 'row' || k === 'col') continue
+    if (v === undefined || v === '' || v === false || v === 0 || ((k === 'rowSpan' || k === 'colSpan') && v === 1))
+      delete out[k]
   }
+  return out as unknown as TableCell
+}
+
+/** Applies patch to every cell of rectangle r of Table2 id; a field patched to undefined, '' or false is removed. */
+export function updateTable2Cells(diagram: Diagram, id: number, r: TableRect, patch: Partial<TableCell>): Diagram {
+  return updateTable2(diagram, id, e => ({
+    ...e,
+    cells: (e.cells ?? []).map(c =>
+      c.row >= r.row0 && c.row <= r.row1 && c.col >= r.col0 && c.col <= r.col1 ? compactCell({ ...c, ...patch }) : c,
+    ),
+  }))
+}
+
+/** Merges rectangle r of Table2 id (grown so it cuts no merged cell, see table2Rect) into its top-left cell, as
+ * Modus does: that cell keeps its look and gets every cell's text joined column by column with spaces; the rest go. */
+export function mergeTable2Cells(diagram: Diagram, id: number, r: TableRect): Diagram {
+  return updateTable2(diagram, id, e => {
+    const rect = table2Rect(e, { row: r.row0, col: r.col0 }, { row: r.row1, col: r.col1 })
+    const inside = table2CellsIn(e, rect).sort((a, b) => a.col - b.col || a.row - b.row)
+    const first = inside.find(c => c.row === rect.row0 && c.col === rect.col0)
+    if (!first || inside.length < 2) return e
+    const text = inside
+      .map(c => c.text ?? '')
+      .filter(t => t !== '')
+      .join(' ')
+    const merged = compactCell({
+      ...first,
+      text,
+      rowSpan: rect.row1 - rect.row0 + 1,
+      colSpan: rect.col1 - rect.col0 + 1,
+    })
+    const cells = (e.cells ?? []).filter(c => !inside.includes(c))
+    return { ...e, cells: [...cells, merged].sort((a, b) => a.col - b.col || a.row - b.row) }
+  })
+}
+
+/** Splits every merged cell of rectangle r of Table2 id, as Modus does: the top-left cell keeps the text and look, the
+ * others come back blank. */
+export function unmergeTable2Cells(diagram: Diagram, id: number, r: TableRect): Diagram {
+  return updateTable2(diagram, id, e => {
+    const cells = (e.cells ?? []).map(c =>
+      c.row >= r.row0 && c.row <= r.row1 && c.col >= r.col0 && c.col <= r.col1
+        ? compactCell({ ...c, rowSpan: undefined, colSpan: undefined })
+        : c,
+    )
+    return { ...e, cells: fillTable2(cells, e.rowHeights?.length ?? 0, e.columnWidths?.length ?? 0) }
+  })
 }
 
 // A freshly placed Road's own color/width — matching render.go's own
