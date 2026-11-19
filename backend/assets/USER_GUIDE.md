@@ -204,7 +204,8 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
 - xsde2svg draws each device at its own size step (each step √2 larger). An `.svg` import recovers the step from where
   the device's connection points lie, so the symbol fills the gap between its wires. Devices whose leads also stretch
   per instance (breakers, disconnectors and similar) get their size from their drawn body and their **Leads** from
-  their two connection points.
+  their two connection points. A power transformer gets its size from its circles, its mirroring and the side each
+  winding is led from (**Terminal orientation**) from the drawing, and its regulated winding from the regulation arrow.
 - A device lead that ends a unit or two beside a wire (a T-tap, such as a ground switch on a feeder) is connected to
   that wire on import, splitting it there.
 - A wire that ends on the middle of another wire (a T-junction in buswork), alone or together with a device's lead,

@@ -2174,7 +2174,8 @@ function transformerLocalTerminals(el: DiagramElement): Point[] {
   if (el.autotransformer) {
     points.push({ x: 0, y: TRANSFORMER_TAP_OFFSET_Y })
   }
-  return points
+  const step = el.scale ?? 0
+  return points.map(p => ({ x: scaledLength(p.x, step), y: scaledLength(p.y, step) }))
 }
 
 /** An element's own real terminal positions — where a wire would actually

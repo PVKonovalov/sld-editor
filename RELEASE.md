@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-19: Import: a Power transformer (47) keeps its size step, its mirroring (`xMirror`), the side each winding is led from (**Terminal orientation**, e.g. down with `chassis`) and its regulated winding (the regulation arrow); before, every one came in at size 0, unmirrored, with default lead sides and without the arrow, its leads short of the wires. A transformer now has a **Size** in Properties; its terminals follow the size step (`diagramOps` `transformerLocalTerminals`). Read from xsde2svg 1.4.27's `data-tap-changer`, or from an older xsde2svg's arrow drawn after the group. User guides updated.
+
 2026-11-19: Import: a Sectionalizer (164) keeps its mirroring (xsde2svg's `xMirror`, also when set on the whole type) and its leads (`distance` over 2): before, every one came in unmirrored, with the arrow pointing the other way, and without leads, its terminals short of the wires.
 
 2026-11-19: Import: a Fuse (withdrawable) (154) keeps its trolley position (Service/Normal/Test) and its size step; before, every one came in as Normal at size 0, drawn away from its connection points when scaled. Read from xsde2svg 1.4.26's `data-trolley` (which now draws 154 like the breaker 43), or from the drawing in SVGs of an older xsde2svg. `position_states` docs (README, example config) list shape 154.
