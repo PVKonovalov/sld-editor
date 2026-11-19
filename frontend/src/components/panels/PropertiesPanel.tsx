@@ -160,6 +160,8 @@ const LAMP_STATE_OFF = 0
 const LAMP_STATE_ON = 1
 // An Automation device's (103) default label size (render.go).
 const AUTOMATION_DEVICE_FONT_SIZE = 12
+// A Button's text size when unset: slddoc's render.ButtonFontSize.
+const BUTTON_FONT_SIZE = 23
 
 // PackageSubstation's own State (slddoc's own
 // Element.State, reused rather than a dedicated field) isn't an
@@ -1505,6 +1507,21 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 onChange={e => patch({ textColor: e.target.value })}
               />
             </label>
+            {isButton && (
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.labelSize')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.textSize ?? BUTTON_FONT_SIZE}
+                  onChange={e => {
+                    const v = Number(e.target.value)
+                    patch({ textSize: v > 0 && v !== BUTTON_FONT_SIZE ? v : undefined })
+                  }}
+                />
+              </label>
+            )}
             <label className="flex items-center gap-2 text-xs">
               <input type="checkbox" checked={!!el.bold} onChange={e => patch({ bold: e.target.checked })} />
               <span className="text-gray-400">{t('properties.labelBold')}</span>

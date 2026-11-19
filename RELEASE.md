@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-19: A Button (113) has its own text size (**Text size** in Properties; unset = 23px, as before), kept on import from the drawn `font-size`; its text sits 2px below the box's center, as xsde2svg draws it. xsde2svg 1.4.29 draws a button's own font size (before, only with one set on its type too), so buttons of different text sizes import as drawn.
+
 2026-11-19: Import: a Chassis (51) keeps its racking position (Service/Normal) and, racked out, the side it moves to (mirrored): before, every one came in at Normal and unmirrored. Read from `data-trolley` and xsde2svg 1.4.28's `data-mirror`, or, in an older xsde2svg's SVG, from the side its body is shifted to. `position_states` docs (README, example config) list shape 51.
 
 2026-11-19: Import reads a device's size step and mirroring from xsde2svg 1.4.28's `data-scale` and `data-mirror`: every scaled device keeps its size, also one with a single connection point (a Capacitor bank, 172, came in at size 0 before). Mirroring is taken for the shapes whose **Mirror** matches xsde2svg's (checked against its drawing), now also 32, 34, 43, 168 and 398. Sizes go up to 5 (the **Size** list too). The Capacitor bank symbol (172) is xsde2svg's: stem 11, bars at 27 and 31 (was 8, 23, 27). An `.svg` of an older xsde2svg is read as before. User guides updated.
