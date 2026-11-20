@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-20: Frontend build: the app's pure logic (`src/lib`) goes to its own `lib-[hash].js` chunk beside `vendor`, so no chunk is over Vite's 500 kB warning any more (the app chunk had grown to 503 kB).
+
 2026-11-20: **Add name label** places the label where it stays inside the diagram: to the element's right as before, else to its left (right-aligned), else above its left edge (`diagramOps` `nameLabelPlacement`). Before, an element near the right edge got its label outside the diagram, where it couldn't be seen. User guides updated.
 
 2026-11-20: **Tracing image** (diagram Properties): a picture shown under the diagram on the canvas to draw it over, with **Opacity**, **Show**, **X**/**Y**/**Width** (proportions kept), **Fit to diagram**, **Replace…** and **Remove**. It never takes clicks and is not part of the diagram (not saved, rendered, exported or undone); this browser keeps it per diagram in IndexedDB (`lib/tracingImage.ts`), following the diagram's rename, move and delete. User guides updated.
