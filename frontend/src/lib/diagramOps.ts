@@ -467,6 +467,27 @@ export function fixVoltageClass(diagram: Diagram, item: { elementId?: number; co
       ? diagram.connectors.filter(c => c.id === item.connectorId).map(c => ({ node: c.from }))
       : (diagram.elements.find(e => e.id === item.elementId)?.ports ?? []).map(p => ({ node: p.node }))
   if (starts.length === 0) starts.push({ element: item.elementId })
+  return setVoltageClassFrom(diagram, starts, voltage)
+}
+
+/** Gives voltage class voltage to everything electrically joined at each of mismatches' keys (see VoltageMismatch:
+ * a Node, or the negated id of the element or wire a route landed on), as fixVoltageClass does. */
+export function setMismatchVoltageClass(diagram: Diagram, mismatches: VoltageMismatch[], voltage: number): Diagram {
+  const nodes = new Set(diagram.nodes.map(n => n.id))
+  const starts: TraceStart[] = mismatches.flatMap((m): TraceStart[] => {
+    if (m.key > 0) return nodes.has(m.key) ? [{ node: m.key }] : []
+    const wire = diagram.connectors.find(c => c.id === -m.key)
+    if (wire) return [{ node: wire.from }]
+    const el = diagram.elements.find(e => e.id === -m.key)
+    if (!el) return []
+    return el.ports && el.ports.length > 0 ? el.ports.map(p => ({ node: p.node })) : [{ element: el.id }]
+  })
+  return starts.length > 0 ? setVoltageClassFrom(diagram, starts, voltage) : diagram
+}
+
+/** Sets voltage on each device, busbar and wire (but those carrying none) reached by a trace from starts through
+ * every switch up to the transformers, and on each transformer winding on a reached node. */
+function setVoltageClassFrom(diagram: Diagram, starts: TraceStart[], voltage: number): Diagram {
   const traced = traceNetwork(diagram, starts, { respectStates: false, throughTransformers: false })
   let changed = false
   const elements = diagram.elements.map(e => {
@@ -1754,14 +1775,9 @@ export function moveElement(diagram: Diagram, id: number, dx: number, dy: number
  * interior vertex's own segments orthogonal.
  *
  * A connector explicitly in ids.connectorIds (selected in its own right,
- * not just touching a moving element) gets the same treatment as if both/
- * one of its own ends were moving — except an end that's a real Port on an
- * element that ISN'T also moving is deliberately left fixed (adding it
- * would visually tear the wire's end away from equipment that isn't
- * actually moving); an end that's a tap onto a busbar/another connector's
- * own line, rather than a genuine Port, is always treated as free to move
- * with the connector, the same simplification copySelection already makes
- * for a tap junction.
+ * not just touching a moving element) moves as a whole. An end of it on a
+ * Port of an element that isn't moving is first detached (detachWireEnds):
+ * the wire moves away and a buswork stub keeps it joined to that terminal.
  *
  * A label in ids.labelIds, or a digital device in ids.digitalDeviceIds,
  * just has its own x/y shifted by (dx, dy) — neither has a Port/Node of
@@ -1782,25 +1798,17 @@ export function moveSelection(
   dx: number,
   dy: number,
 ): Diagram {
-  diagram = detachSharedPorts(diagram, ids.elementIds)
+  diagram = detachWireEnds(detachSharedPorts(diagram, ids.elementIds), ids)
   const movedNodeIds = new Set<number>()
   for (const el of diagram.elements) {
     if (!ids.elementIds.has(el.id)) continue
     for (const p of el.ports ?? []) movedNodeIds.add(p.node)
   }
 
-  if (ids.connectorIds.size > 0) {
-    const elementNodeIds = new Set<number>()
-    for (const el of diagram.elements) {
-      for (const p of el.ports ?? []) elementNodeIds.add(p.node)
-    }
-    for (const c of diagram.connectors) {
-      if (!ids.connectorIds.has(c.id)) continue
-      const fromIsFixedPort = elementNodeIds.has(c.from) && !movedNodeIds.has(c.from)
-      const toIsFixedPort = elementNodeIds.has(c.to) && !movedNodeIds.has(c.to)
-      if (!fromIsFixedPort) movedNodeIds.add(c.from)
-      if (!toIsFixedPort) movedNodeIds.add(c.to)
-    }
+  for (const c of diagram.connectors) {
+    if (!ids.connectorIds.has(c.id)) continue
+    movedNodeIds.add(c.from)
+    movedNodeIds.add(c.to)
   }
 
   let moved = [...ids.elementIds].reduce((acc, id) => moveElement(acc, id, dx, dy), diagram)
@@ -1848,7 +1856,7 @@ export function moveSelection(
   // wire behind, and a moved element's terminal that lands exactly on a
   // node or a wire joins it there — see removeDegenerateConnectors and
   // joinPortNodes.
-  let result = removeDegenerateConnectors({ ...moved, connectors, nodes })
+  let result = joinMovedWireEnds(removeDegenerateConnectors({ ...moved, connectors, nodes }), movedNodeIds)
   for (const id of ids.elementIds) {
     const el = result.elements.find(e => e.id === id)
     result = el?.class === 'BusBarSection' ? joinBusbar(result, id) : joinPortNodes(result, id)
@@ -1903,6 +1911,100 @@ function detachSharedPorts(diagram: Diagram, movedIds: Set<number>): Diagram {
     elements,
     nodes: [...diagram.nodes, ...newNodes],
     connectors: [...diagram.connectors, ...newWires],
+  }
+}
+
+/** Merges each of nodeIds that no element Port uses (a moved wire end) into another Node lying exactly at its point,
+ * then drops wires left as exact copies of another one (same ends, same path; the lower id stays). So wires moved
+ * onto the ends of others, or in several drags off the same terminal, join instead of overlapping unconnected.
+ * Returns diagram itself when nothing joins. */
+function joinMovedWireEnds(diagram: Diagram, nodeIds: Set<number>): Diagram {
+  const portNodes = new Set(diagram.elements.flatMap(e => (e.ports ?? []).map(p => p.node)))
+  let d = diagram
+  const joined = new Set<number>()
+  for (const id of nodeIds) {
+    if (portNodes.has(id)) continue
+    const node = d.nodes.find(n => n.id === id)
+    if (!node) continue
+    const other =
+      d.nodes.find(n => n.id !== id && portNodes.has(n.id) && samePoint(n, node)) ??
+      d.nodes.find(n => n.id !== id && samePoint(n, node))
+    if (!other || !voltagesJoin(other.id, nodeVoltages(d, id), nodeVoltages(d, other.id))) continue
+    d = mergeNode(d, id, other.id)
+    joined.add(other.id)
+  }
+  if (joined.size === 0) return diagram
+  const key = (c: Connector) => {
+    const pts = c.points.map(p => `${p.x},${p.y}`)
+    const fwd = `${c.from}>${c.to}:${pts.join(' ')}`
+    const rev = `${c.to}>${c.from}:${pts.reverse().join(' ')}`
+    return `${c.kind}|${fwd < rev ? fwd : rev}`
+  }
+  const seen = new Set<string>()
+  const drop = new Set<number>()
+  for (const c of [...d.connectors].sort((a, b) => a.id - b.id)) {
+    if (!joined.has(c.from) && !joined.has(c.to)) continue
+    const k = key(c)
+    if (seen.has(k)) drop.add(c.id)
+    else seen.add(k)
+  }
+  return drop.size === 0 ? d : { ...d, connectors: d.connectors.filter(c => !drop.has(c.id)) }
+}
+
+/** Gives every end of a wire in ids.connectorIds that sits on a Port of an element not in ids.elementIds a fresh
+ * Node at the same point (one per terminal, shared by the moving wires on it), joined to the terminal's Node by a
+ * zero-length buswork wire. The terminal, its element and the wires not moving keep the old Node; moveSelection then
+ * moves the wires and stretches the stub. Returns diagram itself when no such end exists. */
+function detachWireEnds(diagram: Diagram, ids: { elementIds: Set<number>; connectorIds: Set<number> }): Diagram {
+  if (ids.connectorIds.size === 0) return diagram
+  const fixedPorts = new Set(
+    diagram.elements.filter(e => !ids.elementIds.has(e.id)).flatMap(e => (e.ports ?? []).map(p => p.node)),
+  )
+  for (const el of diagram.elements) {
+    if (ids.elementIds.has(el.id)) for (const p of el.ports ?? []) fixedPorts.delete(p.node)
+  }
+  const nodes = new Map(diagram.nodes.map(n => [n.id, n]))
+  let seq: IdSequence | null = null
+  const replaced = new Map<number, number>()
+  const newNodes: DiagramNode[] = []
+  const newWires: Connector[] = []
+  const detach = (nodeId: number, wire: Connector): number => {
+    const port = nodes.get(nodeId)
+    if (!fixedPorts.has(nodeId) || !port) return nodeId
+    const known = replaced.get(nodeId)
+    if (known !== undefined) return known
+    seq ??= new IdSequence(diagram)
+    const node = { id: seq.take(), x: port.x, y: port.y }
+    const wireId = seq.take()
+    newNodes.push(node)
+    newWires.push({
+      id: wireId,
+      kind: 'BusWork',
+      name: defaultConnectorName('BusWork', wireId),
+      voltage: wire.voltage,
+      layer: wire.layer,
+      from: port.id,
+      to: node.id,
+      points: [
+        { x: port.x, y: port.y },
+        { x: port.x, y: port.y },
+      ],
+    })
+    replaced.set(nodeId, node.id)
+    return node.id
+  }
+  const connectors = diagram.connectors.map(c => {
+    if (!ids.connectorIds.has(c.id)) return c
+    const from = detach(c.from, c)
+    const to = detach(c.to, c)
+    return from === c.from && to === c.to ? c : { ...c, from, to }
+  })
+  if (!seq) return diagram
+  return {
+    ...diagram,
+    lastId: (seq as IdSequence).lastId,
+    nodes: [...diagram.nodes, ...newNodes],
+    connectors: [...connectors, ...newWires],
   }
 }
 
@@ -3472,33 +3574,90 @@ export function mergeableBusworkAt(diagram: Diagram, nodeId: number): [Connector
   return a.id < b.id ? [a, b] : [b, a]
 }
 
-/** Merges the two BusWork wires meeting at nodeId (see mergeableBusworkAt) into the one with the lower id, which keeps
- * its own attributes and runs on through the other's points; the joint node is removed. Returns the diagram unchanged
- * when the node can't be merged. */
+/** Merges the two BusWork wires meeting at nodeId (see mergeableBusworkAt) into the one with the lower id
+ * (mergeBusworkChain). Returns the diagram unchanged when the node can't be merged. */
 export function mergeBuswork(diagram: Diagram, nodeId: number): Diagram {
   const pair = mergeableBusworkAt(diagram, nodeId)
-  if (!pair) return diagram
-  const [keep, other] = pair
-  const reversed = (c: Connector): Connector => ({
-    ...c,
-    from: c.to,
-    to: c.from,
-    fromMrid: c.toMrid,
-    toMrid: c.fromMrid,
-    points: [...c.points].reverse(),
-  })
-  const head = keep.to === nodeId ? keep : reversed(keep)
-  const tail = other.from === nodeId ? other : reversed(other)
-  const merged: Connector = {
-    ...head,
-    to: tail.to,
-    toMrid: tail.toMrid,
-    points: simplifyOrthogonalPath([...head.points, ...tail.points.slice(1)]),
+  return pair ? mergeBusworkChain(diagram, new Set(pair.map(c => c.id)), pair[0].id) : diagram
+}
+
+/** Why the wires of busworkChain can't be merged: not all BusWork, different voltage classes, not one open chain
+ * joined end to end (fewer than two wires, a branch, a loop, or apart), or something else on a joint. */
+export type BusworkChainError = 'kind' | 'voltage' | 'chain' | 'joint'
+
+const reversedConnector = (c: Connector): Connector => ({
+  ...c,
+  from: c.to,
+  to: c.from,
+  fromMrid: c.toMrid,
+  toMrid: c.fromMrid,
+  points: [...c.points].reverse(),
+})
+
+/** Wires connectorIds in order along their chain, each turned to run along it, when they can be merged into one
+ * wire: at least two BusWork wires of one voltage class joined end to end into one open chain, every joint used by
+ * exactly two of them and by nothing else (no other wire end, no element Port). Otherwise the reason. */
+export function busworkChain(
+  diagram: Diagram,
+  connectorIds: Set<number>,
+): { wires: Connector[] } | { error: BusworkChainError } {
+  const wires = diagram.connectors.filter(c => connectorIds.has(c.id))
+  if (wires.length < 2) return { error: 'chain' }
+  if (wires.some(c => c.kind !== 'BusWork')) return { error: 'kind' }
+  if (new Set(wires.map(c => c.voltage ?? 0)).size > 1) return { error: 'voltage' }
+  const ends = new Map<number, Connector[]>()
+  for (const c of wires) {
+    if (c.from === c.to) return { error: 'chain' }
+    for (const n of [c.from, c.to]) ends.set(n, [...(ends.get(n) ?? []), c])
   }
+  const tips = [...ends].filter(([, cs]) => cs.length === 1).map(([n]) => n)
+  if (tips.length !== 2 || [...ends.values()].some(cs => cs.length > 2)) return { error: 'chain' }
+  const joints = new Set([...ends].filter(([, cs]) => cs.length === 2).map(([n]) => n))
+  if (
+    diagram.elements.some(e => (e.ports ?? []).some(p => joints.has(p.node))) ||
+    diagram.connectors.some(c => !connectorIds.has(c.id) && (joints.has(c.from) || joints.has(c.to)))
+  )
+    return { error: 'joint' }
+  const chain: Connector[] = []
+  let node = tips[0]
+  let prev: Connector | undefined
+  for (;;) {
+    const next = ends.get(node)!.find(c => c !== prev)
+    if (!next) break
+    const along = next.from === node ? next : reversedConnector(next)
+    chain.push(along)
+    prev = next
+    node = along.to
+  }
+  return chain.length === wires.length ? { wires: chain } : { error: 'chain' }
+}
+
+/** Merges wires connectorIds (see busworkChain) into wire keepId, which keeps its own id and attributes, runs through
+ * the others' points in its own direction and connects their two outer ends; the others and the joint nodes are
+ * removed. Returns the diagram unchanged when they can't be merged or keepId isn't one of them. */
+export function mergeBusworkChain(diagram: Diagram, connectorIds: Set<number>, keepId: number): Diagram {
+  const found = busworkChain(diagram, connectorIds)
+  if (!('wires' in found)) return diagram
+  let chain = found.wires
+  const keep = diagram.connectors.find(c => c.id === keepId)
+  const along = chain.find(c => c.id === keepId)
+  if (!keep || !along) return diagram
+  if (along.from !== keep.from) chain = [...chain].reverse().map(reversedConnector)
+  const first = chain[0]
+  const last = chain[chain.length - 1]
+  const merged: Connector = {
+    ...keep,
+    from: first.from,
+    fromMrid: first.fromMrid,
+    to: last.to,
+    toMrid: last.toMrid,
+    points: simplifyOrthogonalPath(chain.flatMap((c, i) => (i === 0 ? c.points : c.points.slice(1)))),
+  }
+  const joints = new Set(chain.slice(1).map(c => c.from))
   return {
     ...diagram,
-    nodes: diagram.nodes.filter(n => n.id !== nodeId),
-    connectors: diagram.connectors.flatMap(c => (c.id === keep.id ? [merged] : c.id === other.id ? [] : [c])),
+    nodes: diagram.nodes.filter(n => !joints.has(n.id)),
+    connectors: diagram.connectors.flatMap(c => (c.id === keepId ? [merged] : connectorIds.has(c.id) ? [] : [c])),
   }
 }
 

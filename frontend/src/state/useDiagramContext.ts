@@ -317,9 +317,10 @@ export interface DiagramContextValue {
   updateDiagram: (updater: (d: Diagram) => Diagram, opts?: { automatic?: boolean; untracked?: boolean }) => void
   // Set while an edit would join different voltage classes at these connection points (diagramOps.
   // withVoltagePolicy) and waits for the answer: resolveVoltagePrompt(true) applies it with those joins, false
-  // without them (the ends stay free).
+  // without them (the ends stay free); with voltage too, everything joined there then takes that class
+  // (diagramOps.setMismatchVoltageClass).
   voltagePrompt: VoltageMismatch[] | null
-  resolveVoltagePrompt: (connect: boolean) => void
+  resolveVoltagePrompt: (connect: boolean, voltage?: number) => void
   updateEditorSettings: (patch: Partial<EditorSettings>) => void
   // Undo/redo of diagram edits (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl+Y,
   // the canvas buttons). The history restarts whenever another diagram is

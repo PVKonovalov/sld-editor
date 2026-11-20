@@ -1085,7 +1085,8 @@ terminal), even if it was off the grid before, and the rest of a moved group kee
 labels and digital devices move in whole grid steps instead. Wires attached to a moved device follow it. A device
 whose terminal touches another device's terminal directly (a surge arrester standing on a ground, say) stays connected
 when only one of them moves: a short buswork wire joins the two terminals, and it disappears again once you move them
-back together.
+back together. Moving wires without the devices they end on (a buswork line over a row of disconnectors, say) moves the
+wires and leaves the devices in place: a buswork wire runs from each device's terminal to the moved wires.
 
 ### Snapping to the grid {#snap-to-grid}
 
@@ -1179,6 +1180,9 @@ rotating or pasting devices onto something, drawing, moving or reshaping a busba
 dragging a wire end onto something.
 
 - **Connect** makes the edit with those connections.
+- **Connect and set class** makes the connections and gives the class chosen in **Voltage class** (one of those
+  named) to everything joined at those connection points, as [**Fix voltage class**](#trace) does: through every
+  switch, up to the transformers, whose winding facing them takes it too. One **Undo** reverts both.
 - **Don't connect** (also **Esc**) makes the same edit without them: those ends stay free and their crosses are red.
 
 A class counts per terminal (a power transformer's terminal has its winding's voltage), and something with no
@@ -1195,6 +1199,7 @@ Select a wire to show its handles (a click within a few pixels of a wire counts 
 - Click a bend handle and press **Delete** to remove just that bend.
 - Right-click a wire → **Delete segment** removes only the segment under the cursor.
 - Right-click the node where exactly two buswork wires of the same voltage class meet, with no device or busbar on it → **Merge buswork** makes them one wire: the one with the lower id runs on through the other's points, and the node is removed. Undo reverses it.
+- To merge more wires at once, or to choose which ID the merged wire keeps: select the buswork wires (they must join end to end in one line, of one voltage class, with nothing else connected where they meet), right-click one of them → **Merge buswork…**, choose the ID and click **Merge**. The kept wire keeps its name, attributes and bindings and runs through the others' points; the other wires and their bindings are deleted. When the wires can't be merged, the menu item is disabled.
 
 A wire end that is not attached to anything is allowed; you can connect it later by dragging its hollow square end handle
 exactly onto a device terminal, another wire's end, a busbar or another wire's line (that wire is split there into a

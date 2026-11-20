@@ -1148,14 +1148,19 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   )
 
   const resolveVoltagePrompt = useCallback(
-    (connect: boolean) => {
+    (connect: boolean, voltage?: number) => {
       const updaters = pendingEditRef.current
       pendingEditRef.current = null
       setVoltagePrompt(null)
       const prev = diagramRef.current
       if (!updaters || !prev) return
-      const { result } = diagramOps.withVoltagePolicy(!connect, () => updaters.reduce((d, u) => u(d), prev))
-      applyEdit(prev, result)
+      const { result, mismatches } = diagramOps.withVoltagePolicy(!connect, () =>
+        updaters.reduce((d, u) => u(d), prev),
+      )
+      applyEdit(
+        prev,
+        connect && voltage !== undefined ? diagramOps.setMismatchVoltageClass(result, mismatches, voltage) : result,
+      )
     },
     [applyEdit],
   )

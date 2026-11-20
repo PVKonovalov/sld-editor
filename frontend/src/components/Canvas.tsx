@@ -13,6 +13,7 @@ import { traceNetwork, type TraceOptions, type TraceStart } from '../lib/trace'
 import { t } from '../i18n'
 import { ContextMenu, withSeparators, type ContextMenuEntry, type ContextMenuItem } from './ContextMenu'
 import { SaveCustomElementDialog } from './SaveCustomElementDialog'
+import { MergeBusworkDialog } from './MergeBusworkDialog'
 import { PresenceBanner } from './PresenceBanner'
 import { BindChooser, type BindDrop } from './BindChooser'
 import { draggedObject, isObjectDrag } from '../lib/bindingDictionaries'
@@ -573,6 +574,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   // element…" (diagramOps.extractSelection's result) while its name dialog
   // is open.
   const [customElementTemplate, setCustomElementTemplate] = useState<Diagram | null>(null)
+  const [mergeWires, setMergeWires] = useState<Connector[] | null>(null)
   const [routing, setRouting] = useState<Routing | null>(null)
   const [routingCursor, setRoutingCursor] = useState<Point | null>(null)
   // An in-progress pen-tool Polygon (armedSymbol shape 16): the vertices
@@ -2939,6 +2941,22 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     setContextMenu({ x: e.clientX, y: e.clientY, diagramPoint, elementId, connectorId, mergeNodeId })
   }
 
+  // Context menu → Merge buswork… for a multi-selection of wires: opens MergeBusworkDialog, or is disabled with the
+  // reason the wires can't be merged (diagramOps.busworkChain).
+  function mergeSelectedBusworkItem(): ContextMenuItem {
+    const found = diagramOps.busworkChain(diagram!, connectorSelection)
+    if (!('wires' in found)) {
+      const reasons = {
+        kind: 'contextMenu.mergeBusworkKind',
+        voltage: 'contextMenu.mergeBusworkVoltage',
+        chain: 'contextMenu.mergeBusworkChain',
+        joint: 'contextMenu.mergeSelectedBuswork',
+      } as const
+      return { label: t(reasons[found.error]), disabled: true }
+    }
+    return { label: t('contextMenu.mergeSelectedBuswork'), onSelect: () => setMergeWires(found.wires) }
+  }
+
   // The context menu's "Topology" submenu: both items start a pick of the
   // second terminal from the first, the one nearest the right-click.
   // (Disconnecting is in Properties → Connections.)
@@ -3004,7 +3022,11 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
                 },
               ]
             : []),
-          ...(contextMenu.mergeNodeId !== null
+          ...(contextMenu.connectorId !== null &&
+          connectorSelection.size > 1 &&
+          connectorSelection.has(contextMenu.connectorId)
+            ? [mergeSelectedBusworkItem()]
+            : contextMenu.mergeNodeId !== null
             ? [
                 {
                   label: t('contextMenu.mergeBuswork'),
@@ -4163,6 +4185,18 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
           y={contextMenu.y}
           items={contextMenuItems}
           onClose={() => setContextMenu(null)}
+        />
+      )}
+      {mergeWires && (
+        <MergeBusworkDialog
+          wires={mergeWires}
+          onClose={() => setMergeWires(null)}
+          onMerge={keepId => {
+            const ids = new Set(mergeWires.map(c => c.id))
+            setMergeWires(null)
+            updateDiagram(d => diagramOps.mergeBusworkChain(d, ids, keepId))
+            selectItem(keepId, 'connector')
+          }}
         />
       )}
       {customElementTemplate && (
