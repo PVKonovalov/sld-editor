@@ -6,6 +6,7 @@ import { baseName, joinDiagramPath, parentDir } from '../lib/diagramPath'
 import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
 import { ExistingNames, prepareImport, recolorVoltageClasses, type PreparedFile, type PreparedImport } from '../lib/importDiagram'
 import { deleteDraft, getDraft, listDrafts, putDraft, renameDrafts, type Draft } from '../lib/drafts'
+import { deleteTracingImage, renameTracingImages } from '../lib/tracingImage'
 import { diagramFromAddress, setDiagramAddress } from '../lib/diagramAddress'
 import { presenceSession } from '../lib/presenceSession'
 import { t } from '../i18n'
@@ -1061,6 +1062,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     async (from: string, to: string, isDir: boolean) => {
       await api.renameEntry(from, to, isDir)
       await renameDrafts(from, to, isDir)
+      await renameTracingImages(from, to, isDir)
       const open = latestRef.current.diagramName
       if (open && (isDir ? open.startsWith(`${from}/`) : open === from)) setDiagramName(to + open.slice(from.length))
       await browseDir(currentDir)
@@ -1072,7 +1074,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const deleteEntry = useCallback(
     async (path: string, isDir: boolean) => {
       await api.deleteEntry(path, isDir, presenceSession)
-      if (!isDir) await deleteDraft(path)
+      if (!isDir) {
+        await deleteDraft(path)
+        await deleteTracingImage(path)
+      }
       if (!isDir && latestRef.current.diagramName === path) {
         commitDiagram(null, { reset: true, clean: null })
         setDiagramName(null)

@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-20: **Tracing image** (diagram Properties): a picture shown under the diagram on the canvas to draw it over, with **Opacity**, **Show**, **X**/**Y**/**Width** (proportions kept), **Fit to diagram**, **Replace…** and **Remove**. It never takes clicks and is not part of the diagram (not saved, rendered, exported or undone); this browser keeps it per diagram in IndexedDB (`lib/tracingImage.ts`), following the diagram's rename, move and delete. User guides updated.
+
 2026-11-20: **Connect different voltage classes?** has **Connect and set class**: it makes the connections and gives the class chosen in the dialog (one of those in conflict) to everything joined at those connection points, as **Fix voltage class** does (through every switch, up to the transformers' facing windings), in one undoable edit (`diagramOps` `setMismatchVoltageClass`). **Connect** is no longer the highlighted button. User guides updated.
 
 2026-11-20: **Merge buswork…** in the context menu of a selection of buswork wires merges them into one wire with the ID chosen in a dialog (`MergeBusworkDialog`, `diagramOps` `busworkChain`/`mergeBusworkChain`). The wires must join end to end in one line, of one voltage class, with nothing else on the joints; otherwise the item is disabled. The kept wire keeps its attributes and bindings, connects the chain's two outer ends and runs in its own direction; the others and the joint nodes are removed. The two-wire **Merge buswork** on a joint now uses the same merge. User guides updated.

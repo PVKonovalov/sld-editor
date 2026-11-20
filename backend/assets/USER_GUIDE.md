@@ -1088,6 +1088,19 @@ when only one of them moves: a short buswork wire joins the two terminals, and i
 back together. Moving wires without the devices they end on (a buswork line over a row of disconnectors, say) moves the
 wires and leaves the devices in place: a buswork wire runs from each device's terminal to the moved wires.
 
+### Tracing image {#tracing-image}
+
+To draw a diagram from a picture of it (a scan, a photo, a screenshot), show the picture under the canvas and draw
+over it. With nothing selected, **Properties → Tracing image → Load image…** puts it under the diagram, fitted to the
+diagram's size. **Opacity** fades it, **Show** hides it for a moment, **X**, **Y** and **Width** place and size it
+(the height keeps its proportions), **Fit to diagram** fits it again, **Replace…** loads another picture, and
+**Remove** takes it away when the diagram is done.
+
+The tracing image is only a background: it never takes clicks, is not part of the diagram (not saved in the `.xsld`
+or `.svg`, not exported, not undone, and changing it doesn't make the diagram unsaved). This browser keeps it for
+the diagram, also after a reload; other users and other browsers don't see it. Renaming or moving the diagram keeps
+it, deleting the diagram removes it.
+
 ### Snapping to the grid {#snap-to-grid}
 
 Diagrams imported from xsde2svg often lie between grid points (a busbar at y = 691 on a grid of 10). With nothing

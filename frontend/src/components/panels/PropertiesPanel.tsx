@@ -3,6 +3,7 @@ import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { FindSection } from './FindSection'
 import { SnapToGridSection } from './SnapToGridSection'
+import { TracingImageSection } from './TracingImageSection'
 import { PanelShell } from './PanelShell'
 import { HistorySection, LayersSection, StateColorsSection, VoltageClassesSection } from './DiagramSections'
 import { DiagramFileSection } from './DiagramFileSection'
@@ -555,6 +556,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             />
           </label>
           <SnapToGridSection />
+          <TracingImageSection />
           <DiagramFileSection />
           <DiagramBindingsSection provider={bindingProvider} scheme={diagram.scheme} object={diagram.object} />
           <FindSection />

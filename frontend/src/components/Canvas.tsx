@@ -14,6 +14,7 @@ import { t } from '../i18n'
 import { ContextMenu, withSeparators, type ContextMenuEntry, type ContextMenuItem } from './ContextMenu'
 import { SaveCustomElementDialog } from './SaveCustomElementDialog'
 import { MergeBusworkDialog } from './MergeBusworkDialog'
+import { useTracingImage } from '../lib/tracingImage'
 import { PresenceBanner } from './PresenceBanner'
 import { BindChooser, type BindDrop } from './BindChooser'
 import { draggedObject, isObjectDrag } from '../lib/bindingDictionaries'
@@ -775,6 +776,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   // saved, not undoable, cleared with another diagram.
   const [trace, setTrace] = useState<{ sources: TraceStart[]; opts: TraceOptions; dim: boolean } | null>(null)
   useEffect(() => setTrace(null), [diagramName])
+  const tracingImage = useTracingImage(diagramName)
   const traced = useMemo(() => {
     if (!trace || !diagram) return null
     // A start may be gone after an edit (deleted, merged).
@@ -3346,6 +3348,36 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
           >
             {hiddenLayers.size > 0 && <style>{hiddenLayerCss(hiddenLayers)}</style>}
             {traced && trace?.dim && <style>{traceDimCss(traced)}</style>}
+            {tracingImage?.visible && (
+              <>
+                {/* Under the rendered diagram, whose own page background is made see-through meanwhile and painted
+                    here below the image instead. */}
+                <style>{'.sld-rendered > svg { background-color: transparent !important; }'}</style>
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    background: diagram.editor?.background ?? config?.editor?.background ?? diagramOps.DEFAULT_BACKGROUND,
+                  }}
+                >
+                  <img
+                    src={tracingImage.href}
+                    alt=""
+                    draggable={false}
+                    style={{
+                      position: 'absolute',
+                      left: tracingImage.x,
+                      top: tracingImage.y,
+                      width: tracingImage.width,
+                      height: tracingImage.height,
+                      maxWidth: 'none',
+                      opacity: tracingImage.opacity,
+                    }}
+                  />
+                </div>
+              </>
+            )}
             <div
               ref={renderedRef}
               className="sld-rendered"
