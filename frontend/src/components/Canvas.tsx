@@ -15,6 +15,9 @@ import { ContextMenu, withSeparators, type ContextMenuEntry, type ContextMenuIte
 import { SaveCustomElementDialog } from './SaveCustomElementDialog'
 import { MergeBusworkDialog } from './MergeBusworkDialog'
 import { useTracingImage } from '../lib/tracingImage'
+import { searchSymbol } from '../lib/symbolSearchClient'
+import { defaultThreshold, frameMatrix, variantPlacement } from '../lib/symbolSearch'
+import { SymbolSearchBar } from './SymbolSearchBar'
 import { PresenceBanner } from './PresenceBanner'
 import { BindChooser, type BindDrop } from './BindChooser'
 import { draggedObject, isObjectDrag } from '../lib/bindingDictionaries'
@@ -777,6 +780,32 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   const [trace, setTrace] = useState<{ sources: TraceStart[]; opts: TraceOptions; dim: boolean } | null>(null)
   useEffect(() => setTrace(null), [diagramName])
   const tracingImage = useTracingImage(diagramName)
+
+  // Find similar on tracing image (lib/symbolSearch): the sample rectangle around one placed element, the running
+  // search, then its matches under review (rejected: indexes into found). Not part of the diagram; ends with Place,
+  // Cancel or Esc, and when the diagram or the tracing image changes.
+  type FoundSymbol = { box: Box; score: number; place: { x: number; y: number; orient: number; mirror: boolean } }
+  const [symbolSearch, setSymbolSearch] = useState<
+    | { phase: 'sample'; elementId: number; rect: Box; failed?: boolean }
+    | { phase: 'running'; elementId: number; rect: Box; progress: number }
+    | { phase: 'review'; elementId: number; rect: Box; found: FoundSymbol[]; threshold: number; rejected: Set<number> }
+    | null
+  >(null)
+  const searchCancelRef = useRef<(() => void) | null>(null)
+  const cancelSymbolSearch = useCallback(() => {
+    searchCancelRef.current?.()
+    searchCancelRef.current = null
+    setSymbolSearch(null)
+  }, [])
+  useEffect(cancelSymbolSearch, [
+    diagramName,
+    tracingImage?.href,
+    tracingImage?.visible,
+    tracingImage?.x,
+    tracingImage?.y,
+    tracingImage?.width,
+    cancelSymbolSearch,
+  ])
   const traced = useMemo(() => {
     if (!trace || !diagram) return null
     // A start may be gone after an edit (deleted, merged).
@@ -1624,6 +1653,10 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     function onKeyDown(e: KeyboardEvent) {
       const tag = (document.activeElement?.tagName ?? '').toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      if (symbolSearch) {
+        if (e.key === 'Escape') cancelSymbolSearch()
+        return
+      }
       if (polygonDraft && (e.key === 'Backspace' || e.key === 'Delete')) {
         // Removes the draft's last vertex (the whole draft once none are
         // left) rather than deleting the selection underneath it.
@@ -1700,6 +1733,8 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     polygonDraft,
     selection,
     trace,
+    symbolSearch,
+    cancelSymbolSearch,
   ])
 
   // A mouse button held anywhere: an element/group drag in progress keeps
@@ -2477,11 +2512,250 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     node.setAttribute('y', String(y))
   }
 
+  // Whether element id can be the sample of a symbol search: one placed symbol (not drawn by points) whose box lies
+  // on the shown tracing image.
+  function canSearchSymbol(id: number): boolean {
+    const el = diagram?.elements.find(e => e.id === id)
+    const box = itemBox(id, 'element')
+    if (!tracingImage?.visible || !el || diagramOps.POINTS_BASED_CLASSES.has(el.class) || !box) return false
+    return (
+      box.width > 0 &&
+      box.height > 0 &&
+      box.x < tracingImage.x + tracingImage.width &&
+      box.x + box.width > tracingImage.x &&
+      box.y < tracingImage.y + tracingImage.height &&
+      box.y + box.height > tracingImage.y
+    )
+  }
+
+  function startSymbolSearch(id: number) {
+    const box = itemBox(id, 'element')
+    if (!box) return
+    const margin = Math.max(Math.max(box.width, box.height) * 0.25, 2)
+    selectItem(id, 'element')
+    setSymbolSearch({
+      phase: 'sample',
+      elementId: id,
+      rect: { x: box.x - margin, y: box.y - margin, width: box.width + 2 * margin, height: box.height + 2 * margin },
+    })
+  }
+
+  function runSymbolSearch() {
+    if (symbolSearch?.phase !== 'sample' || !tracingImage || !diagram) return
+    const { elementId, rect } = symbolSearch
+    const el = diagram.elements.find(e => e.id === elementId)
+    const box = itemBox(elementId, 'element')
+    if (!el || !box) return cancelSymbolSearch()
+    const opts = { rotate: diagramOps.canRotate(el), mirror: diagramOps.canMirror(el) }
+    const run = searchSymbol(tracingImage, rect, opts, done =>
+      setSymbolSearch(s => (s?.phase === 'running' ? { ...s, progress: done } : s)),
+    )
+    searchCancelRef.current = run.cancel
+    setSymbolSearch({ phase: 'running', elementId, rect, progress: 0 })
+    const offset = { x: el.x - (rect.x + rect.width / 2), y: el.y - (rect.y + rect.height / 2) }
+    const near = Math.max(Math.min(box.width, box.height) / 2, 3)
+    const same = diagram.elements.filter(e => e.shape === el.shape)
+    run.promise.then(
+      matches => {
+        searchCancelRef.current = null
+        const found = matches
+          .map(m => ({
+            box: m.box,
+            score: m.score,
+            place: variantPlacement(
+              offset,
+              el.orient ?? 0,
+              !!el.mirror,
+              { x: m.box.x + m.box.width / 2, y: m.box.y + m.box.height / 2 },
+              m.rotate,
+              m.mirror,
+            ),
+          }))
+          .filter(f => !same.some(e => Math.hypot(e.x - f.place.x, e.y - f.place.y) < near))
+        setSymbolSearch({
+          phase: 'review',
+          elementId,
+          rect,
+          found,
+          threshold: defaultThreshold(matches),
+          rejected: new Set(),
+        })
+      },
+      err => {
+        console.warn('sld-editor: symbol search:', err)
+        searchCancelRef.current = null
+        setSymbolSearch({ phase: 'sample', elementId, rect, failed: true })
+      },
+    )
+  }
+
+  function placeFoundSymbols() {
+    if (symbolSearch?.phase !== 'review') return
+    const { elementId, found, threshold, rejected } = symbolSearch
+    const places = found
+      .filter((f, i) => f.score >= threshold && !rejected.has(i))
+      .map(f => ({ ...f.place, ...snapPoint(f.place) }))
+    let ids: number[] = []
+    updateDiagram(d => {
+      const r = diagramOps.placeFoundElements(d, elementId, places, elements)
+      ids = r.ids
+      return r.diagram
+    })
+    setSymbolSearch(null)
+    if (ids.length > 0) selectMany(new Map(ids.map(id => [id, 'element' as SelectionKind])))
+  }
+
+  // A press at point during a symbol search: drags a corner of the sample rectangle, or rejects (restores) the match
+  // under it. False when it hit neither, so the press pans.
+  function pressSymbolSearch(point: Point): boolean {
+    if (!symbolSearch) return false
+    const tol = 8 / Math.max(transformRef.current?.instance.state.scale ?? 1, 0.05)
+    if (symbolSearch.phase === 'sample') {
+      const r = symbolSearch.rect
+      const corners = [
+        { x: r.x, y: r.y },
+        { x: r.x + r.width, y: r.y },
+        { x: r.x, y: r.y + r.height },
+        { x: r.x + r.width, y: r.y + r.height },
+      ]
+      const i = corners.findIndex(c => Math.hypot(c.x - point.x, c.y - point.y) <= tol)
+      if (i < 0) return false
+      const fixed = corners[3 - i]
+      const onMove = (ev: MouseEvent) => {
+        const p = toPoint(ev.clientX, ev.clientY)
+        setSymbolSearch(s =>
+          s?.phase === 'sample'
+            ? {
+                ...s,
+                failed: false,
+                rect: {
+                  x: Math.min(p.x, fixed.x),
+                  y: Math.min(p.y, fixed.y),
+                  width: Math.abs(p.x - fixed.x),
+                  height: Math.abs(p.y - fixed.y),
+                },
+              }
+            : s,
+        )
+      }
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+      return true
+    }
+    if (symbolSearch.phase !== 'review') return false
+    const { found, threshold } = symbolSearch
+    const i = found.findIndex(
+      f =>
+        f.score >= threshold &&
+        point.x >= f.box.x - tol / 2 &&
+        point.x <= f.box.x + f.box.width + tol / 2 &&
+        point.y >= f.box.y - tol / 2 &&
+        point.y <= f.box.y + f.box.height + tol / 2,
+    )
+    if (i < 0) return false
+    setSymbolSearch(s => {
+      if (s?.phase !== 'review') return s
+      const rejected = new Set(s.rejected)
+      if (rejected.has(i)) rejected.delete(i)
+      else rejected.add(i)
+      return { ...s, rejected }
+    })
+    return true
+  }
+
+  // The symbol search's marks on the overlay: the sample rectangle (with corner handles while it is set), and in
+  // review each shown match's box with a copy of the sample element as it would be placed, or struck out.
+  function symbolSearchMarks() {
+    if (!symbolSearch) return null
+    const r = symbolSearch.rect
+    const handle = 6 / Math.max(transformRef.current?.instance.state.scale ?? 1, 0.05)
+    const sample = diagram?.elements.find(e => e.id === symbolSearch.elementId)
+    return (
+      <g>
+        <rect
+          x={r.x}
+          y={r.y}
+          width={r.width}
+          height={r.height}
+          fill="none"
+          stroke={HIGHLIGHT}
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+          vectorEffect="non-scaling-stroke"
+        />
+        {symbolSearch.phase === 'sample' &&
+          [
+            [r.x, r.y],
+            [r.x + r.width, r.y],
+            [r.x, r.y + r.height],
+            [r.x + r.width, r.y + r.height],
+          ].map(([x, y]) => (
+            <rect
+              key={`${x},${y}`}
+              x={x - handle / 2}
+              y={y - handle / 2}
+              width={handle}
+              height={handle}
+              fill="white"
+              stroke={HIGHLIGHT}
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+        {symbolSearch.phase === 'review' &&
+          sample &&
+          symbolSearch.found.map((f, i) => {
+            if (f.score < symbolSearch.threshold) return null
+            const rejected = symbolSearch.rejected.has(i)
+            const color = rejected ? '#ef4444' : '#22c55e'
+            return (
+              <g key={i}>
+                <rect
+                  x={f.box.x}
+                  y={f.box.y}
+                  width={f.box.width}
+                  height={f.box.height}
+                  fill={color}
+                  fillOpacity={0.12}
+                  stroke={color}
+                  strokeWidth={1}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {rejected ? (
+                  <path
+                    d={`M${f.box.x},${f.box.y}L${f.box.x + f.box.width},${f.box.y + f.box.height}M${f.box.x + f.box.width},${f.box.y}L${f.box.x},${f.box.y + f.box.height}`}
+                    stroke={color}
+                    strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : (
+                  <use
+                    href={`#${sample.id}`}
+                    opacity={0.7}
+                    transform={`matrix(${frameMatrix(sample, f.place).join(' ')})`}
+                  />
+                )}
+              </g>
+            )
+          })}
+      </g>
+    )
+  }
+
   function handleMouseDown(e: React.MouseEvent) {
     if (e.button !== 0) return
     // Space + left-drag pans (the TransformWrapper handles it).
     if (spaceHeld) return
     const point = toPoint(e.clientX, e.clientY)
+    if (symbolSearch) {
+      e.stopPropagation()
+      if (!pressSymbolSearch(point)) startPanOrClick(e.clientX, e.clientY, null, false)
+      return
+    }
     // Reached only by a click that didn't land on a vertex/midpoint handle
     // (those stop propagation before this ever runs), so any such click
     // deselects whichever specific bend point was selected.
@@ -2879,6 +3153,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   // would.
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault()
+    if (symbolSearch) return
     if (
       armedSymbol ||
       armedWireKind ||
@@ -3171,6 +3446,9 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
                 },
               ]
             : []),
+          ...(contextMenu.elementId !== null && canSearchSymbol(contextMenu.elementId)
+            ? [{ label: t('contextMenu.findSimilar'), onSelect: () => startSymbolSearch(contextMenu.elementId!) }]
+            : []),
         ],
       ])
     : []
@@ -3269,6 +3547,23 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
         {/* Top-center messages, stacked so they never overlap. */}
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 w-max max-w-[90%] flex flex-col items-center gap-2 pointer-events-none [&>*]:pointer-events-auto">
           <PresenceBanner />
+          {symbolSearch?.phase === 'sample' && (
+            <SymbolSearchBar phase="sample" failed={!!symbolSearch.failed} onSearch={runSymbolSearch} onCancel={cancelSymbolSearch} />
+          )}
+          {symbolSearch?.phase === 'running' && (
+            <SymbolSearchBar phase="running" progress={symbolSearch.progress} onCancel={cancelSymbolSearch} />
+          )}
+          {symbolSearch?.phase === 'review' && (
+            <SymbolSearchBar
+              phase="review"
+              threshold={symbolSearch.threshold}
+              shown={symbolSearch.found.filter(f => f.score >= symbolSearch.threshold).length}
+              rejected={symbolSearch.found.filter((f, i) => f.score >= symbolSearch.threshold && symbolSearch.rejected.has(i)).length}
+              onThreshold={threshold => setSymbolSearch(s => (s?.phase === 'review' ? { ...s, threshold } : s))}
+              onPlace={placeFoundSymbols}
+              onCancel={cancelSymbolSearch}
+            />
+          )}
           {traced && trace && (
             <div className="flex items-center gap-3 rounded border border-surface-500 bg-surface-700/95 px-3 py-1.5 text-xs text-gray-200 shadow">
               <span className="font-medium" style={{ color: TRACE_COLOR }}>
@@ -3436,6 +3731,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
               height={diagram.height}
               style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
             >
+              {symbolSearchMarks()}
               {unboundBoxes.map((box, i) => (
                 <rect
                   key={`unbound-${i}`}

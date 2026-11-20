@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-20: **Find similar on tracing image** (element context menu): with one device placed over a symbol of the tracing image, the editor finds the other copies of that symbol in the picture and, after a review (green boxes with the device as it would be placed, **Similarity** slider, click to reject), places the same device on each in one undoable edit, turned and mirrored as drawn there, skipping places that already hold one. The picture is read as ink and paper and matched by chamfer distance in all rotation/mirror variants, in a Web Worker (`lib/symbolSearch.ts`, `symbolSearch.worker.ts`, `symbolSearchClient.ts`, `SymbolSearchBar`, `diagramOps.placeFoundElements`). Same scale as the sample only, one device type per search, wires by hand. User guides updated.
+
 2026-11-20: Frontend build: the app's pure logic (`src/lib`) goes to its own `lib-[hash].js` chunk beside `vendor`, so no chunk is over Vite's 500 kB warning any more (the app chunk had grown to 503 kB).
 
 2026-11-20: **Add name label** places the label where it stays inside the diagram: to the element's right as before, else to its left (right-aligned), else above its left edge (`diagramOps` `nameLabelPlacement`). Before, an element near the right edge got its label outside the diagram, where it couldn't be seen. User guides updated.

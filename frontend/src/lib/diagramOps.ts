@@ -42,7 +42,7 @@ import { sortByVoltage, voltageOrder } from './voltage'
 // anchor, never for the real drawn geometry. Table2 is deliberately not
 // here — its own geometry is anchor (x/y) plus rowHeights/columnWidths,
 // not Points at all (see DiagramElement's own doc comment).
-const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
+export const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'BusBarSection',
   'Rectangle',
   'SmallWindow',
@@ -576,6 +576,42 @@ export function placeElement(
   // Every fixed Port exists from the start (see fitElementPorts), joined to
   // whatever wire or node the new element was dropped exactly onto.
   return fitElementPorts({ ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }, id, [symbol])
+}
+
+/** Places a copy of element sampleId at each of placements (anchor, orient, mirror): same shape, class, voltage,
+ * layer, size step and other attributes, a fresh id and default name, no CIM identities, bindings or ports; its
+ * terminals join what lies under them (fitElementPorts). Returns the diagram and the new ids. */
+export function placeFoundElements(
+  diagram: Diagram,
+  sampleId: number,
+  placements: { x: number; y: number; orient: number; mirror: boolean }[],
+  symbols: ElementSymbol[],
+): { diagram: Diagram; ids: number[] } {
+  const sample = diagram.elements.find(e => e.id === sampleId)
+  if (!sample || placements.length === 0) return { diagram, ids: [] }
+  const typeName = symbols.find(s => s.shape === sample.shape)?.name ?? sample.class
+  const seq = new IdSequence(diagram)
+  const added: DiagramElement[] = placements.map(p => {
+    const id = seq.take()
+    return {
+      ...sample,
+      ...NO_BINDINGS,
+      id,
+      name: `${typeName}-${id}`,
+      x: p.x,
+      y: p.y,
+      orient: normalizeOrient(p.orient) || undefined,
+      mirror: p.mirror || undefined,
+      ports: undefined,
+      mrid: undefined,
+      group: undefined,
+      componentEdited: undefined,
+      ...(sample.windings ? { windings: sample.windings.map(w => ({ ...w, mrid: undefined })) } : {}),
+    }
+  })
+  let d: Diagram = { ...diagram, lastId: seq.lastId, elements: [...diagram.elements, ...added] }
+  for (const el of added) d = fitElementPorts(d, el.id, symbols)
+  return { diagram: d, ids: added.map(e => e.id) }
 }
 
 /** Places a new BusBarSection spanning start..end — busbars are drawn from

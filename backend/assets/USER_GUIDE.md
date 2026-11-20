@@ -1101,6 +1101,27 @@ or `.svg`, not exported, not undone, and changing it doesn't make the diagram un
 the diagram, also after a reload; other users and other browsers don't see it. Renaming or moving the diagram keeps
 it, deleting the diagram removes it.
 
+### Finding similar symbols {#symbol-search}
+
+On a tracing image, the editor can place the same device on every copy of a symbol for you:
+
+1. Place one device exactly over one symbol of the picture, with the right shape, **Size**, orientation and
+   **Mirror**.
+2. Right-click it → **Find similar on tracing image**. A dashed sample rectangle appears around it, taking in a bit
+   of the wire through the symbol; drag its corners to fit, then **Search**. Keep it tight, so that labels next to
+   the symbol stay out.
+3. The matches appear as green boxes, each with the device as it would be placed (turned and mirrored as the
+   symbol is drawn there). **Similarity** hides weaker matches; click a box to reject it (red, crossed out), click
+   again to take it back. Panning and zooming work meanwhile.
+4. **Place** adds them all as one edit (one **Undo**), on the grid when Snap is on, and selects them; their
+   terminals connect to wires already drawn under them. **Cancel** or **Esc** ends without placing.
+
+Each placed device copies the sample's shape, voltage class, layer and size and gets its own name. Places that
+already hold a device of the same shape are skipped, so searching again doesn't double them. The picture is read as
+ink and paper, so it suits line drawings (an exported or rendered drawing; a high-resolution render of a PDF works
+best, a small screenshot less well). It finds symbols at the sample's size only, one device type per search; wires
+are drawn by hand.
+
 ### Snapping to the grid {#snap-to-grid}
 
 Diagrams imported from xsde2svg often lie between grid points (a busbar at y = 691 on a grid of 10). With nothing
