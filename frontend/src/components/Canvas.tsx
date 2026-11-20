@@ -2553,12 +2553,34 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     searchCancelRef.current = run.cancel
     setSymbolSearch({ phase: 'running', elementId, rect, progress: 0 })
     const offset = { x: el.x - (rect.x + rect.width / 2), y: el.y - (rect.y + rect.height / 2) }
-    const near = Math.max(Math.min(box.width, box.height) / 2, 3)
-    const same = diagram.elements.filter(e => e.shape === el.shape)
+    // A match is skipped when the device it would place overlaps a device already there (by more than a quarter of
+    // the smaller box); busbars and drawn shapes (POINTS_BASED_CLASSES) don't count, devices sit on them.
+    const occupied = diagram.elements
+      .filter(e => !diagramOps.POINTS_BASED_CLASSES.has(e.class))
+      .map(e => itemBox(e.id, 'element'))
+      .filter((b): b is Box => !!b && b.width > 0 && b.height > 0)
+    const boxOffset = {
+      x: box.x + box.width / 2 - (rect.x + rect.width / 2),
+      y: box.y + box.height / 2 - (rect.y + rect.height / 2),
+    }
+    const isFree = (m: { box: Box; rotate: number; mirror: boolean }) => {
+      const center = { x: m.box.x + m.box.width / 2, y: m.box.y + m.box.height / 2 }
+      const c = variantPlacement(boxOffset, 0, false, center, m.rotate, m.mirror)
+      const turned = m.rotate % 180 !== 0
+      const w = turned ? box.height : box.width
+      const h = turned ? box.width : box.height
+      const placed = { x: c.x - w / 2, y: c.y - h / 2, width: w, height: h }
+      return !occupied.some(o => {
+        const ow = Math.min(placed.x + w, o.x + o.width) - Math.max(placed.x, o.x)
+        const oh = Math.min(placed.y + h, o.y + o.height) - Math.max(placed.y, o.y)
+        return ow > 0 && oh > 0 && ow * oh > 0.25 * Math.min(w * h, o.width * o.height)
+      })
+    }
     run.promise.then(
       matches => {
         searchCancelRef.current = null
         const found = matches
+          .filter(isFree)
           .map(m => ({
             box: m.box,
             score: m.score,
@@ -2571,7 +2593,6 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
               m.mirror,
             ),
           }))
-          .filter(f => !same.some(e => Math.hypot(e.x - f.place.x, e.y - f.place.y) < near))
         setSymbolSearch({
           phase: 'review',
           elementId,

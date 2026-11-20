@@ -225,6 +225,12 @@ export function elementIconMarkup(symbol: ElementSymbol): string {
     .replace(/\{fill\}/g, 'none')
     .replace(/\{background\}/g, 'none')
     .replace(/\{radius\}/g, '8')
+    .replace(/\{junctionRadius\}/g, '4')
+    .replace(/\{junctionFill\}/g, 'currentColor')
+    .replace(/\{fpiText\}/g, 'FPI')
+    .replace(/\{fpiColor\}/g, 'currentColor')
+    .replace(/\{positionOffset\}/g, '0')
+    .replace(/\{(fillAttr|stateAttr|positionAttr|fpiFillAttr|fpiStrokeAttr)\}/g, '')
   const rotation = ICON_ROTATION[symbol.shape]
   return rotation ? `<g transform="rotate(${rotation})">${body}</g>` : body
 }

@@ -4014,6 +4014,43 @@ export function removeDegenerateConnectors(diagram: Diagram): Diagram {
   return { ...d, nodes: d.nodes.filter(n => used.has(n.id)) }
 }
 
+/** Joins every device terminal lying on a wire of after that is new or has a changed path since before (not at one
+ * of its ends) to that wire, as joinPortNodes does for a moved device, but only with those wires. Busbars are left
+ * out (joinBusbar joins what lies on them). Returns after itself when nothing joins. */
+export function joinTerminalsOnChangedWires(before: Diagram, after: Diagram): Diagram {
+  const prev = new Map(before.connectors.map(c => [c.id, c.points]))
+  const samePath = (a: Point[], b: Point[]) => a === b || (a.length === b.length && a.every((p, i) => samePoint(p, b[i])))
+  const changed = after.connectors.filter(c => {
+    const old = prev.get(c.id)
+    return c.kind !== 'OverheadLine' && c.points.length >= 2 && (!old || !samePath(old, c.points))
+  })
+  if (changed.length === 0) return after
+  const nodes = new Map(after.nodes.map(n => [n.id, n]))
+  const lies = (n: DiagramNode, c: Connector) =>
+    n.id !== c.from &&
+    n.id !== c.to &&
+    !samePoint(n, c.points[0]) &&
+    !samePoint(n, c.points[c.points.length - 1]) &&
+    c.points.some((a, i) => i < c.points.length - 1 && isOnSegment(n, a, c.points[i + 1]))
+  const devices = after.elements.filter(
+    el =>
+      el.class !== 'BusBarSection' &&
+      (el.ports ?? []).some(p => {
+        const n = nodes.get(p.node)
+        return !!n && changed.some(c => lies(n, c))
+      }),
+  )
+  if (devices.length === 0) return after
+  const wires = new Set(changed.map(c => c.id))
+  const known = new Set(after.connectors.map(c => c.id))
+  let d = after
+  for (const el of devices) {
+    d = joinPortNodes(d, el.id, wires)
+    for (const c of d.connectors) if (!known.has(c.id)) wires.add(c.id)
+  }
+  return d
+}
+
 /** Joins each of an element's Port Nodes to whatever lies exactly at its
  * position: another Node there is merged into it, a wire whose line passes
  * through it (not at one of its ends, and not an OverheadLine, which can't
@@ -4021,25 +4058,27 @@ export function removeDegenerateConnectors(diagram: Diagram): Diagram {
  * BusBarSection whose line passes through it gets a Port on it. Wires
  * already touching one of this element's own Ports are left alone, so a
  * wire drawn past its own other terminal doesn't short it. */
-export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
+export function joinPortNodes(diagram: Diagram, elementId: number, onlyWires?: Set<number>): Diagram {
   const el = diagram.elements.find(e => e.id === elementId)
   if (!el || !el.ports || el.ports.length === 0) return diagram
   const ownNodes = new Set(el.ports.map(p => p.node))
+  const wires = onlyWires && new Set(onlyWires)
   let ids: IdSequence | null = null
-  let d = cutWireThroughDevice(diagram, el)
+  let d = cutWireThroughDevice(diagram, el, wires)
   if (d !== diagram) ids = new IdSequence(d)
 
   for (const port of el.ports) {
     const node = d.nodes.find(n => n.id === port.node)
     if (!node) continue
 
-    for (const other of d.nodes.filter(n => !ownNodes.has(n.id) && samePoint(n, node))) {
+    for (const other of wires ? [] : d.nodes.filter(n => !ownNodes.has(n.id) && samePoint(n, node))) {
       if (voltagesJoin(node.id, nodeVoltages(d, node.id), nodeVoltages(d, other.id))) d = mergeNode(d, other.id, node.id)
     }
 
     const split: Connector[] = []
     const touched = new Set<number>()
     for (const c of d.connectors) {
+      if (wires && !wires.has(c.id)) continue
       if (ownNodes.has(c.from) || ownNodes.has(c.to) || c.kind === 'OverheadLine' || c.points.length < 2) continue
       if (samePoint(c.points[0], node) || samePoint(c.points[c.points.length - 1], node)) continue
       const k = c.points.findIndex((a, i) => i < c.points.length - 1 && isOnSegment(node, a, c.points[i + 1]))
@@ -4052,6 +4091,7 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
       const isDegenerate = (pts: Point[]) => pts.length < 2 || pts.every(q => samePoint(q, pts[0]))
       if (isDegenerate(before) || isDegenerate(after)) continue
       const secondId = ids.take()
+      wires?.add(secondId)
       split.push(
         { ...c, to: node.id, toMrid: undefined, points: before },
         {
@@ -4068,6 +4108,7 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
       touched.add(c.id)
     }
     if (touched.size > 0) d = { ...d, connectors: [...d.connectors.filter(c => !touched.has(c.id)), ...split] }
+    if (wires) continue
 
     const tappedBuses = d.elements.filter(
       bus =>
@@ -4101,7 +4142,7 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
  * of the wire running through the element to the far side, touching its
  * own Port, so the other terminal was never joined and the wire shorted it.
  * Returns diagram itself when el isn't lying in a wire. */
-function cutWireThroughDevice(diagram: Diagram, el: DiagramElement): Diagram {
+function cutWireThroughDevice(diagram: Diagram, el: DiagramElement, onlyWires?: Set<number>): Diagram {
   const ports = el.ports ?? []
   if (ports.length !== 2 || ports[0].node === ports[1].node) return diagram
   const [n1, n2] = ports.map(p => diagram.nodes.find(n => n.id === p.node))
@@ -4118,6 +4159,7 @@ function cutWireThroughDevice(diagram: Diagram, el: DiagramElement): Diagram {
     return null
   }
   for (const c of diagram.connectors) {
+    if (onlyWires && !onlyWires.has(c.id)) continue
     if (own.has(c.from) || own.has(c.to) || c.kind === 'OverheadLine' || c.points.length < 2) continue
     const pts = c.points
     if (pts.some((p, i) => (i === 0 || i === pts.length - 1) && (samePoint(p, n1) || samePoint(p, n2)))) continue
@@ -4132,6 +4174,7 @@ function cutWireThroughDevice(diagram: Diagram, el: DiagramElement): Diagram {
     const tail = simplifyOrthogonalPath([{ x: second.x, y: second.y }, ...pts.slice(Math.floor(b) + 1)])
     const ids = new IdSequence(diagram)
     const tailId = ids.take()
+    onlyWires?.add(tailId)
     return {
       ...diagram,
       lastId: ids.lastId,

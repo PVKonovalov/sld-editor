@@ -1116,8 +1116,9 @@ On a tracing image, the editor can place the same device on every copy of a symb
 4. **Place** adds them all as one edit (one **Undo**), on the grid when Snap is on, and selects them; their
    terminals connect to wires already drawn under them. **Cancel** or **Esc** ends without placing.
 
-Each placed device copies the sample's shape, voltage class, layer and size and gets its own name. Places that
-already hold a device of the same shape are skipped, so searching again doesn't double them. The picture is read as
+Each placed device copies the sample's shape, voltage class, layer and size and gets its own name. A match where
+a device already stands (of any type; busbars and drawn shapes don't count) is skipped, so searching again doesn't
+double devices and a device placed by hand is never covered. The picture is read as
 ink and paper, so it suits line drawings (an exported or rendered drawing; a high-resolution render of a PDF works
 best, a small screenshot less well). It finds symbols at the sample's size only, one device type per search; wires
 are drawn by hand.
@@ -1265,6 +1266,10 @@ are; one step of Undo) or **Leave as is** (the amber handles stay for fixing the
 - Rotating, mirroring or moving a device in Properties takes its connections along.
 - Dropping a two-terminal device (a breaker, a wire jump…) onto a wire so that both its terminals lie on it puts it
   into the wire: the wire is cut out between the terminals and each piece ends on one of them.
+- The same holds the other way round: a wire you draw, or whose path you change (dragging an end or a bend, moving
+  it), over a device terminal is split there and connected to it, and drawn through a two-terminal device it is cut
+  out between its terminals. A wire is not connected to the device it starts or ends on this way, and a wire you
+  don't touch is never connected to terminals already lying on it.
 - Deleting a wire leaves the devices' terminals as they are. Deleting a device also deletes the wires attached to
   it, except a device sitting in a wire (one wire on each terminal, continuing each other through it): deleting it
   joins the two wires back into one.

@@ -1117,7 +1117,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
 
   // Every edit first runs with joins of different voltage classes skipped; if it met any, it waits for
   // VoltageMismatchDialog's answer (resolveVoltagePrompt), and edits made meanwhile queue behind it.
-  // Every edit also puts wire jumps where a buswork wire it touched crosses another voltage class
+  // Every edit also joins device terminals lying on a wire it drew or reshaped (joinTerminalsOnChangedWires), puts
+  // wire jumps where a buswork wire it touched crosses another voltage class
   // (jumpChangedCrossings) and a junction point on each busbar–buswork connection it made (addJunctionPoints),
   // except with opts.automatic false.
   const updateDiagram = useCallback(
@@ -1130,7 +1131,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
               const jumpSameVoltage = configRef.current?.editor.jumpSameVoltage ?? false
               return diagramOps.addJunctionPoints(
                 d,
-                diagramOps.jumpChangedCrossings(d, edit(d), symbols, jumpSameVoltage),
+                diagramOps.jumpChangedCrossings(
+                  d,
+                  diagramOps.joinTerminalsOnChangedWires(d, edit(d)),
+                  symbols,
+                  jumpSameVoltage,
+                ),
                 symbols,
               )
             }
