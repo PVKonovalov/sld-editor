@@ -1121,19 +1121,19 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
 
   // A label already For this element: "Add name label" is then disabled.
   const hasNameLabel = diagram.labels.some(l => l.for === el.id)
-  // "Add name label": a label with the element's name, For it, placed to
-  // its right — one grid step past its drawn outline, at its vertical
-  // centre, on the grid when snapping.
+  // "Add name label": a label with the element's name, For it, beside it where it fits inside the diagram
+  // (diagramOps.nameLabelPlacement); its width is estimated at 0.6 of the font size per character.
   function addNameLabel() {
     const grid = diagram!.editor?.gridSpacing ?? config?.editor.gridSpacing ?? 10
-    const box = elementDiagramBox(el, elements)
-    let x = box.x + box.width + grid
-    let y = box.y + box.height / 2
-    if (snapEnabled) {
-      x = Math.ceil((box.x + box.width + grid / 2) / grid) * grid
-      y = Math.round(y / grid) * grid
-    }
-    updateDiagram(d => diagramOps.placeNameLabel(d, el.id, { x, y }))
+    const textWidth = (el.name ?? '').length * diagramOps.NAME_LABEL_SIZE * 0.6
+    const { point, anchor } = diagramOps.nameLabelPlacement(
+      elementDiagramBox(el, elements),
+      textWidth,
+      diagram!.width,
+      grid,
+      snapEnabled,
+    )
+    updateDiagram(d => diagramOps.placeNameLabel(d, el.id, point, anchor))
   }
 
   // Re-fits the element's fixed ports afterward, so a change that moves

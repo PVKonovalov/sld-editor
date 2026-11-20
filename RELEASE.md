@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-20: **Add name label** places the label where it stays inside the diagram: to the element's right as before, else to its left (right-aligned), else above its left edge (`diagramOps` `nameLabelPlacement`). Before, an element near the right edge got its label outside the diagram, where it couldn't be seen. User guides updated.
+
 2026-11-20: **Tracing image** (diagram Properties): a picture shown under the diagram on the canvas to draw it over, with **Opacity**, **Show**, **X**/**Y**/**Width** (proportions kept), **Fit to diagram**, **Replace…** and **Remove**. It never takes clicks and is not part of the diagram (not saved, rendered, exported or undone); this browser keeps it per diagram in IndexedDB (`lib/tracingImage.ts`), following the diagram's rename, move and delete. User guides updated.
 
 2026-11-20: **Connect different voltage classes?** has **Connect and set class**: it makes the connections and gives the class chosen in the dialog (one of those in conflict) to everything joined at those connection points, as **Fix voltage class** does (through every switch, up to the transformers' facing windings), in one undoable edit (`diagramOps` `setMismatchVoltageClass`). **Connect** is no longer the highlighted button. User guides updated.

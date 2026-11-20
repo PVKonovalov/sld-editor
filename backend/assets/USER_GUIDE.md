@@ -1341,7 +1341,8 @@ The panel keeps its tree, selection and search while you switch to another panel
 Select a single item to edit it in the Properties panel:
 
 - **Devices**: name (the caption icon beside it adds a text label with the name, linked to the device and placed to
-  its right: size 10, left-aligned, bottom anchor, Arial, white; disabled once a label is linked to the device),
+  its right, or, when it would run past the diagram's right edge, to its left (right-aligned), or else above it: size
+  10, left-aligned, bottom anchor, Arial, white; disabled once a label is linked to the device),
   voltage class, state (for switching devices), orientation and mirror, **Size** (the xsde2svg size
   step: 0 is the library size, each step √2 larger; its terminals and wires move along), **Leads** for breakers,
   disconnectors and fuses (xsde2svg's lead distance 2, 3 or 4: the terminals end up that many grid steps apart when

@@ -3065,7 +3065,35 @@ export function placeLabel(diagram: Diagram, point: Point, forId?: number): Diag
  * name label" button, which places it to the element's right. Returns
  * diagram itself when the element has no name or already has a label For
  * it. */
-export function placeNameLabel(diagram: Diagram, elementId: number, point: Point): Diagram {
+export const NAME_LABEL_SIZE = 10
+
+/** The point and alignment of a new name label of element box (see placeNameLabel): one grid step to its right,
+ * else to its left (right-aligned), else above its left edge, the first whose text, of estimated width textWidth,
+ * stays inside a width-wide diagram. On the grid when snap. */
+export function nameLabelPlacement(
+  box: { x: number; y: number; width: number; height: number },
+  textWidth: number,
+  width: number,
+  grid: number,
+  snap: boolean,
+): { point: Point; anchor: 'start' | 'end' } {
+  const up = (v: number) => (snap ? Math.ceil(v / grid) * grid : v)
+  const down = (v: number) => (snap ? Math.floor(v / grid) * grid : v)
+  const round = (v: number) => (snap ? Math.round(v / grid) * grid : v)
+  const y = round(box.y + box.height / 2)
+  const right = snap ? up(box.x + box.width + grid / 2) : box.x + box.width + grid
+  if (right + textWidth <= width) return { point: { x: right, y }, anchor: 'start' }
+  const left = snap ? down(box.x - grid / 2) : box.x - grid
+  if (left - textWidth >= 0) return { point: { x: left, y }, anchor: 'end' }
+  return { point: { x: Math.max(0, round(box.x)), y: Math.max(NAME_LABEL_SIZE, down(box.y - grid)) }, anchor: 'start' }
+}
+
+export function placeNameLabel(
+  diagram: Diagram,
+  elementId: number,
+  point: Point,
+  anchor: 'start' | 'end' = 'start',
+): Diagram {
   const el = diagram.elements.find(e => e.id === elementId)
   if (!el?.name || diagram.labels.some(l => l.for === elementId)) return diagram
   const ids = new IdSequence(diagram)
@@ -3075,8 +3103,8 @@ export function placeNameLabel(diagram: Diagram, elementId: number, point: Point
     layer: el.layer,
     x: point.x,
     y: point.y,
-    size: 10,
-    anchor: 'start',
+    size: NAME_LABEL_SIZE,
+    anchor,
     font: 'Arial',
     color: 'white',
     text: el.name,
