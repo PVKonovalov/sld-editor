@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-20: Ground switch (54): the blade is centered between the two bars in every state, with equal gaps to both (closed -2..-12, open at -7, intermediate centered on -7); before, it sat 1 higher and, closed, reached 2 closer to the top bar. Its ground mark is drawn as the Surge arrester's (168): three lines 16, 10 and 4 wide, 3 apart (was 16, 12 and 8). xsde2svg 1.4.30 draws both the same way, so imported and saved SVGs match.
+
 2026-11-20: A wire drawn, or whose path changes (end or bend dragged, wire moved, merged), over a device terminal is split there and connected to it, and one drawn through a two-terminal device is cut out between its terminals, the same as a device dropped onto a wire (`diagramOps` `joinTerminalsOnChangedWires`, run on every edit in `updateDiagram`; `joinPortNodes` takes the wires it may join). Before, a buswork drawn from a disconnector to a breaker past a ground switch's terminal left that switch unconnected. Wires not touched by an edit are never connected to terminals already on them; busbars are left as before. User guides updated.
 
 2026-11-20: Palette icons fill in every placeholder of the symbol library: the Junction point (7) icon, empty before (its `{junctionRadius}`/`{junctionFill}` were left raw), is a solid dot; the Fault passage indicator shows "FPI" in its color instead of the raw `{fpiText}`; withdrawable devices' `{positionOffset}` and the attribute placeholders no longer stay in the icon markup.

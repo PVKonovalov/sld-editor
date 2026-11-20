@@ -782,14 +782,17 @@
        own ±10 terminals; the stub itself was shortened from the real
        corpus's own y=12 tip to end exactly at y=10 too (a deliberate,
        minor deviation from that byte-for-byte match), so the drawn line
-       stops right at the terminal instead of overshooting past it. -->
+       stops right at the terminal instead of overshooting past it. The
+       blade is centered between the two bars (y=3 and y=-17), as
+       xsde2svg 1.4.30 draws it: closed -2..-12, open at -7. The ground
+       mark is the Surge arrester's (168): lines 16, 10 and 4 wide, 3 apart. -->
   <symbol shape="54" class="GroundSwitch" name="Ground switch">
     <terminals>
       <terminal x="0" y="10"/>
     </terminals>
     <template><![CDATA[
-<path d="M 0 10 v -7 m -4 0 h 8 m -8 -20 h 8 m -4 0 v -8 m -8 0 h 16 m -2 -3 h -12 m 2 -3 h 8" style="fill:none;stroke:{color};stroke-width:1" />
-<path d="{state:M 0 -2 v -12|M 6 -8 h -12|M -4.6 -12.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 10 v -7 m -4 0 h 8 m -8 -20 h 8 m -4 0 v -8 m -8 0 h 16 m -3 -3 h -10 m 3 -3 h 4" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -2 v -10|M 6 -7 h -12|M -4.6 -11.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
