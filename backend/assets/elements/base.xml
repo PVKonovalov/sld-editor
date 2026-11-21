@@ -1483,15 +1483,15 @@
 ]]></template>
   </symbol>
 
-  <!-- Static var compensator: a box marked SVC. -->
+  <!-- Static var compensator: a box with its label, SVC by default, below its terminal or (terminal bottom) above it. -->
   <symbol shape="330003" class="StaticVarCompensator" name="Static var compensator">
     <terminals>
       <terminal x="0" y="0"/>
     </terminals>
     <template><![CDATA[
-<path d="M 0 0 v 6" style="fill:none;stroke:{color};stroke-width:2" />
-<path d="M -14 6 h 28 v 16 h -28 z" style="fill:none;stroke:{color};stroke-width:2" />
-<text x="0" y="14" style="fill:{color};font-size:9px;font-family:Arial;text-anchor:middle;dominant-baseline:middle" >SVC</text>
+<path d="M 0 0 v {terminal:6|-6}" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M -14 {terminal:6|-22} h 28 v 16 h -28 z" style="fill:none;stroke:{color};stroke-width:2" />
+<text x="0" y="{terminal:14|-14}" style="fill:{color};font-size:9px;font-family:Arial;text-anchor:middle;dominant-baseline:middle" >{text:SVC}</text>
 ]]></template>
   </symbol>
 </symbols>

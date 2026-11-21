@@ -1,38 +1,44 @@
 import { useRef, useState } from 'react'
 import { ImageIcon } from 'lucide-react'
 import { useDiagramContext } from '../../state/useDiagramContext'
-import { readImageFile } from '../../lib/picture'
-import { fitImage, imageSize, setTracingImage, useTracingImage, type TracingImage } from '../../lib/tracingImage'
+import { fitImage, imageSize, uploadTracingImage, useTracingImage } from '../../lib/tracingImage'
 import { t } from '../../i18n'
 import { GuideButton } from '../GuideButton'
+import type { DiagramTracingImage } from '../../types'
 
 const inputClass = 'w-full bg-surface-800 border border-surface-600 rounded px-2 py-1'
 const buttonClass = 'flex-1 text-xs rounded border border-surface-600 hover:bg-surface-600 text-gray-200 px-2 py-1'
 
 /** The diagram Properties' tracing image (lib/tracingImage): a picture under the diagram to draw it over, with its
- * position, width (the height keeps its proportions), opacity and visibility. Changes are not diagram edits. */
+ * position, width (the height keeps its proportions), opacity and visibility. Loading one uploads it to the server
+ * at once; it and every change are diagram edits, kept with the diagram when it is saved. */
 export function TracingImageSection() {
-  const { diagram, diagramName } = useDiagramContext()
-  const image = useTracingImage(diagramName)
+  const { diagram, diagramName, updateDiagram } = useDiagramContext()
+  const image = useTracingImage(diagramName, diagram)
   const fileRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState(false)
+  const [busy, setBusy] = useState(false)
   if (!diagram || !diagramName) return null
+  const ref = diagram.tracingImage
 
-  const update = (patch: Partial<TracingImage>) => image && setTracingImage(diagramName, { ...image, ...patch })
+  const update = (patch: Partial<DiagramTracingImage>) =>
+    updateDiagram(d => (d.tracingImage ? { ...d, tracingImage: { ...d.tracingImage, ...patch } } : d))
 
   async function load(file: File) {
     setError(false)
+    setBusy(true)
     try {
-      const href = await readImageFile(file)
-      const size = await imageSize(href)
-      setTracingImage(diagramName!, {
-        href,
-        ...fitImage(size, diagram!.width, diagram!.height),
-        opacity: image?.opacity ?? 0.4,
-        visible: true,
-      })
+      const url = URL.createObjectURL(file)
+      const size = await imageSize(url).finally(() => URL.revokeObjectURL(url))
+      const stored = await uploadTracingImage(diagramName!, file)
+      updateDiagram(d => ({
+        ...d,
+        tracingImage: { file: stored, ...fitImage(size, d.width, d.height), opacity: d.tracingImage?.opacity ?? 0.4 },
+      }))
     } catch {
       setError(true)
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -43,9 +49,9 @@ export function TracingImageSection() {
 
   const number = (key: 'x' | 'y' | 'width', value: string) => {
     const v = Number(value)
-    if (!Number.isFinite(v) || !image) return
+    if (!Number.isFinite(v) || !ref) return
     if (key !== 'width') return update({ [key]: v })
-    if (v > 0) update({ width: v, height: (image.height / image.width) * v })
+    if (v > 0) update({ width: v, height: (ref.height / ref.width) * v })
   }
 
   return (
@@ -58,7 +64,7 @@ export function TracingImageSection() {
       <input
         ref={fileRef}
         type="file"
-        accept="image/*"
+        accept="image/png,image/jpeg,image/gif,image/webp,image/bmp,image/svg+xml"
         className="hidden"
         onChange={e => {
           const file = e.target.files?.[0]
@@ -67,11 +73,11 @@ export function TracingImageSection() {
         }}
       />
       <div className="flex gap-2">
-        <button type="button" className={buttonClass} onClick={() => fileRef.current?.click()}>
+        <button type="button" className={buttonClass} disabled={busy} onClick={() => fileRef.current?.click()}>
           {image ? t('tracingImage.replace') : t('tracingImage.load')}
         </button>
         {image && (
-          <button type="button" className={buttonClass} onClick={() => setTracingImage(diagramName, null)}>
+          <button type="button" className={buttonClass} onClick={() => updateDiagram(d => ({ ...d, tracingImage: undefined }))}>
             {t('tracingImage.remove')}
           </button>
         )}
@@ -80,7 +86,11 @@ export function TracingImageSection() {
       {image && (
         <>
           <label className="flex items-center gap-2 text-xs text-gray-300">
-            <input type="checkbox" checked={image.visible} onChange={e => update({ visible: e.target.checked })} />
+            <input
+              type="checkbox"
+              checked={image.visible}
+              onChange={e => update({ hidden: e.target.checked ? undefined : true })}
+            />
             {t('tracingImage.show')}
           </label>
           <label className="block text-xs">

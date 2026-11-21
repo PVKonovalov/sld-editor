@@ -335,7 +335,7 @@ export const dictionary = {
   'tracingImage.load': 'Load image…',
   'tracingImage.replace': 'Replace…',
   'tracingImage.remove': 'Remove',
-  'tracingImage.loadError': 'The file could not be read as an image.',
+  'tracingImage.loadError': 'The image could not be read or stored on the server (PNG, JPEG, GIF, WebP, BMP or SVG).',
   'tracingImage.show': 'Show',
   'tracingImage.opacity': 'Opacity',
   'tracingImage.x': 'X',

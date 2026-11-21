@@ -22,6 +22,7 @@ import {
   type ElectricalField,
 } from '../../lib/electrical'
 import { elementDiagramBox } from '../../lib/elementBox'
+import { templateHasTerminalSide, templateTextDefault } from '../../lib/elementIcon'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
 import { SWITCHING_DEVICE_CLASSES } from '../../lib/switchingDevices'
@@ -86,7 +87,7 @@ const LINE_STYLES: { value: ConnectorLineStyle | ''; labelKey: TranslationKey }[
 // element_16.go's own source produces ('dotted'/'dashDot'; it has no plain
 // dashed one — see slddoc's own ClassPolygon doc comment), '' meaning
 // Solid, same as LINE_STYLES.
-// A Container's (310) outline styles: the two xsde2svg element_310.go
+// A Container's (310) outline and a Rectangle's (3) border styles: the two xsde2svg element_310.go
 // draws (dotted 3,2 and dashed 6,5) plus solid.
 const CONTAINER_STYLES: { value: ConnectorLineStyle | ''; labelKey: TranslationKey }[] = [
   { value: '', labelKey: 'properties.lineStyleSolid' },
@@ -1136,6 +1137,11 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     updateDiagram(d => diagramOps.placeNameLabel(d, el.id, point, anchor))
   }
 
+  // The default label of a symbol with an editable {text:default}, undefined otherwise.
+  const elSymbol = elements.find(s => s.shape === el.shape)
+  const textDefault = templateTextDefault(elSymbol)
+  const hasTerminalSide = templateHasTerminalSide(elSymbol)
+
   // Re-fits the element's fixed ports afterward, so a change that moves
   // its terminals (orientation, mirror, position, a Fork's size, a
   // transformer's winding count) carries its port nodes and the wire ends
@@ -1350,6 +1356,22 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   value={el.strokeWidth ?? 1}
                   onChange={e => patch({ strokeWidth: Number(e.target.value) })}
                 />
+              </label>
+            )}
+            {isRectangle && (
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.lineStyle')}</span>
+                <select
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.lineStyle ?? ''}
+                  onChange={e => patch({ lineStyle: (e.target.value || undefined) as ConnectorLineStyle | undefined })}
+                >
+                  {CONTAINER_STYLES.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      {t(opt.labelKey)}
+                    </option>
+                  ))}
+                </select>
               </label>
             )}
             {isRectangle && (
@@ -2746,6 +2768,33 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 </option>
               ))}
             </select>
+          </label>
+        )}
+
+        {hasTerminalSide && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.transformerTerminal')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.terminal === 'bottom' ? 'bottom' : 'top'}
+              onChange={e => patch({ terminal: e.target.value === 'bottom' ? 'bottom' : undefined })}
+            >
+              <option value="top">{t('properties.transformerTerminalTop')}</option>
+              <option value="bottom">{t('properties.transformerTerminalBottom')}</option>
+            </select>
+          </label>
+        )}
+
+        {textDefault !== undefined && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.substationPropertyText')}</span>
+            <input
+              type="text"
+              placeholder={textDefault}
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.propertyText ?? ''}
+              onChange={e => patch({ propertyText: e.target.value || undefined })}
+            />
           </label>
         )}
 

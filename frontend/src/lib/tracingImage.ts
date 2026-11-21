@@ -1,10 +1,13 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
+import * as api from './api'
+import type { Diagram } from '../types'
 
-// A tracing image: a picture shown under a diagram on the canvas only, to draw the diagram over it. It is never part
-// of the diagram (not saved, rendered, exported or undone); this browser keeps one per diagram in IndexedDB.
+// A tracing image: a picture shown under a diagram on the canvas only, to draw the diagram over it. Its file is stored
+// on the server next to the diagram and the diagram's tracingImage references it; it is never rendered or exported.
 
+/** The open diagram's tracing image as the canvas shows it. */
 export interface TracingImage {
-  href: string // data URI
+  href: string
   x: number
   y: number
   width: number
@@ -13,107 +16,106 @@ export interface TracingImage {
   visible: boolean
 }
 
-const DB_NAME = 'sld-editor-tracing'
-const STORE = 'images'
-
-let dbPromise: Promise<IDBDatabase> | null = null
-
-function openDb(): Promise<IDBDatabase> {
-  if (!dbPromise) {
-    dbPromise = new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, 1)
-      req.onupgradeneeded = () => req.result.createObjectStore(STORE)
-      req.onsuccess = () => resolve(req.result)
-      req.onerror = () => reject(req.error)
-    })
-    dbPromise.catch(() => {
-      dbPromise = null
-    })
-  }
-  return dbPromise
-}
-
-function run<T>(mode: IDBTransactionMode, op: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  return openDb().then(
-    db =>
-      new Promise<T>((resolve, reject) => {
-        const req = op(db.transaction(STORE, mode).objectStore(STORE))
-        req.onsuccess = () => resolve(req.result)
-        req.onerror = () => reject(req.error)
-      }),
-  )
-}
-
-// Writes go through one chain, so they land in the order made.
-let queue: Promise<unknown> = Promise.resolve()
-
-function enqueue<T>(job: () => Promise<T>, fallback: T): Promise<T> {
-  const next = queue.then(job).catch(e => {
-    console.warn('sld-editor: tracing image storage:', e)
-    return fallback
-  })
-  queue = next
-  return next
-}
-
-// The open diagram's image, shared by the canvas and the Properties panel.
-let current: { name: string | null; image: TracingImage | null } = { name: null, image: null }
+// Bumped per diagram on every upload, so the image's URL changes and the browser loads the new file.
+const versions = new Map<string, number>()
 const listeners = new Set<() => void>()
-
-function publish(next: typeof current) {
-  current = next
-  for (const l of listeners) l()
-}
+let changes = 0
 
 function subscribe(l: () => void) {
   listeners.add(l)
   return () => listeners.delete(l)
 }
 
-/** The tracing image of diagram name (null while none is set or it is loading), loaded from this browser's storage
- * when name changes. */
-export function useTracingImage(name: string | null): TracingImage | null {
-  useEffect(() => {
-    if (current.name === name) return
-    publish({ name, image: null })
-    if (!name) return
-    void enqueue(() => run<TracingImage | undefined>('readonly', s => s.get(name)), undefined).then(image => {
-      if (current.name === name && image) publish({ name, image })
-    })
-  }, [name])
-  const state = useSyncExternalStore(subscribe, () => current)
-  return state.name === name ? state.image : null
+/** Uploads image as the tracing image of diagram name; resolves to its file name. */
+export async function uploadTracingImage(name: string, image: Blob): Promise<string> {
+  const file = await api.uploadTracingImage(name, image)
+  versions.set(name, (versions.get(name) ?? 0) + 1)
+  changes++
+  for (const l of listeners) l()
+  return file
 }
 
-/** Sets (or, with null, removes) the tracing image of diagram name and stores it. */
-export function setTracingImage(name: string, image: TracingImage | null) {
-  if (current.name === name) publish({ name, image })
-  const write = image
-    ? () => run('readwrite', s => s.put(image, name)).then(() => undefined)
-    : () => run('readwrite', s => s.delete(name)).then(() => undefined)
-  void enqueue(write, undefined)
+/** The tracing image of diagram (open as name), or null when it has none. */
+export function useTracingImage(name: string | null, diagram: Diagram | null): TracingImage | null {
+  useSyncExternalStore(subscribe, () => changes)
+  const ref = diagram?.tracingImage
+  const version = name ? (versions.get(name) ?? 0) : 0
+  return useMemo(
+    () =>
+      name && ref
+        ? {
+            href: api.tracingImageUrl(name, version),
+            x: ref.x,
+            y: ref.y,
+            width: ref.width,
+            height: ref.height,
+            opacity: ref.opacity,
+            visible: !ref.hidden,
+          }
+        : null,
+    [name, ref, version],
+  )
 }
 
-/** Moves the tracing image of the diagram from, or of every diagram inside the folder from (isDir), to the matching
- * names under to. */
-export async function renameTracingImages(from: string, to: string, isDir: boolean): Promise<void> {
-  const keys = await enqueue(() => run<IDBValidKey[]>('readonly', s => s.getAllKeys()), [])
-  for (const key of keys) {
-    const name = String(key)
-    if (!(isDir ? name.startsWith(`${from}/`) : name === from)) continue
-    const image = await enqueue(() => run<TracingImage | undefined>('readonly', s => s.get(name)), undefined)
-    if (!image) continue
-    const moved = to + name.slice(from.length)
-    await enqueue(() => run('readwrite', s => s.put(image, moved)).then(() => undefined), undefined)
-    await enqueue(() => run('readwrite', s => s.delete(name)).then(() => undefined), undefined)
-    if (current.name === name) publish({ name: moved, image })
+// Tracing images kept by earlier versions of the editor in this browser (IndexedDB, one per diagram name): moved to
+// the server when their diagram is opened.
+const LEGACY_DB = 'sld-editor-tracing'
+const LEGACY_STORE = 'images'
+
+function legacyRun<T>(mode: IDBTransactionMode, op: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open(LEGACY_DB, 1)
+    open.onupgradeneeded = () => open.result.createObjectStore(LEGACY_STORE)
+    open.onerror = () => reject(open.error)
+    open.onsuccess = () => {
+      const db = open.result
+      const req = op(db.transaction(LEGACY_STORE, mode).objectStore(LEGACY_STORE))
+      req.onsuccess = () => {
+        resolve(req.result)
+        db.close()
+      }
+      req.onerror = () => {
+        reject(req.error)
+        db.close()
+      }
+    }
+  })
+}
+
+/** The tracing image this browser kept for diagram name (href a data URI), or null. */
+export async function legacyTracingImage(name: string): Promise<TracingImage | null> {
+  try {
+    return (await legacyRun<TracingImage | undefined>('readonly', s => s.get(name))) ?? null
+  } catch {
+    return null
   }
 }
 
-/** Removes the tracing image of diagram name from storage. */
-export function deleteTracingImage(name: string): Promise<void> {
-  if (current.name === name) publish({ name, image: null })
-  return enqueue(() => run('readwrite', s => s.delete(name)).then(() => undefined), undefined)
+/** Moves the tracing image this browser kept for the diagram from, or for every diagram inside the folder from
+ * (isDir), to the matching names under to. */
+export async function renameLegacyTracingImages(from: string, to: string, isDir: boolean): Promise<void> {
+  try {
+    const keys = await legacyRun<IDBValidKey[]>('readonly', s => s.getAllKeys())
+    for (const key of keys) {
+      const name = String(key)
+      if (!(isDir ? name.startsWith(`${from}/`) : name === from)) continue
+      const image = await legacyRun<TracingImage | undefined>('readonly', s => s.get(name))
+      if (!image) continue
+      await legacyRun('readwrite', s => s.put(image, to + name.slice(from.length)))
+      await legacyRun('readwrite', s => s.delete(name))
+    }
+  } catch (e) {
+    console.warn('sld-editor: tracing image storage:', e)
+  }
+}
+
+/** Forgets the tracing image this browser kept for diagram name. */
+export async function deleteLegacyTracingImage(name: string): Promise<void> {
+  try {
+    await legacyRun('readwrite', s => s.delete(name))
+  } catch (e) {
+    console.warn('sld-editor: tracing image storage:', e)
+  }
 }
 
 /** Reads an image's natural size from its data URI. */

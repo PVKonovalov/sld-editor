@@ -6,7 +6,12 @@ import { baseName, joinDiagramPath, parentDir } from '../lib/diagramPath'
 import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
 import { ExistingNames, prepareImport, recolorVoltageClasses, type PreparedFile, type PreparedImport } from '../lib/importDiagram'
 import { deleteDraft, getDraft, listDrafts, putDraft, renameDrafts, type Draft } from '../lib/drafts'
-import { deleteTracingImage, renameTracingImages } from '../lib/tracingImage'
+import {
+  deleteLegacyTracingImage,
+  legacyTracingImage,
+  renameLegacyTracingImages,
+  uploadTracingImage,
+} from '../lib/tracingImage'
 import { diagramFromAddress, setDiagramAddress } from '../lib/diagramAddress'
 import { presenceSession } from '../lib/presenceSession'
 import { t } from '../i18n'
@@ -1031,14 +1036,19 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     const scheme = diagram?.scheme
     if (!diagramName || !scheme) return
     const fetched = await api.fetchScheme(scheme.ref, diagramName)
-    const prepared = { diagram: { ...fetched.diagram, scheme }, report: fetched.report, nameSuffix: '', messages: null }
+    const prepared = {
+      diagram: { ...fetched.diagram, scheme, tracingImage: diagram?.tracingImage },
+      report: fetched.report,
+      nameSuffix: '',
+      messages: null,
+    }
     await loadDiagramFromFile(prepared, baseName(fetched.file), diagramName, true)
   }, [diagram, diagramName, loadDiagramFromFile])
 
   const saveDiagramAs = useCallback(
     async (name: string) => {
       if (!diagram) return
-      const { diagram: d, warning } = await api.saveDiagram(name, diagram)
+      const { diagram: d, warning } = await api.saveDiagram(name, diagram, diagramName ?? undefined)
       if (diagramName) void deleteDraft(diagramName)
       void deleteDraft(name)
       setDiagramName(name)
@@ -1062,7 +1072,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     async (from: string, to: string, isDir: boolean) => {
       await api.renameEntry(from, to, isDir)
       await renameDrafts(from, to, isDir)
-      await renameTracingImages(from, to, isDir)
+      await renameLegacyTracingImages(from, to, isDir)
       const open = latestRef.current.diagramName
       if (open && (isDir ? open.startsWith(`${from}/`) : open === from)) setDiagramName(to + open.slice(from.length))
       await browseDir(currentDir)
@@ -1076,7 +1086,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       await api.deleteEntry(path, isDir, presenceSession)
       if (!isDir) {
         await deleteDraft(path)
-        await deleteTracingImage(path)
+        await deleteLegacyTracingImage(path)
       }
       if (!isDir && latestRef.current.diagramName === path) {
         commitDiagram(null, { reset: true, clean: null })
@@ -1207,6 +1217,31 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   )
   const undo = useCallback(() => stepHistory('undo'), [stepHistory])
   const redo = useCallback(() => stepHistory('redo'), [stepHistory])
+
+  // A tracing image an earlier editor version kept in this browser moves to the server when its diagram opens: it is
+  // uploaded and referenced by an edit, and forgotten here once the diagram is opened again with the reference saved.
+  const tracingMigratedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!diagramName || !diagram || tracingMigratedRef.current === diagramName) return
+    const name = diagramName
+    tracingMigratedRef.current = name
+    if (diagram.tracingImage) {
+      void deleteLegacyTracingImage(name)
+      return
+    }
+    void (async () => {
+      const legacy = await legacyTracingImage(name)
+      if (!legacy) return
+      try {
+        const file = await uploadTracingImage(name, await (await fetch(legacy.href)).blob())
+        if (latestRef.current.diagramName !== name) return
+        const { x, y, width, height, opacity, visible } = legacy
+        updateDiagram(d => ({ ...d, tracingImage: { file, x, y, width, height, opacity, hidden: !visible || undefined } }))
+      } catch (e) {
+        console.warn('sld-editor: moving the tracing image to the server:', e)
+      }
+    })()
+  }, [diagramName, diagram, updateDiagram])
 
   const updateEditorSettings = useCallback(
     (patch: Partial<EditorSettings>) => {

@@ -96,7 +96,7 @@ The **Env** column says whether a key can be overridden by an environment variab
 
 | Key | Type | Env | Default | Meaning |
 |---|---|---|---|---|
-| `diagrams.dir` | path | yes | none | Root folder of the diagrams (the File panel's root); `.xsld`, rendered `.svg` and history live here. Shipped: `../diagrams` (`diagrams` in the release archive). |
+| `diagrams.dir` | path | yes | none | Root folder of the diagrams (the File panel's root); `.xsld`, rendered `.svg`, history and tracing images (`<diagram>.tracing.<ext>`) live here. Shipped: `../diagrams` (`diagrams` in the release archive). |
 | `custom_elements.dir` | path | yes | none | Folder whose `.xsld` files (directly inside it, not in subfolders) make the palette's **Custom elements** group, each placed as a copy of its whole contents. Shipped: `../custom-elements`. |
 | `user_guide` | path | yes | empty | Markdown file shown by **Help**, converted on every request. The Russian build shows `USER_GUIDE.ru.md` next to it. Pictures come from `images/` next to it; a translated guide shows `x.ru.png` in place of `x.png` when it exists. Empty hides **Help**. |
 

@@ -779,7 +779,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   // saved, not undoable, cleared with another diagram.
   const [trace, setTrace] = useState<{ sources: TraceStart[]; opts: TraceOptions; dim: boolean } | null>(null)
   useEffect(() => setTrace(null), [diagramName])
-  const tracingImage = useTracingImage(diagramName)
+  const tracingImage = useTracingImage(diagramName, diagram)
 
   // Find similar on tracing image (lib/symbolSearch): the sample rectangle around one placed element, the running
   // search, then its matches under review (rejected: indexes into found). Not part of the diagram; ends with Place,

@@ -380,6 +380,9 @@ export interface DiagramElement {
   // its default round one, matching slddoc's own
   // Element.Square.
   square?: boolean
+  // The side a symbol with a {terminal:top|bottom} template (Static var compensator) has its terminal on; unset =
+  // top (slddoc's Element.Terminal).
+  terminal?: TerminalDirection
   // Line (shape 1) only — its own dash pattern, matching backend/
   // slddoc's own Element.LineStyle. Reuses ConnectorLineStyle
   // (the same solid/dashed/dashDot choice a CableLine connector's own
@@ -654,12 +657,25 @@ export interface OpenedDiagram {
 // The wire shape (a Go nil slice serializes as JSON null): use
 // normalizeDiagram in lib/api.ts to get the array-always shape below
 // everywhere else in the app.
+// A diagram's tracing image (slddoc's TracingImage): file is the image file stored next to the diagram on the
+// server (api.tracingImageUrl), x/y/width/height its place in diagram units, opacity 0…1.
+export interface DiagramTracingImage {
+  file: string
+  x: number
+  y: number
+  width: number
+  height: number
+  opacity: number
+  hidden?: boolean
+}
+
 export interface DiagramWire {
   width: number
   height: number
   source?: string
   lastId?: number
   editor?: EditorSettings
+  tracingImage?: DiagramTracingImage
   layers: Layer[] | null
   voltageClasses: VoltageClass[] | null
   stateColors?: DiagramStateColor[]
@@ -682,6 +698,7 @@ export interface Diagram {
   // anything into yet.
   lastId?: number
   editor?: EditorSettings
+  tracingImage?: DiagramTracingImage
   // The provider's scheme this diagram is exported to, and the object the whole diagram is bound to.
   scheme?: SchemeRef
   object?: Binding

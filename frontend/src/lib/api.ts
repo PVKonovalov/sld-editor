@@ -147,13 +147,32 @@ export async function getDiagram(name: string): Promise<OpenedDiagram> {
   return { ...data, diagram: normalizeDiagram(data.diagram) }
 }
 
+/** Saves diagram as name; from, for Save As, is its old name, whose tracing image the server copies along. */
 export async function saveDiagram(
   name: string,
   diagram: Diagram,
+  from?: string,
 ): Promise<{ diagram: Diagram; warning?: string }> {
-  const res = await fetch(`${BASE}/diagrams/save?name=${encodeURIComponent(name)}`, await jsonBody('PUT', diagram))
+  const query = `name=${encodeURIComponent(name)}${from ? `&from=${encodeURIComponent(from)}` : ''}`
+  const res = await fetch(`${BASE}/diagrams/save?${query}`, await jsonBody('PUT', diagram))
   const data = await asJSON<DiagramResponse>(res)
   return { diagram: normalizeDiagram(data.diagram), warning: data.warning }
+}
+
+/** Stores image as the tracing image of the existing diagram name (PUT /diagrams/tracing-image), replacing its
+ * earlier one; resolves to its file name, which the diagram references once saved. */
+export async function uploadTracingImage(name: string, image: Blob): Promise<string> {
+  const res = await fetch(`${BASE}/diagrams/tracing-image?name=${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': image.type || 'application/octet-stream' },
+    body: image,
+  })
+  return (await asJSON<{ file: string }>(res)).file
+}
+
+/** The URL of diagram name's tracing image; version changes it after an upload, so the browser reloads it. */
+export function tracingImageUrl(name: string, version: number): string {
+  return `${BASE}/diagrams/tracing-image?name=${encodeURIComponent(name)}&v=${version}`
 }
 
 /** Repairs a diagram's topology on the server (POST /api/repair: fixed ports, busbar ports, wire splits, ids,

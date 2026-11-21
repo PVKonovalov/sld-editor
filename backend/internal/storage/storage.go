@@ -265,9 +265,12 @@ func (s *Store) saveRevision(name string, d *slddoc.Diagram, rev slddoc.Revision
 	return s.write(name, d)
 }
 
-// write saves d's .xsld and .svg, each replacing the old file atomically. A diagram with no state colors of its own
-// takes the store's legend.
+// write saves d's .xsld and .svg, each replacing the old file atomically; a name ending in ".tracing" is refused. A diagram with no state colors of its own
+// takes the store's legend. d's tracing image is matched to its stored file (syncTracingImage).
 func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error) {
+	if err := checkDiagramName(name); err != nil {
+		return nil, err
+	}
 	xmlPath, err := s.xmlPath(name)
 	if err != nil {
 		return nil, err
@@ -286,6 +289,9 @@ func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error)
 		return nil, err
 	}
 	slddoc.SeedStateColors(d, s.stateColors)
+	if err := syncTracingImage(xmlPath, d); err != nil {
+		return nil, err
+	}
 	var xml bytes.Buffer
 	if err := d.Save(&xml); err != nil {
 		return nil, fmt.Errorf("storage: saving %s: %w", name, err)
@@ -327,9 +333,12 @@ func (s *Store) CreateDir(dir string) error {
 	return nil
 }
 
-// Rename renames or moves the diagram from to to (its .xsld and .svg), creating to's missing folders. It fails with
+// Rename renames or moves the diagram from to to (its .xsld, .svg and tracing image), creating to's missing folders. It fails with
 // ErrNotFound when from doesn't exist and ErrExists when to does.
 func (s *Store) Rename(from, to string) error {
+	if err := checkDiagramName(to); err != nil {
+		return err
+	}
 	fromXML, err := s.xmlPath(from)
 	if err != nil {
 		return err
@@ -355,7 +364,7 @@ func (s *Store) Rename(from, to string) error {
 	if err := os.Rename(fromSVG, toSVG); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("storage: renaming %s: %w", from, err)
 	}
-	return nil
+	return renameTracingImage(fromXML, toXML)
 }
 
 // RenameDir renames or moves the folder from, with everything in it, to to, creating to's missing parents. It fails
@@ -410,7 +419,7 @@ func checkMove(from, to string, dir bool) error {
 	}
 }
 
-// Delete removes the diagram name (its .xsld and .svg), failing with ErrNotFound when it doesn't exist.
+// Delete removes the diagram name (its .xsld, .svg and tracing image), failing with ErrNotFound when it doesn't exist.
 func (s *Store) Delete(name string) error {
 	xmlPath, err := s.xmlPath(name)
 	if err != nil {
@@ -429,7 +438,7 @@ func (s *Store) Delete(name string) error {
 	if err := os.Remove(svgPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("storage: deleting %s: %w", name, err)
 	}
-	return nil
+	return removeTracingFiles(xmlPath, "")
 }
 
 // DeleteDir removes the folder dir, failing with ErrNotFound when it isn't a folder and ErrNotEmpty when it holds

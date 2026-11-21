@@ -126,7 +126,8 @@ func (s *Server) getDiagram(c *gin.Context) {
 }
 
 // saveDiagram implements both File > Save (name unchanged) and File > Save
-// As (client sends the new name): it always upserts, since a distinct
+// As (client sends the new name, and from, the diagram's old one, whose tracing image is copied along): it always
+// upserts, since a distinct
 // "don't clobber an existing name" check belongs to the Save As UI flow
 // (checking the diagram list before submitting), not this endpoint.
 func (s *Server) saveDiagram(c *gin.Context) {
@@ -143,6 +144,12 @@ func (s *Server) saveDiagram(c *gin.Context) {
 	// The history is kept server-side: SaveRevision replaces d's own with
 	// the one on disk, plus this save.
 	name := c.Query("name")
+	if from := c.Query("from"); from != "" && from != name && d.TracingImage != nil {
+		if err := s.store.CopyTracingImage(from, name); err != nil {
+			storageError(c, err)
+			return
+		}
+	}
 	rev := newRevision(c)
 	warn, err := s.store.SaveRevision(name, &d, rev)
 	if err != nil {

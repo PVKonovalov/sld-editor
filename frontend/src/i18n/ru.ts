@@ -331,7 +331,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'tracingImage.load': 'Загрузить изображение…',
   'tracingImage.replace': 'Заменить…',
   'tracingImage.remove': 'Удалить',
-  'tracingImage.loadError': 'Файл не удалось прочитать как изображение.',
+  'tracingImage.loadError': 'Не удалось прочитать изображение или сохранить его на сервере (PNG, JPEG, GIF, WebP, BMP или SVG).',
   'tracingImage.show': 'Показывать',
   'tracingImage.opacity': 'Непрозрачность',
   'tracingImage.x': 'X',

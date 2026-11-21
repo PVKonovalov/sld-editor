@@ -479,6 +479,9 @@ constraints, so it is not a full CGMES model (no SSH, TP or SV). Unsaved edits a
   is not exported, and the export's notes say so.
 - **Load**, **Network infeed** and **Static var compensator** (under Other equipment in the palette) are symbols for
   CIM equipment that classic diagrams have no symbol for: a consumer, a connection to an outside network, and an SVC.
+  The text inside a Static var compensator's box is its **Label text** in Properties, `SVC` when left empty.
+  Its **Terminal orientation** in Properties is Top (the default: the box hangs below the terminal) or Bottom (the box
+  stands above it, the text still upright); the terminal stays where it is, so its wire stays connected.
 - Each overhead or cable line becomes an AC line segment in a line of its own name.
 - A **link to object** stands for the outside object it points to: an energy consumer by default, or an energy
   source when its **CIM class** in Properties says so. It is connected at its start only; the arrow end is the object
@@ -975,6 +978,7 @@ Some elements are drawn instead of clicked:
 - **Busbar**, **Arrow**, **Rectangle**, **Small window**, **Button**, **Window icon**, **Table**, **Arc**:
   press on the canvas and drag from one corner or end to the other. A rectangle starts with square corners; set
   **Corner radius** in Properties to round them (0 = square, at most half the shorter side).
+  Its border is solid by default; **Line style** in Properties makes it dotted or dashed, as a container's outline.
 - **Circle**: press where the center goes (on the grid when snapping) and drag outward to set the radius, in steps of
   0.5; a plain click places a circle of radius 20. Ctrl/Cmd-drag from anywhere inside it to move it (the center stays
   on the grid); drag the square handle on its rim to change the radius. Properties has its center X/Y and radius,
@@ -1096,10 +1100,15 @@ diagram's size. **Opacity** fades it, **Show** hides it for a moment, **X**, **Y
 (the height keeps its proportions), **Fit to diagram** fits it again, **Replace…** loads another picture, and
 **Remove** takes it away when the diagram is done.
 
-The tracing image is only a background: it never takes clicks, is not part of the diagram (not saved in the `.xsld`
-or `.svg`, not exported, not undone, and changing it doesn't make the diagram unsaved). This browser keeps it for
-the diagram, also after a reload; other users and other browsers don't see it. Renaming or moving the diagram keeps
-it, deleting the diagram removes it.
+The tracing image is only a background: it never takes clicks and is never drawn into the `.svg` or exported. Its
+file is stored on the server next to the diagram (`<diagram>.tracing.png`, `.jpg`, `.svg`, …; PNG, JPEG, GIF, WebP, BMP or SVG)
+as soon as it is loaded, and the `.xsld` records its name, place, opacity and visibility, so it is there wherever
+the diagram is opened, for every user. Placing, fading, hiding and removing it are diagram edits: they can be undone
+and are kept when the diagram is saved. Undoing **Replace…** brings back the old place, not the old picture.
+**Remove** deletes the file on the next save. **Save As** copies it to the new diagram; renaming or moving the
+diagram moves it, deleting the diagram deletes it. A tracing image an earlier version of the editor kept in this
+browser moves to the server the first time its diagram is opened here; save the diagram to keep it.
+A diagram name can't end in `.tracing`: its `.svg` would take the place of another diagram's SVG tracing image.
 
 ### Finding similar symbols {#symbol-search}
 
@@ -1654,7 +1663,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 |---|---|
 | `server.bind` | Address and port the editor listens on, e.g. `0.0.0.0:8099`. |
 | `logging.level` | Server log detail: `trace`, `debug`, `info`, `warn` or `error`. |
-| `diagrams.dir` | Folder where diagrams are stored (the File panel's root). |
+| `diagrams.dir` | Folder where diagrams are stored (the File panel's root), with their rendered `.svg` and [tracing images](#tracing-image). |
 | `custom_elements.dir` | Folder whose `.xsld` files make the palette's **Custom elements** group. |
 | `user_guide` | This guide's Markdown file; the Russian build shows `USER_GUIDE.ru.md` next to it. Empty hides **Help**. Pictures live in the `images/` folder next to it and are written `![alt](images/x.png "Caption")` (png, jpg, gif, webp or svg); the caption is optional. A translated guide shows `x.ru.png` in place of `x.png` when it exists, otherwise the shared picture. |
 | `xsde.config` | `xsde2svg.yml` used by `.xsde` import (see below). Empty uses the converter's built-in copy. |
