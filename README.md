@@ -338,29 +338,80 @@ shown in the UI's About dialog (sidebar, bottom) and printed by
 
 # Behind nginx
 
-The editor sends the whole diagram to the server on every save and full redraw
-(`/api/diagrams/save`, `/api/render`), and imports upload the file itself. Large
-diagrams (several MB, more with embedded pictures) exceed nginx's default
-`client_max_body_size` of 1 MB, and nginx answers `413 Request Entity Too Large`
-before the request reaches the editor. The editor itself has no request size
-limit. Raise nginx's limit in the `server` (or `location`) block that proxies the
-editor:
+Serve the editor over **HTTPS**. Safari runs a page's Web Workers about ten times slower when the page comes over
+plain HTTP from any address other than `localhost` (it is then not a secure context): **Find similar on tracing
+image**, which runs in a worker, then takes minutes instead of seconds. Chrome is not affected. Opened over
+`https://` (or on `localhost`), the page is a secure context and runs at full speed.
+
+The editor sends the whole diagram to the server on every save and full redraw (`/api/diagrams/save`,
+`/api/render`), imports upload the file itself, and a tracing image is uploaded as is (up to 64 MB,
+`/api/diagrams/tracing-image`). Large requests exceed nginx's default `client_max_body_size` of 1 MB, and nginx
+answers `413 Request Entity Too Large` before the request reaches the editor. Raise the limit in the `server` (or
+`location`) block that proxies the editor:
 
 ```nginx
 server {
-    # ...
-    client_max_body_size 50m;    # default 1m; large diagrams and embedded pictures exceed it
+    listen 443 ssl;                       # or any port, e.g. "listen 83 ssl;"
+    server_name editor-host;              # the host name or IP the users open
+
+    ssl_certificate     /etc/nginx/ssl/sld-editor.crt;
+    ssl_certificate_key /etc/nginx/ssl/sld-editor.key;
+
+    client_max_body_size 64m;             # default 1m; large diagrams and tracing images exceed it
 
     location / {
         proxy_pass http://127.0.0.1:8099;
-        proxy_read_timeout 120s; # rendering a large diagram can take a few seconds
+        proxy_read_timeout 120s;          # rendering a large diagram can take a few seconds
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
     }
 }
 ```
 
-Then check and reload: `sudo nginx -t && sudo nginx -s reload`. Use
-`client_max_body_size 0;` to switch the check off when nginx serves only the
-editor.
+Keep `proxy_pass` on `127.0.0.1`: the editor trusts `X-Forwarded-For` (it knows users by their IP) only from
+loopback. Then check and reload: `sudo nginx -t && sudo nginx -s reload`. Use `client_max_body_size 0;` to switch
+the check off when nginx serves only the editor.
+
+To send `http://` addresses on to `https://`, add a redirect. With HTTP and HTTPS on separate ports (80 and 443),
+a second `server` block does it:
+
+```nginx
+server {
+    listen 80;
+    server_name editor-host;
+    return 301 https://$host$request_uri;
+}
+```
+
+With both on one port (`listen 83 ssl;`), nginx answers a plain HTTP request on it with its own code 497; turn that
+into the redirect in the HTTPS `server` block:
+
+```nginx
+error_page 497 =301 https://$host:$server_port$request_uri;
+```
+
+`$request_uri` keeps the path and query (`?diagram=…`). Check with `curl -I http://editor-host:83/` (a `301` with
+`Location: https://…`). Browsers cache a 301 for good: try `302` first and switch to `301` once it works. Once HTTPS
+is there to stay, `add_header Strict-Transport-Security "max-age=31536000" always;` in the HTTPS block makes
+browsers skip the redirect after their first visit.
+
+Without a certificate from a CA the users' browsers already trust, a self-signed one for the host's name or IP
+does:
+
+```bash
+sudo mkdir -p /etc/nginx/ssl
+sudo openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \
+  -keyout /etc/nginx/ssl/sld-editor.key -out /etc/nginx/ssl/sld-editor.crt \
+  -subj "/CN=editor-host" \
+  -addext "subjectAltName=DNS:editor-host" \
+  -addext "extendedKeyUsage=serverAuth"
+```
+
+(For an IP address use `subjectAltName=IP:<address>`.) Each Mac must trust it, or Safari may still not treat the
+page as a secure context: `sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain
+sld-editor.crt`, or in Keychain Access → System, set the certificate's **Trust → When using this certificate** to
+**Always Trust**. Check in Safari's Web Inspector console: `isSecureContext` must be `true`.
 
 # RSDU clients after export
 

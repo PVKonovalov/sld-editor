@@ -564,8 +564,9 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   // Space held: left-drag pans through the TransformWrapper's own
   // panning even while a tool is armed (see its panning prop).
   const [spaceHeld, setSpaceHeld] = useState(false)
-  // A plain left-drag pans the view (startPanOrClick), through this ref.
-  const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
+  // A plain left-drag pans the view (startPanOrClick), through this ref (set by TransformWrapper's onInit: its ref
+  // prop makes the library read props.ref, which React 18 warns about).
+  const transformRef = useRef<ReactZoomPanPinchContentRef | null>(null)
   const [panning, setPanning] = useState(false)
   // An in-progress selection frame (left-drag from empty canvas): start/
   // current in diagram units; crossing when dragged right-to-left (picks
@@ -3543,7 +3544,9 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
         </div>
       )}
       <TransformWrapper
-        ref={transformRef}
+        onInit={ctx => {
+          transformRef.current = ctx
+        }}
         minScale={0.1}
         maxScale={8}
         limitToBounds={false}
