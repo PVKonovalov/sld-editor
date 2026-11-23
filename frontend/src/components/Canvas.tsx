@@ -1009,7 +1009,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
           height={box.height + BOX_HIGHLIGHT_PAD * 2}
           fill="none"
           stroke={HIGHLIGHT}
-          strokeWidth={1.5}
+          strokeWidth={0.5}
           strokeDasharray="4 3"
           pointerEvents="none"
         />
