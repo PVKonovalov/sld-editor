@@ -271,8 +271,8 @@ bindings:
 with `backend/.env` (or `.env` next to the release binary):
 
 ```sh
-BINDINGS_RSDU_DSN_USER=rsduadmin
-BINDINGS_RSDU_DSN_PASSWORD=secret
+BINDINGS_RSDU_DSN_USER=<user>
+BINDINGS_RSDU_DSN_PASSWORD=<password>
 ```
 
 # Frontend locale

@@ -1881,8 +1881,8 @@ bindings:
 with the credentials in `.env` next to it (in the folder the editor is started in):
 
 ```sh
-BINDINGS_RSDU_DSN_USER=rsduadmin
-BINDINGS_RSDU_DSN_PASSWORD=secret
+BINDINGS_RSDU_DSN_USER=<user>
+BINDINGS_RSDU_DSN_PASSWORD=<password>
 ```
 
 - **`.env` and environment variables.** Every key can also be set as a variable named after its path in capitals,

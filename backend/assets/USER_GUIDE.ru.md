@@ -1943,8 +1943,8 @@ bindings:
 а учётные данные — в `.env` рядом (в папке, из которой запускается редактор):
 
 ```sh
-BINDINGS_RSDU_DSN_USER=rsduadmin
-BINDINGS_RSDU_DSN_PASSWORD=secret
+BINDINGS_RSDU_DSN_USER=<user>
+BINDINGS_RSDU_DSN_PASSWORD=<password>
 ```
 
 - **`.env` и переменные окружения.** Любой ключ можно задать и переменной, названной по его пути заглавными буквами, в
