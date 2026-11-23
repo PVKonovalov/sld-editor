@@ -985,6 +985,38 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     )
   }
 
+  // Dashed boxes around the items linked to the one selected item: a label's "For" element, or an element's labels.
+  function linkedMarks() {
+    if (!diagram || ghost || labelDrag || selection.size !== 1) return null
+    const [[id, kind]] = selection
+    let linked: { id: number; kind: SelectionKind }[] = []
+    if (kind === 'label') {
+      const forId = diagram.labels.find(l => l.id === id)?.for
+      const el = forId ? diagram.elements.find(e => e.id === forId) : undefined
+      if (el && !isHidden(el)) linked = [{ id: el.id, kind: 'element' }]
+    } else if (kind === 'element') {
+      linked = diagram.labels.filter(l => l.for === id && !isHidden(l)).map(l => ({ id: l.id, kind: 'label' }))
+    }
+    return linked.map(item => {
+      const box = itemBox(item.id, item.kind)
+      if (!box) return null
+      return (
+        <rect
+          key={`linked-${item.kind}-${item.id}`}
+          x={box.x - BOX_HIGHLIGHT_PAD}
+          y={box.y - BOX_HIGHLIGHT_PAD}
+          width={box.width + BOX_HIGHLIGHT_PAD * 2}
+          height={box.height + BOX_HIGHLIGHT_PAD * 2}
+          fill="none"
+          stroke={HIGHLIGHT}
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+          pointerEvents="none"
+        />
+      )
+    })
+  }
+
   // The one dashed box drawn around a multi-selection: the union of its
   // items' own boxes.
   function selectionBox(): Box | null {
@@ -4043,6 +4075,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
                   )
                 })}
               {highlightMark()}
+              {linkedMarks()}
               {/* Every selected connector gets this basic highlight
                   (including selectedConnector itself) — full reshape/
                   vertex handles below stay singular, tied to

@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-23: Selecting a single text label marks the element named in its "For" property with a thin dashed box, and selecting a single element marks every text label linked to it the same way (hidden layers and drags excepted). User guides updated.
+
 2026-11-23: Enumerate elements: clicking a row selects its element and centres the canvas on it, Ctrl/Cmd-click adds it to the selection, and selected rows are highlighted, as in the bindings overview (the checkbox only checks the row). User guides updated.
 
 2026-11-23: Enumerate elements floats over the diagram instead of dimming it, and moves by dragging its title, so an element clicked in its table can be seen on the canvas. User guides updated.

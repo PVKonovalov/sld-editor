@@ -1085,6 +1085,9 @@ While the frame is being dragged, the items it would pick are highlighted. The f
 selection (click empty canvas first to start over). When more than one item is selected, a
 dashed box is drawn around the whole group, and Properties shows how many items are selected.
 
+When a single text label linked to a device (its **For** property) is selected, that device gets a thin dashed
+box too; when a single device is selected, every text label linked to it does.
+
 ### Grouping {#grouping}
 
 Items that belong together, such as a device and its caption or a whole bay, can be grouped so they are picked
