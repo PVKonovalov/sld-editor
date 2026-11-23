@@ -51,6 +51,7 @@ func (s *Server) getConfig(c *gin.Context) {
 		"defaultFpiText":        s.cfg.Indicators.DefaultFPIText,
 		"palette":               s.cfg.Palette,
 		"hotKeys":               s.cfg.HotKeys,
+		"letterCodes":           s.cfg.LetterCodes,
 		// The CIM classes a connector kind exported as equipment can stand for, default first.
 		"cimConnectorClasses": map[slddoc.ConnectorKind][]string{
 			slddoc.KindLinkToObject: s.cimClasses.Of(slddoc.LinkToObjectCode),

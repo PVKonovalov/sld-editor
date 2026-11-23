@@ -1657,7 +1657,7 @@ location / {
 
 The editor's own settings, read once at startup: restart the editor, then reload the page, after changing them. The
 exceptions are `user_guide` and the two `xsde` files, which are read again on every use. A mistake in `palette`,
-`hot_keys`, `cim`, `line_halos` or `bindings` stops the editor at startup with a message naming it.
+`hot_keys`, `letter_codes`, `cim`, `line_halos` or `bindings` stops the editor at startup with a message naming it.
 
 | Key | What it sets |
 |---|---|
@@ -1681,6 +1681,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `indicators.default_fpi_text` | Text a fault passage indicator shows when it has none of its own. |
 | `palette` | The Elements panel: groups (`name`, in display order) and their `items`, each an xsde2svg object type code. |
 | `hot_keys` | Placement keys: a letter or digit → a palette item code (`r` and `m` are taken by rotate and mirror). |
+| `letter_codes` | IEC 81346-2 letter codes for reference designations: an element shape code → 1 to 3 capital letters, never I or O (e.g. `"41": QA` breaker, `"162": QB` disconnector, `"54": QC` ground switch, `"47": TA` power transformer). A shape left out has no letter code. |
 | `cim.classes` | Export: a symbol shape code, as in `palette` (`"28"` is a link to object) → the CIM classes an element of that shape can stand for, its default first ([CIM export](#cim-export)). A symbol left out is not exported (the startup log names it). Only CIM classes exported alike can be chosen: switches, machines, injections, shunts, auxiliary equipment, or the symbol's own class (the file's comment lists them). |
 | `cim.import` | Import: a CIM class → the symbol shape it is drawn with. `Class.variant` picks a symbol by the object's attributes: `SynchronousMachine.condenser`, `SynchronousMachine.motor`, `AsynchronousMachine.generator`, `LinearShuntCompensator.reactor`, `NonlinearShuntCompensator.reactor` (the file's comment says when each applies). A class left out is drawn as a red box with its name ([CIM import](#cim-import)). |
 

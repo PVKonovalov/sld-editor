@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-23: New `letter_codes` configuration section: an equipment shape code → its IEC 81346-2 letter code for reference designations (breakers `QA`, disconnectors and load-break switches `QB`, ground switches and short-circuiters `QC`, transformers `TA`, CTs `BC`, VTs `BA`, surge arresters `FA`, fuses `FC`, reactors `RA`, capacitors `CA`, generators `GA`, motors `MA`, busbars `WC`). Checked at startup (`elements.Library.ValidateLetterCodes`: a shape in the loaded libraries, 1 to 3 capital letters other than I and O) and returned by `GET /api/config` as `letterCodes`; nothing uses it yet. User guides updated.
+
 2026-11-21: The canvas takes its zoom/pan controls from `TransformWrapper`'s `onInit` instead of a `ref`, so React 18 no longer warns in development that "`ref` is not a prop" (react-zoom-pan-pinch 4.2 reads `props.ref`, React 19 style). No change in behavior.
 
 2026-11-21: README's "Behind nginx": redirecting `http://` to `https://` — a redirect `server` block for separate ports, `error_page 497 =301 https://$host:$server_port$request_uri;` for HTTP and HTTPS on one port, testing with 302 first, and HSTS.

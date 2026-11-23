@@ -240,6 +240,49 @@ hot_keys:
   w: "21"    # Buswork
   g: "54"    # Grounder
 
+# IEC 81346-2 letter codes of equipment shapes, for reference designations
+# (=H01-QA1): a shape code, as in the palette above → 1 to 3 capital letters
+# (never I or O). A shape not listed has no letter code. Mistakes stop the
+# server at startup.
+letter_codes:
+  "41":     QA   # Breaker
+  "43":     QA   # Breaker (withdrawable)
+  "399":    QA   # Power circuit breaker
+  "76":     QA   # Starter
+  "42":     QB   # Load-break switch
+  "162":    QB   # Disconnector
+  "49":     QB   # Disconnector (withdrawable)
+  "320006": QB   # Arc-extinguishing contact
+  "71":     QB   # Railway connection, disconnector
+  "44":     QB   # Knife switch
+  "175":    QB   # 3-position knife switch
+  "164":    QB   # Sectionalizer
+  "50":     QB   # Sectionalizer (withdrawable)
+  "166":    QB   # Disconnector-fuse
+  "54":     QC   # Ground switch
+  "398":    QC   # Short-circuiter
+  "163":    QC   # Short-circuiter without ground
+  "47":     TA   # Power transformer
+  "6":      TA   # Booster/voltage regulator
+  "173":    GA   # Generator
+  "174":    GA   # Synchronous compensator
+  "39":     MA   # Synchronous motor
+  "34":     BC   # Current transformer
+  "55":     BA   # Voltage transformer
+  "35":     FA   # Surge arrester
+  "29":     FA   # Surge arrester
+  "168":    FA   # Surge arrester (grounded)
+  "203":    FC   # Fuse
+  "154":    FC   # Fuse (withdrawable)
+  "37":     RA   # Reactor
+  "33":     RA   # Choke coil
+  "397":    RA   # Reactor (shunt)
+  "156":    RA   # Resistor
+  "389":    RA   # Blocking filter
+  "388":    CA   # Capacitor
+  "172":    CA   # Capacitor bank
+  "24":     WC   # Busbar section
+
 # CIM export and import: the whole mapping between symbols and CIM classes.
 #
 # classes (export): a symbol shape code, as in the palette above ("28" is a

@@ -151,6 +151,33 @@ func TestValidatePalette(t *testing.T) {
 	}
 }
 
+func TestValidateLetterCodes(t *testing.T) {
+	lib := &Library{Symbols: []Symbol{{Shape: "41"}, {Shape: "162"}}}
+	if err := lib.ValidateLetterCodes(map[string]string{"41": "QA", "162": "Q"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := lib.ValidateLetterCodes(nil); err != nil {
+		t.Errorf("no letter codes: %v", err)
+	}
+	for _, c := range []struct {
+		name  string
+		codes map[string]string
+		want  string
+	}{
+		{"unknown shape", map[string]string{"999": "QA"}, "not an element shape"},
+		{"empty", map[string]string{"41": ""}, "capital letters"},
+		{"too long", map[string]string{"41": "QABC"}, "capital letters"},
+		{"lower case", map[string]string{"41": "qa"}, "capital letters"},
+		{"letter I", map[string]string{"41": "QI"}, "capital letters"},
+		{"letter O", map[string]string{"41": "O"}, "capital letters"},
+		{"digit", map[string]string{"41": "Q1"}, "capital letters"},
+	} {
+		if err := lib.ValidateLetterCodes(c.codes); err == nil || !strings.Contains(err.Error(), c.want) {
+			t.Errorf("%s: err = %v, want %q", c.name, err, c.want)
+		}
+	}
+}
+
 func TestValidateHotKeys(t *testing.T) {
 	palette := []config.PaletteGroup{
 		{Name: "Wires", Items: []string{"21", "22"}},

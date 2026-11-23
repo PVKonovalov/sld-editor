@@ -82,6 +82,9 @@ func main() {
 		llog.Logger.Fatalf("validating hot_keys configuration: %v", err)
 	}
 	cfg.HotKeys = hotKeys
+	if err := lib.ValidateLetterCodes(cfg.LetterCodes); err != nil {
+		llog.Logger.Fatalf("validating letter_codes configuration: %v", err)
+	}
 
 	cimClasses, unlisted, err := slddoc.NewCIMClassTable(lib.Classes(), cfg.CIM.Classes, cfg.CIM.Import)
 	if err != nil {
