@@ -61,7 +61,8 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
 - Frontend `src/`: `state/DiagramContext.tsx` (+ `useDiagramContext.ts`; single source of truth, undo/redo,
   `confirmLeave`, drafts), `lib/api.ts` (only backend caller), `lib/diagramOps.ts` (pure `Diagram → Diagram` edits),
   `components/Canvas.tsx` (pan/zoom, rendering transactions, hit-testing, drag, routing, copy/paste),
-  `components/panels/*`, `lib/paletteItem.ts`, `lib/drafts.ts`, `lib/picture.ts`, `lib/guide.ts`, `types/index.ts`
+  `components/panels/*`, `components/EnumerateDialog.tsx` + `lib/designationLabels.ts` (reference designations; the
+  hierarchy itself is slddoc `Designate`), `lib/paletteItem.ts`, `lib/drafts.ts`, `lib/picture.ts`, `lib/guide.ts`, `types/index.ts`
   (hand-kept mirror of Go JSON), `i18n/`.
 
 ## Rules not derivable from code

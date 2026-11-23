@@ -17,6 +17,10 @@ Open tasks only. Finished work is recorded in RELEASE.md.
 - [ ] Bulk edit a multi-selection: voltage class, state, size step (today only the layer can be set for several
       items at once).
 - [ ] Rename in series: number selected devices automatically ("QS-1, QS-2, …"), and find-and-replace in names.
+- [ ] Functional hierarchy tree panel: the diagram's voltage levels and units (with transformer units' paired
+      sides together), to rename, merge and split units and move elements between them by drag; today only the
+      Properties "Functional unit" section and the Enumerate elements dialog edit it.
+- [ ] CIM export: use the functional hierarchy (paired transformer units, bays as `Bay` containers).
 - [ ] Status bar: selection count, zoom %, the armed tool, next to the cursor coordinates readout.
 - [ ] Minimap in a canvas corner for large diagrams , showing and moving the visible area.
 - [ ] Links between diagrams: Ctrl/Cmd-click on an Object link (28) or Connector arrow (83) opens the diagram it

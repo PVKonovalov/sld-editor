@@ -24,6 +24,7 @@ import { DraftRecoveryDialog } from './components/DraftRecoveryDialog'
 import { UnsavedChangesDialog } from './components/UnsavedChangesDialog'
 import { VoltageMismatchDialog } from './components/VoltageMismatchDialog'
 import { VoltageColorsDialog } from './components/VoltageColorsDialog'
+import { EnumerateDialog } from './components/EnumerateDialog'
 import { CimLayoutDialog } from './components/CimLayoutDialog'
 import { CimWindingsDialog } from './components/CimWindingsDialog'
 import { diagramFileKind } from './lib/fileTransfer'
@@ -68,6 +69,7 @@ function Shell() {
     findFocusSeq,
     config,
     bindingImport,
+    enumeratePrompt,
   } = useDiagramContext()
   const bindingProvider = config?.bindings?.provider ?? ''
   // An import of bindings is compared in the overview.
@@ -238,6 +240,7 @@ function Shell() {
         <UnsavedChangesDialog />
         <VoltageMismatchDialog />
         <VoltageColorsDialog />
+        {enumeratePrompt && <EnumerateDialog />}
         <CimLayoutDialog />
         <CimWindingsDialog />
         <SchemeOfferBanner />

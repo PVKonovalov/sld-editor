@@ -147,6 +147,9 @@ type Config struct {
 	// elements.Library.ValidateLetterCodes checks it at startup.
 	LetterCodes map[string]string `yaml:"letter_codes"`
 
+	// Designations holds the letters of the functional hierarchy (ValidateDesignations checks it at startup).
+	Designations Designations `yaml:"designations"`
+
 	// CIM is the whole mapping between symbols and CIM classes, checked at startup (slddoc.NewCIMClassTable).
 	// Classes (export) maps a symbol shape code (as in Palette; "28" is a link to object) to the CIM classes it can
 	// stand for, its default first; a shape left out is not exported. Import maps a CIM class, or "Class.variant",

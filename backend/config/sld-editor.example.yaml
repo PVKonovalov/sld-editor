@@ -283,6 +283,44 @@ letter_codes:
   "172":    CA   # Capacitor bank
   "24":     WC   # Busbar section
 
+# Reference designations (Diagram → Enumerate elements…): the letters of the
+# functional hierarchy, =<voltage level>=<unit>-<letter code><number>, e.g.
+# =E1=H03-QA1. These letters are this project's convention, not taken from
+# ISO/IEC 81346-10. Unit letters avoid the IEC 81346-2 component classes where
+# possible (B, C, K and X are sensing, storing, signal processing and
+# connecting); "other" keeps X, as nothing else is left. Mistakes stop the
+# server at startup.
+designations:
+  # A voltage level up to max_kv (and above the previous row) gets this letter;
+  # the kV is read from the voltage class name ("110 kV", "10кВ"). Rows
+  # ascending by max_kv, codes 1 to 3 capital letters other than I and O.
+  voltage_levels:
+    - { max_kv: 1,    code: M }
+    - { max_kv: 6,    code: L }
+    - { max_kv: 10,   code: K }
+    - { max_kv: 20,   code: J }
+    - { max_kv: 35,   code: H }
+    - { max_kv: 60,   code: F }
+    - { max_kv: 110,  code: E }
+    - { max_kv: 220,  code: D }
+    - { max_kv: 330,  code: C }
+    - { max_kv: 500,  code: B }
+    - { max_kv: 1150, code: A }
+  # The letter of a voltage level whose kV is unknown or above every row.
+  # Levels sharing a letter are numbered from the highest voltage down.
+  fallback_voltage_code: V
+  # Every unit kind, with its letter and the zero-padded width of its number
+  # (digits 2: =H03; 0 or 1: no padding).
+  units:
+    incoming_feeder: { code: N, digits: 2 }
+    outgoing_feeder: { code: H, digits: 2 }
+    generator:       { code: G, digits: 1 }
+    transformer:     { code: T, digits: 1 }
+    bus_coupler:     { code: Z, digits: 1 }   # bus section or coupler
+    busbar:          { code: W, digits: 1 }   # busbar system
+    measuring:       { code: Y, digits: 1 }   # VT bay
+    other:           { code: X, digits: 2 }
+
 # CIM export and import: the whole mapping between symbols and CIM classes.
 #
 # classes (export): a symbol shape code, as in the palette above ("28" is a

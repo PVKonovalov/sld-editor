@@ -232,9 +232,7 @@ func (l *Library) ValidateLetterCodes(codes map[string]string) error {
 		if !shapes[shape] {
 			return fmt.Errorf("elements: letter_codes: %q is not an element shape in the loaded element libraries", shape)
 		}
-		if len(code) < 1 || len(code) > 3 || strings.IndexFunc(code, func(r rune) bool {
-			return r < 'A' || r > 'Z' || r == 'I' || r == 'O'
-		}) >= 0 {
+		if !config.ValidLetterCode(code) {
 			return fmt.Errorf("elements: letter_codes: %q → %q: want 1 to 3 capital letters other than I and O", shape, code)
 		}
 	}

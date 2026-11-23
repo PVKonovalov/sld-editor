@@ -22,6 +22,8 @@ import type {
   CustomElement,
   Diagram,
   DiagramWire,
+  DesignationPlan,
+  DesignationFormat,
   DiagramEntry,
   ElementSymbol,
   EditorConfig,
@@ -173,6 +175,20 @@ export async function uploadTracingImage(name: string, image: Blob): Promise<str
 /** The URL of diagram name's tracing image; version changes it after an upload, so the browser reloads it. */
 export function tracingImageUrl(name: string, version: number): string {
   return `${BASE}/diagrams/tracing-image?name=${encodeURIComponent(name)}&v=${version}`
+}
+
+/** Proposes reference designations for the diagram's equipment (POST /api/designations): the element ids in scope
+ * (empty: all), renumbering the ones already designated when renumber; the short format numbers each letter code
+ * across the diagram. Changes nothing. */
+export async function planDesignations(
+  diagram: Diagram,
+  scope: number[],
+  renumber: boolean,
+  format: DesignationFormat,
+): Promise<DesignationPlan> {
+  const res = await fetch(`${BASE}/designations`, await jsonBody('POST', { diagram, scope, renumber, format }))
+  const plan = await asJSON<DesignationPlan>(res)
+  return { functions: plan.functions ?? [], rows: plan.rows ?? [], unplaced: plan.unplaced ?? [] }
 }
 
 /** Repairs a diagram's topology on the server (POST /api/repair: fixed ports, busbar ports, wire splits, ids,

@@ -521,6 +521,62 @@ diagram** in the diagram's Properties (nothing selected) applies the same repair
 unsaved edits included. It is one step that **Undo** reverts, and the diagram is marked as changed until you save
 it. "Nothing to repair" means the diagram already follows every rule.
 
+### Reference designations {#designations}
+
+**Enumerate elements…** (the diagram's Properties with nothing selected, or the canvas context menu) gives the
+equipment IEC 81346 reference designations built from the diagram's topology, and writes each as the element's name:
+`=E1=T1-QA1` is voltage level E1, transformer unit T1, breaker 1. The letter code of an element (`QA`, `QB`, `TA`, …)
+comes from `letter_codes`; an element whose shape has none, wires, labels and drawing shapes are left alone.
+
+How the units are found (switch states don't matter):
+
+- **Voltage levels.** Switchgear joined by wires and devices, not through a transformer or a line, is one voltage
+  level, of its most-used voltage class; its letter comes from `designations.voltage_levels`.
+- **Units.** From each busbar connection point the editor follows the wiring outward, stopping at other busbars,
+  transformers and lines. What it reaches makes the unit: a transformer → **transformer unit**; a generator or
+  synchronous compensator → **generator unit**; only two or more busbars → **bus section / coupler**; only a VT (with
+  its switches, fuses, arresters) → **measuring bay**; a network infeed or a source link → **incoming feeder**; a load
+  or motor → **outgoing feeder**; a line alone → a feeder **guessed** incoming on the highest voltage level of its
+  network, outgoing below it; anything else → **other**.
+- **Busbars.** Collinear busbar sections joined by a bay are one busbar system (`=W1`, sections `-WC1`, `-WC2`);
+  parallel ones are separate systems (`=W1`, `=W2`).
+- **Transformers.** The transformer belongs to its higher-voltage side's unit (`=E1=T1-TA1`); its lower side is a
+  unit with the same number in the lower voltage level (`=K1=T1`), and the two are linked.
+
+Numbers count per letter code within a unit, from 1, along the energy flow from the busbar outward and then in
+reading order; units are numbered in reading order of their busbar connection. Numbers are stable: placing or deleting
+an element never renumbers others, and a new element gets a designation only when you run the command again — then
+the next free number of its unit.
+
+The dialog floats over the diagram without hiding it: drag its title to move it aside. Clicking a row selects its
+element and centres the canvas on it, Ctrl/Cmd-click adds it to the selection; selected rows are highlighted, as in
+the bindings overview. It sets:
+
+- **Scope**: the whole diagram or the selected elements;
+- **Mode**: only elements without a designation, or renumber all in scope;
+- **Labels show**: the full designation, or only its product part without the dash (`QA1`). The name always keeps
+  the full one. So that a short label still names one element, the short format numbers each letter code across the
+  whole diagram instead of per unit (`=E1=H01-QB1`, `=E1=H02-QB2`); a short label that would repeat (numbered per unit
+  earlier) is renumbered, and the table warns of any left.
+
+The table lists each element with its unit and old → new name; with the short format, a **Label** column shows what
+its label will read (the old label's text first, when it has one). An element with SCADA bindings, a CIM identity or
+bindings already exported starts **unchecked**, as renaming it may break something outside the editor. Duplicate
+names, labels that couldn't be placed clear of everything, elements **not connected to a busbar** (in a diagram that
+has busbars: usually a wire end not joined to a terminal — a piece like that also becomes a voltage level of its own;
+check it with [Connections](#connections) or **Repair diagram**), and elements no unit was found for are reported. Guessed
+feeders are listed above the table: **Confirm** keeps the kind, **Flip** swaps incoming and outgoing.
+
+**Apply** is one step that **Undo** reverts. Each designation gets a label on the **Designations** layer (created on
+first use, above the other layers, so all designations can be hidden at once — see [Layers](#layers)): right of the
+element, else above it, else slid along those sides, always inside the diagram and clear of other elements, wires
+and labels. An element that already has a label gets its text changed instead (moved to the layer if it showed the
+old name).
+
+In **Properties**, **Functional unit** shows which unit the element belongs to and lets you move it to another one,
+change the unit's kind, code or number (which renames its elements), confirm a guessed feeder, or make a **new unit
+from the selection**. Moving an element doesn't rename it: run the command to give it its number there.
+
 ### Unsaved changes {#unsaved}
 
 - Opening another diagram, creating a new one, or importing a file while the open diagram has unsaved edits first
@@ -1657,7 +1713,7 @@ location / {
 
 The editor's own settings, read once at startup: restart the editor, then reload the page, after changing them. The
 exceptions are `user_guide` and the two `xsde` files, which are read again on every use. A mistake in `palette`,
-`hot_keys`, `letter_codes`, `cim`, `line_halos` or `bindings` stops the editor at startup with a message naming it.
+`hot_keys`, `letter_codes`, `designations`, `cim`, `line_halos` or `bindings` stops the editor at startup with a message naming it.
 
 | Key | What it sets |
 |---|---|
@@ -1682,6 +1738,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `palette` | The Elements panel: groups (`name`, in display order) and their `items`, each an xsde2svg object type code. |
 | `hot_keys` | Placement keys: a letter or digit → a palette item code (`r` and `m` are taken by rotate and mirror). |
 | `letter_codes` | IEC 81346-2 letter codes for reference designations: an element shape code → 1 to 3 capital letters, never I or O (e.g. `"41": QA` breaker, `"162": QB` disconnector, `"54": QC` ground switch, `"47": TA` power transformer). A shape left out has no letter code. |
+| `designations` | The letters of [reference designations](#designations): `voltage_levels`, a list of `{max_kv, code}` ascending by a positive `max_kv` (a voltage level up to `max_kv` gets `code`; the kV is read from the voltage class name); `fallback_voltage_code`, for a level no row matches; `units`, every unit kind (`incoming_feeder`, `outgoing_feeder`, `generator`, `transformer`, `bus_coupler`, `busbar`, `measuring`, `other`) → `{code, digits}`, `digits` 0 to 3 being the number's zero-padded width. Codes are 1 to 3 capital letters other than I and O. The shipped letters are this project's convention, not ISO/IEC 81346-10. |
 | `cim.classes` | Export: a symbol shape code, as in `palette` (`"28"` is a link to object) → the CIM classes an element of that shape can stand for, its default first ([CIM export](#cim-export)). A symbol left out is not exported (the startup log names it). Only CIM classes exported alike can be chosen: switches, machines, injections, shunts, auxiliary equipment, or the symbol's own class (the file's comment lists them). |
 | `cim.import` | Import: a CIM class → the symbol shape it is drawn with. `Class.variant` picks a symbol by the object's attributes: `SynchronousMachine.condenser`, `SynchronousMachine.motor`, `AsynchronousMachine.generator`, `LinearShuntCompensator.reactor`, `NonlinearShuntCompensator.reactor` (the file's comment says when each applies). A class left out is drawn as a red box with its name ([CIM import](#cim-import)). |
 

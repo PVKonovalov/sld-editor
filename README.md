@@ -77,8 +77,8 @@ section describes the same keys for whoever runs the editor.
 - **When.** Everything is read once at startup: restart the editor, then reload the page. The exceptions are
   `user_guide` and the files named by `xsde.config` / `xsde.workplace`, which are read again on every use. The editor
   itself rewrites the file only to append entries to `voltage_colors` (see below), keeping its comments.
-- **Validation.** A mistake in `elements.libraries`, `palette`, `hot_keys`, `editor.voltage_order`, `line_halos`,
-  `cim` or `bindings`, or a diagrams/custom elements folder that can't be opened, stops the editor at startup with a
+- **Validation.** A mistake in `elements.libraries`, `palette`, `hot_keys`, `letter_codes`, `designations`,
+  `editor.voltage_order`, `line_halos`, `cim` or `bindings`, or a diagrams/custom elements folder that can't be opened, stops the editor at startup with a
   message naming the key. An invalid `logging.level` only logs a warning and uses `info`.
 
 ## Keys
@@ -182,6 +182,21 @@ An item that is none of these stops the editor.
 A map of key → palette item code: pressing the key without Ctrl/Cmd/Alt arms the item, pressing it again disarms it.
 A key is one letter or digit, case-insensitive, given once; `r` and `m` are reserved for rotate and mirror. The item
 must be in `palette`. Mistakes stop the editor. Leave the section out for no hot keys.
+
+### letter_codes, designations
+
+What **Enumerate elements…** builds reference designations (IEC 81346, e.g. `=E1=T1-QA1`) from. Both are checked at
+startup; a code is always 1 to 3 capital letters other than I and O.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `letter_codes` | map of shape code → letter code | The IEC 81346-2 letter code of an equipment shape (`"41": QA`, `"162": QB`, …). The shape must be in a loaded library. A shape left out is not designated. |
+| `designations.voltage_levels` | list of `{max_kv, code}` | A voltage level up to `max_kv` (and above the previous row) gets `code`; the kV is read from the voltage class name. `max_kv` positive and ascending. |
+| `designations.fallback_voltage_code` | letter code | Required. The code of a voltage level whose kV is unknown or above every row. Levels sharing a code are numbered from the highest voltage down. |
+| `designations.units.<kind>` | `{code, digits}` | Every kind is required: `incoming_feeder`, `outgoing_feeder`, `generator`, `transformer`, `bus_coupler`, `busbar`, `measuring`, `other`. `digits` (0 to 3) is the zero-padded width of the unit number (`2`: `=H03`). |
+
+The shipped letters are this project's convention, not taken from ISO/IEC 81346-10; unit letters avoid the 81346-2
+component classes where possible. `GET /api/config` returns both (`letterCodes`, `designations`).
 
 ### cim
 

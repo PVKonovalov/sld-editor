@@ -135,6 +135,7 @@ func (s *Server) routes() {
 	grp.GET("/diagrams/tracing-image", s.getTracingImage)
 	grp.PUT("/diagrams/tracing-image", s.putTracingImage)
 	grp.POST("/repair", s.repairDiagram)
+	grp.POST("/designations", s.planDesignations)
 	grp.POST("/render", s.renderPreview)
 	grp.POST("/render/fragments", s.renderPreviewFragments)
 	grp.POST("/export/xml", s.exportDiagramXML)

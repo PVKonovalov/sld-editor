@@ -377,6 +377,9 @@ export interface DiagramContextValue {
   // import waits for it); resolveVoltageColorsPrompt answers with class name → color. addVoltagePresets adds
   // presets to the server's voltage_colors, in its configuration file too.
   voltageColorsPrompt: VoltageColorsPrompt | null
+  // Set while EnumerateDialog is open: the selected element ids it was opened with (empty: none selected).
+  enumeratePrompt: { selection: number[] } | null
+  setEnumeratePrompt: (prompt: { selection: number[] } | null) => void
   resolveVoltageColorsPrompt: (colors: Map<string, string>) => void
   // Set while CimLayoutDialog asks whether a CIM import follows its model's layout or is laid out automatically (the
   // import waits for it); resolveCimLayoutPrompt answers.

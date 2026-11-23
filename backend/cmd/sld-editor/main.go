@@ -85,6 +85,9 @@ func main() {
 	if err := lib.ValidateLetterCodes(cfg.LetterCodes); err != nil {
 		llog.Logger.Fatalf("validating letter_codes configuration: %v", err)
 	}
+	if err := cfg.ValidateDesignations(); err != nil {
+		llog.Logger.Fatalf("validating designations configuration: %v", err)
+	}
 
 	cimClasses, unlisted, err := slddoc.NewCIMClassTable(lib.Classes(), cfg.CIM.Classes, cfg.CIM.Import)
 	if err != nil {

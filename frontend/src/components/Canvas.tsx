@@ -540,6 +540,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     documentVersion,
     preRendered,
     diagramShown,
+    setEnumeratePrompt,
   } = useDiagramContext()
   // An item on a layer hidden in the Layers section is neither drawn
   // (hiddenLayerCss) nor picked by any diagram-state hit test below.
@@ -3354,6 +3355,15 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
           ...(diagramOps.selectionGroups(diagram, selection).size > 0
             ? [{ label: t('contextMenu.ungroup'), onSelect: ungroupSelection }]
             : []),
+        ],
+        [
+          {
+            label: t('contextMenu.enumerate'),
+            onSelect: () =>
+              setEnumeratePrompt({
+                selection: [...selection].filter(([, kind]) => kind === 'element').map(([id]) => id),
+              }),
+          },
         ],
         selection.size > 0
           ? [

@@ -20,6 +20,9 @@ import type {
   Binding,
   BindingKind,
   BindingResolved,
+  DesignationFormat,
+  DesignationPlan,
+  DiagramFunction,
 } from '../types'
 import { t } from '../i18n'
 import { circularArcThrough, defaultArcBulge } from './arc'
@@ -604,6 +607,7 @@ export function placeFoundElements(
       mirror: p.mirror || undefined,
       ports: undefined,
       mrid: undefined,
+      function: undefined,
       group: undefined,
       componentEdited: undefined,
       ...(sample.windings ? { windings: sample.windings.map(w => ({ ...w, mrid: undefined })) } : {}),
@@ -1604,8 +1608,9 @@ export function placeCustomElement(
       ...(e.ports ? { ports: e.ports.map(p => ({ ...p, node: mapNode(p.node, at), mrid: undefined })) } : {}),
       ...(electrical ? { voltage: mapVoltage(e.voltage) } : {}),
       ...(e.windings ? { windings: e.windings.map(w => ({ ...w, voltage: mapVoltage(w.voltage), mrid: undefined })) } : {}),
-      // A copy is new equipment: no CIM identity of its own until exported.
+      // A copy is new equipment: no CIM identity or functional unit of its own.
       mrid: undefined,
+      function: undefined,
       ...(dropBindings ? NO_BINDINGS : {}),
     }
   })
@@ -1755,6 +1760,7 @@ export function extractSelection(
       ...(e.ports ? { ports: e.ports.map(p => ({ ...p, mrid: undefined })) } : {}),
       ...(e.windings ? { windings: e.windings.map(w => ({ ...w, mrid: undefined })) } : {}),
       mrid: undefined,
+      function: undefined,
       ...(forCustomElement ? NO_BINDINGS : {}),
     })),
     connectors: connectors.map(c => ({
@@ -3146,6 +3152,224 @@ export function placeNameLabel(
     text: el.name,
   }
   return { ...diagram, lastId: ids.lastId, labels: [...diagram.labels, label] }
+}
+
+/** The full designation of function id in functions, e.g. "=E1=H03"; "" for an unknown id (slddoc
+ * FunctionDesignation). */
+export function functionDesignation(functions: readonly DiagramFunction[] | undefined, id: number | undefined): string {
+  const byId = new Map((functions ?? []).map(f => [f.id, f]))
+  const parts: string[] = []
+  const seen = new Set<number>()
+  for (let f = id ? byId.get(id) : undefined; f && !seen.has(f.id); f = f.parent ? byId.get(f.parent) : undefined) {
+    seen.add(f.id)
+    parts.unshift(`=${f.code}${String(f.number).padStart(Math.max(f.digits ?? 1, 1), '0')}`)
+  }
+  return parts.join('')
+}
+
+/** What a designation label shows of name: all of it, or (short) its product part after the first "-" (QA1). */
+export function designationText(name: string, format: DesignationFormat | undefined): string {
+  const i = name.indexOf('-')
+  return format === 'short' && i >= 0 ? name.slice(i + 1) : name
+}
+
+/** The diagram's designation layer, created on first use above every other layer: its id and the diagram. */
+export function ensureDesignationLayer(diagram: Diagram, name: string): { diagram: Diagram; layer: number } {
+  const current = diagram.editor?.designationLayer
+  if (current && diagram.layers.some(l => l.id === current)) return { diagram, layer: current }
+  const ids = new IdSequence(diagram)
+  const z = Math.max(0, ...diagram.layers.map(l => l.z ?? 0)) + 1
+  const layer: Layer = { id: ids.take(), name, z }
+  return {
+    diagram: {
+      ...diagram,
+      lastId: ids.lastId,
+      layers: [...diagram.layers, layer],
+      editor: { ...diagram.editor, designationLayer: layer.id },
+    },
+    layer: layer.id,
+  }
+}
+
+/** Drops the functions no element and no other function belongs to. */
+function pruneFunctions(diagram: Diagram): Diagram {
+  let functions = diagram.functions ?? []
+  for (;;) {
+    const used = new Set<number>()
+    for (const e of diagram.elements) if (e.function) used.add(e.function)
+    for (const f of functions) if (f.parent) used.add(f.parent)
+    const kept = functions.filter(f => used.has(f.id))
+    if (kept.length === functions.length) break
+    functions = kept
+  }
+  const ids = new Set(functions.map(f => f.id))
+  functions = functions.map(f => (f.pair && !ids.has(f.pair) ? { ...f, pair: undefined } : f))
+  return functions === diagram.functions ? diagram : { ...diagram, functions }
+}
+
+/** Applies a designation plan (POST /api/designations) to its accepted rows (element ids): their names and units,
+ * the functions they need (the plan's new ones, negative ids, get ids here), and their designation labels on the
+ * designation layer (created as layerName when missing). An element's existing label For it gets the new text, and
+ * moves to the designation layer when it showed the old name; one without a label gets one at labels' point for it.
+ * Every designation label then shows format. Functions left without elements are dropped. */
+export function applyDesignations(
+  diagram: Diagram,
+  plan: DesignationPlan,
+  accepted: ReadonlySet<number>,
+  labels: ReadonlyMap<number, Point>,
+  layerName: string,
+  format: DesignationFormat,
+): Diagram {
+  const rows = plan.rows.filter(r => accepted.has(r.element))
+  const planned = new Map(plan.functions.map(f => [f.id, f]))
+  const needed = new Set<number>()
+  for (const r of rows) {
+    for (let id: number | undefined = r.function; id && !needed.has(id); id = planned.get(id)?.parent) needed.add(id)
+  }
+  const ids = new IdSequence(diagram)
+  const remap = new Map<number, number>()
+  for (const f of plan.functions) if (f.id < 0 && needed.has(f.id)) remap.set(f.id, ids.take())
+  const fresh = (id: number | undefined) => (id === undefined ? undefined : id < 0 ? remap.get(id) : id)
+  const functions: DiagramFunction[] = plan.functions
+    .filter(f => f.id >= 0 || remap.has(f.id))
+    .map(f => ({ ...f, id: fresh(f.id)!, parent: fresh(f.parent), pair: fresh(f.pair) }))
+  const byElement = new Map(rows.map(r => [r.element, r]))
+  let d: Diagram = {
+    ...diagram,
+    lastId: ids.lastId,
+    functions,
+    elements: diagram.elements.map(e => {
+      const r = byElement.get(e.id)
+      return r ? { ...e, name: r.name, function: fresh(r.function) } : e
+    }),
+    editor: { ...diagram.editor, designationFormat: format },
+  }
+  const current = d.editor?.designationLayer
+  if (rows.length === 0 && !(current && d.layers.some(l => l.id === current))) return pruneFunctions(d)
+  const ensured = ensureDesignationLayer(d, layerName)
+  d = ensured.diagram
+  const layer = ensured.layer
+  const labelled = new Set<number>()
+  const elementById = new Map(d.elements.map(e => [e.id, e]))
+  let labelList = d.labels.map(l => {
+    if (l.for === undefined || labelled.has(l.for)) return l
+    const r = byElement.get(l.for)
+    const el = elementById.get(l.for)
+    if (r) {
+      labelled.add(l.for)
+      const plain = l.text === (r.oldName ?? '') || l.layer === layer
+      return { ...l, text: designationText(r.name, format), layer: plain ? layer : l.layer }
+    }
+    if (l.layer === layer && el?.function && el.name) {
+      const text = designationText(el.name, format)
+      return text === l.text ? l : { ...l, text }
+    }
+    return l
+  })
+  const seq = new IdSequence(d)
+  for (const r of rows) {
+    const at = labels.get(r.element)
+    if (labelled.has(r.element) || !at) continue
+    labelList = [
+      ...labelList,
+      {
+        id: seq.take(),
+        for: r.element,
+        layer,
+        x: at.x,
+        y: at.y,
+        size: NAME_LABEL_SIZE,
+        anchor: 'start',
+        font: 'Arial',
+        color: 'white',
+        text: designationText(r.name, format),
+      },
+    ]
+  }
+  return pruneFunctions({ ...d, lastId: seq.lastId, labels: labelList })
+}
+
+/** Moves element elementId to unit function (0: none); its name is left as it is. */
+export function setElementFunction(diagram: Diagram, elementId: number, functionId: number): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => (e.id === elementId ? { ...e, function: functionId || undefined } : e)),
+  }
+}
+
+/** Renames every element designated under one of from's prefixes to the same name under to's, with its labels
+ * showing the old name or its designation. */
+function renameDesignations(diagram: Diagram, renames: [string, string][]): Diagram {
+  if (renames.length === 0) return diagram
+  const format = diagram.editor?.designationFormat
+  const renamed = new Map<number, [string, string]>()
+  const elements = diagram.elements.map(e => {
+    const name = e.name ?? ''
+    for (const [from, to] of renames) {
+      if (from !== to && (name.startsWith(from + '-') || name.startsWith(from + '='))) {
+        const next = to + name.slice(from.length)
+        renamed.set(e.id, [name, next])
+        return { ...e, name: next }
+      }
+    }
+    return e
+  })
+  if (renamed.size === 0) return diagram
+  const labels = diagram.labels.map(l => {
+    const r = l.for !== undefined ? renamed.get(l.for) : undefined
+    if (!r) return l
+    if (l.text === r[0]) return { ...l, text: r[1] }
+    if (l.text === designationText(r[0], format)) return { ...l, text: designationText(r[1], format) }
+    return l
+  })
+  return { ...diagram, elements, labels }
+}
+
+/** Edits function id (kind, code, number, digits, guessed — a changed kind confirms it) and renames the elements
+ * designated under it. */
+export function updateFunction(diagram: Diagram, id: number, patch: Partial<DiagramFunction>): Diagram {
+  const before = diagram.functions ?? []
+  const functions = before.map(f =>
+    f.id === id ? { ...f, ...patch, ...(patch.kind && patch.kind !== f.kind ? { guessed: undefined } : {}) } : f,
+  )
+  const renames: [string, string][] = []
+  const children = (parent: number): number[] => functions.filter(f => f.parent === parent).map(f => f.id)
+  const walk = (fid: number) => {
+    renames.push([functionDesignation(before, fid), functionDesignation(functions, fid)])
+    children(fid).forEach(walk)
+  }
+  walk(id)
+  return renameDesignations({ ...diagram, functions }, renames)
+}
+
+/** Makes a new unit of kind (code, digits) for elementIds, in the voltage level of the first one's unit, numbered
+ * after the highest unit of that code there; returns the diagram and the new unit's id. */
+export function newFunctionFromElements(
+  diagram: Diagram,
+  elementIds: readonly number[],
+  kind: DiagramFunction['kind'],
+  code: string,
+  digits: number,
+): { diagram: Diagram; id: number } {
+  const functions = diagram.functions ?? []
+  const byId = new Map(functions.map(f => [f.id, f]))
+  const first = diagram.elements.find(e => e.id === elementIds[0])
+  let level = first?.function ? byId.get(first.function) : undefined
+  while (level && level.kind !== 'voltageLevel' && level.parent) level = byId.get(level.parent)
+  const parent = level?.kind === 'voltageLevel' ? level.id : undefined
+  const number = 1 + Math.max(0, ...functions.filter(f => f.parent === parent && f.code === code).map(f => f.number))
+  const ids = new IdSequence(diagram)
+  const fn: DiagramFunction = { id: ids.take(), parent, kind, code, number, digits: digits || undefined }
+  const set = new Set(elementIds)
+  return {
+    diagram: pruneFunctions({
+      ...diagram,
+      lastId: ids.lastId,
+      functions: [...functions, fn],
+      elements: diagram.elements.map(e => (set.has(e.id) ? { ...e, function: fn.id } : e)),
+    }),
+    id: fn.id,
+  }
 }
 
 /** Translates a label's own anchor by (dx, dy). */

@@ -10,6 +10,7 @@ import { DiagramFileSection } from './DiagramFileSection'
 import { PictureSection } from './PictureSection'
 import { ConnectionsSection } from './ConnectionsSection'
 import { MridRow } from './MridRow'
+import { FunctionSection } from './FunctionSection'
 import { ElectricalSection } from './ElectricalSection'
 import { BindingsSection, DiagramBindingsSection } from './BindingsSection'
 import { ImportedBindings } from './ImportedBindings'
@@ -1216,6 +1217,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
+        <FunctionSection el={el} />
         <MridRow key={el.mrid} mrid={el.mrid} />
         <BindingsSection
           provider={bindingProvider}

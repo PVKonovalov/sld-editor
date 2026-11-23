@@ -123,6 +123,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const unsavedResolverRef = useRef<((proceed: boolean) => void) | null>(null)
   // A CIM import's voltage classes no preset names, asked about by VoltageColorsDialog (see askVoltageColors).
   const [voltageColorsPrompt, setVoltageColorsPrompt] = useState<VoltageColorsPrompt | null>(null)
+  const [enumeratePrompt, setEnumeratePrompt] = useState<{ selection: number[] } | null>(null)
   const voltageColorsResolverRef = useRef<((colors: Map<string, string>) => void) | null>(null)
   // A CIM import with a diagram layout, asked about by CimLayoutDialog (see chooseCimLayout).
   const [cimLayoutPrompt, setCimLayoutPrompt] = useState<CimLayoutPrompt | null>(null)
@@ -1449,6 +1450,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       resolveUnsavedPrompt,
       voltageColorsPrompt,
       resolveVoltageColorsPrompt,
+      enumeratePrompt,
+      setEnumeratePrompt,
       cimLayoutPrompt,
       resolveCimLayoutPrompt,
       cimWindingsPrompt,
@@ -1566,6 +1569,8 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       resolveUnsavedPrompt,
       voltageColorsPrompt,
       resolveVoltageColorsPrompt,
+      enumeratePrompt,
+      setEnumeratePrompt,
       cimLayoutPrompt,
       resolveCimLayoutPrompt,
       cimWindingsPrompt,

@@ -68,6 +68,36 @@ export interface EditorSettings {
   // Also a wire jump where two buswork wires of the same voltage class cross
   // (absent = EditorDefaults.jumpSameVoltage).
   jumpSameVoltage?: boolean
+  // What designation labels show (absent = 'full'), and the layer they go on (absent/0 = not created yet).
+  designationFormat?: DesignationFormat
+  designationLayer?: number
+}
+
+export type DesignationFormat = 'full' | 'short'
+
+// Matches slddoc.FunctionKind.
+export type FunctionKind =
+  | 'voltageLevel'
+  | 'incomingFeeder'
+  | 'outgoingFeeder'
+  | 'generator'
+  | 'transformer'
+  | 'busCoupler'
+  | 'busbar'
+  | 'measuring'
+  | 'other'
+
+// Matches slddoc.Function: one voltage level or unit of the IEC 81346 functional hierarchy (XSLD_FORMAT §4.11).
+export interface DiagramFunction {
+  id: number
+  parent?: number
+  kind: FunctionKind
+  code: string
+  number: number
+  digits?: number
+  voltage?: number
+  pair?: number
+  guessed?: boolean
 }
 
 // Matches the shared slddoc module's Class (github.com/PVKonovalov/slddoc).
@@ -481,6 +511,8 @@ export interface DiagramElement {
   // The mRID of the CIM equipment it was imported from, which a CIM export keeps; unset for items drawn here or
   // copied (lib/diagramOps' placeCustomElement and extractSelection drop it).
   mrid?: string
+  // The functional unit (DiagramFunction.id) it belongs to; absent = none.
+  function?: number
   // Decimal places of a shown value, the provider's display features (comma-separated), and the SCADA bindings
   // (at most one per kind) — slddoc's Element.Precision/Features/Bindings.
   precision?: number
@@ -712,6 +744,7 @@ export interface Diagram {
   connectors: Connector[]
   labels: Label[]
   digitalDevices: DigitalDevice[]
+  functions?: DiagramFunction[]
   // Save history, oldest first. Appended by the server on every save
   // (backend storage.SaveRevision); the editor never changes it.
   history?: Revision[]
@@ -935,11 +968,42 @@ export interface EditorConfig {
   // Placement hot keys (config hot_keys, lower-cased): key → palette item
   // code. Absent from an older server, or when none are configured.
   hotKeys?: Record<string, string>
+  // Equipment shape code → IEC 81346-2 letter code (config letter_codes), and the hierarchy's letters (config
+  // designations). Absent from an older server.
+  letterCodes?: Record<string, string>
+  designations?: DesignationsConfig
   // The CIM classes a connector kind exported as equipment can stand for, default first (cim.classes "28").
   cimConnectorClasses?: Partial<Record<ConnectorKind, string[]>>
   // The SCADA binding provider ("" = bindings off, no binding UI) and whether it can export (backend config
   // bindings). Absent from an older server.
   bindings?: BindingsConfig
+}
+
+// Matches backend config.Designations; units are keyed by its unit kind names (incoming_feeder, ...).
+export interface DesignationsConfig {
+  voltageLevels: { maxKv: number; code: string }[]
+  fallbackVoltageCode: string
+  units: Record<string, { code: string; digits: number }>
+}
+
+// POST /api/designations: slddoc.DesignationPlan. Functions it creates have negative ids.
+export interface DesignationRow {
+  element: number
+  function: number
+  oldName?: string
+  name: string
+  bound?: boolean
+  mrid?: boolean
+  exported?: boolean
+  duplicate?: boolean
+  // Its unit reaches no busbar (in a diagram with busbars): likely a wire not joined.
+  isolated?: boolean
+}
+
+export interface DesignationPlan {
+  functions: DiagramFunction[]
+  rows: DesignationRow[]
+  unplaced: number[]
 }
 
 export interface BindingsConfig {
