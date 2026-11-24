@@ -1,11 +1,20 @@
 import * as diagramOps from './diagramOps'
-import type { DiagramElement, ElementSymbol } from '../types'
+import type { DiagramElement, ElementSymbol, Point } from '../types'
 
 export interface Box {
   x: number
   y: number
   width: number
   height: number
+}
+
+/** The bounding box of points (at least one). */
+export function pointsBox(points: Point[]): Box {
+  const xs = points.map(p => p.x)
+  const ys = points.map(p => p.y)
+  const x = Math.min(...xs)
+  const y = Math.min(...ys)
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y }
 }
 
 /** An element's drawn footprint in diagram coordinates, read from the
@@ -19,13 +28,7 @@ export function elementDiagramBox(el: DiagramElement, symbols: ElementSymbol[]):
     const r = diagramOps.circleRadius(el)
     return { x: el.x - r, y: el.y - r, width: r * 2, height: r * 2 }
   }
-  if (el.points && el.points.length > 0) {
-    const xs = el.points.map(p => p.x)
-    const ys = el.points.map(p => p.y)
-    const x = Math.min(...xs)
-    const y = Math.min(...ys)
-    return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y }
-  }
+  if (el.points && el.points.length > 0) return pointsBox(el.points)
   const node = document.querySelector(
     `.sld-rendered [data-editor-kind="element"][id="${el.id}"]`,
   ) as SVGGraphicsElement | null

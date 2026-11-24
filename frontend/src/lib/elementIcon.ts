@@ -19,6 +19,10 @@ const TEXT_RE = /\{text:([^}]*)\}/g
 // {terminal:top|bottom} picks a placed element's terminal side; the icon shows top.
 const TERMINAL_RE = /\{terminal:([^|}]*)\|([^}]*)\}/g
 
+// {terminalAxis:vertical|horizontal} draws a Two-terminal box's leads above and below it or left and right; the icon
+// shows vertical.
+const TERMINAL_AXIS_RE = /\{terminalAxis:([^|}]*)\|([^}]*)\}/g
+
 /** Whether a symbol's template offers a terminal side (Element.terminal). */
 export function templateHasTerminalSide(symbol: ElementSymbol | undefined): boolean {
   return !!symbol?.template && /\{terminal:[^|}]*\|[^}]*\}/.test(symbol.template)
@@ -247,6 +251,7 @@ export function elementIconMarkup(symbol: ElementSymbol): string {
     .replace(/\{fpiText\}/g, 'FPI')
     .replace(TEXT_RE, (_match, text: string) => text)
     .replace(TERMINAL_RE, (_match, top: string) => top)
+    .replace(TERMINAL_AXIS_RE, (_match, vertical: string) => vertical)
     .replace(/\{fpiColor\}/g, 'currentColor')
     .replace(/\{positionOffset\}/g, '0')
     .replace(/\{(fillAttr|stateAttr|positionAttr|fpiFillAttr|fpiStrokeAttr)\}/g, '')

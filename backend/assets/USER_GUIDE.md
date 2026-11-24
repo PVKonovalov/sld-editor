@@ -482,6 +482,10 @@ constraints, so it is not a full CGMES model (no SSH, TP or SV). Unsaved edits a
   The text inside a Static var compensator's box is its **Label text** in Properties, `SVC` when left empty.
   Its **Terminal orientation** in Properties is Top (the default: the box hangs below the terminal) or Bottom (the box
   stands above it, the text still upright); the terminal stays where it is, so its wire stays connected.
+- A **Two-terminal box** (Other equipment) is a generic box between two terminals. Its **Terminal position** in
+  Properties is Top and bottom (the default) or Left and right; the box itself never turns, and the wires on its
+  terminals follow them. The text inside is its **Label text** in Properties (empty by default). It stands for no
+  CIM equipment: the export joins its two terminals into one connectivity node, and it expects no binding.
 - Each overhead or cable line becomes an AC line segment in a line of its own name.
 - A **link to object** stands for the outside object it points to: an energy consumer by default, or an energy
   source when its **CIM class** in Properties says so. It is connected at its start only; the arrow end is the object
@@ -1085,8 +1089,8 @@ While the frame is being dragged, the items it would pick are highlighted. The f
 selection (click empty canvas first to start over). When more than one item is selected, a
 dashed box is drawn around the whole group, and Properties shows how many items are selected.
 
-When a single text label linked to a device (its **For** property) is selected, that device gets a thin dashed
-box too; when a single device is selected, every text label linked to it does.
+When a single text label linked to a device or a link to object (its **For** property) is selected, that item gets
+a thin dashed box too; when a single device or link to object is selected, every text label linked to it does.
 
 ### Grouping {#grouping}
 
@@ -1445,9 +1449,11 @@ Select a single item to edit it in the Properties panel:
   on grid points without moving the device are offered, so with a grid of 10 there is no 3. The body keeps its size.
   The current spacing is always listed, as its own entry when it matches none of them), and shape-specific fields
   (for example a transformer's windings or a lamp's colours).
-- **Wires**: name and voltage class.
+- **Wires**: name and voltage class. A **link to object** has the same caption icon beside its name as a device: it
+  adds a text label with the name, linked to the link and placed to the right of its route (or left, or above, as for
+  a device); deleting the link deletes the label.
 - **Text labels**: text, size, anchors, **Font style** (bold, italic and underline buttons, lit when on), colour, font,
-  and the element it belongs to.
+  and the element or link to object it belongs to.
   An `.xsde`/`.svg` import keeps a caption's bold, italic and underline.
 - **Lines** (decorative line, type 1): colour, width, line style and Modus **Composite styles**. **Add style…** gives a
   line a style, **×** removes one. The styles listed in the configuration's [`line_halos`](#configuration-line-halos) are drawn as a coloured halo

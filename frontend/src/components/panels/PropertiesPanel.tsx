@@ -22,7 +22,7 @@ import {
   WINDING_FIELDS,
   type ElectricalField,
 } from '../../lib/electrical'
-import { elementDiagramBox } from '../../lib/elementBox'
+import { elementDiagramBox, pointsBox, type Box } from '../../lib/elementBox'
 import { templateHasTerminalSide, templateTextDefault } from '../../lib/elementIcon'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
@@ -444,6 +444,22 @@ function LayerSelect({
   )
 }
 
+/** The "Add name label" button beside a Name field: disabled while name is empty or a label For the item exists. */
+function NameLabelButton({ name, hasLabel, onClick }: { name?: string; hasLabel: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      title={t(hasLabel ? 'properties.hasNameLabel' : 'properties.addNameLabel')}
+      aria-label={t('properties.addNameLabel')}
+      disabled={!name || hasLabel}
+      onClick={onClick}
+      className="text-gray-400 hover:text-white disabled:text-gray-600 disabled:hover:text-gray-600"
+    >
+      <Captions size={14} />
+    </button>
+  )
+}
+
 function DeleteButton({ label, onDelete }: { label: string; onDelete: () => void }) {
   return (
     <button
@@ -480,6 +496,17 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const digitalDevice = diagram?.digitalDevices.find(dd => dd.id === selectedDigitalDeviceId) ?? null
   const voltageOptions = diagram ? diagramOps.voltageClassOptions(diagram, config) : []
   const bindingProvider = config?.bindings?.provider ?? ''
+
+  // "Add name label": a label with name, For item id, beside its box where it fits inside the diagram
+  // (diagramOps.nameLabelPlacement); its width is estimated at 0.6 of the font size per character.
+  function addNameLabel(id: number, name: string, box: Box) {
+    if (!diagram) return
+    const grid = diagram.editor?.gridSpacing ?? config?.editor.gridSpacing ?? 10
+    const snap = diagram.editor?.snap ?? config?.editor.snap ?? true
+    const textWidth = name.length * diagramOps.NAME_LABEL_SIZE * 0.6
+    const { point, anchor } = diagramOps.nameLabelPlacement(box, textWidth, diagram.width, grid, snap)
+    updateDiagram(d => diagramOps.placeNameLabel(d, id, point, anchor))
+  }
 
   function moveItemToLayer(id: number, kind: string, layer: number) {
     updateDiagram(d => diagramOps.setItemsLayer(d, new Map([[id, kind]]), layer))
@@ -627,9 +654,21 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           <p className="text-xs text-gray-400">
             {typeCodeLabel(t(CONNECTOR_KIND_LABELS[connector.kind]), CONNECTOR_KIND_CODES[connector.kind])}
           </p>
-          <label className="block text-xs">
-            <span className="block text-gray-400 mb-1">{t('properties.name')}</span>
+          <div className="text-xs">
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="connector-name" className="text-gray-400">
+                {t('properties.name')}
+              </label>
+              {connector.kind === 'LinkToObject' && (
+                <NameLabelButton
+                  name={connector.name}
+                  hasLabel={diagram.labels.some(l => l.for === connector.id)}
+                  onClick={() => addNameLabel(connector.id, connector.name ?? '', pointsBox(connector.points))}
+                />
+              )}
+            </div>
             <input
+              id="connector-name"
               className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
               value={connector.name ?? ''}
               onChange={e =>
@@ -639,7 +678,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 }))
               }
             />
-          </label>
+          </div>
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.voltageClass')}</span>
             <select
@@ -883,6 +922,13 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   {e.name ?? e.class}
                 </option>
               ))}
+              {diagram.connectors
+                .filter(c => c.kind === 'LinkToObject')
+                .map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name || t(CONNECTOR_KIND_LABELS[c.kind])}
+                  </option>
+                ))}
             </select>
           </label>
           <LayerSelect layers={diagram.layers} value={label.layer} onChange={layer => moveItemToLayer(label.id, 'label', layer)} />
@@ -1123,20 +1169,6 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
 
   // A label already For this element: "Add name label" is then disabled.
   const hasNameLabel = diagram.labels.some(l => l.for === el.id)
-  // "Add name label": a label with the element's name, For it, beside it where it fits inside the diagram
-  // (diagramOps.nameLabelPlacement); its width is estimated at 0.6 of the font size per character.
-  function addNameLabel() {
-    const grid = diagram!.editor?.gridSpacing ?? config?.editor.gridSpacing ?? 10
-    const textWidth = (el.name ?? '').length * diagramOps.NAME_LABEL_SIZE * 0.6
-    const { point, anchor } = diagramOps.nameLabelPlacement(
-      elementDiagramBox(el, elements),
-      textWidth,
-      diagram!.width,
-      grid,
-      snapEnabled,
-    )
-    updateDiagram(d => diagramOps.placeNameLabel(d, el.id, point, anchor))
-  }
 
   // The default label of a symbol with an editable {text:default}, undefined otherwise.
   const elSymbol = elements.find(s => s.shape === el.shape)
@@ -1167,16 +1199,11 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             <label htmlFor="element-name" className="text-gray-400">
               {t('properties.name')}
             </label>
-            <button
-              type="button"
-              title={t(hasNameLabel ? 'properties.hasNameLabel' : 'properties.addNameLabel')}
-              aria-label={t('properties.addNameLabel')}
-              disabled={!el.name || hasNameLabel}
-              onClick={addNameLabel}
-              className="text-gray-400 hover:text-white disabled:text-gray-600 disabled:hover:text-gray-600"
-            >
-              <Captions size={14} />
-            </button>
+            <NameLabelButton
+              name={el.name}
+              hasLabel={hasNameLabel}
+              onClick={() => addNameLabel(el.id, el.name ?? '', elementDiagramBox(el, elements))}
+            />
           </div>
           <input
             id="element-name"
@@ -2783,6 +2810,20 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             >
               <option value="top">{t('properties.transformerTerminalTop')}</option>
               <option value="bottom">{t('properties.transformerTerminalBottom')}</option>
+            </select>
+          </label>
+        )}
+
+        {el.class === 'TwoTerminalBox' && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.terminalPosition')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={diagramOps.hasSideTerminals(el) ? 'left' : 'top'}
+              onChange={e => patch({ terminal: e.target.value === 'left' ? 'left' : undefined })}
+            >
+              <option value="top">{t('properties.terminalPositionTopBottom')}</option>
+              <option value="left">{t('properties.terminalPositionLeftRight')}</option>
             </select>
           </label>
         )}

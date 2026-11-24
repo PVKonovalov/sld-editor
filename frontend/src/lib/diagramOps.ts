@@ -1530,7 +1530,7 @@ export function selectionCentroid(
  * it becomes the target's default layer (defaultLayer); with toActiveLayer
  * (a custom element from the palette, whose layers mean nothing here) every
  * item goes on the default layer. Label.for is remapped to the copied
- * element. Each template group becomes a fresh group of its copies (a
+ * element or link to object. Each template group becomes a fresh group of its copies (a
  * one-member group is dropped). Also what Paste uses, with the copied
  * selection (extractSelection) as the template. dropBindings (a custom element from the palette) clears the
  * SCADA bindings, precision and features of every element and digital device. */
@@ -1615,8 +1615,10 @@ export function placeCustomElement(
     }
   })
 
+  const connectorIds = new Map<number, number>()
   const newConnectors: Connector[] = template.connectors.map(c => {
     const id = ids.take()
+    connectorIds.set(c.id, id)
     const points = c.points.map(shift)
     const start = points[0] ?? shift(ref)
     const end = points[points.length - 1] ?? start
@@ -1643,7 +1645,7 @@ export function placeCustomElement(
     layer: mapLayer(l.layer),
     group: mapGroup(l.group),
     ...shift(l),
-    for: l.for ? elementIds.get(l.for) : undefined,
+    for: l.for ? (elementIds.get(l.for) ?? connectorIds.get(l.for)) : undefined,
     ...(dropBindings ? NO_BINDINGS : {}),
   }))
 
@@ -1685,8 +1687,8 @@ const SYMBOL_EXTENT = 12
  * is copied (an unselected wire touching a selected element is left out;
  * that element keeps its Port and Node, just with nothing attached), plus
  * exactly the Nodes, voltage classes and layers those reference, the base
- * layer always included. Label.for is kept only when its element is
- * selected too. Ids stay as they are — placeCustomElement gives every
+ * layer always included. Label.for is kept only when its element or link
+ * to object is selected too. Ids stay as they are — placeCustomElement gives every
  * entry a fresh one anyway. Everything is shifted by a whole number of grid
  * steps so the contents start one step in from the top-left, and the page
  * is cropped to fit; editor settings are copied from the source. Returns
@@ -1742,7 +1744,7 @@ export function extractSelection(
     ...labels.map(l => l.layer),
     ...digitalDevices.map(dd => dd.layer),
   ])
-  const elementIds = new Set(elements.map(e => e.id))
+  const elementIds = new Set([...elements.map(e => e.id), ...connectors.map(c => c.id)])
 
   return {
     width,
@@ -2370,6 +2372,12 @@ export function connectedNodeIds(diagram: Diagram): Set<number> {
   return connected
 }
 
+/** Whether el is a Two-terminal box with its terminals left and right (slddoc's SideTerminals): its library
+ * terminals (above and below) are then taken with x and y swapped. */
+export function hasSideTerminals(el: DiagramElement): boolean {
+  return el.class === 'TwoTerminalBox' && (el.terminal === 'left' || el.terminal === 'right')
+}
+
 export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): Point[] | null {
   if (el.class === 'PowerTransformer') {
     return transformerLocalTerminals(el).map(t => placeLocalPoint(el, t))
@@ -2382,9 +2390,11 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
   const scale = el.class === 'Fork' && el.radius ? el.radius / FORK_ARM_LENGTH : 1
   const step = symbol.scalable ? (el.scale ?? 0) : 0
   const half = symbol.leads && el.span ? el.span / 2 : 0
-  return symbol.terminals.map(t => {
-    const x = scaledLength(t.x * scale, step)
-    let y = scaledLength(t.y * scale, step)
+  const side = hasSideTerminals(el)
+  return symbol.terminals.map(({ x: tx, y: ty }) => {
+    if (side) [tx, ty] = [ty, tx]
+    const x = scaledLength(tx * scale, step)
+    let y = scaledLength(ty * scale, step)
     // A lead shape's leads reach ±span/2 (slddoc's LeadTerminal).
     if (half > Math.abs(y) && y !== 0) y = Math.sign(y) * half
     return placeLocalPoint(el, { x, y })
@@ -3101,12 +3111,11 @@ export function placeLabel(diagram: Diagram, point: Point, forId?: number): Diag
   return { ...diagram, lastId: ids.lastId, labels: [...diagram.labels, label] }
 }
 
-/** Adds a text label (shape 5) showing element elementId's name, For that
- * element, at point: size 10, start-anchored, bottom-aligned (the default),
- * Arial, white, on the element's own layer — the Properties panel's "Add
- * name label" button, which places it to the element's right. Returns
- * diagram itself when the element has no name or already has a label For
- * it. */
+/** Adds a text label (shape 5) showing the name of element or link to object
+ * targetId, For it, at point: size 10, start-anchored, bottom-aligned (the
+ * default), Arial, white, on its own layer — the Properties panel's "Add
+ * name label" button, which places it to its right. Returns diagram itself
+ * when it has no name or already has a label For it. */
 export const NAME_LABEL_SIZE = 10
 
 /** The point and alignment of a new name label of element box (see placeNameLabel): one grid step to its right,
@@ -3132,26 +3141,31 @@ export function nameLabelPlacement(
 
 export function placeNameLabel(
   diagram: Diagram,
-  elementId: number,
+  targetId: number,
   point: Point,
   anchor: 'start' | 'end' = 'start',
 ): Diagram {
-  const el = diagram.elements.find(e => e.id === elementId)
-  if (!el?.name || diagram.labels.some(l => l.for === elementId)) return diagram
+  const target = labelTarget(diagram, targetId)
+  if (!target?.name || diagram.labels.some(l => l.for === targetId)) return diagram
   const ids = new IdSequence(diagram)
   const label: Label = {
     id: ids.take(),
-    for: el.id,
-    layer: el.layer,
+    for: target.id,
+    layer: target.layer,
     x: point.x,
     y: point.y,
     size: NAME_LABEL_SIZE,
     anchor,
     font: 'Arial',
     color: 'white',
-    text: el.name,
+    text: target.name,
   }
   return { ...diagram, lastId: ids.lastId, labels: [...diagram.labels, label] }
+}
+
+/** The item a label's For may name: an element or a link to object; undefined for any other id. */
+export function labelTarget(diagram: Diagram, id: number): DiagramElement | Connector | undefined {
+  return diagram.elements.find(e => e.id === id) ?? diagram.connectors.find(c => c.id === id && c.kind === 'LinkToObject')
 }
 
 /** The full designation of function id in functions, e.g. "=E1=H03"; "" for an unknown id (slddoc
@@ -3452,7 +3466,8 @@ export function removeDigitalDevice(diagram: Diagram, id: number): Diagram {
  * that got deleted. deleteConnectorSegment deliberately doesn't go through
  * this — it reuses this same connector's own from/to for whichever side
  * keeps the original endpoint, so pruning them here first would leave that
- * side pointing at a node that no longer exists. */
+ * side pointing at a node that no longer exists. A label For it (a link to
+ * object's name label) goes too. */
 export function removeConnector(diagram: Diagram, id: number): Diagram {
   const removed = diagram.connectors.find(c => c.id === id)
   if (!removed) return diagram
@@ -3476,6 +3491,7 @@ export function removeConnector(diagram: Diagram, id: number): Diagram {
     ...diagram,
     connectors: remainingConnectors,
     nodes: diagram.nodes.filter(n => !orphaned(n.id)),
+    labels: diagram.labels.filter(l => l.for !== id),
   })
 }
 
@@ -5547,12 +5563,15 @@ const POINTS_DRAWN_CLASSES = new Set([
   'BusBarSection', 'Rectangle', 'SmallWindow', 'Picture', 'Arrow', 'Button', 'WindowIcon',
   'AutomationDevice', 'DisplayPanel', 'Road', 'Line', 'Polygon', 'Container', 'Arc', 'Table',
 ])
-// Look and connect the same at every orientation, or (Table2) have none.
-const NO_ORIENT_CLASSES = new Set(['Lamp', 'PostPole', 'LampOnPole', 'ConnectorArrow', 'ConnectorPoint', 'Table2'])
+// Look and connect the same at every orientation, or (Table2, TwoTerminalBox) have none.
+const NO_ORIENT_CLASSES = new Set([
+  'Lamp', 'PostPole', 'LampOnPole', 'ConnectorArrow', 'ConnectorPoint', 'Table2', 'TwoTerminalBox',
+])
 // Have no mirrored layout in xsde2svg.
 const NO_MIRROR_CLASSES = new Set([
   'PowerflowIndicator', 'Fork', 'Booster', 'Resistor', 'SynchronousCompensator', 'SynchronousMotor',
   'KnifeSwitch3', 'KnifeSwitch', 'BlockingFilter', 'PowerPole', 'Load', 'NetworkInfeed', 'StaticVarCompensator',
+  'TwoTerminalBox',
 ])
 // A Power plant's (38) hydro kind (NType), the only one with a mirrored layout.
 export const POWER_PLANT_HYDRO = 1

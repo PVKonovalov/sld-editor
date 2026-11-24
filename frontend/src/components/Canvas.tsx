@@ -5,6 +5,7 @@ import { useDiagramContext, type SelectionKind } from '../state/useDiagramContex
 import { usePaletteToggle } from '../state/usePaletteToggle'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
+import { pointsBox } from '../lib/elementBox'
 import { unboundIds, type GapKind } from '../lib/bindingOverview'
 import { arcBounds, arcMidpoint, arcPathD, circularArcThrough, defaultArcBulge, type ArcParams } from '../lib/arc'
 import { clientToDiagramPoint, nearestSegmentOnPolyline, snapPointOnSegment, snapValue } from '../lib/geometry'
@@ -167,14 +168,6 @@ function hasMoveModifier(e: { ctrlKey: boolean; metaKey: boolean }): boolean {
 const PASTE_OFFSET_STEPS = 2
 
 type Box = { x: number; y: number; width: number; height: number }
-
-function pointsBox(points: Point[]): Box {
-  const xs = points.map(p => p.x)
-  const ys = points.map(p => p.y)
-  const x = Math.min(...xs)
-  const y = Math.min(...ys)
-  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y }
-}
 
 function pointInBox(p: Point, b: Box): boolean {
   return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height
@@ -985,16 +978,17 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     )
   }
 
-  // Dashed boxes around the items linked to the one selected item: a label's "For" element, or an element's labels.
+  // Dashed boxes around the items linked to the one selected item: a label's "For" element or link to object, or
+  // their labels.
   function linkedMarks() {
     if (!diagram || ghost || labelDrag || selection.size !== 1) return null
     const [[id, kind]] = selection
     let linked: { id: number; kind: SelectionKind }[] = []
     if (kind === 'label') {
       const forId = diagram.labels.find(l => l.id === id)?.for
-      const el = forId ? diagram.elements.find(e => e.id === forId) : undefined
-      if (el && !isHidden(el)) linked = [{ id: el.id, kind: 'element' }]
-    } else if (kind === 'element') {
+      const target = forId ? diagramOps.labelTarget(diagram, forId) : undefined
+      if (target && !isHidden(target)) linked = [{ id: target.id, kind: 'class' in target ? 'element' : 'connector' }]
+    } else if (kind === 'element' || kind === 'connector') {
       linked = diagram.labels.filter(l => l.for === id && !isHidden(l)).map(l => ({ id: l.id, kind: 'label' }))
     }
     return linked.map(item => {

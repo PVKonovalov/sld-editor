@@ -242,6 +242,7 @@ Notes:
 
 ## Elements
 - [x] A Rectangle With Rounded Corners
+- [x] Two-poles element with shape likes "Static var compensator:330003" but two connectors located at the top and bottom or left/right
 
 # Errors
 - [x] Circle is invisible

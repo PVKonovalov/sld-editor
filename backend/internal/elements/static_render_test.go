@@ -41,6 +41,7 @@ var extractRoundTripGaps = map[string]string{
 	"320003": "fault passage indicator: no orientation",
 	"312":    "table: anchor not read",
 	"313":    "table 2: not extracted",
+	"330004": "two-terminal box: no orientation (terminal position instead)",
 }
 
 // TestStaticRender_AllShapesAbsolute renders every bundled symbol, rotated

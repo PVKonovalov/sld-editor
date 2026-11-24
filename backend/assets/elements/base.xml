@@ -1494,4 +1494,18 @@
 <text x="0" y="{terminal:14|-14}" style="fill:{color};font-size:9px;font-family:Arial;text-anchor:middle;dominant-baseline:middle" >{text:SVC}</text>
 ]]></template>
   </symbol>
+
+  <!-- Two-terminal box: a generic in-line box, never turned, with its label (empty by default); its terminals are above
+       and below it or (terminal left/right) left and right of it, the declared ones then taken with x and y swapped. -->
+  <symbol shape="330004" class="TwoTerminalBox" name="Two-terminal box">
+    <terminals>
+      <terminal x="0" y="-20"/>
+      <terminal x="0" y="20"/>
+    </terminals>
+    <template><![CDATA[
+<path d="{terminalAxis:M 0 -20 v 12 M 0 8 v 12|M -20 0 h 6 M 14 0 h 6}" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M -14 -8 h 28 v 16 h -28 z" style="fill:none;stroke:{color};stroke-width:2" />
+<text x="0" y="0" style="fill:{color};font-size:9px;font-family:Arial;text-anchor:middle;dominant-baseline:middle" >{text:}</text>
+]]></template>
+  </symbol>
 </symbols>

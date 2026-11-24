@@ -24,6 +24,7 @@ const UNBOUND_CLASSES = new Set<string>([
   'NonIntersection',
   'CableConnector',
   'CableJoint',
+  'TwoTerminalBox',
   'Ground',
   'Chassis',
   'HalfChassis',

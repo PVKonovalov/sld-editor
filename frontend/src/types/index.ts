@@ -172,6 +172,7 @@ export type ElementClass =
   | 'Load'
   | 'NetworkInfeed'
   | 'StaticVarCompensator'
+  | 'TwoTerminalBox'
 
 // Matches slddoc.WindingScheme — a PowerTransformer winding's own
 // connection scheme. Only the three values with a real connection glyph in
