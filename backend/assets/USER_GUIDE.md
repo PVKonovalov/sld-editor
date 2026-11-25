@@ -1423,8 +1423,9 @@ nothing else needs to be installed or started.
   hold tens of thousands of objects; it scrolls smoothly.
 - **Search**: select a section (or anything inside it), type at least 2 characters of a name and press Enter. The
   search covers the section's catalog and all its objects, ignoring case; it shows up to 100 matches, half from the
-  catalog and half from the objects when both have many, and says when there are more. Click a match to show it in
-  the tree and list; **×** goes back to the tree.
+  catalog and half from the objects when both have many, and says when there are more. Each match shows its type, as
+  the tree and the list do (*catalog* or *object* when it has none). Click a match to show it in the tree and list;
+  **×** goes back to the tree.
 - **Reload** (the circular arrow) reads everything again from the database, for example after objects were added
   in the SCADA system. Expanded sections stay expanded.
 - **Errors**: when the database can't be reached, the panel shows the message where the data should be, with a

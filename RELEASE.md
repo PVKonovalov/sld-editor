@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-25: Objects panel search: each match shows its real type, as the tree and list do (a catalog node's type name, a list object's type alias), instead of the hit kind "catalog"/"object", which remains only for untyped matches. The RSDU search joins the types tables (LEFT JOIN, only when the table has ID_TYPE); `binding.Hit` gains `typeName`. Dragging a list match carries its type. User guides updated.
+
 2026-11-25: Bindings overview tree: a voltage level's row also shows its voltage class name (e.g. "=E1 Voltage level, 110 kV"). User guides updated.
 
 2026-11-25: Bindings overview tree: the hierarchy is now worked out from the topology, as Enumerate elements does (POST /api/designations, only-missing mode), so diagrams named by hand get a tree too; units not applied yet are shown in italics as proposed. slddoc's designation plan gains `levels` (elements in no unit, such as busbars without a letter code, and their voltage level), so they sit under their voltage level. One request at a time, repeated once after an edit made meanwhile; table view sends none. User guides updated.

@@ -1174,6 +1174,8 @@ export interface BindingHit {
   name: string
   kind: 'catalog' | 'list'
   node: string
+  // The type's name (a catalog node's type, a list object's type alias); absent when it has none.
+  typeName?: string
 }
 
 // Matches binding.SearchResult.

@@ -128,10 +128,11 @@ const (
 // Hit is one search match: a catalog node or a list object. Node is the catalog node to reveal: the node itself, or
 // the one the object is listed under.
 type Hit struct {
-	Ref  string `json:"ref"`
-	Name string `json:"name"`
-	Kind string `json:"kind"`
-	Node string `json:"node"`
+	Ref      string `json:"ref"`
+	Name     string `json:"name"`
+	Kind     string `json:"kind"`
+	Node     string `json:"node"`
+	TypeName string `json:"typeName,omitempty"`
 }
 
 // SearchResult holds at most the asked number of hits; Truncated tells that more matched.
