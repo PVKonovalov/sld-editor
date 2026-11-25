@@ -23,7 +23,7 @@ interface Props {
   onHelp: () => void
   // Opens the About dialog (program icon, name, version).
   onAbout: () => void
-  // Shows the Objects item and the bindings overview toggle: bindings are on.
+  // Shows the Objects item: bindings are on.
   showObjects: boolean
   overviewOpen: boolean
   onOverviewToggle: () => void
@@ -50,20 +50,18 @@ export function Sidebar({ activeLeftPanel, propertiesOpen, onPanelToggle, onHelp
           </button>
         )
       })}
-      {showObjects && (
-        <button
-          type="button"
-          title={t('sidebar.overview')}
-          aria-label={t('sidebar.overview')}
-          aria-pressed={overviewOpen}
-          onClick={onOverviewToggle}
-          className={`flex items-center justify-center w-9 h-9 rounded transition-colors ${
-            overviewOpen ? 'bg-accent text-white' : 'text-gray-300 hover:bg-surface-600 hover:text-white'
-          }`}
-        >
-          <TableProperties size={18} />
-        </button>
-      )}
+      <button
+        type="button"
+        title={t('sidebar.overview')}
+        aria-label={t('sidebar.overview')}
+        aria-pressed={overviewOpen}
+        onClick={onOverviewToggle}
+        className={`flex items-center justify-center w-9 h-9 rounded transition-colors ${
+          overviewOpen ? 'bg-accent text-white' : 'text-gray-300 hover:bg-surface-600 hover:text-white'
+        }`}
+      >
+        <TableProperties size={18} />
+      </button>
       <button
         type="button"
         title={t('sidebar.help')}

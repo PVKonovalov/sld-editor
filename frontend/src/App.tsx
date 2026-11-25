@@ -194,7 +194,7 @@ function Shell() {
           onHelp={() => guideApi.openGuide()}
           onAbout={() => setAboutOpen(true)}
           showObjects={!!bindingProvider}
-          overviewOpen={overviewOpen && !!bindingProvider}
+          overviewOpen={overviewOpen}
           onOverviewToggle={() => setOverviewOpen(open => !open)}
         />
         {activeLeftPanel === 'file' && <FilePanel onClose={() => setActiveLeftPanel(null)} />}
@@ -207,8 +207,9 @@ function Shell() {
         {activeLeftPanel === 'settings' && <SettingsPanel onClose={() => setActiveLeftPanel(null)} />}
         <div className="flex-1 min-w-0 flex flex-col">
           <Canvas unboundGap={bindingProvider && highlightUnbound ? gap : null} />
-          {bindingProvider && overviewOpen && (
+          {overviewOpen && (
             <BindingsOverview
+              bindingsOn={!!bindingProvider}
               gap={gap}
               onGap={setGap}
               highlight={highlightUnbound}

@@ -12,7 +12,7 @@ New to the editor? Start with [How to: draw a diagram step by step](#how-to). Wo
 
 - **Left rail**: buttons for the **File**, **Elements**, **Objects** (only when [bindings](#configuration-bindings)
   are on) and **Settings** panels (they share the left side; one is open at a time), the **Properties** toggle, the
-  [Bindings overview](#bindings-overview) toggle (only when bindings are on), and **Help** (this guide) and **About**
+  [Bindings overview](#bindings-overview) toggle, and **Help** (this guide) and **About**
   at the bottom.
 - **Canvas**: the diagram itself, with zoom buttons in the bottom-right corner.
 - **Properties** panel: docked on the right. It can stay open together with the Elements panel.
@@ -1604,6 +1604,24 @@ and, per binding kind, the name of the bound object (`—` when there is none). 
 (lines, rectangles, circles, arcs, polygons, arrows, containers, pictures, roads, junction and connection points,
 forks, wire jumps, cable connectors and joints, ground terminals, chassis) are not expected to be bound. They are
 listed only when they carry a binding anyway, and so are text labels and wires.
+
+The overview is there also when [bindings](#configuration-bindings) are off: it then lists the items with their id,
+name and type only, without the binding columns and without the controls about gaps and removing bindings.
+
+The two buttons beside the counts switch between two views:
+
+- **Table**: one row per item.
+- **Tree by designation hierarchy**: the items grouped by the hierarchy that
+  [Enumerate elements](#designations) works out from the connections (voltage level, then unit), whatever the
+  elements are named. Each group shows its own part of the designation (`=E1`, `=Q01`), its kind (a voltage level
+  also its voltage, e.g. *Voltage level, 110 kV*) and how many items it holds. Units already applied keep their
+  numbers; the ones not applied yet are shown in italics, marked *proposed*.
+  Items that belong to no unit, such as busbars without a letter code, sit directly under their voltage level; the
+  rest (digital devices, items connected to nothing) are in the last group, **Not designated**. The tree follows every
+  edit and changes nothing in the diagram. The arrow of a group expands or collapses it; the buttons beside the view switch expand or collapse
+  them all. Click a group to select every item in it, Ctrl-click (Cmd on macOS) to add them to the selection. Filter,
+  sorting and **Unbound only** work within each group; a group with nothing left is hidden. The editor remembers the
+  view.
 
 - **Unbound** chooses what counts as a gap: *no binding at all*, or no binding of one kind (for example no
   **Parameters**). The header counts the listed items and the gaps.

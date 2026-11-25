@@ -61,5 +61,8 @@ func (s *Server) planDesignations(c *gin.Context) {
 	if plan.Unplaced == nil {
 		plan.Unplaced = []int{}
 	}
+	if plan.Levels == nil {
+		plan.Levels = []slddoc.LevelMember{}
+	}
 	c.JSON(http.StatusOK, plan)
 }

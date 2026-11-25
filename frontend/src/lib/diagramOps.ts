@@ -3176,9 +3176,14 @@ export function functionDesignation(functions: readonly DiagramFunction[] | unde
   const seen = new Set<number>()
   for (let f = id ? byId.get(id) : undefined; f && !seen.has(f.id); f = f.parent ? byId.get(f.parent) : undefined) {
     seen.add(f.id)
-    parts.unshift(`=${f.code}${String(f.number).padStart(Math.max(f.digits ?? 1, 1), '0')}`)
+    parts.unshift(functionSegment(f))
   }
   return parts.join('')
+}
+
+/** The own segment of function f's designation: "=" + code + zero-padded number (=E1). */
+export function functionSegment(f: DiagramFunction): string {
+  return `=${f.code}${String(f.number).padStart(Math.max(f.digits ?? 1, 1), '0')}`
 }
 
 /** What a designation label shows of name: all of it, or (short) its product part after the first "-" (QA1). */

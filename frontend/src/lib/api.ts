@@ -188,7 +188,7 @@ export async function planDesignations(
 ): Promise<DesignationPlan> {
   const res = await fetch(`${BASE}/designations`, await jsonBody('POST', { diagram, scope, renumber, format }))
   const plan = await asJSON<DesignationPlan>(res)
-  return { functions: plan.functions ?? [], rows: plan.rows ?? [], unplaced: plan.unplaced ?? [] }
+  return { functions: plan.functions ?? [], rows: plan.rows ?? [], unplaced: plan.unplaced ?? [], levels: plan.levels ?? [] }
 }
 
 /** Repairs a diagram's topology on the server (POST /api/repair: fixed ports, busbar ports, wire splits, ids,

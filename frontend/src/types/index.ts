@@ -1005,6 +1005,8 @@ export interface DesignationPlan {
   functions: DiagramFunction[]
   rows: DesignationRow[]
   unplaced: number[]
+  // Elements in no unit (busbars, shapes without a letter code) and the voltage level function they lie in.
+  levels: { element: number; function: number }[]
 }
 
 export interface BindingsConfig {

@@ -1,19 +1,38 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
   type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from "react";
-import { ArrowDown, ArrowUp, Download, Search, X } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  Download,
+  ListTree,
+  Search,
+  Table,
+  X,
+} from "lucide-react";
 import { t, type TranslationKey } from "../i18n";
+import * as api from "../lib/api";
 import * as diagramOps from "../lib/diagramOps";
 import {
   BINDING_KINDS,
   isUnbound,
+  nodeKeys,
+  nodeRows,
   overviewCsv,
   overviewRows,
+  overviewTree,
   overviewTypeNames,
   type GapKind,
+  type OverviewNode,
   type OverviewRow,
 } from "../lib/bindingOverview";
 import { useBindingDictionaries } from "../lib/bindingDictionaries";
@@ -24,16 +43,27 @@ import {
 } from "../state/useDiagramContext";
 import { BindingImportView } from "./BindingImportView";
 import { GuideButton } from "./GuideButton";
-import type { BindingKind } from "../types";
+import type { BindingKind, DesignationPlan, Diagram } from "../types";
 
 const MIN_HEIGHT = 120;
 const DEFAULT_HEIGHT = 240;
 const HEIGHT_KEY = "sld-editor.overviewHeight";
+const VIEW_KEY = "sld-editor.overviewView";
+const INDENT = 14;
 const IS_MAC =
   typeof navigator !== "undefined" &&
   /Mac|iPhone|iPad/.test(navigator.platform);
 
 type SortKey = "id" | "name" | "type" | BindingKind;
+type View = "table" | "tree";
+
+function storedView(): View {
+  try {
+    return localStorage.getItem(VIEW_KEY) === "tree" ? "tree" : "table";
+  } catch {
+    return "table";
+  }
+}
 
 function storedHeight(): number {
   try {
@@ -42,6 +72,51 @@ function storedHeight(): number {
   } catch {
     return DEFAULT_HEIGHT;
   }
+}
+
+/** The designation plan of diagram (the hierarchy worked out from its topology) while enabled: one request at a
+ * time, never cancelled; a diagram edited meanwhile is planned once the request ends. */
+function useDesignationPlan(
+  diagram: Diagram | null,
+  enabled: boolean,
+): { plan: DesignationPlan | null; error: string | null } {
+  const [plan, setPlan] = useState<DesignationPlan | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const latest = useRef({ diagram, enabled });
+  const busy = useRef(false);
+
+  useEffect(() => {
+    latest.current = { diagram, enabled };
+    if (busy.current) return;
+    const run = () => {
+      const { diagram: d, enabled: on } = latest.current;
+      if (!d || !on) return;
+      busy.current = true;
+      api
+        .planDesignations(d, [], false, d.editor?.designationFormat ?? "full")
+        .then(
+          (p) => {
+            setPlan(p);
+            setError(null);
+          },
+          (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+        )
+        .finally(() => {
+          busy.current = false;
+          if (latest.current.diagram !== d) run();
+        });
+    };
+    run();
+  }, [diagram, enabled]);
+
+  useEffect(
+    () => () => {
+      latest.current = { diagram: null, enabled: false };
+    },
+    [],
+  );
+
+  return { plan, error };
 }
 
 function cellText(r: OverviewRow, key: SortKey): string {
@@ -53,16 +128,19 @@ function cellText(r: OverviewRow, key: SortKey): string {
 }
 
 /** The bindings overview docked under the canvas: every element expected to be bound and every digital device, with
- * the bound object's name per kind. Sorting, a text filter and an "unbound only" filter by gap; a click selects the
- * item and centres the canvas on it, Ctrl/Cmd-click adds it to the selection. highlight / onHighlight is the canvas's
- * unbound marking (null = off); gap is the kind the filter and the marking look at. */
+ * the bound object's name per kind when bindingsOn, as a table or as a tree of the designation hierarchy. Sorting, a
+ * text filter and an "unbound only" filter by gap; a click selects the item (a tree node: every item below it) and
+ * centres the canvas on it, Ctrl/Cmd-click adds it to the selection. highlight / onHighlight is the canvas's unbound
+ * marking; gap is the kind the filter and the marking look at. */
 export function BindingsOverview({
+  bindingsOn,
   gap,
   onGap,
   highlight,
   onHighlight,
   onClose,
 }: {
+  bindingsOn: boolean;
   gap: GapKind;
   onGap: (gap: GapKind) => void;
   highlight: boolean;
@@ -80,8 +158,10 @@ export function BindingsOverview({
     updateDiagram,
     bindingImport,
   } = useDiagramContext();
-  const { dict } = useBindingDictionaries(true);
+  const { dict } = useBindingDictionaries(bindingsOn);
   const [height, setHeight] = useState(storedHeight);
+  const [view, setView] = useState<View>(storedView);
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState("");
   const [unboundOnly, setUnboundOnly] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; desc: boolean }>({
@@ -93,21 +173,18 @@ export function BindingsOverview({
   );
   const resizing = useRef<{ y: number; height: number } | null>(null);
 
-  const kinds = BINDING_KINDS.filter(
-    (k) => !dict || dict.kinds.some((i) => i.kind === k),
-  );
+  const kinds = bindingsOn
+    ? BINDING_KINDS.filter((k) => !dict || dict.kinds.some((i) => i.kind === k))
+    : [];
   const all = useMemo(
-    () =>
-      diagram
-        ? overviewRows(diagram, elements, overviewTypeNames())
-        : [],
+    () => (diagram ? overviewRows(diagram, elements, overviewTypeNames()) : []),
     [diagram, elements],
   );
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     const shown = all.filter(
       (r) =>
-        (!unboundOnly || isUnbound(r.bindings, gap)) &&
+        (!bindingsOn || !unboundOnly || isUnbound(r.bindings, gap)) &&
         (!q ||
           [
             String(r.id),
@@ -126,7 +203,19 @@ export function BindingsOverview({
             { numeric: true },
           ) * dir || a.id - b.id,
     );
-  }, [all, query, unboundOnly, gap, sort]);
+  }, [all, query, bindingsOn, unboundOnly, gap, sort]);
+  const designation = useDesignationPlan(diagram, view === "tree");
+  const voltageNames = useMemo(
+    () => new Map((diagram?.voltageClasses ?? []).map((v) => [v.id, v.name])),
+    [diagram?.voltageClasses],
+  );
+  const tree = useMemo(
+    () =>
+      view === "tree" && designation.plan
+        ? overviewTree(designation.plan, rows)
+        : [],
+    [view, designation.plan, rows],
+  );
   const unboundCount = useMemo(
     () => all.filter((r) => isUnbound(r.bindings, gap)).length,
     [all, gap],
@@ -140,6 +229,36 @@ export function BindingsOverview({
     }
     selectMany(new Map<number, SelectionKind>([[r.id, r.kind]]));
     focusItem(r.id, r.kind);
+  }
+
+  function clickNode(e: ReactMouseEvent, n: OverviewNode) {
+    const items = nodeRows(n).map((r): [number, SelectionKind] => [
+      r.id,
+      r.kind,
+    ]);
+    if (IS_MAC ? e.metaKey : e.ctrlKey || e.metaKey) {
+      selectMany(new Map([...selection, ...items]));
+      return;
+    }
+    selectMany(new Map(items));
+  }
+
+  function toggleNode(key: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function chooseView(v: View) {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      // per-viewer convenience only
+    }
   }
 
   function resetSelected() {
@@ -198,6 +317,115 @@ export function BindingsOverview({
 
   if (!diagram) return null;
 
+  const columns = 3 + kinds.length;
+
+  const row = (r: OverviewRow, depth: number) => {
+    const isSelected = selection.get(r.id) === r.kind;
+    return (
+      <tr
+        key={`${r.kind}-${r.id}`}
+        onClick={(e) => click(e, r)}
+        aria-selected={isSelected}
+        className={`cursor-pointer border-t border-surface-700 ${isSelected ? "bg-accent/30" : "hover:bg-surface-700"}`}
+      >
+        <td
+          className="px-2 py-0.5 text-gray-400 tabular-nums"
+          style={depth ? { paddingLeft: 8 + depth * INDENT + 16 } : undefined}
+        >
+          {r.id}
+        </td>
+        <td className="px-2 py-0.5 max-w-48 truncate" title={r.name}>
+          {r.name}
+        </td>
+        <td
+          className="px-2 py-0.5 max-w-48 truncate text-gray-400"
+          title={r.typeName}
+        >
+          {r.typeName}
+        </td>
+        {kinds.map((k) => {
+          const b = r.bindings[k];
+          return (
+            <td
+              key={k}
+              className="px-2 py-0.5 max-w-56 truncate"
+              title={b ? `${b.name ?? ""} (${b.ref})` : undefined}
+            >
+              {b ? b.name || b.ref : <span className="text-gray-600">—</span>}
+            </td>
+          );
+        })}
+      </tr>
+    );
+  };
+
+  const node = (n: OverviewNode, depth: number): ReactNode[] => {
+    const open = !collapsed.has(n.key);
+    const below = nodeRows(n);
+    const allSelected = below.every((r) => selection.get(r.id) === r.kind);
+    return [
+      <tr
+        key={n.key}
+        onClick={(e) => clickNode(e, n)}
+        aria-selected={allSelected}
+        aria-expanded={open}
+        className={`cursor-pointer border-t border-surface-700 ${allSelected ? "bg-accent/30" : "hover:bg-surface-700"}`}
+      >
+        <td
+          colSpan={columns}
+          className="px-2 py-0.5 whitespace-nowrap"
+          style={{ paddingLeft: 8 + depth * INDENT }}
+        >
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleNode(n.key);
+            }}
+            aria-label={open ? t("overview.collapse") : t("overview.expand")}
+            className="inline-flex align-middle mr-1 text-gray-400 hover:text-white"
+          >
+            {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          </button>
+          {n.fn ? (
+            <span className={n.fn.id < 0 ? "italic" : undefined}>
+              <span className="font-mono text-gray-100">{n.segment}</span>{" "}
+              <span className="text-gray-400">
+                {t(`designations.kind.${n.fn.kind}` as TranslationKey)}
+                {n.fn.kind === "voltageLevel" &&
+                  voltageNames.get(n.fn.voltage ?? 0) &&
+                  `, ${voltageNames.get(n.fn.voltage ?? 0)}`}
+                {n.fn.id < 0 && ` (${t("overview.proposed")})`}
+              </span>
+            </span>
+          ) : (
+            <span className="text-gray-400">{t("overview.noFunction")}</span>
+          )}
+          <span className="text-gray-500"> ({below.length})</span>
+        </td>
+      </tr>,
+      ...(open
+        ? [
+            ...n.children.flatMap((c) => node(c, depth + 1)),
+            ...n.rows.map((r) => row(r, depth + 1)),
+          ]
+        : []),
+    ];
+  };
+
+  const viewButton = (v: View, label: string, Icon: typeof Table) => (
+    <button
+      type="button"
+      onClick={() => chooseView(v)}
+      title={label}
+      aria-label={label}
+      aria-pressed={view === v}
+      className={`flex items-center px-1.5 py-0.5 ${view === v ? "bg-accent text-white" : "hover:bg-surface-600"}`}
+    >
+      <Icon size={12} />
+    </button>
+  );
+
   const header = (key: SortKey, label: string) => (
     <th
       key={key}
@@ -230,7 +458,7 @@ export function BindingsOverview({
         onMouseDown={startResize}
         className="absolute -top-1 left-0 right-0 h-2 cursor-row-resize z-10"
       />
-      {bindingImport ? (
+      {bindingsOn && bindingImport ? (
         <BindingImportView
           key={bindingImport.scheme.ref}
           scheme={bindingImport}
@@ -244,11 +472,39 @@ export function BindingsOverview({
             </span>
             <GuideButton topic="bindings-overview" />
             <span className="text-gray-400">
-              {t("overview.counts", {
-                total: all.length,
-                unbound: unboundCount,
-              })}
+              {bindingsOn
+                ? t("overview.counts", {
+                    total: all.length,
+                    unbound: unboundCount,
+                  })
+                : t("overview.total", { total: all.length })}
             </span>
+            <div className="flex rounded border border-surface-500 overflow-hidden">
+              {viewButton("table", t("overview.viewTable"), Table)}
+              {viewButton("tree", t("overview.viewTree"), ListTree)}
+            </div>
+            {view === "tree" && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setCollapsed(new Set())}
+                  title={t("overview.expandAll")}
+                  aria-label={t("overview.expandAll")}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <ChevronsUpDown size={14} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCollapsed(new Set(nodeKeys(tree)))}
+                  title={t("overview.collapseAll")}
+                  aria-label={t("overview.collapseAll")}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <ChevronsDownUp size={14} />
+                </button>
+              </>
+            )}
             <div className="relative">
               <Search
                 size={12}
@@ -263,68 +519,72 @@ export function BindingsOverview({
                 className="w-44 bg-surface-900 border border-surface-600 rounded pl-6 pr-1.5 py-0.5"
               />
             </div>
-            <label className="flex items-center gap-1">
-              <span className="text-gray-400">{t("overview.gap")}</span>
-              <select
-                value={gap}
-                onChange={(e) => onGap(e.target.value as GapKind)}
-                className="bg-surface-900 border border-surface-600 rounded px-1 py-0.5"
-              >
-                <option value="any">{t("overview.gapAny")}</option>
-                {kinds.map((k) => (
-                  <option key={k} value={k}>
-                    {t(`bindings.kind.${k}` as TranslationKey)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={unboundOnly}
-                onChange={(e) => setUnboundOnly(e.target.checked)}
-              />
-              {t("overview.unboundOnly")}
-            </label>
-            <label className="flex items-center gap-1 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={highlight}
-                onChange={(e) => onHighlight(e.target.checked)}
-              />
-              {t("overview.highlight")}
-            </label>
-            <div className="flex items-center gap-1.5 border-l border-surface-600 pl-3">
-              <span className="text-gray-400">{t("overview.reset")}</span>
-              {kinds.map((k) => (
-                <label
-                  key={k}
-                  className="flex items-center gap-0.5 cursor-pointer"
-                >
+            {bindingsOn && (
+              <>
+                <label className="flex items-center gap-1">
+                  <span className="text-gray-400">{t("overview.gap")}</span>
+                  <select
+                    value={gap}
+                    onChange={(e) => onGap(e.target.value as GapKind)}
+                    className="bg-surface-900 border border-surface-600 rounded px-1 py-0.5"
+                  >
+                    <option value="any">{t("overview.gapAny")}</option>
+                    {kinds.map((k) => (
+                      <option key={k} value={k}>
+                        {t(`bindings.kind.${k}` as TranslationKey)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex items-center gap-1 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={resetKinds.has(k)}
-                    onChange={(e) =>
-                      setResetKinds((prev) => {
-                        const next = new Set(prev);
-                        if (e.target.checked) next.add(k);
-                        else next.delete(k);
-                        return next;
-                      })
-                    }
+                    checked={unboundOnly}
+                    onChange={(e) => setUnboundOnly(e.target.checked)}
                   />
-                  {t(`bindings.kind.${k}` as TranslationKey)}
+                  {t("overview.unboundOnly")}
                 </label>
-              ))}
-              <button
-                type="button"
-                onClick={resetSelected}
-                disabled={selected.length === 0 || resetKinds.size === 0}
-                className="rounded border border-surface-500 px-2 py-0.5 hover:bg-surface-600 disabled:opacity-40"
-              >
-                {t("overview.resetSelected", { count: selected.length })}
-              </button>
-            </div>
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={highlight}
+                    onChange={(e) => onHighlight(e.target.checked)}
+                  />
+                  {t("overview.highlight")}
+                </label>
+                <div className="flex items-center gap-1.5 border-l border-surface-600 pl-3">
+                  <span className="text-gray-400">{t("overview.reset")}</span>
+                  {kinds.map((k) => (
+                    <label
+                      key={k}
+                      className="flex items-center gap-0.5 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={resetKinds.has(k)}
+                        onChange={(e) =>
+                          setResetKinds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(k);
+                            else next.delete(k);
+                            return next;
+                          })
+                        }
+                      />
+                      {t(`bindings.kind.${k}` as TranslationKey)}
+                    </label>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={resetSelected}
+                    disabled={selected.length === 0 || resetKinds.size === 0}
+                    className="rounded border border-surface-500 px-2 py-0.5 hover:bg-surface-600 disabled:opacity-40"
+                  >
+                    {t("overview.resetSelected", { count: selected.length })}
+                  </button>
+                </div>
+              </>
+            )}
             <button
               type="button"
               onClick={exportCsv}
@@ -357,54 +617,27 @@ export function BindingsOverview({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
-                  const isSelected = selection.get(r.id) === r.kind;
-                  return (
-                    <tr
-                      key={`${r.kind}-${r.id}`}
-                      onClick={(e) => click(e, r)}
-                      aria-selected={isSelected}
-                      className={`cursor-pointer border-t border-surface-700 ${isSelected ? "bg-accent/30" : "hover:bg-surface-700"}`}
-                    >
-                      <td className="px-2 py-0.5 text-gray-400 tabular-nums">
-                        {r.id}
-                      </td>
-                      <td
-                        className="px-2 py-0.5 max-w-48 truncate"
-                        title={r.name}
-                      >
-                        {r.name}
-                      </td>
-                      <td
-                        className="px-2 py-0.5 max-w-48 truncate text-gray-400"
-                        title={r.typeName}
-                      >
-                        {r.typeName}
-                      </td>
-                      {kinds.map((k) => {
-                        const b = r.bindings[k];
-                        return (
-                          <td
-                            key={k}
-                            className="px-2 py-0.5 max-w-56 truncate"
-                            title={b ? `${b.name ?? ""} (${b.ref})` : undefined}
-                          >
-                            {b ? (
-                              b.name || b.ref
-                            ) : (
-                              <span className="text-gray-600">—</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
+                {view === "tree"
+                  ? tree.flatMap((n) => node(n, 0))
+                  : rows.map((r) => row(r, 0))}
               </tbody>
             </table>
             {rows.length === 0 && (
               <p className="px-2 py-3 text-gray-500">{t("overview.empty")}</p>
             )}
+            {view === "tree" && designation.error && (
+              <p className="px-2 py-3 text-red-400">
+                {t("overview.hierarchyError", { error: designation.error })}
+              </p>
+            )}
+            {view === "tree" &&
+              !designation.plan &&
+              !designation.error &&
+              rows.length > 0 && (
+                <p className="px-2 py-3 text-gray-500">
+                  {t("overview.hierarchyLoading")}
+                </p>
+              )}
           </div>
         </>
       )}
