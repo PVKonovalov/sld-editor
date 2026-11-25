@@ -1,5 +1,19 @@
 import type {
+  Binding,
+  ProviderScheme,
+  SchemeCandidate,
+  ExportCheck,
+  ExportRequest,
+  ExportResult,
+  SVGExportResult,
+  SchemeBindings,
+  SchemeGroup,
+  SchemeType,
+  SchemeRef,
+  SchemeTree,
   BindingDictionaries,
+  BindingResolved,
+  BindingResolveResult,
   BindingNode,
   BindingObject,
   BindingSearchResult,
@@ -8,9 +22,12 @@ import type {
   CustomElement,
   Diagram,
   DiagramWire,
+  DesignationPlan,
+  DesignationFormat,
   DiagramEntry,
   ElementSymbol,
   EditorConfig,
+  FetchedScheme,
   ImportReport,
   ConverterMessage,
   OpenedDiagram,
@@ -23,6 +40,7 @@ import type {
   VoltageColor,
 } from '../types'
 import { stripPictureHrefs } from './picture'
+import { t } from '../i18n'
 
 const BASE = '/api'
 
@@ -41,6 +59,7 @@ async function jsonBody(method: string, value: unknown): Promise<RequestInit> {
 async function asJSON<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null)
+    if (body && body.linkedTo) throw new Error(t('schemes.linkedElsewhere', { name: body.linkedTo }))
     throw new Error((body && body.error) || `${res.status} ${res.statusText}`)
   }
   return res.json() as Promise<T>
@@ -100,11 +119,12 @@ export async function createDiagram(
   name: string,
   width?: number,
   height?: number,
+  scheme?: SchemeRef,
 ): Promise<{ diagram: Diagram; warning?: string }> {
   const res = await fetch(`${BASE}/diagrams`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, width, height }),
+    body: JSON.stringify({ name, width, height, scheme }),
   })
   const data = await asJSON<DiagramResponse>(res)
   return { diagram: normalizeDiagram(data.diagram), warning: data.warning }
@@ -129,13 +149,46 @@ export async function getDiagram(name: string): Promise<OpenedDiagram> {
   return { ...data, diagram: normalizeDiagram(data.diagram) }
 }
 
+/** Saves diagram as name; from, for Save As, is its old name, whose tracing image the server copies along. */
 export async function saveDiagram(
   name: string,
   diagram: Diagram,
+  from?: string,
 ): Promise<{ diagram: Diagram; warning?: string }> {
-  const res = await fetch(`${BASE}/diagrams/save?name=${encodeURIComponent(name)}`, await jsonBody('PUT', diagram))
+  const query = `name=${encodeURIComponent(name)}${from ? `&from=${encodeURIComponent(from)}` : ''}`
+  const res = await fetch(`${BASE}/diagrams/save?${query}`, await jsonBody('PUT', diagram))
   const data = await asJSON<DiagramResponse>(res)
   return { diagram: normalizeDiagram(data.diagram), warning: data.warning }
+}
+
+/** Stores image as the tracing image of the existing diagram name (PUT /diagrams/tracing-image), replacing its
+ * earlier one; resolves to its file name, which the diagram references once saved. */
+export async function uploadTracingImage(name: string, image: Blob): Promise<string> {
+  const res = await fetch(`${BASE}/diagrams/tracing-image?name=${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': image.type || 'application/octet-stream' },
+    body: image,
+  })
+  return (await asJSON<{ file: string }>(res)).file
+}
+
+/** The URL of diagram name's tracing image; version changes it after an upload, so the browser reloads it. */
+export function tracingImageUrl(name: string, version: number): string {
+  return `${BASE}/diagrams/tracing-image?name=${encodeURIComponent(name)}&v=${version}`
+}
+
+/** Proposes reference designations for the diagram's equipment (POST /api/designations): the element ids in scope
+ * (empty: all), renumbering the ones already designated when renumber; the short format numbers each letter code
+ * across the diagram. Changes nothing. */
+export async function planDesignations(
+  diagram: Diagram,
+  scope: number[],
+  renumber: boolean,
+  format: DesignationFormat,
+): Promise<DesignationPlan> {
+  const res = await fetch(`${BASE}/designations`, await jsonBody('POST', { diagram, scope, renumber, format }))
+  const plan = await asJSON<DesignationPlan>(res)
+  return { functions: plan.functions ?? [], rows: plan.rows ?? [], unplaced: plan.unplaced ?? [], levels: plan.levels ?? [] }
 }
 
 /** Repairs a diagram's topology on the server (POST /api/repair: fixed ports, busbar ports, wire splits, ids,
@@ -414,6 +467,143 @@ export async function searchBindings(section: string, q: string, limit?: number)
   if (limit) params.set('limit', String(limit))
   const res = await fetch(`${BASE}/bindings/search?${params}`)
   return asJSON(res)
+}
+
+/** The object ref with the binding kind and option the provider suggests for it. */
+export async function resolveBinding(ref: string): Promise<BindingResolved> {
+  const res = await fetch(`${BASE}/bindings/object?${new URLSearchParams({ ref })}`)
+  return asJSON(res)
+}
+
+/** Every ref resolved at once: the objects found, and the refs that don't exist or can't be bound. */
+export async function resolveBindings(refs: string[]): Promise<BindingResolveResult> {
+  const res = await fetch(`${BASE}/bindings/objects`, await jsonBody('POST', { refs }))
+  return asJSON(res)
+}
+
+/** The path of a provider object from its tree's root down to the object. */
+export async function bindingPath(ref: string): Promise<{ ref: string; name: string }[]> {
+  const body: { path: { ref: string; name: string }[] | null } = await asJSON(
+    await fetch(`${BASE}/bindings/path?ref=${encodeURIComponent(ref)}`),
+  )
+  return body.path ?? []
+}
+
+/** The bindings the provider proposes for binding object ref to an element automatically (none when it proposes
+ * nothing for that object). */
+export async function suggestBindings(ref: string, element: { shape: string; class: string }): Promise<Binding[]> {
+  const res = await fetch(`${BASE}/bindings/suggest`, await jsonBody('POST', { ref, element }))
+  const body: { bindings: Binding[] } = await asJSON(res)
+  return body.bindings ?? []
+}
+
+/** The provider's scheme groups and schemes, each scheme with the diagram linked to it (GET /api/bindings/schemes). */
+export async function listSchemes(): Promise<SchemeTree> {
+  const tree: SchemeTree = await asJSON(await fetch(`${BASE}/bindings/schemes`))
+  return { groups: tree.groups ?? [], schemes: tree.schemes ?? [] }
+}
+
+/** What an export of the saved diagram name would do and what stops it. */
+export async function checkExport(name: string, register = false): Promise<ExportCheck> {
+  const q = `name=${encodeURIComponent(name)}${register ? '&register=true' : ''}`
+  const c: ExportCheck = await asJSON(await fetch(`${BASE}/bindings/export/check?${q}`))
+  return { ...c, issues: c.issues ?? [] }
+}
+
+/** The picture of scheme ref read from its viewer's storage and imported as an .svg import. diagram is the diagram
+ * being re-fetched, which may already be linked to the scheme. */
+export async function fetchScheme(ref: string, diagram?: string): Promise<FetchedScheme> {
+  const q = new URLSearchParams({ ref })
+  if (diagram) q.set('diagram', diagram)
+  const data = await asJSON<Omit<FetchedScheme, 'diagram'> & { diagram: DiagramWire }>(
+    await fetch(`${BASE}/bindings/schemes/fetch?${q}`, { method: 'POST' }),
+  )
+  return { ...data, diagram: normalizeDiagram(data.diagram) }
+}
+
+/** The bindings of the scheme the saved diagram name is linked to, read from the provider for import. */
+export async function importBindings(name: string): Promise<SchemeBindings> {
+  const r: SchemeBindings = await asJSON(
+    await fetch(`${BASE}/bindings/import?name=${encodeURIComponent(name)}`, { method: 'POST' }),
+  )
+  return {
+    ...r,
+    issues: r.issues ?? [],
+    components: (r.components ?? []).map(c => ({ ...c, bindings: c.bindings ?? [] })),
+  }
+}
+
+/** An export the server's check stopped; check tells why. */
+export class ExportRefusedError extends Error {
+  check: ExportCheck
+  constructor(message: string, check: ExportCheck) {
+    super(message)
+    this.check = { ...check, issues: check.issues ?? [] }
+  }
+}
+
+/** Exports the saved diagram name to the provider as req chose; the server saves the diagram's new scheme link.
+ * Throws ExportRefusedError when the check fails. */
+/** Delivers only the saved picture of the diagram name to its linked scheme (nothing in the database) and saves the
+ * diagram with that export time (POST /api/bindings/export/svg). */
+export async function exportDiagramPicture(name: string): Promise<SVGExportResult> {
+  const res = await fetch(`${BASE}/bindings/export/svg?name=${encodeURIComponent(name)}`, { method: 'POST' })
+  const r: SVGExportResult = await asJSON(res)
+  return { ...r, svg: r.svg ?? [] }
+}
+
+export async function exportDiagram(name: string, req: ExportRequest): Promise<ExportResult> {
+  const res = await fetch(`${BASE}/bindings/export?name=${encodeURIComponent(name)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (res.status === 409) {
+    const body = await res.json().catch(() => null)
+    if (body?.check) throw new ExportRefusedError(body.error, body.check)
+    throw new Error(body?.error || `${res.status} ${res.statusText}`)
+  }
+  const r: ExportResult = await asJSON(res)
+  return { ...r, skipped: r.skipped ?? [] }
+}
+
+/** The groups a new scheme can go into. */
+export async function listSchemeGroups(): Promise<SchemeGroup[]> {
+  return (await asJSON(await fetch(`${BASE}/bindings/scheme-groups`))) ?? []
+}
+
+/** The provider's scheme types. */
+export async function listSchemeTypes(): Promise<SchemeType[]> {
+  return (await asJSON(await fetch(`${BASE}/bindings/scheme-types`))) ?? []
+}
+
+/** Thrown by getScheme for a scheme the provider no longer has. */
+export class SchemeNotFoundError extends Error {
+  constructor(ref: string) {
+    super(t('schemes.missing', { ref }))
+  }
+}
+
+/** The scheme ref with its linked diagram; rejects with SchemeNotFoundError when the scheme is gone. */
+export async function getScheme(ref: string): Promise<ProviderScheme> {
+  const res = await fetch(`${BASE}/bindings/scheme?ref=${encodeURIComponent(ref)}`)
+  if (res.status === 404) throw new SchemeNotFoundError(ref)
+  return asJSON(res)
+}
+
+/** Schemes proposed for the diagram name (its path) imported from source, best first. */
+export async function suggestSchemes(name: string, source?: string): Promise<SchemeCandidate[]> {
+  const q = new URLSearchParams({ name, source: source ?? '' })
+  const body: { candidates: SchemeCandidate[] } = await asJSON(await fetch(`${BASE}/bindings/schemes/suggest?${q}`))
+  return body.candidates ?? []
+}
+
+/** Which of the scheme refs exist at the provider. */
+export async function schemesExist(refs: string[]): Promise<Record<string, boolean>> {
+  const body: { exist: Record<string, boolean> } = await asJSON(
+    await fetch(`${BASE}/bindings/schemes/exist`, await jsonBody('POST', { refs })),
+  )
+  return body.exist ?? {}
 }
 
 /** The drag data type of an object dragged from the Objects panel; its value is a JSON DraggedObject. */

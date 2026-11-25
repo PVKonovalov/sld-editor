@@ -8,6 +8,11 @@ import { SettingsPanel } from './components/panels/SettingsPanel'
 import { PropertiesPanel } from './components/panels/PropertiesPanel'
 import { ObjectsPanel } from './components/panels/ObjectsPanel'
 import { Canvas } from './components/Canvas'
+import { BindingsOverview } from './components/BindingsOverview'
+import { SchemeOfferBanner } from './components/SchemeOfferBanner'
+import { ExportDialog } from './components/ExportDialog'
+import { ExportNudgeBanner } from './components/ExportNudgeBanner'
+import type { GapKind } from './lib/bindingOverview'
 import { ImportLogDialog } from './components/ImportLogDialog'
 import { ConfirmReloadDialog } from './components/ConfirmReloadDialog'
 import { AboutDialog } from './components/AboutDialog'
@@ -19,6 +24,7 @@ import { DraftRecoveryDialog } from './components/DraftRecoveryDialog'
 import { UnsavedChangesDialog } from './components/UnsavedChangesDialog'
 import { VoltageMismatchDialog } from './components/VoltageMismatchDialog'
 import { VoltageColorsDialog } from './components/VoltageColorsDialog'
+import { EnumerateDialog } from './components/EnumerateDialog'
 import { CimLayoutDialog } from './components/CimLayoutDialog'
 import { CimWindingsDialog } from './components/CimWindingsDialog'
 import { diagramFileKind } from './lib/fileTransfer'
@@ -35,6 +41,9 @@ function Shell() {
   const [activeLeftPanel, setActiveLeftPanel] = useState<LeftPanelId | null>('file')
   const [propertiesOpen, setPropertiesOpen] = useState(false)
   const [aboutOpen, setAboutOpen] = useState(false)
+  const [overviewOpen, setOverviewOpen] = useState(false)
+  const [gap, setGap] = useState<GapKind>('any')
+  const [highlightUnbound, setHighlightUnbound] = useState(false)
   // The user guide window: null while closed. requestId changes on every
   // openGuide, so asking for the same topic again scrolls to it again.
   const [guide, setGuide] = useState<{ topic?: string; requestId: number } | null>(null)
@@ -59,8 +68,14 @@ function Shell() {
     setImportLogOpen,
     findFocusSeq,
     config,
+    bindingImport,
+    enumeratePrompt,
   } = useDiagramContext()
   const bindingProvider = config?.bindings?.provider ?? ''
+  // An import of bindings is compared in the overview.
+  useEffect(() => {
+    if (bindingImport) setOverviewOpen(true)
+  }, [bindingImport])
   // The Objects panel is kept mounted once opened (hidden while another panel is shown), so its loaded trees,
   // selection and search survive switching panels.
   const [objectsMounted, setObjectsMounted] = useState(false)
@@ -179,6 +194,8 @@ function Shell() {
           onHelp={() => guideApi.openGuide()}
           onAbout={() => setAboutOpen(true)}
           showObjects={!!bindingProvider}
+          overviewOpen={overviewOpen}
+          onOverviewToggle={() => setOverviewOpen(open => !open)}
         />
         {activeLeftPanel === 'file' && <FilePanel onClose={() => setActiveLeftPanel(null)} />}
         {activeLeftPanel === 'elements' && <ElementsPanel onClose={() => setActiveLeftPanel(null)} />}
@@ -188,7 +205,19 @@ function Shell() {
           </div>
         )}
         {activeLeftPanel === 'settings' && <SettingsPanel onClose={() => setActiveLeftPanel(null)} />}
-        <Canvas />
+        <div className="flex-1 min-w-0 flex flex-col">
+          <Canvas unboundGap={bindingProvider && highlightUnbound ? gap : null} />
+          {overviewOpen && (
+            <BindingsOverview
+              bindingsOn={!!bindingProvider}
+              gap={gap}
+              onGap={setGap}
+              highlight={highlightUnbound}
+              onHighlight={setHighlightUnbound}
+              onClose={() => setOverviewOpen(false)}
+            />
+          )}
+        </div>
         {propertiesOpen && <PropertiesPanel onClose={() => setPropertiesOpen(false)} />}
         {dragCounter > 0 && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 pointer-events-none">
@@ -212,8 +241,12 @@ function Shell() {
         <UnsavedChangesDialog />
         <VoltageMismatchDialog />
         <VoltageColorsDialog />
+        {enumeratePrompt && <EnumerateDialog />}
         <CimLayoutDialog />
         <CimWindingsDialog />
+        <SchemeOfferBanner />
+        <ExportNudgeBanner />
+        <ExportDialogHost />
         {guide && <GuideWindow topic={guide.topic} requestId={guide.requestId} onClose={() => setGuide(null)} />}
         {dropError && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 bg-red-900/90 text-red-100 text-xs rounded px-3 py-2 shadow">
@@ -234,4 +267,9 @@ export default function App() {
       <Shell />
     </DiagramProvider>
   )
+}
+
+function ExportDialogHost() {
+  const { exportOpen, setExportOpen, diagramName } = useDiagramContext()
+  return exportOpen && diagramName ? <ExportDialog onClose={() => setExportOpen(false)} /> : null
 }

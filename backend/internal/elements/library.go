@@ -220,6 +220,25 @@ func ValidateHotKeys(keys map[string]string, groups []config.PaletteGroup) (map[
 	return out, nil
 }
 
+// ValidateLetterCodes checks config.Config.LetterCodes.
+// codes maps a shape code to an IEC 81346-2 letter code; each shape must be in the library and each code
+// 1 to 3 capital letters other than I and O. Returns the first mistake found.
+func (l *Library) ValidateLetterCodes(codes map[string]string) error {
+	shapes := make(map[string]bool, len(l.Symbols))
+	for _, s := range l.Symbols {
+		shapes[s.Shape] = true
+	}
+	for shape, code := range codes {
+		if !shapes[shape] {
+			return fmt.Errorf("elements: letter_codes: %q is not an element shape in the loaded element libraries", shape)
+		}
+		if !config.ValidLetterCode(code) {
+			return fmt.Errorf("elements: letter_codes: %q → %q: want 1 to 3 capital letters other than I and O", shape, code)
+		}
+	}
+	return nil
+}
+
 // Terminals maps each shape that declares terminals to them, for slddoc.Repair and slddoc.InferSizeSteps.
 func (l *Library) Terminals() map[string][]slddoc.Point {
 	out := make(map[string][]slddoc.Point, len(l.Symbols))

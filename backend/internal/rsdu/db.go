@@ -42,6 +42,20 @@ type Querier interface {
 	Query(ctx context.Context, query string, args ...any) (Rows, error)
 }
 
+// Tx is one database transaction; statements are already in the database's dialect.
+type Tx interface {
+	Querier
+	// Exec runs a statement and returns the number of rows it affected.
+	Exec(ctx context.Context, query string, args ...any) (int64, error)
+	Commit() error
+	Rollback() error
+}
+
+// Beginner opens transactions.
+type Beginner interface {
+	Begin(ctx context.Context) (Tx, error)
+}
+
 // conn is one lazily opened connection pool. It is opened on the first query and dropped after a connection
 // failure, so the next query reconnects.
 type conn struct {
@@ -71,6 +85,48 @@ func (c *conn) Query(ctx context.Context, query string, args ...any) (Rows, erro
 	}
 	return &cancelRows{Rows: rows, cancel: cancel}, nil
 }
+
+// Begin opens a transaction; ctx bounds all of it (the caller sets a watchdog).
+func (c *conn) Begin(ctx context.Context) (Tx, error) {
+	db, err := c.open()
+	if err != nil {
+		return nil, err
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		c.dropOnConnError(db, err)
+		return nil, fmt.Errorf("rsdu %s: %w", c.dsnString(), err)
+	}
+	return &sqlTx{tx: tx, where: c.dsnString()}, nil
+}
+
+type sqlTx struct {
+	tx    *sql.Tx
+	where string
+}
+
+func (t *sqlTx) Query(ctx context.Context, query string, args ...any) (Rows, error) {
+	rows, err := t.tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("rsdu %s: %w", t.where, err)
+	}
+	return rows, nil
+}
+
+func (t *sqlTx) Exec(ctx context.Context, query string, args ...any) (int64, error) {
+	res, err := t.tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return 0, fmt.Errorf("rsdu %s: %w", t.where, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("rsdu %s: %w", t.where, err)
+	}
+	return n, nil
+}
+
+func (t *sqlTx) Commit() error   { return t.tx.Commit() }
+func (t *sqlTx) Rollback() error { return t.tx.Rollback() }
 
 type cancelRows struct {
 	*sql.Rows
@@ -136,7 +192,7 @@ func (c *conn) Close() {
 // dsnString describes the connection without its password.
 func (c *conn) dsnString() string {
 	db := c.dsn.Database
-	if c.dsn.Sid != "" {
+	if c.dsn.Sid != "" && (c.driver != config.DriverPostgres || db == "") {
 		db = c.dsn.Sid
 	}
 	return fmt.Sprintf("%s://%s@%s:%d/%s", c.driver, c.dsn.User, c.dsn.Host, c.dsn.Port, db)
@@ -156,7 +212,11 @@ func oracleURL(d config.DSN) string {
 	return oracle.BuildUrl(d.Host, d.Port, service, d.User, d.Password, opts)
 }
 
+// postgresURL builds a lib/pq URL; the database is Database, or Sid when Database is empty.
 func postgresURL(d config.DSN) string {
+	if d.Database == "" {
+		d.Database = d.Sid
+	}
 	u := url.URL{
 		Scheme:   "postgres",
 		User:     url.UserPassword(d.User, d.Password),

@@ -1,5 +1,6 @@
 import type {
   Diagram,
+  SchemeRef,
   DiagramElement,
   DiagramNode,
   Connector,
@@ -16,6 +17,12 @@ import type {
   DigitalDevice,
   TerminalDirection,
   TableCell,
+  Binding,
+  BindingKind,
+  BindingResolved,
+  DesignationFormat,
+  DesignationPlan,
+  DiagramFunction,
 } from '../types'
 import { t } from '../i18n'
 import { circularArcThrough, defaultArcBulge } from './arc'
@@ -38,7 +45,7 @@ import { sortByVoltage, voltageOrder } from './voltage'
 // anchor, never for the real drawn geometry. Table2 is deliberately not
 // here — its own geometry is anchor (x/y) plus rowHeights/columnWidths,
 // not Points at all (see DiagramElement's own doc comment).
-const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
+export const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'BusBarSection',
   'Rectangle',
   'SmallWindow',
@@ -47,6 +54,7 @@ const POINTS_BASED_CLASSES: ReadonlySet<ElementClass> = new Set([
   'Button',
   'WindowIcon',
   'AutomationDevice',
+  'DisplayPanel',
   'Road',
   'Line',
   'Polygon',
@@ -462,6 +470,27 @@ export function fixVoltageClass(diagram: Diagram, item: { elementId?: number; co
       ? diagram.connectors.filter(c => c.id === item.connectorId).map(c => ({ node: c.from }))
       : (diagram.elements.find(e => e.id === item.elementId)?.ports ?? []).map(p => ({ node: p.node }))
   if (starts.length === 0) starts.push({ element: item.elementId })
+  return setVoltageClassFrom(diagram, starts, voltage)
+}
+
+/** Gives voltage class voltage to everything electrically joined at each of mismatches' keys (see VoltageMismatch:
+ * a Node, or the negated id of the element or wire a route landed on), as fixVoltageClass does. */
+export function setMismatchVoltageClass(diagram: Diagram, mismatches: VoltageMismatch[], voltage: number): Diagram {
+  const nodes = new Set(diagram.nodes.map(n => n.id))
+  const starts: TraceStart[] = mismatches.flatMap((m): TraceStart[] => {
+    if (m.key > 0) return nodes.has(m.key) ? [{ node: m.key }] : []
+    const wire = diagram.connectors.find(c => c.id === -m.key)
+    if (wire) return [{ node: wire.from }]
+    const el = diagram.elements.find(e => e.id === -m.key)
+    if (!el) return []
+    return el.ports && el.ports.length > 0 ? el.ports.map(p => ({ node: p.node })) : [{ element: el.id }]
+  })
+  return starts.length > 0 ? setVoltageClassFrom(diagram, starts, voltage) : diagram
+}
+
+/** Sets voltage on each device, busbar and wire (but those carrying none) reached by a trace from starts through
+ * every switch up to the transformers, and on each transformer winding on a reached node. */
+function setVoltageClassFrom(diagram: Diagram, starts: TraceStart[], voltage: number): Diagram {
   const traced = traceNetwork(diagram, starts, { respectStates: false, throughTransformers: false })
   let changed = false
   const elements = diagram.elements.map(e => {
@@ -550,6 +579,43 @@ export function placeElement(
   // Every fixed Port exists from the start (see fitElementPorts), joined to
   // whatever wire or node the new element was dropped exactly onto.
   return fitElementPorts({ ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }, id, [symbol])
+}
+
+/** Places a copy of element sampleId at each of placements (anchor, orient, mirror): same shape, class, voltage,
+ * layer, size step and other attributes, a fresh id and default name, no CIM identities, bindings or ports; its
+ * terminals join what lies under them (fitElementPorts). Returns the diagram and the new ids. */
+export function placeFoundElements(
+  diagram: Diagram,
+  sampleId: number,
+  placements: { x: number; y: number; orient: number; mirror: boolean }[],
+  symbols: ElementSymbol[],
+): { diagram: Diagram; ids: number[] } {
+  const sample = diagram.elements.find(e => e.id === sampleId)
+  if (!sample || placements.length === 0) return { diagram, ids: [] }
+  const typeName = symbols.find(s => s.shape === sample.shape)?.name ?? sample.class
+  const seq = new IdSequence(diagram)
+  const added: DiagramElement[] = placements.map(p => {
+    const id = seq.take()
+    return {
+      ...sample,
+      ...NO_BINDINGS,
+      id,
+      name: `${typeName}-${id}`,
+      x: p.x,
+      y: p.y,
+      orient: normalizeOrient(p.orient) || undefined,
+      mirror: p.mirror || undefined,
+      ports: undefined,
+      mrid: undefined,
+      function: undefined,
+      group: undefined,
+      componentEdited: undefined,
+      ...(sample.windings ? { windings: sample.windings.map(w => ({ ...w, mrid: undefined })) } : {}),
+    }
+  })
+  let d: Diagram = { ...diagram, lastId: seq.lastId, elements: [...diagram.elements, ...added] }
+  for (const el of added) d = fitElementPorts(d, el.id, symbols)
+  return { diagram: d, ids: added.map(e => e.id) }
 }
 
 /** Places a new BusBarSection spanning start..end — busbars are drawn from
@@ -785,22 +851,37 @@ const AUTOMATION_DEVICE_DEFAULTS = {
   stroke: '#000000',
 }
 
-/** Places a new Automation device (shape 103) spanning start..end: a
- * decorative two-state status tile (see slddoc's ClassAutomationDevice), no
- * Voltage, no Ports, never a routing target. */
-export function placeAutomationDevice(diagram: Diagram, start: Point, end: Point): Diagram {
+// A freshly placed Display panel starts Off: xsde2svg's gray tile and border, lawngreen when On.
+const DISPLAY_PANEL_DEFAULTS = {
+  state: 0,
+  fillOff: 'gray',
+  fillOn: 'lawngreen',
+  textColor: '#000000',
+  textColorOn: '#000000',
+  stroke: 'gray',
+}
+
+const STATUS_TILES = {
+  '103': { class: 'AutomationDevice', name: 'Automation', defaults: AUTOMATION_DEVICE_DEFAULTS },
+  '102': { class: 'DisplayPanel', name: 'Panel', defaults: DISPLAY_PANEL_DEFAULTS },
+} as const
+
+/** Places a new status tile spanning start..end: an Automation device (shape 103) or a Display panel (102), a
+ * decorative two-state tile (see slddoc's ClassAutomationDevice), no Voltage, no Ports, never a routing target. */
+export function placeStatusTile(diagram: Diagram, shape: '103' | '102', start: Point, end: Point): Diagram {
+  const tile = STATUS_TILES[shape]
   const ids = new IdSequence(diagram)
   const id = ids.take()
   const element: DiagramElement = {
     id,
-    class: 'AutomationDevice',
-    shape: '103',
-    name: `Automation-${id}`,
+    class: tile.class,
+    shape,
+    name: `${tile.name}-${id}`,
     layer: defaultLayer(diagram),
     x: (start.x + end.x) / 2,
     y: (start.y + end.y) / 2,
     points: [start, end],
-    ...AUTOMATION_DEVICE_DEFAULTS,
+    ...tile.defaults,
   }
   return { ...diagram, lastId: ids.lastId, elements: [...diagram.elements, element] }
 }
@@ -897,74 +978,223 @@ function table2Defaults(): Pick<DiagramElement, 'rowHeights' | 'columnWidths' | 
   }
 }
 
-/** Resizes a Table2's own grid to exactly rows x cols (each clamped to at
- * least 1 — a table with zero rows or columns draws nothing at all, see
- * writeTable2's own doc comment), preserving every still-valid cell's own
- * real content (text/fill/textColor) and row height/column width. A newly
- * added row/column gets TABLE2_ROW_HEIGHT/TABLE2_COL_WIDTH, the same
- * default table2Defaults itself starts a freshly placed table with; every
- * (row, col) position in the new grid gets a real TableCell entry (blank
- * if none existed before), so the grid stays fully populated the same way
- * a freshly placed one always is. Used by Properties' own row/column
- * count fields. */
+// A rectangle of Table2 grid positions, inclusive.
+export interface TableRect {
+  row0: number
+  col0: number
+  row1: number
+  col1: number
+}
+
+// The selected cells of a Table2 (id): the cell clicked first and the one extended to.
+export interface TableCellRange {
+  id: number
+  anchor: { row: number; col: number }
+  focus: { row: number; col: number }
+}
+
+function cellSpans(c: TableCell): { rows: number; cols: number } {
+  return { rows: Math.max(c.rowSpan ?? 1, 1), cols: Math.max(c.colSpan ?? 1, 1) }
+}
+
+/** The cell drawn over (row, col) of el: the cell itself or the merged one covering it; undefined if none. */
+export function table2CellOver(el: DiagramElement, row: number, col: number): TableCell | undefined {
+  return (el.cells ?? []).find(c => {
+    const { rows, cols } = cellSpans(c)
+    return row >= c.row && row < c.row + rows && col >= c.col && col < c.col + cols
+  })
+}
+
+/** The rectangle spanned by a and b, grown until it cuts no merged cell in two, clipped to el's grid. */
+export function table2Rect(el: DiagramElement, a: { row: number; col: number }, b: { row: number; col: number }): TableRect {
+  const maxRow = (el.rowHeights?.length ?? 1) - 1
+  const maxCol = (el.columnWidths?.length ?? 1) - 1
+  const r: TableRect = {
+    row0: Math.max(0, Math.min(a.row, b.row)),
+    col0: Math.max(0, Math.min(a.col, b.col)),
+    row1: Math.min(maxRow, Math.max(a.row, b.row)),
+    col1: Math.min(maxCol, Math.max(a.col, b.col)),
+  }
+  for (let grown = true; grown; ) {
+    grown = false
+    for (const c of el.cells ?? []) {
+      const { rows, cols } = cellSpans(c)
+      const last = { row: c.row + rows - 1, col: c.col + cols - 1 }
+      if (c.row > r.row1 || last.row < r.row0 || c.col > r.col1 || last.col < r.col0) continue
+      const next = {
+        row0: Math.min(r.row0, c.row),
+        col0: Math.min(r.col0, c.col),
+        row1: Math.max(r.row1, last.row),
+        col1: Math.max(r.col1, last.col),
+      }
+      if (next.row0 !== r.row0 || next.col0 !== r.col0 || next.row1 !== r.row1 || next.col1 !== r.col1) {
+        Object.assign(r, next)
+        grown = true
+      }
+    }
+  }
+  return r
+}
+
+/** The rectangle of range, or null when range doesn't belong to el or lies outside its grid. */
+export function table2RangeRect(el: DiagramElement, range: TableCellRange | null): TableRect | null {
+  if (!range || range.id !== el.id || el.class !== 'Table2') return null
+  const rows = el.rowHeights?.length ?? 0
+  const cols = el.columnWidths?.length ?? 0
+  if (range.anchor.row >= rows || range.anchor.col >= cols) return null
+  return table2Rect(el, range.anchor, range.focus)
+}
+
+/** The cells of el whose top-left lies in r. */
+export function table2CellsIn(el: DiagramElement, r: TableRect): TableCell[] {
+  return (el.cells ?? []).filter(c => c.row >= r.row0 && c.row <= r.row1 && c.col >= r.col0 && c.col <= r.col1)
+}
+
+/** The diagram box of rectangle r of el's grid. */
+export function table2RectBox(el: DiagramElement, r: TableRect): { x: number; y: number; width: number; height: number } {
+  const heights = el.rowHeights ?? []
+  const widths = el.columnWidths ?? []
+  const sum = (list: number[], from: number, to: number) => list.slice(from, to).reduce((a, b) => a + b, 0)
+  return {
+    x: el.x + sum(widths, 0, r.col0),
+    y: el.y + sum(heights, 0, r.row0),
+    width: sum(widths, r.col0, r.col1 + 1),
+    height: sum(heights, r.row0, r.row1 + 1),
+  }
+}
+
+/** The grid position of el under diagram point p, or null outside the grid. */
+export function table2PositionAt(el: DiagramElement, p: Point): { row: number; col: number } | null {
+  const find = (sizes: number[], offset: number) => {
+    let edge = 0
+    for (let i = 0; i < sizes.length; i++) {
+      edge += sizes[i]
+      if (offset < edge) return offset >= 0 ? i : -1
+    }
+    return -1
+  }
+  const row = find(el.rowHeights ?? [], p.y - el.y)
+  const col = find(el.columnWidths ?? [], p.x - el.x)
+  return row < 0 || col < 0 ? null : { row, col }
+}
+
+function updateTable2(diagram: Diagram, id: number, fn: (e: DiagramElement) => DiagramElement): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => (e.id === id && e.class === 'Table2' ? fn(e) : e)),
+  }
+}
+
+// Every grid position of a rows x cols grid that no cell draws over gets a blank cell; cells keep the column-major
+// order xsde2svg draws them in.
+function fillTable2(cells: TableCell[], rows: number, cols: number): TableCell[] {
+  const covered = new Set<string>()
+  for (const c of cells) {
+    const { rows: rs, cols: cs } = cellSpans(c)
+    for (let r = c.row; r < c.row + rs; r++) for (let k = c.col; k < c.col + cs; k++) covered.add(`${r}:${k}`)
+  }
+  const out = [...cells]
+  for (let col = 0; col < cols; col++)
+    for (let row = 0; row < rows; row++) if (!covered.has(`${row}:${col}`)) out.push({ row, col })
+  return out.sort((a, b) => a.col - b.col || a.row - b.row)
+}
+
+/** Resizes a Table2's grid to rows x cols (at least 1 each), keeping the cells and sizes that still fit; a merged
+ * cell is cut back to the new edge, and every uncovered position gets a blank cell. */
 export function resizeTable2(diagram: Diagram, id: number, rows: number, cols: number): Diagram {
   const safeRows = Math.max(1, rows)
   const safeCols = Math.max(1, cols)
-  return {
-    ...diagram,
-    elements: diagram.elements.map(e => {
-      if (e.id !== id || e.class !== 'Table2') return e
-      const oldRowHeights = e.rowHeights ?? []
-      const oldColumnWidths = e.columnWidths ?? []
-      const rowHeights = Array.from({ length: safeRows }, (_, i) => oldRowHeights[i] ?? TABLE2_ROW_HEIGHT)
-      const columnWidths = Array.from({ length: safeCols }, (_, j) => oldColumnWidths[j] ?? TABLE2_COL_WIDTH)
-      const byPos = new Map((e.cells ?? []).map(c => [`${c.row}:${c.col}`, c]))
-      const cells: TableCell[] = []
-      for (let row = 0; row < safeRows; row++) {
-        for (let col = 0; col < safeCols; col++) {
-          cells.push(byPos.get(`${row}:${col}`) ?? { row, col })
-        }
-      }
-      return { ...e, rowHeights, columnWidths, cells }
-    }),
-  }
+  return updateTable2(diagram, id, e => {
+    const oldRowHeights = e.rowHeights ?? []
+    const oldColumnWidths = e.columnWidths ?? []
+    const rowHeights = Array.from({ length: safeRows }, (_, i) => oldRowHeights[i] ?? TABLE2_ROW_HEIGHT)
+    const columnWidths = Array.from({ length: safeCols }, (_, j) => oldColumnWidths[j] ?? TABLE2_COL_WIDTH)
+    const kept = (e.cells ?? [])
+      .filter(c => c.row < safeRows && c.col < safeCols)
+      .map(c => {
+        const { rows: rs, cols: cs } = cellSpans(c)
+        const rowSpan = Math.min(rs, safeRows - c.row)
+        const colSpan = Math.min(cs, safeCols - c.col)
+        return compactCell({ ...c, rowSpan, colSpan })
+      })
+    return { ...e, rowHeights, columnWidths, cells: fillTable2(kept, safeRows, safeCols) }
+  })
 }
 
 /** Updates one already-existing row's own height or column's own width in
  * place — row/col must already be a valid index (see resizeTable2 to add
  * or remove one); out of range is a no-op. */
 export function updateTable2RowHeight(diagram: Diagram, id: number, row: number, height: number): Diagram {
-  return {
-    ...diagram,
-    elements: diagram.elements.map(e => {
-      if (e.id !== id || e.class !== 'Table2' || !e.rowHeights || row < 0 || row >= e.rowHeights.length) return e
-      return { ...e, rowHeights: e.rowHeights.map((h, i) => (i === row ? height : h)) }
-    }),
-  }
+  return updateTable2(diagram, id, e =>
+    !e.rowHeights || row < 0 || row >= e.rowHeights.length
+      ? e
+      : { ...e, rowHeights: e.rowHeights.map((h, i) => (i === row ? height : h)) },
+  )
 }
 
 export function updateTable2ColumnWidth(diagram: Diagram, id: number, col: number, width: number): Diagram {
-  return {
-    ...diagram,
-    elements: diagram.elements.map(e => {
-      if (e.id !== id || e.class !== 'Table2' || !e.columnWidths || col < 0 || col >= e.columnWidths.length) return e
-      return { ...e, columnWidths: e.columnWidths.map((w, i) => (i === col ? width : w)) }
-    }),
-  }
+  return updateTable2(diagram, id, e =>
+    !e.columnWidths || col < 0 || col >= e.columnWidths.length
+      ? e
+      : { ...e, columnWidths: e.columnWidths.map((w, i) => (i === col ? width : w)) },
+  )
 }
 
-/** Updates one already-existing cell's own text — row/col must already be
- * a valid grid position (see resizeTable2); a (row, col) not currently
- * present is a no-op, which shouldn't happen in practice since resizeTable2
- * always keeps every valid position populated. */
-export function updateTable2CellText(diagram: Diagram, id: number, row: number, col: number, text: string): Diagram {
-  return {
-    ...diagram,
-    elements: diagram.elements.map(e => {
-      if (e.id !== id || e.class !== 'Table2' || !e.cells) return e
-      return { ...e, cells: e.cells.map(c => (c.row === row && c.col === col ? { ...c, text } : c)) }
-    }),
+// Drops a cell's unset fields (undefined, empty, false, 0, a span of 1), so it saves as slddoc writes it.
+function compactCell(c: TableCell): TableCell {
+  const out = { ...c } as Record<string, unknown>
+  for (const [k, v] of Object.entries(out)) {
+    if (k === 'row' || k === 'col') continue
+    if (v === undefined || v === '' || v === false || v === 0 || ((k === 'rowSpan' || k === 'colSpan') && v === 1))
+      delete out[k]
   }
+  return out as unknown as TableCell
+}
+
+/** Applies patch to every cell of rectangle r of Table2 id; a field patched to undefined, '' or false is removed. */
+export function updateTable2Cells(diagram: Diagram, id: number, r: TableRect, patch: Partial<TableCell>): Diagram {
+  return updateTable2(diagram, id, e => ({
+    ...e,
+    cells: (e.cells ?? []).map(c =>
+      c.row >= r.row0 && c.row <= r.row1 && c.col >= r.col0 && c.col <= r.col1 ? compactCell({ ...c, ...patch }) : c,
+    ),
+  }))
+}
+
+/** Merges rectangle r of Table2 id (grown so it cuts no merged cell, see table2Rect) into its top-left cell, as
+ * Modus does: that cell keeps its look and gets every cell's text joined column by column with spaces; the rest go. */
+export function mergeTable2Cells(diagram: Diagram, id: number, r: TableRect): Diagram {
+  return updateTable2(diagram, id, e => {
+    const rect = table2Rect(e, { row: r.row0, col: r.col0 }, { row: r.row1, col: r.col1 })
+    const inside = table2CellsIn(e, rect).sort((a, b) => a.col - b.col || a.row - b.row)
+    const first = inside.find(c => c.row === rect.row0 && c.col === rect.col0)
+    if (!first || inside.length < 2) return e
+    const text = inside
+      .map(c => c.text ?? '')
+      .filter(t => t !== '')
+      .join(' ')
+    const merged = compactCell({
+      ...first,
+      text,
+      rowSpan: rect.row1 - rect.row0 + 1,
+      colSpan: rect.col1 - rect.col0 + 1,
+    })
+    const cells = (e.cells ?? []).filter(c => !inside.includes(c))
+    return { ...e, cells: [...cells, merged].sort((a, b) => a.col - b.col || a.row - b.row) }
+  })
+}
+
+/** Splits every merged cell of rectangle r of Table2 id, as Modus does: the top-left cell keeps the text and look, the
+ * others come back blank. */
+export function unmergeTable2Cells(diagram: Diagram, id: number, r: TableRect): Diagram {
+  return updateTable2(diagram, id, e => {
+    const cells = (e.cells ?? []).map(c =>
+      c.row >= r.row0 && c.row <= r.row1 && c.col >= r.col0 && c.col <= r.col1
+        ? compactCell({ ...c, rowSpan: undefined, colSpan: undefined })
+        : c,
+    )
+    return { ...e, cells: fillTable2(cells, e.rowHeights?.length ?? 0, e.columnWidths?.length ?? 0) }
+  })
 }
 
 // A freshly placed Road's own color/width — matching render.go's own
@@ -1300,7 +1530,7 @@ export function selectionCentroid(
  * it becomes the target's default layer (defaultLayer); with toActiveLayer
  * (a custom element from the palette, whose layers mean nothing here) every
  * item goes on the default layer. Label.for is remapped to the copied
- * element. Each template group becomes a fresh group of its copies (a
+ * element or link to object. Each template group becomes a fresh group of its copies (a
  * one-member group is dropped). Also what Paste uses, with the copied
  * selection (extractSelection) as the template. dropBindings (a custom element from the palette) clears the
  * SCADA bindings, precision and features of every element and digital device. */
@@ -1378,14 +1608,17 @@ export function placeCustomElement(
       ...(e.ports ? { ports: e.ports.map(p => ({ ...p, node: mapNode(p.node, at), mrid: undefined })) } : {}),
       ...(electrical ? { voltage: mapVoltage(e.voltage) } : {}),
       ...(e.windings ? { windings: e.windings.map(w => ({ ...w, voltage: mapVoltage(w.voltage), mrid: undefined })) } : {}),
-      // A copy is new equipment: no CIM identity of its own until exported.
+      // A copy is new equipment: no CIM identity or functional unit of its own.
       mrid: undefined,
+      function: undefined,
       ...(dropBindings ? NO_BINDINGS : {}),
     }
   })
 
+  const connectorIds = new Map<number, number>()
   const newConnectors: Connector[] = template.connectors.map(c => {
     const id = ids.take()
+    connectorIds.set(c.id, id)
     const points = c.points.map(shift)
     const start = points[0] ?? shift(ref)
     const end = points[points.length - 1] ?? start
@@ -1402,6 +1635,7 @@ export function placeCustomElement(
       mrid: undefined,
       fromMrid: undefined,
       toMrid: undefined,
+      ...(dropBindings ? NO_BINDINGS : {}),
     }
   })
 
@@ -1411,7 +1645,8 @@ export function placeCustomElement(
     layer: mapLayer(l.layer),
     group: mapGroup(l.group),
     ...shift(l),
-    for: l.for ? elementIds.get(l.for) : undefined,
+    for: l.for ? (elementIds.get(l.for) ?? connectorIds.get(l.for)) : undefined,
+    ...(dropBindings ? NO_BINDINGS : {}),
   }))
 
   const newDigitalDevices: DigitalDevice[] = template.digitalDevices.map(dd => ({
@@ -1440,7 +1675,7 @@ export function placeCustomElement(
 }
 
 // What a custom element never carries: SCADA bindings belong to one diagram's objects.
-const NO_BINDINGS = { bindings: undefined, precision: undefined, features: undefined }
+const NO_BINDINGS = { bindings: undefined, precision: undefined, features: undefined, componentType: undefined }
 
 // How far a symbol's own drawing reaches beyond its anchor, for sizing an
 // extracted custom element's page — a symbol has no measured extent here,
@@ -1452,8 +1687,8 @@ const SYMBOL_EXTENT = 12
  * is copied (an unselected wire touching a selected element is left out;
  * that element keeps its Port and Node, just with nothing attached), plus
  * exactly the Nodes, voltage classes and layers those reference, the base
- * layer always included. Label.for is kept only when its element is
- * selected too. Ids stay as they are — placeCustomElement gives every
+ * layer always included. Label.for is kept only when its element or link
+ * to object is selected too. Ids stay as they are — placeCustomElement gives every
  * entry a fresh one anyway. Everything is shifted by a whole number of grid
  * steps so the contents start one step in from the top-left, and the page
  * is cropped to fit; editor settings are copied from the source. Returns
@@ -1509,7 +1744,7 @@ export function extractSelection(
     ...labels.map(l => l.layer),
     ...digitalDevices.map(dd => dd.layer),
   ])
-  const elementIds = new Set(elements.map(e => e.id))
+  const elementIds = new Set([...elements.map(e => e.id), ...connectors.map(c => c.id)])
 
   return {
     width,
@@ -1527,6 +1762,7 @@ export function extractSelection(
       ...(e.ports ? { ports: e.ports.map(p => ({ ...p, mrid: undefined })) } : {}),
       ...(e.windings ? { windings: e.windings.map(w => ({ ...w, mrid: undefined })) } : {}),
       mrid: undefined,
+      function: undefined,
       ...(forCustomElement ? NO_BINDINGS : {}),
     })),
     connectors: connectors.map(c => ({
@@ -1535,11 +1771,13 @@ export function extractSelection(
       mrid: undefined,
       fromMrid: undefined,
       toMrid: undefined,
+      ...(forCustomElement ? NO_BINDINGS : {}),
     })),
     labels: labels.map(l => ({
       ...l,
       ...shift(l),
       for: l.for !== undefined && elementIds.has(l.for) ? l.for : undefined,
+      ...(forCustomElement ? NO_BINDINGS : {}),
     })),
     digitalDevices: digitalDevices.map(dd => ({ ...dd, ...shift(dd), ...(forCustomElement ? NO_BINDINGS : {}) })),
   }
@@ -1581,14 +1819,9 @@ export function moveElement(diagram: Diagram, id: number, dx: number, dy: number
  * interior vertex's own segments orthogonal.
  *
  * A connector explicitly in ids.connectorIds (selected in its own right,
- * not just touching a moving element) gets the same treatment as if both/
- * one of its own ends were moving — except an end that's a real Port on an
- * element that ISN'T also moving is deliberately left fixed (adding it
- * would visually tear the wire's end away from equipment that isn't
- * actually moving); an end that's a tap onto a busbar/another connector's
- * own line, rather than a genuine Port, is always treated as free to move
- * with the connector, the same simplification copySelection already makes
- * for a tap junction.
+ * not just touching a moving element) moves as a whole. An end of it on a
+ * Port of an element that isn't moving is first detached (detachWireEnds):
+ * the wire moves away and a buswork stub keeps it joined to that terminal.
  *
  * A label in ids.labelIds, or a digital device in ids.digitalDeviceIds,
  * just has its own x/y shifted by (dx, dy) — neither has a Port/Node of
@@ -1609,25 +1842,17 @@ export function moveSelection(
   dx: number,
   dy: number,
 ): Diagram {
-  diagram = detachSharedPorts(diagram, ids.elementIds)
+  diagram = detachWireEnds(detachSharedPorts(diagram, ids.elementIds), ids)
   const movedNodeIds = new Set<number>()
   for (const el of diagram.elements) {
     if (!ids.elementIds.has(el.id)) continue
     for (const p of el.ports ?? []) movedNodeIds.add(p.node)
   }
 
-  if (ids.connectorIds.size > 0) {
-    const elementNodeIds = new Set<number>()
-    for (const el of diagram.elements) {
-      for (const p of el.ports ?? []) elementNodeIds.add(p.node)
-    }
-    for (const c of diagram.connectors) {
-      if (!ids.connectorIds.has(c.id)) continue
-      const fromIsFixedPort = elementNodeIds.has(c.from) && !movedNodeIds.has(c.from)
-      const toIsFixedPort = elementNodeIds.has(c.to) && !movedNodeIds.has(c.to)
-      if (!fromIsFixedPort) movedNodeIds.add(c.from)
-      if (!toIsFixedPort) movedNodeIds.add(c.to)
-    }
+  for (const c of diagram.connectors) {
+    if (!ids.connectorIds.has(c.id)) continue
+    movedNodeIds.add(c.from)
+    movedNodeIds.add(c.to)
   }
 
   let moved = [...ids.elementIds].reduce((acc, id) => moveElement(acc, id, dx, dy), diagram)
@@ -1675,7 +1900,7 @@ export function moveSelection(
   // wire behind, and a moved element's terminal that lands exactly on a
   // node or a wire joins it there — see removeDegenerateConnectors and
   // joinPortNodes.
-  let result = removeDegenerateConnectors({ ...moved, connectors, nodes })
+  let result = joinMovedWireEnds(removeDegenerateConnectors({ ...moved, connectors, nodes }), movedNodeIds)
   for (const id of ids.elementIds) {
     const el = result.elements.find(e => e.id === id)
     result = el?.class === 'BusBarSection' ? joinBusbar(result, id) : joinPortNodes(result, id)
@@ -1730,6 +1955,100 @@ function detachSharedPorts(diagram: Diagram, movedIds: Set<number>): Diagram {
     elements,
     nodes: [...diagram.nodes, ...newNodes],
     connectors: [...diagram.connectors, ...newWires],
+  }
+}
+
+/** Merges each of nodeIds that no element Port uses (a moved wire end) into another Node lying exactly at its point,
+ * then drops wires left as exact copies of another one (same ends, same path; the lower id stays). So wires moved
+ * onto the ends of others, or in several drags off the same terminal, join instead of overlapping unconnected.
+ * Returns diagram itself when nothing joins. */
+function joinMovedWireEnds(diagram: Diagram, nodeIds: Set<number>): Diagram {
+  const portNodes = new Set(diagram.elements.flatMap(e => (e.ports ?? []).map(p => p.node)))
+  let d = diagram
+  const joined = new Set<number>()
+  for (const id of nodeIds) {
+    if (portNodes.has(id)) continue
+    const node = d.nodes.find(n => n.id === id)
+    if (!node) continue
+    const other =
+      d.nodes.find(n => n.id !== id && portNodes.has(n.id) && samePoint(n, node)) ??
+      d.nodes.find(n => n.id !== id && samePoint(n, node))
+    if (!other || !voltagesJoin(other.id, nodeVoltages(d, id), nodeVoltages(d, other.id))) continue
+    d = mergeNode(d, id, other.id)
+    joined.add(other.id)
+  }
+  if (joined.size === 0) return diagram
+  const key = (c: Connector) => {
+    const pts = c.points.map(p => `${p.x},${p.y}`)
+    const fwd = `${c.from}>${c.to}:${pts.join(' ')}`
+    const rev = `${c.to}>${c.from}:${pts.reverse().join(' ')}`
+    return `${c.kind}|${fwd < rev ? fwd : rev}`
+  }
+  const seen = new Set<string>()
+  const drop = new Set<number>()
+  for (const c of [...d.connectors].sort((a, b) => a.id - b.id)) {
+    if (!joined.has(c.from) && !joined.has(c.to)) continue
+    const k = key(c)
+    if (seen.has(k)) drop.add(c.id)
+    else seen.add(k)
+  }
+  return drop.size === 0 ? d : { ...d, connectors: d.connectors.filter(c => !drop.has(c.id)) }
+}
+
+/** Gives every end of a wire in ids.connectorIds that sits on a Port of an element not in ids.elementIds a fresh
+ * Node at the same point (one per terminal, shared by the moving wires on it), joined to the terminal's Node by a
+ * zero-length buswork wire. The terminal, its element and the wires not moving keep the old Node; moveSelection then
+ * moves the wires and stretches the stub. Returns diagram itself when no such end exists. */
+function detachWireEnds(diagram: Diagram, ids: { elementIds: Set<number>; connectorIds: Set<number> }): Diagram {
+  if (ids.connectorIds.size === 0) return diagram
+  const fixedPorts = new Set(
+    diagram.elements.filter(e => !ids.elementIds.has(e.id)).flatMap(e => (e.ports ?? []).map(p => p.node)),
+  )
+  for (const el of diagram.elements) {
+    if (ids.elementIds.has(el.id)) for (const p of el.ports ?? []) fixedPorts.delete(p.node)
+  }
+  const nodes = new Map(diagram.nodes.map(n => [n.id, n]))
+  let seq: IdSequence | null = null
+  const replaced = new Map<number, number>()
+  const newNodes: DiagramNode[] = []
+  const newWires: Connector[] = []
+  const detach = (nodeId: number, wire: Connector): number => {
+    const port = nodes.get(nodeId)
+    if (!fixedPorts.has(nodeId) || !port) return nodeId
+    const known = replaced.get(nodeId)
+    if (known !== undefined) return known
+    seq ??= new IdSequence(diagram)
+    const node = { id: seq.take(), x: port.x, y: port.y }
+    const wireId = seq.take()
+    newNodes.push(node)
+    newWires.push({
+      id: wireId,
+      kind: 'BusWork',
+      name: defaultConnectorName('BusWork', wireId),
+      voltage: wire.voltage,
+      layer: wire.layer,
+      from: port.id,
+      to: node.id,
+      points: [
+        { x: port.x, y: port.y },
+        { x: port.x, y: port.y },
+      ],
+    })
+    replaced.set(nodeId, node.id)
+    return node.id
+  }
+  const connectors = diagram.connectors.map(c => {
+    if (!ids.connectorIds.has(c.id)) return c
+    const from = detach(c.from, c)
+    const to = detach(c.to, c)
+    return from === c.from && to === c.to ? c : { ...c, from, to }
+  })
+  if (!seq) return diagram
+  return {
+    ...diagram,
+    lastId: (seq as IdSequence).lastId,
+    nodes: [...diagram.nodes, ...newNodes],
+    connectors: [...connectors, ...newWires],
   }
 }
 
@@ -2001,7 +2320,8 @@ function transformerLocalTerminals(el: DiagramElement): Point[] {
   if (el.autotransformer) {
     points.push({ x: 0, y: TRANSFORMER_TAP_OFFSET_Y })
   }
-  return points
+  const step = el.scale ?? 0
+  return points.map(p => ({ x: scaledLength(p.x, step), y: scaledLength(p.y, step) }))
 }
 
 /** An element's own real terminal positions — where a wire would actually
@@ -2052,6 +2372,12 @@ export function connectedNodeIds(diagram: Diagram): Set<number> {
   return connected
 }
 
+/** Whether el is a Two-terminal box with its terminals left and right (slddoc's SideTerminals): its library
+ * terminals (above and below) are then taken with x and y swapped. */
+export function hasSideTerminals(el: DiagramElement): boolean {
+  return el.class === 'TwoTerminalBox' && (el.terminal === 'left' || el.terminal === 'right')
+}
+
 export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): Point[] | null {
   if (el.class === 'PowerTransformer') {
     return transformerLocalTerminals(el).map(t => placeLocalPoint(el, t))
@@ -2064,9 +2390,11 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
   const scale = el.class === 'Fork' && el.radius ? el.radius / FORK_ARM_LENGTH : 1
   const step = symbol.scalable ? (el.scale ?? 0) : 0
   const half = symbol.leads && el.span ? el.span / 2 : 0
-  return symbol.terminals.map(t => {
-    const x = scaledLength(t.x * scale, step)
-    let y = scaledLength(t.y * scale, step)
+  const side = hasSideTerminals(el)
+  return symbol.terminals.map(({ x: tx, y: ty }) => {
+    if (side) [tx, ty] = [ty, tx]
+    const x = scaledLength(tx * scale, step)
+    let y = scaledLength(ty * scale, step)
     // A lead shape's leads reach ±span/2 (slddoc's LeadTerminal).
     if (half > Math.abs(y) && y !== 0) y = Math.sign(y) * half
     return placeLocalPoint(el, { x, y })
@@ -2098,7 +2426,7 @@ export function defaultLeadSpan(el: DiagramElement, symbols: ElementSymbol[]): n
 
 /** The size steps (DiagramElement.scale) offered in Properties and tried
  * on SVG import. */
-export const SIZE_STEPS = [-2, -1, 0, 1, 2, 3, 4]
+export const SIZE_STEPS = [-2, -1, 0, 1, 2, 3, 4, 5]
 
 /** A size step's own scale factor, √2^step — slddoc's SizeFactor. */
 export function sizeFactor(step: number): number {
@@ -2783,29 +3111,284 @@ export function placeLabel(diagram: Diagram, point: Point, forId?: number): Diag
   return { ...diagram, lastId: ids.lastId, labels: [...diagram.labels, label] }
 }
 
-/** Adds a text label (shape 5) showing element elementId's name, For that
- * element, at point: size 10, start-anchored, bottom-aligned (the default),
- * Arial, white, on the element's own layer — the Properties panel's "Add
- * name label" button, which places it to the element's right. Returns
- * diagram itself when the element has no name or already has a label For
- * it. */
-export function placeNameLabel(diagram: Diagram, elementId: number, point: Point): Diagram {
-  const el = diagram.elements.find(e => e.id === elementId)
-  if (!el?.name || diagram.labels.some(l => l.for === elementId)) return diagram
+/** Adds a text label (shape 5) showing the name of element or link to object
+ * targetId, For it, at point: size 10, start-anchored, bottom-aligned (the
+ * default), Arial, white, on its own layer — the Properties panel's "Add
+ * name label" button, which places it to its right. Returns diagram itself
+ * when it has no name or already has a label For it. */
+export const NAME_LABEL_SIZE = 10
+
+/** The point and alignment of a new name label of element box (see placeNameLabel): one grid step to its right,
+ * else to its left (right-aligned), else above its left edge, the first whose text, of estimated width textWidth,
+ * stays inside a width-wide diagram. On the grid when snap. */
+export function nameLabelPlacement(
+  box: { x: number; y: number; width: number; height: number },
+  textWidth: number,
+  width: number,
+  grid: number,
+  snap: boolean,
+): { point: Point; anchor: 'start' | 'end' } {
+  const up = (v: number) => (snap ? Math.ceil(v / grid) * grid : v)
+  const down = (v: number) => (snap ? Math.floor(v / grid) * grid : v)
+  const round = (v: number) => (snap ? Math.round(v / grid) * grid : v)
+  const y = round(box.y + box.height / 2)
+  const right = snap ? up(box.x + box.width + grid / 2) : box.x + box.width + grid
+  if (right + textWidth <= width) return { point: { x: right, y }, anchor: 'start' }
+  const left = snap ? down(box.x - grid / 2) : box.x - grid
+  if (left - textWidth >= 0) return { point: { x: left, y }, anchor: 'end' }
+  return { point: { x: Math.max(0, round(box.x)), y: Math.max(NAME_LABEL_SIZE, down(box.y - grid)) }, anchor: 'start' }
+}
+
+export function placeNameLabel(
+  diagram: Diagram,
+  targetId: number,
+  point: Point,
+  anchor: 'start' | 'end' = 'start',
+): Diagram {
+  const target = labelTarget(diagram, targetId)
+  if (!target?.name || diagram.labels.some(l => l.for === targetId)) return diagram
   const ids = new IdSequence(diagram)
   const label: Label = {
     id: ids.take(),
-    for: el.id,
-    layer: el.layer,
+    for: target.id,
+    layer: target.layer,
     x: point.x,
     y: point.y,
-    size: 10,
-    anchor: 'start',
+    size: NAME_LABEL_SIZE,
+    anchor,
     font: 'Arial',
     color: 'white',
-    text: el.name,
+    text: target.name,
   }
   return { ...diagram, lastId: ids.lastId, labels: [...diagram.labels, label] }
+}
+
+/** The item a label's For may name: an element or a link to object; undefined for any other id. */
+export function labelTarget(diagram: Diagram, id: number): DiagramElement | Connector | undefined {
+  return diagram.elements.find(e => e.id === id) ?? diagram.connectors.find(c => c.id === id && c.kind === 'LinkToObject')
+}
+
+/** The full designation of function id in functions, e.g. "=E1=H03"; "" for an unknown id (slddoc
+ * FunctionDesignation). */
+export function functionDesignation(functions: readonly DiagramFunction[] | undefined, id: number | undefined): string {
+  const byId = new Map((functions ?? []).map(f => [f.id, f]))
+  const parts: string[] = []
+  const seen = new Set<number>()
+  for (let f = id ? byId.get(id) : undefined; f && !seen.has(f.id); f = f.parent ? byId.get(f.parent) : undefined) {
+    seen.add(f.id)
+    parts.unshift(functionSegment(f))
+  }
+  return parts.join('')
+}
+
+/** The own segment of function f's designation: "=" + code + zero-padded number (=E1). */
+export function functionSegment(f: DiagramFunction): string {
+  return `=${f.code}${String(f.number).padStart(Math.max(f.digits ?? 1, 1), '0')}`
+}
+
+/** What a designation label shows of name: all of it, or (short) its product part after the first "-" (QA1). */
+export function designationText(name: string, format: DesignationFormat | undefined): string {
+  const i = name.indexOf('-')
+  return format === 'short' && i >= 0 ? name.slice(i + 1) : name
+}
+
+/** The diagram's designation layer, created on first use above every other layer: its id and the diagram. */
+export function ensureDesignationLayer(diagram: Diagram, name: string): { diagram: Diagram; layer: number } {
+  const current = diagram.editor?.designationLayer
+  if (current && diagram.layers.some(l => l.id === current)) return { diagram, layer: current }
+  const ids = new IdSequence(diagram)
+  const z = Math.max(0, ...diagram.layers.map(l => l.z ?? 0)) + 1
+  const layer: Layer = { id: ids.take(), name, z }
+  return {
+    diagram: {
+      ...diagram,
+      lastId: ids.lastId,
+      layers: [...diagram.layers, layer],
+      editor: { ...diagram.editor, designationLayer: layer.id },
+    },
+    layer: layer.id,
+  }
+}
+
+/** Drops the functions no element and no other function belongs to. */
+function pruneFunctions(diagram: Diagram): Diagram {
+  let functions = diagram.functions ?? []
+  for (;;) {
+    const used = new Set<number>()
+    for (const e of diagram.elements) if (e.function) used.add(e.function)
+    for (const f of functions) if (f.parent) used.add(f.parent)
+    const kept = functions.filter(f => used.has(f.id))
+    if (kept.length === functions.length) break
+    functions = kept
+  }
+  const ids = new Set(functions.map(f => f.id))
+  functions = functions.map(f => (f.pair && !ids.has(f.pair) ? { ...f, pair: undefined } : f))
+  return functions === diagram.functions ? diagram : { ...diagram, functions }
+}
+
+/** Applies a designation plan (POST /api/designations) to its accepted rows (element ids): their names and units,
+ * the functions they need (the plan's new ones, negative ids, get ids here), and their designation labels on the
+ * designation layer (created as layerName when missing). An element's existing label For it gets the new text, and
+ * moves to the designation layer when it showed the old name; one without a label gets one at labels' point for it.
+ * Every designation label then shows format. Functions left without elements are dropped. */
+export function applyDesignations(
+  diagram: Diagram,
+  plan: DesignationPlan,
+  accepted: ReadonlySet<number>,
+  labels: ReadonlyMap<number, Point>,
+  layerName: string,
+  format: DesignationFormat,
+): Diagram {
+  const rows = plan.rows.filter(r => accepted.has(r.element))
+  const planned = new Map(plan.functions.map(f => [f.id, f]))
+  const needed = new Set<number>()
+  for (const r of rows) {
+    for (let id: number | undefined = r.function; id && !needed.has(id); id = planned.get(id)?.parent) needed.add(id)
+  }
+  const ids = new IdSequence(diagram)
+  const remap = new Map<number, number>()
+  for (const f of plan.functions) if (f.id < 0 && needed.has(f.id)) remap.set(f.id, ids.take())
+  const fresh = (id: number | undefined) => (id === undefined ? undefined : id < 0 ? remap.get(id) : id)
+  const functions: DiagramFunction[] = plan.functions
+    .filter(f => f.id >= 0 || remap.has(f.id))
+    .map(f => ({ ...f, id: fresh(f.id)!, parent: fresh(f.parent), pair: fresh(f.pair) }))
+  const byElement = new Map(rows.map(r => [r.element, r]))
+  let d: Diagram = {
+    ...diagram,
+    lastId: ids.lastId,
+    functions,
+    elements: diagram.elements.map(e => {
+      const r = byElement.get(e.id)
+      return r ? { ...e, name: r.name, function: fresh(r.function) } : e
+    }),
+    editor: { ...diagram.editor, designationFormat: format },
+  }
+  const current = d.editor?.designationLayer
+  if (rows.length === 0 && !(current && d.layers.some(l => l.id === current))) return pruneFunctions(d)
+  const ensured = ensureDesignationLayer(d, layerName)
+  d = ensured.diagram
+  const layer = ensured.layer
+  const labelled = new Set<number>()
+  const elementById = new Map(d.elements.map(e => [e.id, e]))
+  let labelList = d.labels.map(l => {
+    if (l.for === undefined || labelled.has(l.for)) return l
+    const r = byElement.get(l.for)
+    const el = elementById.get(l.for)
+    if (r) {
+      labelled.add(l.for)
+      const plain = l.text === (r.oldName ?? '') || l.layer === layer
+      return { ...l, text: designationText(r.name, format), layer: plain ? layer : l.layer }
+    }
+    if (l.layer === layer && el?.function && el.name) {
+      const text = designationText(el.name, format)
+      return text === l.text ? l : { ...l, text }
+    }
+    return l
+  })
+  const seq = new IdSequence(d)
+  for (const r of rows) {
+    const at = labels.get(r.element)
+    if (labelled.has(r.element) || !at) continue
+    labelList = [
+      ...labelList,
+      {
+        id: seq.take(),
+        for: r.element,
+        layer,
+        x: at.x,
+        y: at.y,
+        size: NAME_LABEL_SIZE,
+        anchor: 'start',
+        font: 'Arial',
+        color: 'white',
+        text: designationText(r.name, format),
+      },
+    ]
+  }
+  return pruneFunctions({ ...d, lastId: seq.lastId, labels: labelList })
+}
+
+/** Moves element elementId to unit function (0: none); its name is left as it is. */
+export function setElementFunction(diagram: Diagram, elementId: number, functionId: number): Diagram {
+  return {
+    ...diagram,
+    elements: diagram.elements.map(e => (e.id === elementId ? { ...e, function: functionId || undefined } : e)),
+  }
+}
+
+/** Renames every element designated under one of from's prefixes to the same name under to's, with its labels
+ * showing the old name or its designation. */
+function renameDesignations(diagram: Diagram, renames: [string, string][]): Diagram {
+  if (renames.length === 0) return diagram
+  const format = diagram.editor?.designationFormat
+  const renamed = new Map<number, [string, string]>()
+  const elements = diagram.elements.map(e => {
+    const name = e.name ?? ''
+    for (const [from, to] of renames) {
+      if (from !== to && (name.startsWith(from + '-') || name.startsWith(from + '='))) {
+        const next = to + name.slice(from.length)
+        renamed.set(e.id, [name, next])
+        return { ...e, name: next }
+      }
+    }
+    return e
+  })
+  if (renamed.size === 0) return diagram
+  const labels = diagram.labels.map(l => {
+    const r = l.for !== undefined ? renamed.get(l.for) : undefined
+    if (!r) return l
+    if (l.text === r[0]) return { ...l, text: r[1] }
+    if (l.text === designationText(r[0], format)) return { ...l, text: designationText(r[1], format) }
+    return l
+  })
+  return { ...diagram, elements, labels }
+}
+
+/** Edits function id (kind, code, number, digits, guessed — a changed kind confirms it) and renames the elements
+ * designated under it. */
+export function updateFunction(diagram: Diagram, id: number, patch: Partial<DiagramFunction>): Diagram {
+  const before = diagram.functions ?? []
+  const functions = before.map(f =>
+    f.id === id ? { ...f, ...patch, ...(patch.kind && patch.kind !== f.kind ? { guessed: undefined } : {}) } : f,
+  )
+  const renames: [string, string][] = []
+  const children = (parent: number): number[] => functions.filter(f => f.parent === parent).map(f => f.id)
+  const walk = (fid: number) => {
+    renames.push([functionDesignation(before, fid), functionDesignation(functions, fid)])
+    children(fid).forEach(walk)
+  }
+  walk(id)
+  return renameDesignations({ ...diagram, functions }, renames)
+}
+
+/** Makes a new unit of kind (code, digits) for elementIds, in the voltage level of the first one's unit, numbered
+ * after the highest unit of that code there; returns the diagram and the new unit's id. */
+export function newFunctionFromElements(
+  diagram: Diagram,
+  elementIds: readonly number[],
+  kind: DiagramFunction['kind'],
+  code: string,
+  digits: number,
+): { diagram: Diagram; id: number } {
+  const functions = diagram.functions ?? []
+  const byId = new Map(functions.map(f => [f.id, f]))
+  const first = diagram.elements.find(e => e.id === elementIds[0])
+  let level = first?.function ? byId.get(first.function) : undefined
+  while (level && level.kind !== 'voltageLevel' && level.parent) level = byId.get(level.parent)
+  const parent = level?.kind === 'voltageLevel' ? level.id : undefined
+  const number = 1 + Math.max(0, ...functions.filter(f => f.parent === parent && f.code === code).map(f => f.number))
+  const ids = new IdSequence(diagram)
+  const fn: DiagramFunction = { id: ids.take(), parent, kind, code, number, digits: digits || undefined }
+  const set = new Set(elementIds)
+  return {
+    diagram: pruneFunctions({
+      ...diagram,
+      lastId: ids.lastId,
+      functions: [...functions, fn],
+      elements: diagram.elements.map(e => (set.has(e.id) ? { ...e, function: fn.id } : e)),
+    }),
+    id: fn.id,
+  }
 }
 
 /** Translates a label's own anchor by (dx, dy). */
@@ -2888,7 +3471,8 @@ export function removeDigitalDevice(diagram: Diagram, id: number): Diagram {
  * that got deleted. deleteConnectorSegment deliberately doesn't go through
  * this — it reuses this same connector's own from/to for whichever side
  * keeps the original endpoint, so pruning them here first would leave that
- * side pointing at a node that no longer exists. */
+ * side pointing at a node that no longer exists. A label For it (a link to
+ * object's name label) goes too. */
 export function removeConnector(diagram: Diagram, id: number): Diagram {
   const removed = diagram.connectors.find(c => c.id === id)
   if (!removed) return diagram
@@ -2912,6 +3496,7 @@ export function removeConnector(diagram: Diagram, id: number): Diagram {
     ...diagram,
     connectors: remainingConnectors,
     nodes: diagram.nodes.filter(n => !orphaned(n.id)),
+    labels: diagram.labels.filter(l => l.for !== id),
   })
 }
 
@@ -3298,33 +3883,90 @@ export function mergeableBusworkAt(diagram: Diagram, nodeId: number): [Connector
   return a.id < b.id ? [a, b] : [b, a]
 }
 
-/** Merges the two BusWork wires meeting at nodeId (see mergeableBusworkAt) into the one with the lower id, which keeps
- * its own attributes and runs on through the other's points; the joint node is removed. Returns the diagram unchanged
- * when the node can't be merged. */
+/** Merges the two BusWork wires meeting at nodeId (see mergeableBusworkAt) into the one with the lower id
+ * (mergeBusworkChain). Returns the diagram unchanged when the node can't be merged. */
 export function mergeBuswork(diagram: Diagram, nodeId: number): Diagram {
   const pair = mergeableBusworkAt(diagram, nodeId)
-  if (!pair) return diagram
-  const [keep, other] = pair
-  const reversed = (c: Connector): Connector => ({
-    ...c,
-    from: c.to,
-    to: c.from,
-    fromMrid: c.toMrid,
-    toMrid: c.fromMrid,
-    points: [...c.points].reverse(),
-  })
-  const head = keep.to === nodeId ? keep : reversed(keep)
-  const tail = other.from === nodeId ? other : reversed(other)
-  const merged: Connector = {
-    ...head,
-    to: tail.to,
-    toMrid: tail.toMrid,
-    points: simplifyOrthogonalPath([...head.points, ...tail.points.slice(1)]),
+  return pair ? mergeBusworkChain(diagram, new Set(pair.map(c => c.id)), pair[0].id) : diagram
+}
+
+/** Why the wires of busworkChain can't be merged: not all BusWork, different voltage classes, not one open chain
+ * joined end to end (fewer than two wires, a branch, a loop, or apart), or something else on a joint. */
+export type BusworkChainError = 'kind' | 'voltage' | 'chain' | 'joint'
+
+const reversedConnector = (c: Connector): Connector => ({
+  ...c,
+  from: c.to,
+  to: c.from,
+  fromMrid: c.toMrid,
+  toMrid: c.fromMrid,
+  points: [...c.points].reverse(),
+})
+
+/** Wires connectorIds in order along their chain, each turned to run along it, when they can be merged into one
+ * wire: at least two BusWork wires of one voltage class joined end to end into one open chain, every joint used by
+ * exactly two of them and by nothing else (no other wire end, no element Port). Otherwise the reason. */
+export function busworkChain(
+  diagram: Diagram,
+  connectorIds: Set<number>,
+): { wires: Connector[] } | { error: BusworkChainError } {
+  const wires = diagram.connectors.filter(c => connectorIds.has(c.id))
+  if (wires.length < 2) return { error: 'chain' }
+  if (wires.some(c => c.kind !== 'BusWork')) return { error: 'kind' }
+  if (new Set(wires.map(c => c.voltage ?? 0)).size > 1) return { error: 'voltage' }
+  const ends = new Map<number, Connector[]>()
+  for (const c of wires) {
+    if (c.from === c.to) return { error: 'chain' }
+    for (const n of [c.from, c.to]) ends.set(n, [...(ends.get(n) ?? []), c])
   }
+  const tips = [...ends].filter(([, cs]) => cs.length === 1).map(([n]) => n)
+  if (tips.length !== 2 || [...ends.values()].some(cs => cs.length > 2)) return { error: 'chain' }
+  const joints = new Set([...ends].filter(([, cs]) => cs.length === 2).map(([n]) => n))
+  if (
+    diagram.elements.some(e => (e.ports ?? []).some(p => joints.has(p.node))) ||
+    diagram.connectors.some(c => !connectorIds.has(c.id) && (joints.has(c.from) || joints.has(c.to)))
+  )
+    return { error: 'joint' }
+  const chain: Connector[] = []
+  let node = tips[0]
+  let prev: Connector | undefined
+  for (;;) {
+    const next = ends.get(node)!.find(c => c !== prev)
+    if (!next) break
+    const along = next.from === node ? next : reversedConnector(next)
+    chain.push(along)
+    prev = next
+    node = along.to
+  }
+  return chain.length === wires.length ? { wires: chain } : { error: 'chain' }
+}
+
+/** Merges wires connectorIds (see busworkChain) into wire keepId, which keeps its own id and attributes, runs through
+ * the others' points in its own direction and connects their two outer ends; the others and the joint nodes are
+ * removed. Returns the diagram unchanged when they can't be merged or keepId isn't one of them. */
+export function mergeBusworkChain(diagram: Diagram, connectorIds: Set<number>, keepId: number): Diagram {
+  const found = busworkChain(diagram, connectorIds)
+  if (!('wires' in found)) return diagram
+  let chain = found.wires
+  const keep = diagram.connectors.find(c => c.id === keepId)
+  const along = chain.find(c => c.id === keepId)
+  if (!keep || !along) return diagram
+  if (along.from !== keep.from) chain = [...chain].reverse().map(reversedConnector)
+  const first = chain[0]
+  const last = chain[chain.length - 1]
+  const merged: Connector = {
+    ...keep,
+    from: first.from,
+    fromMrid: first.fromMrid,
+    to: last.to,
+    toMrid: last.toMrid,
+    points: simplifyOrthogonalPath(chain.flatMap((c, i) => (i === 0 ? c.points : c.points.slice(1)))),
+  }
+  const joints = new Set(chain.slice(1).map(c => c.from))
   return {
     ...diagram,
-    nodes: diagram.nodes.filter(n => n.id !== nodeId),
-    connectors: diagram.connectors.flatMap(c => (c.id === keep.id ? [merged] : c.id === other.id ? [] : [c])),
+    nodes: diagram.nodes.filter(n => !joints.has(n.id)),
+    connectors: diagram.connectors.flatMap(c => (c.id === keepId ? [merged] : connectorIds.has(c.id) ? [] : [c])),
   }
 }
 
@@ -3617,6 +4259,43 @@ export function removeDegenerateConnectors(diagram: Diagram): Diagram {
   return { ...d, nodes: d.nodes.filter(n => used.has(n.id)) }
 }
 
+/** Joins every device terminal lying on a wire of after that is new or has a changed path since before (not at one
+ * of its ends) to that wire, as joinPortNodes does for a moved device, but only with those wires. Busbars are left
+ * out (joinBusbar joins what lies on them). Returns after itself when nothing joins. */
+export function joinTerminalsOnChangedWires(before: Diagram, after: Diagram): Diagram {
+  const prev = new Map(before.connectors.map(c => [c.id, c.points]))
+  const samePath = (a: Point[], b: Point[]) => a === b || (a.length === b.length && a.every((p, i) => samePoint(p, b[i])))
+  const changed = after.connectors.filter(c => {
+    const old = prev.get(c.id)
+    return c.kind !== 'OverheadLine' && c.points.length >= 2 && (!old || !samePath(old, c.points))
+  })
+  if (changed.length === 0) return after
+  const nodes = new Map(after.nodes.map(n => [n.id, n]))
+  const lies = (n: DiagramNode, c: Connector) =>
+    n.id !== c.from &&
+    n.id !== c.to &&
+    !samePoint(n, c.points[0]) &&
+    !samePoint(n, c.points[c.points.length - 1]) &&
+    c.points.some((a, i) => i < c.points.length - 1 && isOnSegment(n, a, c.points[i + 1]))
+  const devices = after.elements.filter(
+    el =>
+      el.class !== 'BusBarSection' &&
+      (el.ports ?? []).some(p => {
+        const n = nodes.get(p.node)
+        return !!n && changed.some(c => lies(n, c))
+      }),
+  )
+  if (devices.length === 0) return after
+  const wires = new Set(changed.map(c => c.id))
+  const known = new Set(after.connectors.map(c => c.id))
+  let d = after
+  for (const el of devices) {
+    d = joinPortNodes(d, el.id, wires)
+    for (const c of d.connectors) if (!known.has(c.id)) wires.add(c.id)
+  }
+  return d
+}
+
 /** Joins each of an element's Port Nodes to whatever lies exactly at its
  * position: another Node there is merged into it, a wire whose line passes
  * through it (not at one of its ends, and not an OverheadLine, which can't
@@ -3624,25 +4303,27 @@ export function removeDegenerateConnectors(diagram: Diagram): Diagram {
  * BusBarSection whose line passes through it gets a Port on it. Wires
  * already touching one of this element's own Ports are left alone, so a
  * wire drawn past its own other terminal doesn't short it. */
-export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
+export function joinPortNodes(diagram: Diagram, elementId: number, onlyWires?: Set<number>): Diagram {
   const el = diagram.elements.find(e => e.id === elementId)
   if (!el || !el.ports || el.ports.length === 0) return diagram
   const ownNodes = new Set(el.ports.map(p => p.node))
+  const wires = onlyWires && new Set(onlyWires)
   let ids: IdSequence | null = null
-  let d = cutWireThroughDevice(diagram, el)
+  let d = cutWireThroughDevice(diagram, el, wires)
   if (d !== diagram) ids = new IdSequence(d)
 
   for (const port of el.ports) {
     const node = d.nodes.find(n => n.id === port.node)
     if (!node) continue
 
-    for (const other of d.nodes.filter(n => !ownNodes.has(n.id) && samePoint(n, node))) {
+    for (const other of wires ? [] : d.nodes.filter(n => !ownNodes.has(n.id) && samePoint(n, node))) {
       if (voltagesJoin(node.id, nodeVoltages(d, node.id), nodeVoltages(d, other.id))) d = mergeNode(d, other.id, node.id)
     }
 
     const split: Connector[] = []
     const touched = new Set<number>()
     for (const c of d.connectors) {
+      if (wires && !wires.has(c.id)) continue
       if (ownNodes.has(c.from) || ownNodes.has(c.to) || c.kind === 'OverheadLine' || c.points.length < 2) continue
       if (samePoint(c.points[0], node) || samePoint(c.points[c.points.length - 1], node)) continue
       const k = c.points.findIndex((a, i) => i < c.points.length - 1 && isOnSegment(node, a, c.points[i + 1]))
@@ -3655,6 +4336,7 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
       const isDegenerate = (pts: Point[]) => pts.length < 2 || pts.every(q => samePoint(q, pts[0]))
       if (isDegenerate(before) || isDegenerate(after)) continue
       const secondId = ids.take()
+      wires?.add(secondId)
       split.push(
         { ...c, to: node.id, toMrid: undefined, points: before },
         {
@@ -3671,6 +4353,7 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
       touched.add(c.id)
     }
     if (touched.size > 0) d = { ...d, connectors: [...d.connectors.filter(c => !touched.has(c.id)), ...split] }
+    if (wires) continue
 
     const tappedBuses = d.elements.filter(
       bus =>
@@ -3704,7 +4387,7 @@ export function joinPortNodes(diagram: Diagram, elementId: number): Diagram {
  * of the wire running through the element to the far side, touching its
  * own Port, so the other terminal was never joined and the wire shorted it.
  * Returns diagram itself when el isn't lying in a wire. */
-function cutWireThroughDevice(diagram: Diagram, el: DiagramElement): Diagram {
+function cutWireThroughDevice(diagram: Diagram, el: DiagramElement, onlyWires?: Set<number>): Diagram {
   const ports = el.ports ?? []
   if (ports.length !== 2 || ports[0].node === ports[1].node) return diagram
   const [n1, n2] = ports.map(p => diagram.nodes.find(n => n.id === p.node))
@@ -3721,6 +4404,7 @@ function cutWireThroughDevice(diagram: Diagram, el: DiagramElement): Diagram {
     return null
   }
   for (const c of diagram.connectors) {
+    if (onlyWires && !onlyWires.has(c.id)) continue
     if (own.has(c.from) || own.has(c.to) || c.kind === 'OverheadLine' || c.points.length < 2) continue
     const pts = c.points
     if (pts.some((p, i) => (i === 0 || i === pts.length - 1) && (samePoint(p, n1) || samePoint(p, n2)))) continue
@@ -3735,6 +4419,7 @@ function cutWireThroughDevice(diagram: Diagram, el: DiagramElement): Diagram {
     const tail = simplifyOrthogonalPath([{ x: second.x, y: second.y }, ...pts.slice(Math.floor(b) + 1)])
     const ids = new IdSequence(diagram)
     const tailId = ids.take()
+    onlyWires?.add(tailId)
     return {
       ...diagram,
       lastId: ids.lastId,
@@ -4881,14 +5566,17 @@ export function ungroupItems(d: Diagram, selection: Map<number, GroupItemKind>):
 // orientation (Table's and Line's own label rotation is a separate field).
 const POINTS_DRAWN_CLASSES = new Set([
   'BusBarSection', 'Rectangle', 'SmallWindow', 'Picture', 'Arrow', 'Button', 'WindowIcon',
-  'AutomationDevice', 'Road', 'Line', 'Polygon', 'Container', 'Arc', 'Table',
+  'AutomationDevice', 'DisplayPanel', 'Road', 'Line', 'Polygon', 'Container', 'Arc', 'Table',
 ])
-// Look and connect the same at every orientation, or (Table2) have none.
-const NO_ORIENT_CLASSES = new Set(['Lamp', 'PostPole', 'LampOnPole', 'ConnectorArrow', 'ConnectorPoint', 'Table2'])
+// Look and connect the same at every orientation, or (Table2, TwoTerminalBox) have none.
+const NO_ORIENT_CLASSES = new Set([
+  'Lamp', 'PostPole', 'LampOnPole', 'ConnectorArrow', 'ConnectorPoint', 'Table2', 'TwoTerminalBox',
+])
 // Have no mirrored layout in xsde2svg.
 const NO_MIRROR_CLASSES = new Set([
   'PowerflowIndicator', 'Fork', 'Booster', 'Resistor', 'SynchronousCompensator', 'SynchronousMotor',
   'KnifeSwitch3', 'KnifeSwitch', 'BlockingFilter', 'PowerPole', 'Load', 'NetworkInfeed', 'StaticVarCompensator',
+  'TwoTerminalBox',
 ])
 // A Power plant's (38) hydro kind (NType), the only one with a mirrored layout.
 export const POWER_PLANT_HYDRO = 1
@@ -5243,4 +5931,248 @@ export function addJunctionPoints(prev: Diagram, next: Diagram, symbols: Element
   }
   if (added.length === 0) return next
   return { ...next, lastId: ids.lastId, elements: [...next.elements, ...added] }
+}
+
+// ---- SCADA bindings ----
+
+/** An item that carries bindings: an element or a digital device. */
+export interface BindingTarget {
+  kind: 'element' | 'digitaldevice' | 'label' | 'connector'
+  id: number
+}
+
+type BindingFields = { bindings?: Binding[]; precision?: number; features?: string; componentType?: string }
+
+/** The diagram list holding each kind of bindable item. */
+const BINDABLE_LISTS = {
+  element: 'elements',
+  digitaldevice: 'digitalDevices',
+  label: 'labels',
+  connector: 'connectors',
+} as const satisfies Record<BindingTarget['kind'], keyof Diagram>
+
+/** Maps every bindable item through fn; a list (and the diagram) whose items fn returns unchanged keeps its object. */
+export function mapBindables(
+  diagram: Diagram,
+  fn: <T extends BindingFields & { id: number }>(item: T, kind: BindingTarget['kind']) => T,
+): Diagram {
+  let next: Diagram | null = null
+  for (const [kind, key] of Object.entries(BINDABLE_LISTS) as [BindingTarget['kind'], (typeof BINDABLE_LISTS)[BindingTarget['kind']]][]) {
+    const list = diagram[key] as (BindingFields & { id: number })[]
+    let changed = false
+    const out = list.map(item => {
+      const r = fn(item, kind)
+      if (r !== item) changed = true
+      return r
+    })
+    if (changed) next = { ...(next ?? diagram), [key]: out }
+  }
+  return next ?? diagram
+}
+
+function cleanBindable<T extends BindingFields>(item: T): T {
+  if (!item.bindings?.length) delete item.bindings
+  if (!item.precision) delete item.precision
+  if (!item.features) delete item.features
+  if (!item.componentType) delete item.componentType
+  return item
+}
+
+// patchBindable applies patch to the target's binding fields; every other entry keeps its object.
+function patchBindable(diagram: Diagram, target: BindingTarget, patch: (item: BindingFields) => BindingFields): Diagram {
+  return mapBindables(diagram, (item, kind) =>
+    kind === target.kind && item.id === target.id ? cleanBindable({ ...item, ...patch(item) }) : item,
+  )
+}
+
+/** Binds the target: binding replaces the target's binding of the same kind. */
+export function setItemBinding(diagram: Diagram, target: BindingTarget, binding: Binding): Diagram {
+  return patchBindable(diagram, target, item => ({
+    bindings: [...(item.bindings ?? []).filter(b => b.kind !== binding.kind), binding],
+  }))
+}
+
+/** Binds the target with every binding of bindings at once (one undo step), each replacing the target's binding of
+ * its kind. */
+export function setItemBindings(diagram: Diagram, target: BindingTarget, bindings: Binding[]): Diagram {
+  const kinds = new Set(bindings.map(b => b.kind))
+  return patchBindable(diagram, target, item => ({
+    bindings: [...(item.bindings ?? []).filter(b => !kinds.has(b.kind)), ...bindings.map(normalizeBinding)],
+  }))
+}
+
+/** Changes fields of the target's binding of kind (option, scale); scale 0 or 1 is stored as unset. */
+export function updateItemBinding(
+  diagram: Diagram,
+  target: BindingTarget,
+  kind: BindingKind,
+  patch: Partial<Pick<Binding, 'option' | 'scale'>>,
+): Diagram {
+  return patchBindable(diagram, target, item => ({
+    bindings: (item.bindings ?? []).map(b => (b.kind === kind ? normalizeBinding({ ...b, ...patch }) : b)),
+  }))
+}
+
+/** Removes the target's binding of kind. */
+export function removeItemBinding(diagram: Diagram, target: BindingTarget, kind: BindingKind): Diagram {
+  return patchBindable(diagram, target, item => ({ bindings: (item.bindings ?? []).filter(b => b.kind !== kind) }))
+}
+
+/** Removes the bindings of kinds from every target (one edit); items that lose nothing keep their reference. */
+export function removeBindingKinds(diagram: Diagram, targets: BindingTarget[], kinds: BindingKind[]): Diagram {
+  const drop = new Set(kinds)
+  const ids = new Set(targets.map(t => `${t.kind}:${t.id}`))
+  return mapBindables(diagram, (item, kind) => {
+    if (!ids.has(`${kind}:${item.id}`) || !item.bindings?.some(b => drop.has(b.kind))) return item
+    const next: typeof item = { ...item, bindings: item.bindings.filter(b => !drop.has(b.kind)) }
+    if (!next.bindings?.length) delete next.bindings
+    return next
+  })
+}
+
+/** Removes the target's bindings of source, its precision, features and component type; bindings of other sources
+ * stay. */
+export function removeAllItemBindings(diagram: Diagram, target: BindingTarget, source: string): Diagram {
+  return patchBindable(diagram, target, item => ({
+    bindings: (item.bindings ?? []).filter(b => b.source !== source),
+    precision: undefined,
+    features: undefined,
+    componentType: undefined,
+  }))
+}
+
+/** Sets the target's precision (decimal places, 0 = unset), features (comma-separated aliases) and/or component type
+ * ("" = by shape). */
+export function setItemBindingExtras(
+  diagram: Diagram,
+  target: BindingTarget,
+  patch: { precision?: number; features?: string; componentType?: string },
+): Diagram {
+  return patchBindable(diagram, target, () => patch)
+}
+
+/** Sets (or, with undefined, clears) the object the whole diagram is bound to. */
+/** Links the diagram to scheme, or with undefined unlinks it. */
+export function setDiagramScheme(diagram: Diagram, scheme: SchemeRef | undefined): Diagram {
+  const next = { ...diagram, scheme }
+  if (!scheme) delete next.scheme
+  return next
+}
+
+export function setDiagramObject(diagram: Diagram, object: Binding | undefined): Diagram {
+  const next = { ...diagram, object }
+  if (!object) delete next.object
+  return next
+}
+
+/** An item's bindings of one source, with its precision and features, as an import sets them. */
+export interface ImportedItem {
+  target: BindingTarget
+  bindings: Binding[]
+  precision?: number
+  features?: string
+  componentType?: string
+}
+
+/** Sets each item's bindings of source, precision, features and component type to the imported ones (no bindings: cleared); its
+ * bindings of other sources stay. object sets the diagram's object (null removes it, undefined leaves it). Items not
+ * listed keep their object. What is applied matches the provider: no export statuses, no pending deletions (the edit
+ * goes through updateDiagram with untracked). */
+export function applyImportedBindings(diagram: Diagram, source: string, items: ImportedItem[], object?: Binding | null): Diagram {
+  const byTarget = new Map(items.map(i => [`${i.target.kind}:${i.target.id}`, i]))
+  let next = mapBindables(diagram, (item, kind) => {
+    const imported = byTarget.get(`${kind}:${item.id}`)
+    if (!imported) return item
+    const applied = cleanBindable({
+      ...item,
+      bindings: [...(item.bindings ?? []).filter(b => b.source !== source), ...imported.bindings.map(normalizeBinding)],
+      precision: imported.precision,
+      features: imported.features,
+      componentType: imported.componentType,
+    }) as typeof item & { componentEdited?: boolean }
+    delete applied.componentEdited
+    return applied
+  })
+  if (object !== undefined) next = setDiagramObject(next, object ? normalizeBinding(object) : undefined)
+  const applied = new Set(items.map(i => i.target.id))
+  if (object !== undefined) applied.add(0)
+  const deleted = next.deletedBindings?.filter(x => x.source !== source || !applied.has(x.item))
+  if (deleted?.length !== next.deletedBindings?.length) next = { ...next, deletedBindings: deleted?.length ? deleted : undefined }
+  return next
+}
+
+function normalizeBinding(b: Binding): Binding {
+  const { status: _, ...next } = b
+  if (!next.scale || next.scale === 1) delete next.scale
+  if (!next.option) delete next.option
+  return next
+}
+
+/** A binding of source made from a resolved object, of kind with option. */
+export function bindingFromResolved(source: string, obj: BindingResolved, kind: BindingKind, option?: string): Binding {
+  return normalizeBinding({
+    source,
+    kind,
+    ref: obj.ref,
+    option,
+    name: obj.name || undefined,
+    type: obj.typeName || obj.type || undefined,
+    uid: obj.uid || undefined,
+  })
+}
+
+/** A binding that no longer resolves, found by refreshBindings. */
+export interface StaleBinding {
+  target: BindingTarget | null
+  kind: BindingKind | null
+  ref: string
+}
+
+/** The refs of every binding of source (the diagram object included). */
+export function bindingRefs(diagram: Diagram, source: string): string[] {
+  const refs = new Set<string>()
+  const add = (bs?: Binding[]) => bs?.forEach(b => b.source === source && refs.add(b.ref))
+  mapBindables(diagram, item => {
+    add(item.bindings)
+    return item
+  })
+  if (diagram.object) add([diagram.object])
+  return [...refs]
+}
+
+/** Updates the cached name, type and uid of every binding of source from objects (ref → object); only items whose
+ * cache changes get a new object. Returns the diagram, how many bindings changed, and the bindings whose ref is in
+ * missing (null target: the diagram object). */
+export function refreshBindings(
+  diagram: Diagram,
+  source: string,
+  objects: Record<string, BindingResolved>,
+  missing: string[],
+): { diagram: Diagram; updated: number; stale: StaleBinding[] } {
+  const gone = new Set(missing)
+  const stale: StaleBinding[] = []
+  let updated = 0
+  const refresh = (b: Binding, target: BindingTarget | null): Binding => {
+    if (b.source !== source) return b
+    if (gone.has(b.ref)) {
+      stale.push({ target, kind: target ? b.kind : null, ref: b.ref })
+      return b
+    }
+    const obj = objects[b.ref]
+    if (!obj) return b
+    const fresh = bindingFromResolved(source, obj, b.kind, b.option)
+    if (b.scale) fresh.scale = b.scale
+    if (fresh.name === b.name && fresh.type === b.type && fresh.uid === b.uid) return b
+    updated++
+    return fresh
+  }
+  let next = mapBindables(diagram, (item, kind) => {
+    if (!item.bindings?.length) return item
+    const bs = item.bindings.map(b => refresh(b, { kind, id: item.id }))
+    if (bs.every((b, i) => b === item.bindings![i])) return item
+    return { ...item, bindings: bs }
+  })
+  const object = diagram.object ? refresh(diagram.object, null) : undefined
+  if (object !== diagram.object) next = { ...next, object }
+  return { diagram: next, updated, stale }
 }

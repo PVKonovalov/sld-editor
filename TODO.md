@@ -17,6 +17,10 @@ Open tasks only. Finished work is recorded in RELEASE.md.
 - [ ] Bulk edit a multi-selection: voltage class, state, size step (today only the layer can be set for several
       items at once).
 - [ ] Rename in series: number selected devices automatically ("QS-1, QS-2, …"), and find-and-replace in names.
+- [ ] Functional hierarchy tree panel: the diagram's voltage levels and units (with transformer units' paired
+      sides together), to rename, merge and split units and move elements between them by drag; today only the
+      Properties "Functional unit" section and the Enumerate elements dialog edit it.
+- [ ] CIM export: use the functional hierarchy (paired transformer units, bays as `Bay` containers).
 - [ ] Status bar: selection count, zoom %, the armed tool, next to the cursor coordinates readout.
 - [ ] Minimap in a canvas corner for large diagrams , showing and moving the visible area.
 - [ ] Links between diagrams: Ctrl/Cmd-click on an Object link (28) or Connector arrow (83) opens the diagram it
@@ -104,13 +108,12 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 - [+] 39 Synchronous motor
 - [+] 44 Knife switch
 - [+] 50 Withdrawable sectionalizer
-- [ ] 60 Zone division
-- [ ] 71 Custom connection, disconnector. Porting it as its own type means removing the legacy `71` → `162` rewrite in
-      `slddoc.Load` (`shapeDisconnectorLegacy`).
+- [+] 60 Zone division (inline on a wire, conducting; CIM pass-through)
+- [+] 71 Railway connection, disconnector (drawn as 162)
 - [+] 83 Connector arrow
-- [ ] 102 Panel/board
+- [+] 102 Display panel (Panel/board; Automation device's tile, gray by default)
 - [+] 103 Automation device
-- [ ] 130 Device (generic placeholder; check what it actually draws first)
+- [+] 130 Device (an energy meter: square, line and "Wh")
 - [+] 146 Power pole
 - [+] 156 Resistor
 - [+] 157 Thyristor
@@ -125,7 +128,7 @@ xsde2svg `ObjectType` codes still marked not done in `elements.md`. Each one nee
 - [+] 360 Substation (pictogram)
 - [+] 389 Blocking filter
 - [+] 391 RTF text (imported as a plain Text label (5); not drawn or saved as 391)
-- [ ] 3206 Customer connection, disconnector, arc-extinguishing contacts
+- [+] 3206 Arc-extinguishing contact (written as `data-type="320006"`; a Disconnector, its two Modus names are its states)
 - [+] 320002 Lamp on pole
 - [+] 320007 LED
 
@@ -239,6 +242,7 @@ Notes:
 
 ## Elements
 - [x] A Rectangle With Rounded Corners
+- [x] Two-poles element with shape likes "Static var compensator:330003" but two connectors located at the top and bottom or left/right
 
 # Errors
 - [x] Circle is invisible

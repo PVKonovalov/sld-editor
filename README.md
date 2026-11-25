@@ -10,7 +10,7 @@ sidebar's Help button.
 
 # Development
 
-Run the backend from `backend/` (binds `0.0.0.0:8090` by default). The configuration is local and not in git: create
+Run the backend from `backend/` (it listens on `server.bind`, `0.0.0.0:8099` in the shipped config). The configuration is local and not in git: create
 it once from the tracked example, and put secrets such as database passwords in `backend/.env` (also not in git):
 
 ```
@@ -42,14 +42,237 @@ repo, via a `replace` directive in `backend/go.mod`) — check that repo out nex
 this one before building. It also depends on the `xsde2svg` converter (the `.xsde` import), resolved the same way
 from `../../../EMA/xsde2svg` (i.e. `EMA/xsde2svg` next to the folder holding this repo). Its `xsde:` config section
 points at `assets/xsde2svg.yml` and `assets/workplace.xml`, bundled copies of that repo's files (empty values use the
-converter's built-in settings). Every configuration key is described in the user guide's "Configuration" section.
+converter's built-in settings). Every configuration key is described in [Configuration](#configuration).
 
 Run the frontend from `frontend/` (Vite dev server on `:5173`, proxying `/api` to
-`:8090` — the backend must already be running):
+`:8099` — the backend must already be running):
 
 ```
 npm install   # once
 npm run dev
+```
+
+# Configuration
+
+The editor reads one YAML file, given by `-config` (default `config/sld-editor.yaml`, relative to the folder the
+editor is started in). In the source tree it is local and not in git: copy `backend/config/sld-editor.example.yaml`,
+the shipped configuration (`make package` puts it into the archive as `config/sld-editor.yaml`). Add or change keys
+in the example, then copy them into your local file. The user guide's [Configuration](backend/assets/USER_GUIDE.md)
+section describes the same keys for whoever runs the editor.
+
+## How it is read
+
+- **Order.** `sld-editor.yaml`, then `.env`, then the process environment. Each overrides the one before.
+- **Environment variables.** A single value whose key is marked as overridable below can be set by a variable
+  named after its key path in capitals, joined by `_`: `server.bind` → `SERVER_BIND`,
+  `bindings.rsdu.dsn.password` → `BINDINGS_RSDU_DSN_PASSWORD`. An empty variable doesn't override. Booleans are
+  true for `true`, `1` or `y` (any case), false otherwise. A list (`ELEMENTS_LIBRARIES`) is comma-separated and is
+  **appended** to the list in the YAML. Maps and lists of objects (`palette`, `cim`, `voltage_colors`, …) can't be
+  set this way.
+- **`.env`.** `NAME=value` lines in `.env` in the folder the editor is started in, not in git. Blank lines, `#`
+  comments, an `export ` prefix, quoted values and trailing ` # comments` are allowed. Secrets (database and object
+  storage credentials) belong here or in the environment, never in either YAML file.
+- **Paths.** Relative paths in the file are resolved from the folder the editor is started in, not from the file's
+  own folder.
+- **When.** Everything is read once at startup: restart the editor, then reload the page. The exceptions are
+  `user_guide` and the files named by `xsde.config` / `xsde.workplace`, which are read again on every use. The editor
+  itself rewrites the file only to append entries to `voltage_colors` (see below), keeping its comments.
+- **Validation.** A mistake in `elements.libraries`, `palette`, `hot_keys`, `letter_codes`, `designations`,
+  `editor.voltage_order`, `line_halos`, `cim` or `bindings`, or a diagrams/custom elements folder that can't be opened, stops the editor at startup with a
+  message naming the key. An invalid `logging.level` only logs a warning and uses `info`.
+
+## Keys
+
+The **Env** column says whether a key can be overridden by an environment variable.
+
+### server, logging
+
+| Key | Type | Env | Default | Meaning |
+|---|---|---|---|---|
+| `server.bind` | string | yes | none | Address and port to listen on, `host:port`, e.g. `0.0.0.0:8099` (shipped). Required: there is no built-in port, and an empty value listens on port 80. The Vite dev server proxies `/api` to `:8099`. |
+| `logging.level` | string | yes | `info` | `trace`, `debug`, `info`, `warn` or `error`. |
+
+### diagrams, custom_elements, user_guide
+
+| Key | Type | Env | Default | Meaning |
+|---|---|---|---|---|
+| `diagrams.dir` | path | yes | none | Root folder of the diagrams (the File panel's root); `.xsld`, rendered `.svg`, history and tracing images (`<diagram>.tracing.<ext>`) live here. Shipped: `../diagrams` (`diagrams` in the release archive). |
+| `custom_elements.dir` | path | yes | none | Folder whose `.xsld` files (directly inside it, not in subfolders) make the palette's **Custom elements** group, each placed as a copy of its whole contents. Shipped: `../custom-elements`. |
+| `user_guide` | path | yes | empty | Markdown file shown by **Help**, converted on every request. The Russian build shows `USER_GUIDE.ru.md` next to it. Pictures come from `images/` next to it; a translated guide shows `x.ru.png` in place of `x.png` when it exists. Empty hides **Help**. |
+
+### xsde
+
+The Modus `.xsde` import (File → Load from file…) runs the in-process xsde2svg converter with these files, read on
+every import. Both are copies of the files in the xsde2svg repository; the user guide's `#configuration-xsde` and
+`#configuration-workplace` sections describe their contents.
+
+| Key | Type | Env | Default | Meaning |
+|---|---|---|---|---|
+| `xsde.config` | path | yes | empty | `xsde2svg.yml`: Modus color names → SVG colors, fonts, units, page defaults. Keep its `element_id_prefix` empty. Empty uses the converter's built-in copy. |
+| `xsde.workplace` | path | yes | empty | A Modus `workplace.xml` whose `<Colors>` palette the import uses (a document's own colors override it). Empty: each document's own colors only. |
+
+### elements
+
+| Key | Type | Env | Default | Meaning |
+|---|---|---|---|---|
+| `elements.libraries` | list of paths | yes (comma-separated, appended) | none | Element-library XML files (symbol templates, terminals, CIM classes), merged in order; a later file's shape overrides an earlier one's. Add a site's own library here to extend the palette without code changes; `backend/assets/elements/base.xml` documents the format. |
+
+### editor
+
+Defaults of the Settings panel for a diagram that hasn't saved its own.
+
+| Key | Type | Env | Default | Meaning |
+|---|---|---|---|---|
+| `editor.grid_spacing` | number | yes | 0 | Grid step. Shipped: 10. |
+| `editor.snap` | bool | yes | false | Snap to grid. |
+| `editor.show_grid` | bool | yes | false | Show the grid. |
+| `editor.background` | color | yes | empty | Canvas background, e.g. `#12161d`. |
+| `editor.jump_same_voltage` | bool | yes | false | Wire jumps also where two buswork wires of the same voltage class cross. A new diagram keeps its own copy. |
+| `editor.voltage_order` | string | yes | `ascending` | Order of voltage lists by the voltage a class name reads as (`110 kV`, `6,3 kV`, `400 V`): `ascending` or `descending`. Names that aren't a voltage come last. Any other value stops the editor. |
+
+### voltage_colors, voltage_color_tolerance
+
+| Key | Type | Env | Default | Meaning |
+|---|---|---|---|---|
+| `voltage_colors` | list of `{name, color}` | no | empty | Standard voltage classes offered when adding a class to a diagram and by **Match preset colors…**. A diagram's own classes never change it. A CIM import whose voltages no entry names offers to append them; the editor then rewrites the file after the last entry, keeping its comments. |
+| `voltage_color_tolerance` | number | no | 24 | How close (Euclidean RGB distance, 0–441) a diagram's class color must be to a preset to be offered for replacement; each color matches only its nearest preset. 0 = exact only. Shipped: 60. |
+
+### state_colors, fpi_state_colors, position_states
+
+| Key | Type | Env | Default | Meaning |
+|---|---|---|---|---|
+| `state_colors` | list of `{state, label, color}` | no | empty | Legend of a switching device's state fill (`data-state`, `data-fill` in the SVG) and the Properties **State** list: 0 Open, 1 Close, 2 Intermediate, 3 Faulty. Must match rdss-dms's state mapping. Only the starting colors of a diagram: one saved without its own takes them into its `.xsld` (`<stateColors>`). |
+| `fpi_state_colors` | list of `{state, label, color}` | no | empty | The same for fault passage indicators (320003), whose meaning is inverted: Open (no fault) green, Close (fault passed) red. |
+| `position_states` | list of `{position, label}` | no | empty | Labels of a withdrawable device's racking position (shapes 43, 49, 51, 154; `data-trolley`): 0 Service, 1 Normal, 2 Test. Position moves the body; it has no color. |
+
+### line_halos
+
+Modus composite styles of a line (type 1) drawn as a colored halo under it. A style not listed is kept on the line
+but not drawn. An empty or missing list draws no halos.
+
+| Key | Type | Required | Meaning |
+|---|---|---|---|
+| `style` | string | yes | Style name as Modus writes it (case matters), e.g. `BadQuality`. Unique, without `,` or `:`. |
+| `color` | color | yes | Default halo color; a line can change it in Properties (stored as `haloColors` in the `.xsld`). |
+| `gap` | bool | no | `true` draws a background-colored stripe inside the halo. |
+
+The shipped list holds the six styles xsde2svg draws, in its colors. A missing `style`/`color`, a duplicate or a
+`,`/`:` in a style stops the editor.
+
+### indicators
+
+| Key | Type | Env | Default | Meaning |
+|---|---|---|---|---|
+| `indicators.default_fpi_text` | string | yes | `FPI` | Text a fault passage indicator draws when it has none of its own. |
+
+### palette
+
+A list of `{name, items}`: the Elements panel's groups in display order, the only source of palette layout. `name`
+is looked up as `elementCatalog.category.<name>` in the frontend's i18n dictionary (the raw name when untranslated).
+Each item is an xsde2svg object type code, as a string:
+
+- a shape of a loaded element library (`"41"` breaker, `"330001"` load, …);
+- `"21"`, `"22"`, `"23"`, `"28"`: buswork, overhead line, cable line, link to object (arms the routing tool);
+- `"5"` text label, `"134"` digital instrument (the editor's built-in widgets).
+
+An item that is none of these stops the editor.
+
+### hot_keys
+
+A map of key → palette item code: pressing the key without Ctrl/Cmd/Alt arms the item, pressing it again disarms it.
+A key is one letter or digit, case-insensitive, given once; `r` and `m` are reserved for rotate and mirror. The item
+must be in `palette`. Mistakes stop the editor. Leave the section out for no hot keys.
+
+### letter_codes, designations
+
+What **Enumerate elements…** builds reference designations (IEC 81346, e.g. `=E1=T1-QA1`) from. Both are checked at
+startup; a code is always 1 to 3 capital letters other than I and O.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `letter_codes` | map of shape code → letter code | The IEC 81346-2 letter code of an equipment shape (`"41": QA`, `"162": QB`, …). The shape must be in a loaded library. A shape left out is not designated. |
+| `designations.voltage_levels` | list of `{max_kv, code}` | A voltage level up to `max_kv` (and above the previous row) gets `code`; the kV is read from the voltage class name. `max_kv` positive and ascending. |
+| `designations.fallback_voltage_code` | letter code | Required. The code of a voltage level whose kV is unknown or above every row. Levels sharing a code are numbered from the highest voltage down. |
+| `designations.units.<kind>` | `{code, digits}` | Every kind is required: `incoming_feeder`, `outgoing_feeder`, `generator`, `transformer`, `bus_coupler`, `busbar`, `measuring`, `other`. `digits` (0 to 3) is the zero-padded width of the unit number (`2`: `=H03`). |
+
+The shipped letters are this project's convention, not taken from ISO/IEC 81346-10; unit letters avoid the 81346-2
+component classes where possible. `GET /api/config` returns both (`letterCodes`, `designations`).
+
+### cim
+
+The whole mapping between symbols and CIM classes, both ways; slddoc has no built-in table. Checked at startup.
+
+| Key | Type | Meaning |
+|---|---|---|
+| `cim.classes` | map of shape code → list of CIM classes | Export: the classes an element of the shape can stand for, its default first; the others are offered in Properties' CIM class list. A shape left out is not exported as equipment (logged at startup and reported in the export's notes). A shape can only stand for classes the export writes alike: switches (`Breaker`, `DisconnectingCircuitBreaker`, `Disconnector`, `LoadBreakSwitch`, `GroundDisconnector`, `Switch`, `Fuse`, `Jumper`), machines (`SynchronousMachine`, `AsynchronousMachine`), injections (`EnergyConsumer`, `ConformLoad`, `NonConformLoad`, `ExternalNetworkInjection`, `EquivalentInjection`, `EnergySource`), shunts (`LinearShuntCompensator`, `PetersenCoil`), auxiliary equipment (`CurrentTransformer`, `PotentialTransformer`, `SurgeArrester`, `FaultIndicator`, `WaveTrap`), or its own class (`BusbarSection`, `PowerTransformer`, `Ground`, `SeriesCompensator`, `StaticVarCompensator`). |
+| `cim.import` | map of CIM class → shape code | Import: the symbol a class is drawn with. `Class.variant` picks by the object's attributes: `SynchronousMachine.condenser` (type condenser), `SynchronousMachine.motor` (motor or motorOrCondenser), `AsynchronousMachine.generator` (a generator type), `LinearShuntCompensator.reactor` / `NonlinearShuntCompensator.reactor` (`bPerSection < 0`); without its row a variant takes its class's. A class left out is drawn as a red box with its class name, connected to nothing, and listed under Skipped. `ACLineSegment` and links to object are connectors and are not listed. |
+
+A new exported symbol needs a `classes` row; a new CIM class needs an `import` row.
+
+### bindings
+
+Links of diagram items to objects of a SCADA provider. `provider: ""` (or absent) turns bindings off and hides the
+binding controls; `rsdu` reads objects from an RSDU database and can export schemes to it. Checked at startup; the
+database is contacted only on the first binding action.
+
+| Key | Type | Env | Default | Meaning |
+|---|---|---|---|---|
+| `bindings.provider` | string | yes | empty | `""` (off) or `rsdu`. |
+| `bindings.rsdu.driver` | string | yes | none | `oracle` or `postgres`; required with `rsdu`. |
+| `bindings.rsdu.schema` | string | yes | `rsduadmin` | Schema (owner) of the RSDU tables, not the database; on PostgreSQL a schema inside `dsn.database`. Letters, digits, `_`, `$`. |
+| `bindings.rsdu.dsn` | object | per field | none | The connection, for reading and export; required with `rsdu`. Same fields as an entry of ctrlroom's `database.dsn` (table below). |
+| `bindings.rsdu.export` | bool | yes | false | `true` enables export to RSDU; the `dsn` account must be allowed to write. |
+| `bindings.rsdu.scheme_type` | int | yes | 0 | Scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`), usually 518 (MODUS). 0 = not set: the export check refuses to export. Negative stops the editor. |
+| `bindings.rsdu.component_types` | map of shape code → int | no | empty | `VS_TCOMP.ID` an item of a shape is exported as when the scheme type has no `VS_TCOMP.MODUS_TYPE` for the shape and the item has no component type of its own, e.g. `"385": 2000023`. Keys must be numeric, ids positive. |
+| `bindings.rsdu.wire_types` | map of wire kind → int | no | see meaning | `VS_TCOMP.ID` a bound wire is exported as, by kind: `BusWork`, `OverheadLine`, `CableLine`, `LinkToObject`, `BusbarWire`. Absent: `1489`, `112`, `115`, `1014`, `113`. A configured map replaces the defaults entirely; a bound wire of a kind it lacks is skipped by the export. Unknown kinds or non-positive ids stop the editor. |
+| `bindings.rsdu.svg.dir` | path | yes | empty | Folder ctrlroom reads scheme SVGs from (its `backend.path_to_sld`); export and later saves write the SVG there. Needs write access. |
+| `bindings.rsdu.svg.full_path` | bool | yes | false | As ctrlroom's `backend.use_full_path_for_sld`: `true` stores the picture under the scheme's file path in RSDU, below `dir`; `false` by file name only, directly in `dir`. The same for the MinIO object name. |
+| `bindings.rsdu.svg.use_object_storage` | string | yes | empty | As ctrlroom's `backend.use_object_storage`: `minio` also uploads the SVG to MinIO; empty, `n`, `no`, `local` or `file`: none. Anything else stops the editor. |
+| `bindings.rsdu.svg.object_storage.minio.endpoint` | list of `{host, port}` | no | none | MinIO servers; the first is used. Required with `minio`. |
+| `bindings.rsdu.svg.object_storage.minio.bucket.sld` | string | no | none | Bucket of scheme pictures; required with `minio`. Other buckets (`avatar`, `report`) are ignored. |
+| `bindings.rsdu.svg.object_storage.minio.user` (or `username`) | string | yes | none | Access key; required with `minio`. Put it in `.env`: `BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_USER`. |
+| `bindings.rsdu.svg.object_storage.minio.password` | string | yes | empty | Secret key; in `.env`: `BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_PASSWORD`. |
+| `bindings.rsdu.svg.object_storage.minio.secure` | flag | yes | false | HTTPS: `y`/`n`, `yes`/`no`, `true`/`false`, `1`/`0`. |
+
+`bindings.rsdu.dsn` (environment variables `BINDINGS_RSDU_DSN_<FIELD>`):
+
+| Field | Type | Env | Required | Meaning |
+|---|---|---|---|---|
+| `host` | string | yes | yes | Database server. |
+| `port` | int | yes | yes | e.g. `1521` (Oracle), `5432` (PostgreSQL). |
+| `user` | string | yes | yes | Account; keep it in `.env`. |
+| `password` | string | yes | no | Plain text; keep it in `.env`. |
+| `sid` / `database` | string | yes | one of them | Oracle: the SID in `sid`, or the service name in `database`. PostgreSQL: the database name in `database` (`sid` is used when `database` is empty). |
+| `engine` | string | yes | no | If given, must equal `driver`. |
+| `trace` | bool | no | no | Accepted for compatibility with ctrlroom; unused. |
+| `password_encrypted` | bool | no | no | Must be `false`: encrypted passwords are not supported. |
+
+The former `bindings.rsdu.read` / `write` sections stop the editor with a message pointing to `dsn` and `export`.
+
+Example (PostgreSQL; for Oracle use `driver: oracle`, `port: 1521` and `sid:` or `database:` with the service name):
+
+```yaml
+bindings:
+  provider: rsdu
+  rsdu:
+    driver: postgres
+    schema: rsduadmin
+    dsn:
+      host: 10.0.0.6
+      port: 5432
+      database: rsdu
+    export: true
+    scheme_type: 518
+    svg:
+      dir: /opt/ctrlroom/sld
+      full_path: true
+```
+
+with `backend/.env` (or `.env` next to the release binary):
+
+```sh
+BINDINGS_RSDU_DSN_USER=<user>
+BINDINGS_RSDU_DSN_PASSWORD=<password>
 ```
 
 # Frontend locale
@@ -130,29 +353,107 @@ shown in the UI's About dialog (sidebar, bottom) and printed by
 
 # Behind nginx
 
-The editor sends the whole diagram to the server on every save and full redraw
-(`/api/diagrams/save`, `/api/render`), and imports upload the file itself. Large
-diagrams (several MB, more with embedded pictures) exceed nginx's default
-`client_max_body_size` of 1 MB, and nginx answers `413 Request Entity Too Large`
-before the request reaches the editor. The editor itself has no request size
-limit. Raise nginx's limit in the `server` (or `location`) block that proxies the
-editor:
+Serve the editor over **HTTPS**. Safari runs a page's Web Workers about ten times slower when the page comes over
+plain HTTP from any address other than `localhost` (it is then not a secure context): **Find similar on tracing
+image**, which runs in a worker, then takes minutes instead of seconds. Chrome is not affected. Opened over
+`https://` (or on `localhost`), the page is a secure context and runs at full speed.
+
+The editor sends the whole diagram to the server on every save and full redraw (`/api/diagrams/save`,
+`/api/render`), imports upload the file itself, and a tracing image is uploaded as is (up to 64 MB,
+`/api/diagrams/tracing-image`). Large requests exceed nginx's default `client_max_body_size` of 1 MB, and nginx
+answers `413 Request Entity Too Large` before the request reaches the editor. Raise the limit in the `server` (or
+`location`) block that proxies the editor:
 
 ```nginx
 server {
-    # ...
-    client_max_body_size 50m;    # default 1m; large diagrams and embedded pictures exceed it
+    listen 443 ssl;                       # or any port, e.g. "listen 83 ssl;"
+    server_name editor-host;              # the host name or IP the users open
+
+    ssl_certificate     /etc/nginx/ssl/sld-editor.crt;
+    ssl_certificate_key /etc/nginx/ssl/sld-editor.key;
+
+    client_max_body_size 64m;             # default 1m; large diagrams and tracing images exceed it
 
     location / {
-        proxy_pass http://127.0.0.1:8090;
-        proxy_read_timeout 120s; # rendering a large diagram can take a few seconds
+        proxy_pass http://127.0.0.1:8099;
+        proxy_read_timeout 120s;          # rendering a large diagram can take a few seconds
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
     }
 }
 ```
 
-Then check and reload: `sudo nginx -t && sudo nginx -s reload`. Use
-`client_max_body_size 0;` to switch the check off when nginx serves only the
-editor.
+Keep `proxy_pass` on `127.0.0.1`: the editor trusts `X-Forwarded-For` (it knows users by their IP) only from
+loopback. Then check and reload: `sudo nginx -t && sudo nginx -s reload`. Use `client_max_body_size 0;` to switch
+the check off when nginx serves only the editor.
+
+To send `http://` addresses on to `https://`, add a redirect. With HTTP and HTTPS on separate ports (80 and 443),
+a second `server` block does it:
+
+```nginx
+server {
+    listen 80;
+    server_name editor-host;
+    return 301 https://$host$request_uri;
+}
+```
+
+With both on one port (`listen 83 ssl;`), nginx answers a plain HTTP request on it with its own code 497; turn that
+into the redirect in the HTTPS `server` block:
+
+```nginx
+error_page 497 =301 https://$host:$server_port$request_uri;
+```
+
+`$request_uri` keeps the path and query (`?diagram=…`). Check with `curl -I http://editor-host:83/` (a `301` with
+`Location: https://…`). Browsers cache a 301 for good: try `302` first and switch to `301` once it works. Once HTTPS
+is there to stay, `add_header Strict-Transport-Security "max-age=31536000" always;` in the HTTPS block makes
+browsers skip the redirect after their first visit.
+
+Without a certificate from a CA the users' browsers already trust, a self-signed one for the host's name or IP
+does:
+
+```bash
+sudo mkdir -p /etc/nginx/ssl
+sudo openssl req -x509 -newkey rsa:2048 -sha256 -days 3650 -nodes \
+  -keyout /etc/nginx/ssl/sld-editor.key -out /etc/nginx/ssl/sld-editor.crt \
+  -subj "/CN=editor-host" \
+  -addext "subjectAltName=DNS:editor-host" \
+  -addext "extendedKeyUsage=serverAuth"
+```
+
+(For an IP address use `subjectAltName=IP:<address>`.) Each Mac must trust it, or Safari may still not treat the
+page as a secure context: `sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain
+sld-editor.crt`, or in Keychain Access → System, set the certificate's **Trust → When using this certificate** to
+**Always Trust**. Check in Safari's Web Inspector console: `isSecureContext` must be `true`.
+
+# RSDU clients after export
+
+Export to RSDU (bindings with `bindings.rsdu.export: true`, see [Configuration](#configuration)) writes the scheme
+and its bindings to the RSDU database and delivers the SVG for ctrlroom, but **notifies no one**. RSDU's own scheme
+editor publishes `SchemeEvent(SAVE)` to the MQ exchange `Events` so running clients reload the scheme; the editor has
+no MQ connection and publishes nothing.
+
+- **RSDU clients** that have the scheme open keep showing its old bindings until the scheme is reopened.
+- **ctrlroom** gets the new SVG on every save of an exported diagram (into `bindings.rsdu.svg.dir` and/or MinIO) and
+  the bindings from RSDU on export. It keeps each scheme's file name (`VS_FORM.FILE_NAME`) until it restarts: when a
+  scheme the editor registered follows a renamed or moved diagram, the next export writes the SVG under the new name
+  and ctrlroom needs a restart to read it. The SVG under the old name is left in place.
+- **New schemes** are not visible in ctrlroom until they are added to users' menus (`US_MENU`) with RSDU's tools.
+- **The original SVG is kept.** Before the first delivery to a scheme the editor did not register (linked from RSDU,
+  through **Edit from RSDU…** or after an `.xsde` import), the SVG ctrlroom had is copied once to `<name>.orig.svg`
+  beside it, in the folder and in MinIO. The copy is never overwritten; restore it by hand to go back.
+- **Edits in RSDU's own scheme editor** are never overwritten: an export writes only the bindings and components the
+  editor marked (new, changed, deleted), one row each, and nothing unmarked. **Compare with RSDU** in the export window
+  opens the bindings overview, which shows how the scheme differs from the diagram and writes nothing to RSDU.
+- **Nothing is written when nothing changed.** A save of an exported diagram delivers the SVG; the export itself
+  reads and writes the database only for marked binding changes (see the guide), so `VS_FORM.LAST_UPDATE` changes only
+  then. **Export diagram only** (`POST /api/bindings/export/svg`) delivers just the SVG of a linked diagram and never
+  writes the database.
+
+The user guide's [Export to RSDU](backend/assets/USER_GUIDE.md) and "The SVG for ctrlroom" sections describe the same
+from the user's side.
 
 # CIM with other tools
 

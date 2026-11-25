@@ -12,7 +12,7 @@ import (
 // overrides (env:"true" tags, read by pkg/configuration).
 type Config struct {
 	Server struct {
-		// Bind is the address the HTTP API listens on, e.g. "0.0.0.0:8090".
+		// Bind is the address the HTTP API listens on, e.g. "0.0.0.0:8099".
 		Bind string `yaml:"bind" env:"true"`
 	} `yaml:"server"`
 
@@ -142,6 +142,13 @@ type Config struct {
 	// palette button. A key is one letter or digit, case-insensitive; r and m
 	// are reserved. elements.ValidateHotKeys checks it at startup.
 	HotKeys map[string]string `yaml:"hot_keys"`
+
+	// LetterCodes maps an equipment shape code to its IEC 81346-2 letter code (e.g. "41" → "QA").
+	// elements.Library.ValidateLetterCodes checks it at startup.
+	LetterCodes map[string]string `yaml:"letter_codes"`
+
+	// Designations holds the letters of the functional hierarchy (ValidateDesignations checks it at startup).
+	Designations Designations `yaml:"designations"`
 
 	// CIM is the whole mapping between symbols and CIM classes, checked at startup (slddoc.NewCIMClassTable).
 	// Classes (export) maps a symbol shape code (as in Palette; "28" is a link to object) to the CIM classes it can

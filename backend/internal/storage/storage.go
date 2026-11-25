@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -56,8 +57,10 @@ type Store struct {
 	fpiColors      []slddoc.StateColor
 	defaultFPIText string
 	// mu serializes writes, so Create's existence check and SaveRevision's
-	// read-modify-write of the history see no concurrent save.
-	mu sync.Mutex
+	// read-modify-write of the history see no concurrent save. It also guards links.
+	mu            sync.Mutex
+	links         *linkIndex
+	indexWarnings []string
 }
 
 // New opens (creating if necessary) dir as a diagram store. lib is used to
@@ -75,7 +78,9 @@ func New(dir string, lib *slddoc.SymbolLibrary, defaultFPIText string, fpiColors
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return nil, fmt.Errorf("storage: creating diagrams directory %s: %w", dir, err)
 	}
-	return &Store{dir: dir, lib: lib, stateColors: stateColors, fpiColors: fpiColors, defaultFPIText: defaultFPIText}, nil
+	s := &Store{dir: dir, lib: lib, stateColors: stateColors, fpiColors: fpiColors, defaultFPIText: defaultFPIText}
+	s.indexWarnings = s.buildIndex()
+	return s, nil
 }
 
 // Entry describes one item in a single directory's listing, for the File >
@@ -88,6 +93,9 @@ type Entry struct {
 	Name    string    `json:"name"`
 	IsDir   bool      `json:"isDir"`
 	ModTime time.Time `json:"modTime"`
+	// Scheme is the scheme the diagram is linked to and SchemeStatus its link status (SchemeLinked, ...).
+	Scheme       *slddoc.SchemeRef `json:"scheme,omitempty"`
+	SchemeStatus string            `json:"schemeStatus,omitempty"`
 }
 
 // List returns one directory's immediate contents — dir is a path relative
@@ -117,7 +125,12 @@ func (s *Store) List(dir string) ([]Entry, error) {
 		if filepath.Ext(e.Name()) != xmlExt {
 			continue
 		}
-		files = append(files, Entry{Name: strings.TrimSuffix(e.Name(), xmlExt), ModTime: fi.ModTime()})
+		entry := Entry{Name: strings.TrimSuffix(e.Name(), xmlExt), ModTime: fi.ModTime()}
+		if ref := s.SchemeOf(path.Join(dir, entry.Name)); ref != nil {
+			entry.Scheme = ref
+			entry.SchemeStatus = schemeStatus(*ref, entry.ModTime)
+		}
+		files = append(files, entry)
 	}
 	byName := func(entries []Entry) func(i, j int) bool {
 		return func(i, j int) bool {
@@ -189,6 +202,54 @@ func (s *Store) Save(name string, d *slddoc.Diagram) (renderWarning, err error) 
 func (s *Store) SaveRevision(name string, d *slddoc.Diagram, rev slddoc.Revision) (renderWarning, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.saveRevision(name, d, rev)
+}
+
+// SaveExported is SaveRevision for a diagram just exported: the .xsld's modification time is set to
+// d.Scheme.Exported, so its link status is "exported" until the next save.
+func (s *Store) SaveExported(name string, d *slddoc.Diagram, rev slddoc.Revision) (renderWarning, err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if d.Scheme == nil || d.Scheme.Exported == nil {
+		return nil, fmt.Errorf("storage: %s has no export time", name)
+	}
+	if renderWarning, err = s.saveRevision(name, d, rev); err != nil {
+		return nil, err
+	}
+	path, err := s.xmlPath(name)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chtimes(path, *d.Scheme.Exported, *d.Scheme.Exported); err != nil {
+		return nil, fmt.Errorf("storage: %w", err)
+	}
+	return renderWarning, nil
+}
+
+// ReadSVG returns the saved .svg of the diagram name.
+func (s *Store) ReadSVG(name string) ([]byte, error) {
+	path, err := s.svgPath(name)
+	if err != nil {
+		return nil, err
+	}
+	b, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("%w: %s", ErrNotFound, name)
+	}
+	return b, err
+}
+
+// Exists reports whether the diagram name exists.
+func (s *Store) Exists(name string) bool {
+	path, err := s.xmlPath(name)
+	if err != nil {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+func (s *Store) saveRevision(name string, d *slddoc.Diagram, rev slddoc.Revision) (renderWarning, err error) {
 	old, err := s.Load(name)
 	switch {
 	case errors.Is(err, ErrNotFound):
@@ -204,9 +265,12 @@ func (s *Store) SaveRevision(name string, d *slddoc.Diagram, rev slddoc.Revision
 	return s.write(name, d)
 }
 
-// write saves d's .xsld and .svg, each replacing the old file atomically. A diagram with no state colors of its own
-// takes the store's legend.
+// write saves d's .xsld and .svg, each replacing the old file atomically; a name ending in ".tracing" is refused. A diagram with no state colors of its own
+// takes the store's legend. d's tracing image is matched to its stored file (syncTracingImage).
 func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error) {
+	if err := checkDiagramName(name); err != nil {
+		return nil, err
+	}
 	xmlPath, err := s.xmlPath(name)
 	if err != nil {
 		return nil, err
@@ -221,7 +285,13 @@ func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error)
 		return nil, fmt.Errorf("storage: creating directory for %s: %w", name, err)
 	}
 
+	if err := s.checkLink(name, d.Scheme); err != nil {
+		return nil, err
+	}
 	slddoc.SeedStateColors(d, s.stateColors)
+	if err := syncTracingImage(xmlPath, d); err != nil {
+		return nil, err
+	}
 	var xml bytes.Buffer
 	if err := d.Save(&xml); err != nil {
 		return nil, fmt.Errorf("storage: saving %s: %w", name, err)
@@ -229,6 +299,7 @@ func (s *Store) write(name string, d *slddoc.Diagram) (renderWarning, err error)
 	if err := replaceFile(xmlPath, xml.Bytes()); err != nil {
 		return nil, err
 	}
+	s.links.set(name, d.Scheme)
 
 	// Always Static: the saved .svg is a downloadable artifact, meant to
 	// stay a clean, xsde2svg-faithful document — never carries this
@@ -262,9 +333,12 @@ func (s *Store) CreateDir(dir string) error {
 	return nil
 }
 
-// Rename renames or moves the diagram from to to (its .xsld and .svg), creating to's missing folders. It fails with
+// Rename renames or moves the diagram from to to (its .xsld, .svg and tracing image), creating to's missing folders. It fails with
 // ErrNotFound when from doesn't exist and ErrExists when to does.
 func (s *Store) Rename(from, to string) error {
+	if err := checkDiagramName(to); err != nil {
+		return err
+	}
 	fromXML, err := s.xmlPath(from)
 	if err != nil {
 		return err
@@ -286,10 +360,11 @@ func (s *Store) Rename(from, to string) error {
 	if err := os.Rename(fromXML, toXML); err != nil {
 		return fmt.Errorf("storage: renaming %s: %w", from, err)
 	}
+	s.links.rename(from, to, false)
 	if err := os.Rename(fromSVG, toSVG); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("storage: renaming %s: %w", from, err)
 	}
-	return nil
+	return renameTracingImage(fromXML, toXML)
 }
 
 // RenameDir renames or moves the folder from, with everything in it, to to, creating to's missing parents. It fails
@@ -317,6 +392,7 @@ func (s *Store) RenameDir(from, to string) error {
 	if err := os.Rename(fromPath, toPath); err != nil {
 		return fmt.Errorf("storage: renaming %s: %w", from, err)
 	}
+	s.links.rename(from, to, true)
 	return nil
 }
 
@@ -343,7 +419,7 @@ func checkMove(from, to string, dir bool) error {
 	}
 }
 
-// Delete removes the diagram name (its .xsld and .svg), failing with ErrNotFound when it doesn't exist.
+// Delete removes the diagram name (its .xsld, .svg and tracing image), failing with ErrNotFound when it doesn't exist.
 func (s *Store) Delete(name string) error {
 	xmlPath, err := s.xmlPath(name)
 	if err != nil {
@@ -358,10 +434,11 @@ func (s *Store) Delete(name string) error {
 		}
 		return fmt.Errorf("storage: deleting %s: %w", name, err)
 	}
+	s.links.drop(name)
 	if err := os.Remove(svgPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("storage: deleting %s: %w", name, err)
 	}
-	return nil
+	return removeTracingFiles(xmlPath, "")
 }
 
 // DeleteDir removes the folder dir, failing with ErrNotFound when it isn't a folder and ErrNotEmpty when it holds

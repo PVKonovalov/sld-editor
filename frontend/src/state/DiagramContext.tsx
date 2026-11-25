@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import * as api from '../lib/api'
+import { hasPendingBindings, trackBindingChanges } from '../lib/bindingStatus'
 import * as diagramOps from '../lib/diagramOps'
 import { baseName, joinDiagramPath, parentDir } from '../lib/diagramPath'
 import { diagramFileKind, stripDiagramExtension } from '../lib/fileTransfer'
 import { ExistingNames, prepareImport, recolorVoltageClasses, type PreparedFile, type PreparedImport } from '../lib/importDiagram'
 import { deleteDraft, getDraft, listDrafts, putDraft, renameDrafts, type Draft } from '../lib/drafts'
+import {
+  deleteLegacyTracingImage,
+  legacyTracingImage,
+  renameLegacyTracingImages,
+  uploadTracingImage,
+} from '../lib/tracingImage'
 import { diagramFromAddress, setDiagramAddress } from '../lib/diagramAddress'
 import { presenceSession } from '../lib/presenceSession'
 import { t } from '../i18n'
@@ -12,6 +19,7 @@ import type {
   CimHeader,
   CimSameVoltageTransformer,
   Diagram,
+  SchemeRef,
   DiagramEntry,
   CustomElement,
   ElementSymbol,
@@ -21,6 +29,8 @@ import type {
   Point,
   Revision,
   VoltageColor,
+  SchemeBindings,
+  FetchedScheme,
 } from '../types'
 import {
   DiagramContext,
@@ -32,6 +42,7 @@ import {
   type PendingImport,
   type PreRendered,
   type SelectionKind,
+  type SchemeOffer,
   type UnsavedChoice,
   type VoltageColorsPrompt,
   type CimLayoutPrompt,
@@ -112,6 +123,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const unsavedResolverRef = useRef<((proceed: boolean) => void) | null>(null)
   // A CIM import's voltage classes no preset names, asked about by VoltageColorsDialog (see askVoltageColors).
   const [voltageColorsPrompt, setVoltageColorsPrompt] = useState<VoltageColorsPrompt | null>(null)
+  const [enumeratePrompt, setEnumeratePrompt] = useState<{ selection: number[] } | null>(null)
   const voltageColorsResolverRef = useRef<((colors: Map<string, string>) => void) | null>(null)
   // A CIM import with a diagram layout, asked about by CimLayoutDialog (see chooseCimLayout).
   const [cimLayoutPrompt, setCimLayoutPrompt] = useState<CimLayoutPrompt | null>(null)
@@ -361,6 +373,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setFocusRequest(prev => ({ id, kind, seq: (prev?.seq ?? 0) + 1, reveal: true }))
   }, [])
   useEffect(() => setHighlighted(null), [selection, documentVersion])
+  const [tableCellRange, setTableCellRange] = useState<diagramOps.TableCellRange | null>(null)
+  useEffect(() => {
+    if (tableCellRange && tableCellRange.id !== selectedElementId) setTableCellRange(null)
+  }, [tableCellRange, selectedElementId])
 
   // Drops selected ids an edit removed (or a newly opened diagram doesn't
   // have), so the selection never points at an item that isn't there.
@@ -589,11 +605,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // so the very first .xsld on disk already carries it, not just an
   // in-memory, still-dirty value waiting on the user's next explicit Save.
   const newDiagramNow = useCallback(
-    async (name: string, width?: number, height?: number, defaultVoltageName?: string) => {
+    async (name: string, width?: number, height?: number, defaultVoltageName?: string, scheme?: SchemeRef) => {
       startLoading(name)
       let result
       try {
-        result = await api.createDiagram(name, width, height)
+        result = await api.createDiagram(name, width, height, scheme)
       } catch (e) {
         stopLoading()
         throw e
@@ -684,9 +700,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   }, [diagramName])
 
   const newDiagram = useCallback(
-    async (name: string, width?: number, height?: number, defaultVoltageName?: string) => {
+    async (name: string, width?: number, height?: number, defaultVoltageName?: string, scheme?: SchemeRef) => {
       if (!(await confirmLeave())) return false
-      await newDiagramNow(name, width, height, defaultVoltageName)
+      await newDiagramNow(name, width, height, defaultVoltageName, scheme)
       return true
     },
     [confirmLeave, newDiagramNow],
@@ -869,6 +885,36 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   // inside the File panel's current folder) and, if so, parks the prepared
   // file as pendingImport, with that name fixed, for ConfirmReloadDialog to
   // ask "Reload or not"; otherwise it loads immediately.
+  // After an .xsde import, the schemes proposed for the new diagram, offered once (SchemeOffer).
+  const [schemeOffer, setSchemeOffer] = useState<SchemeOffer | null>(null)
+  const offerScheme = useCallback(
+    (name: string, fileName: string) => {
+      setSchemeOffer(null)
+      if (diagramFileKind(fileName) !== 'xsde' || !config?.bindings?.provider || !config.bindings.schemes) return
+      api.suggestSchemes(name, fileName).then(
+        candidates => {
+          if (candidates.some(c => !c.diagram)) setSchemeOffer({ name, source: fileName, candidates })
+        },
+        () => undefined,
+      )
+    },
+    [config],
+  )
+  const dismissSchemeOffer = useCallback(() => setSchemeOffer(null), [])
+  const [exportOpen, setExportOpen] = useState(false)
+  const [bindingImport, setBindingImport] = useState<SchemeBindings | null>(null)
+  const [exportNudge, setExportNudge] = useState(false)
+  const dismissExportNudge = useCallback(() => setExportNudge(false), [])
+  useEffect(() => {
+    setSchemeOffer(prev => (prev && prev.name !== diagramName ? null : prev))
+    setExportOpen(false)
+    setBindingImport(null)
+    setExportNudge(false)
+  }, [diagramName])
+  useEffect(() => {
+    if (exportOpen) setExportNudge(false)
+  }, [exportOpen])
+
   const importDiagramFile = useCallback(
     async (file: File) => {
       if (!diagramFileKind(file.name)) throw new Error(t('file.invalidDiagramFile', { name: file.name }))
@@ -893,9 +939,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
           return
         }
         await loadDiagramFromFile(pages[0], file.name, name, save)
+        offerScheme(name, file.name)
       })
     },
     [
+      offerScheme,
       loadDiagramFromFile,
       saveImportedPages,
       choosePageVoltageColors,
@@ -916,8 +964,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const confirmPendingImport = useCallback(async () => {
     if (!pendingImport) return
     await loadDiagramFromFile(pendingImport.prepared, pendingImport.fileName, pendingImport.name, pendingImport.save)
+    offerScheme(pendingImport.name, pendingImport.fileName)
     setPendingImport(null)
-  }, [pendingImport, loadDiagramFromFile])
+  }, [pendingImport, loadDiagramFromFile, offerScheme])
 
   const importDiagramFiles = useCallback(
     async (files: File[]) => {
@@ -955,13 +1004,52 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     commitDiagram(d, { clean: d })
     setDirty(false)
     setError(warning ?? null)
+    const b = config?.bindings
+    setExportNudge(
+      !!b?.canExport && d.scheme?.source === b.provider && !!d.scheme.ref && hasPendingBindings(d, b.provider),
+    )
     await browseDir(currentDir)
-  }, [diagramName, diagram, browseDir, currentDir, commitDiagram])
+  }, [diagramName, diagram, browseDir, currentDir, commitDiagram, config])
+
+  // Saves fetched (a scheme's picture, api.fetchScheme) as the new diagram name linked to the provider's scheme ref
+  // (linked from it, not registered), opens it with its import log and reads the scheme's bindings into the bindings
+  // overview. Throws for a name that exists; false when the user stays on the open diagram.
+  const editFromScheme = useCallback(
+    async (fetched: FetchedScheme, ref: string, name: string) => {
+      const b = config?.bindings
+      if (!b?.provider) return false
+      if (await new ExistingNames(false).has(name)) throw new Error(t('schemes.nameExists', { name }))
+      if (!(await confirmLeave())) return false
+      const diagram = { ...fetched.diagram, scheme: { source: b.provider, ref } }
+      await loadDiagramFromFile({ diagram, report: fetched.report, nameSuffix: '', messages: null }, baseName(fetched.file), name, true)
+      if (b.import) {
+        api.importBindings(name).then(setBindingImport, e =>
+          setError(t('bindingImport.failed', { error: e instanceof Error ? e.message : String(e) })),
+        )
+      }
+      return true
+    },
+    [config, confirmLeave, loadDiagramFromFile],
+  )
+
+  // Replaces the open diagram with a fresh fetch of the scheme it is linked to, saved, keeping the link.
+  const refetchScheme = useCallback(async () => {
+    const scheme = diagram?.scheme
+    if (!diagramName || !scheme) return
+    const fetched = await api.fetchScheme(scheme.ref, diagramName)
+    const prepared = {
+      diagram: { ...fetched.diagram, scheme, tracingImage: diagram?.tracingImage },
+      report: fetched.report,
+      nameSuffix: '',
+      messages: null,
+    }
+    await loadDiagramFromFile(prepared, baseName(fetched.file), diagramName, true)
+  }, [diagram, diagramName, loadDiagramFromFile])
 
   const saveDiagramAs = useCallback(
     async (name: string) => {
       if (!diagram) return
-      const { diagram: d, warning } = await api.saveDiagram(name, diagram)
+      const { diagram: d, warning } = await api.saveDiagram(name, diagram, diagramName ?? undefined)
       if (diagramName) void deleteDraft(diagramName)
       void deleteDraft(name)
       setDiagramName(name)
@@ -985,6 +1073,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     async (from: string, to: string, isDir: boolean) => {
       await api.renameEntry(from, to, isDir)
       await renameDrafts(from, to, isDir)
+      await renameLegacyTracingImages(from, to, isDir)
       const open = latestRef.current.diagramName
       if (open && (isDir ? open.startsWith(`${from}/`) : open === from)) setDiagramName(to + open.slice(from.length))
       await browseDir(currentDir)
@@ -996,7 +1085,10 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const deleteEntry = useCallback(
     async (path: string, isDir: boolean) => {
       await api.deleteEntry(path, isDir, presenceSession)
-      if (!isDir) await deleteDraft(path)
+      if (!isDir) {
+        await deleteDraft(path)
+        await deleteLegacyTracingImage(path)
+      }
       if (!isDir && latestRef.current.diagramName === path) {
         commitDiagram(null, { reset: true, clean: null })
         setDiagramName(null)
@@ -1007,10 +1099,11 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     [currentDir, browseDir, commitDiagram],
   )
 
-  // Records next, made from prev, as one edit (undo step, dirty flag).
+  // Records next, made from prev, as one edit (undo step, dirty flag), with its export statuses unless untracked.
   const applyEdit = useCallback(
-    (prev: Diagram, next: Diagram) => {
-      if (next === prev) return
+    (prev: Diagram, edited: Diagram, untracked?: boolean) => {
+      if (edited === prev) return
+      const next = untracked ? edited : trackBindingChanges(prev, edited)
       const h = historyRef.current
       const field = editingField()
       const now = Date.now()
@@ -1035,11 +1128,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
 
   // Every edit first runs with joins of different voltage classes skipped; if it met any, it waits for
   // VoltageMismatchDialog's answer (resolveVoltagePrompt), and edits made meanwhile queue behind it.
-  // Every edit also puts wire jumps where a buswork wire it touched crosses another voltage class
+  // Every edit also joins device terminals lying on a wire it drew or reshaped (joinTerminalsOnChangedWires), puts
+  // wire jumps where a buswork wire it touched crosses another voltage class
   // (jumpChangedCrossings) and a junction point on each busbar–buswork connection it made (addJunctionPoints),
   // except with opts.automatic false.
   const updateDiagram = useCallback(
-    (edit: (d: Diagram) => Diagram, opts?: { automatic?: boolean }) => {
+    (edit: (d: Diagram) => Diagram, opts?: { automatic?: boolean; untracked?: boolean }) => {
       const updater =
         opts?.automatic === false
           ? edit
@@ -1048,7 +1142,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
               const jumpSameVoltage = configRef.current?.editor.jumpSameVoltage ?? false
               return diagramOps.addJunctionPoints(
                 d,
-                diagramOps.jumpChangedCrossings(d, edit(d), symbols, jumpSameVoltage),
+                diagramOps.jumpChangedCrossings(
+                  d,
+                  diagramOps.joinTerminalsOnChangedWires(d, edit(d)),
+                  symbols,
+                  jumpSameVoltage,
+                ),
                 symbols,
               )
             }
@@ -1061,7 +1160,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       if (!prev) return
       const { result, mismatches } = diagramOps.withVoltagePolicy(true, () => updater(prev))
       if (mismatches.length === 0) {
-        applyEdit(prev, result)
+        applyEdit(prev, result, opts?.untracked)
         return
       }
       pendingEditRef.current = [updater]
@@ -1071,14 +1170,19 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   )
 
   const resolveVoltagePrompt = useCallback(
-    (connect: boolean) => {
+    (connect: boolean, voltage?: number) => {
       const updaters = pendingEditRef.current
       pendingEditRef.current = null
       setVoltagePrompt(null)
       const prev = diagramRef.current
       if (!updaters || !prev) return
-      const { result } = diagramOps.withVoltagePolicy(!connect, () => updaters.reduce((d, u) => u(d), prev))
-      applyEdit(prev, result)
+      const { result, mismatches } = diagramOps.withVoltagePolicy(!connect, () =>
+        updaters.reduce((d, u) => u(d), prev),
+      )
+      applyEdit(
+        prev,
+        connect && voltage !== undefined ? diagramOps.setMismatchVoltageClass(result, mismatches, voltage) : result,
+      )
     },
     [applyEdit],
   )
@@ -1114,6 +1218,31 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   )
   const undo = useCallback(() => stepHistory('undo'), [stepHistory])
   const redo = useCallback(() => stepHistory('redo'), [stepHistory])
+
+  // A tracing image an earlier editor version kept in this browser moves to the server when its diagram opens: it is
+  // uploaded and referenced by an edit, and forgotten here once the diagram is opened again with the reference saved.
+  const tracingMigratedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!diagramName || !diagram || tracingMigratedRef.current === diagramName) return
+    const name = diagramName
+    tracingMigratedRef.current = name
+    if (diagram.tracingImage) {
+      void deleteLegacyTracingImage(name)
+      return
+    }
+    void (async () => {
+      const legacy = await legacyTracingImage(name)
+      if (!legacy) return
+      try {
+        const file = await uploadTracingImage(name, await (await fetch(legacy.href)).blob())
+        if (latestRef.current.diagramName !== name) return
+        const { x, y, width, height, opacity, visible } = legacy
+        updateDiagram(d => ({ ...d, tracingImage: { file, x, y, width, height, opacity, hidden: !visible || undefined } }))
+      } catch (e) {
+        console.warn('sld-editor: moving the tracing image to the server:', e)
+      }
+    })()
+  }, [diagramName, diagram, updateDiagram])
 
   const updateEditorSettings = useCallback(
     (patch: Partial<EditorSettings>) => {
@@ -1235,6 +1364,16 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selection,
       toggleSelection,
       selectMany,
+      schemeOffer,
+      dismissSchemeOffer,
+      exportOpen,
+      setExportOpen,
+      bindingImport,
+      setBindingImport,
+      exportNudge,
+      dismissExportNudge,
+      editFromScheme,
+      refetchScheme,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,
@@ -1303,12 +1442,16 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       focusPoint,
       highlighted,
       highlightItem,
+      tableCellRange,
+      setTableCellRange,
       findPinned,
       selectFromFind,
       unsavedPrompt,
       resolveUnsavedPrompt,
       voltageColorsPrompt,
       resolveVoltageColorsPrompt,
+      enumeratePrompt,
+      setEnumeratePrompt,
       cimLayoutPrompt,
       resolveCimLayoutPrompt,
       cimWindingsPrompt,
@@ -1341,6 +1484,16 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selection,
       toggleSelection,
       selectMany,
+      schemeOffer,
+      dismissSchemeOffer,
+      exportOpen,
+      setExportOpen,
+      bindingImport,
+      setBindingImport,
+      exportNudge,
+      dismissExportNudge,
+      editFromScheme,
+      refetchScheme,
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,
@@ -1409,12 +1562,15 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       focusPoint,
       highlighted,
       highlightItem,
+      tableCellRange,
       findPinned,
       selectFromFind,
       unsavedPrompt,
       resolveUnsavedPrompt,
       voltageColorsPrompt,
       resolveVoltageColorsPrompt,
+      enumeratePrompt,
+      setEnumeratePrompt,
       cimLayoutPrompt,
       resolveCimLayoutPrompt,
       cimWindingsPrompt,

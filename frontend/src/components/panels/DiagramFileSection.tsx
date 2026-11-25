@@ -40,7 +40,18 @@ function storedFormat(): ExportFormat {
  * be browsing; the typed name may still carry further `/` segments. Repair
  * runs the server's topology repair on the open diagram, as one undo step. */
 export function DiagramFileSection() {
-  const { diagramName, diagram, dirty, saveDiagram, saveDiagramAs, repairDiagram, error, clearError } = useDiagramContext()
+  const {
+    diagramName,
+    diagram,
+    dirty,
+    saveDiagram,
+    saveDiagramAs,
+    repairDiagram,
+    error,
+    clearError,
+    selection,
+    setEnumeratePrompt,
+  } = useDiagramContext()
   const [saveAsName, setSaveAsName] = useState('')
   const [busy, setBusy] = useState(false)
   // Set while the Save button's own save runs, for its spinner.
@@ -203,6 +214,24 @@ export function DiagramFileSection() {
         </button>
         <p className="text-[11px] text-gray-500 mt-1">{t('file.repairHint')}</p>
         {repairNote && <p className="text-[11px] text-emerald-400 mt-1">{repairNote}</p>}
+      </div>
+
+      <div>
+        <h3 className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-gray-400 mb-1">
+          {t('file.designations')}
+          <GuideButton topic="designations" />
+        </h3>
+        <button
+          type="button"
+          disabled={!diagram}
+          onClick={() =>
+            setEnumeratePrompt({ selection: [...selection].filter(([, kind]) => kind === 'element').map(([id]) => id) })
+          }
+          className="w-full px-2 py-1 text-xs rounded border border-surface-600 hover:bg-surface-600 disabled:opacity-50 text-gray-200"
+        >
+          {t('file.enumerate')}
+        </button>
+        <p className="text-[11px] text-gray-500 mt-1">{t('file.enumerateHint')}</p>
       </div>
 
       {(localError || error) && <p className="text-xs text-red-400">{localError ?? error}</p>}

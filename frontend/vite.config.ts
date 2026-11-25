@@ -22,13 +22,17 @@ export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion()),
   },
-  // The libraries (React, react-zoom-pan-pinch, lucide-react) go to their own vendor-[hash].js: it stays under the
-  // 500 kB chunk warning with the app, and a browser keeps it cached across app updates.
+  // The libraries (React, react-zoom-pan-pinch, lucide-react) go to their own vendor-[hash].js, which a browser keeps
+  // cached across app updates, and the app's pure logic (src/lib) to lib-[hash].js, so each chunk stays under the
+  // 500 kB warning.
   build: {
     rolldownOptions: {
       output: {
         codeSplitting: {
-          groups: [{ name: 'vendor', test: /node_modules/ }],
+          groups: [
+            { name: 'vendor', test: /node_modules/ },
+            { name: 'lib', test: /[\\/]src[\\/]lib[\\/]/ },
+          ],
         },
       },
     },

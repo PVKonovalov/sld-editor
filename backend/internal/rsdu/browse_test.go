@@ -297,7 +297,7 @@ func TestSearch(t *testing.T) {
 			}
 			var out [][]any
 			for i := range n {
-				out = append(out, []any{int64(100 + i), parent, "Feeder"})
+				out = append(out, []any{int64(100 + i), parent, "Feeder", nil})
 			}
 			return out
 		}
@@ -335,5 +335,37 @@ func TestSearch(t *testing.T) {
 	}
 	if _, err := newFakeProvider(t, newDB(0, 0)).Search(context.Background(), "29", " я ", 0); !errors.Is(err, binding.ErrInvalid) {
 		t.Errorf("one-letter query: %v", err)
+	}
+}
+
+func TestSearchTypeNames(t *testing.T) {
+	f := &fakeDB{cols: map[string][]string{
+		"D": {"ID", "NAME", "ID_PARENT", "ID_TYPE"}, "T": {"ID", "NAME"},
+		"L": {"ID", "NAME", "ID_NODE", "ID_TYPE"}, "LT": {"ID", "ALIAS"},
+	}}
+	f.rows = func(q string, args []any) [][]any {
+		if r, ok := sectionRows(q, args, "L", "D", "T"); ok {
+			return r
+		}
+		switch {
+		case strings.Contains(q, "SYS_TBLREF"):
+			return [][]any{{"LT"}}
+		case strings.Contains(q, "rsduadmin.D a"):
+			return [][]any{{int64(100), int64(1), "GS 1", "Ground switch"}}
+		}
+		return [][]any{{int64(200), int64(10), "GS 1 meas", " TS "}}
+	}
+	res, err := newFakeProvider(t, f).Search(context.Background(), "29", "gs", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if q := f.query("rsduadmin.D a"); !strings.Contains(q, "b.NAME") || !strings.Contains(q, "LEFT JOIN rsduadmin.T b ON b.ID = a.ID_TYPE") {
+		t.Errorf("catalog search %q", q)
+	}
+	if q := f.query("rsduadmin.L a"); !strings.Contains(q, "b.ALIAS") || !strings.Contains(q, "LEFT JOIN rsduadmin.LT b ON b.ID = a.ID_TYPE") {
+		t.Errorf("list search %q", q)
+	}
+	if len(res.Hits) != 2 || res.Hits[0].TypeName != "Ground switch" || res.Hits[1].TypeName != "TS" {
+		t.Errorf("hits = %+v", res.Hits)
 	}
 }

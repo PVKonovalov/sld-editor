@@ -3,14 +3,18 @@ import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { FindSection } from './FindSection'
 import { SnapToGridSection } from './SnapToGridSection'
+import { TracingImageSection } from './TracingImageSection'
 import { PanelShell } from './PanelShell'
 import { HistorySection, LayersSection, StateColorsSection, VoltageClassesSection } from './DiagramSections'
 import { DiagramFileSection } from './DiagramFileSection'
 import { PictureSection } from './PictureSection'
 import { ConnectionsSection } from './ConnectionsSection'
 import { MridRow } from './MridRow'
+import { FunctionSection } from './FunctionSection'
 import { ElectricalSection } from './ElectricalSection'
 import { BindingsSection, DiagramBindingsSection } from './BindingsSection'
+import { ImportedBindings } from './ImportedBindings'
+import { Table2Editor } from './Table2Editor'
 import {
   connectorElectricalFields,
   elementElectricalFields,
@@ -18,7 +22,8 @@ import {
   WINDING_FIELDS,
   type ElectricalField,
 } from '../../lib/electrical'
-import { elementDiagramBox } from '../../lib/elementBox'
+import { elementDiagramBox, pointsBox, type Box } from '../../lib/elementBox'
+import { templateHasTerminalSide, templateTextDefault } from '../../lib/elementIcon'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
 import { SWITCHING_DEVICE_CLASSES } from '../../lib/switchingDevices'
@@ -83,7 +88,7 @@ const LINE_STYLES: { value: ConnectorLineStyle | ''; labelKey: TranslationKey }[
 // element_16.go's own source produces ('dotted'/'dashDot'; it has no plain
 // dashed one — see slddoc's own ClassPolygon doc comment), '' meaning
 // Solid, same as LINE_STYLES.
-// A Container's (310) outline styles: the two xsde2svg element_310.go
+// A Container's (310) outline and a Rectangle's (3) border styles: the two xsde2svg element_310.go
 // draws (dotted 3,2 and dashed 6,5) plus solid.
 const CONTAINER_STYLES: { value: ConnectorLineStyle | ''; labelKey: TranslationKey }[] = [
   { value: '', labelKey: 'properties.lineStyleSolid' },
@@ -158,6 +163,8 @@ const LAMP_STATE_OFF = 0
 const LAMP_STATE_ON = 1
 // An Automation device's (103) default label size (render.go).
 const AUTOMATION_DEVICE_FONT_SIZE = 12
+// A Button's text size when unset: slddoc's render.ButtonFontSize.
+const BUTTON_FONT_SIZE = 23
 
 // PackageSubstation's own State (slddoc's own
 // Element.State, reused rather than a dedicated field) isn't an
@@ -437,6 +444,22 @@ function LayerSelect({
   )
 }
 
+/** The "Add name label" button beside a Name field: disabled while name is empty or a label For the item exists. */
+function NameLabelButton({ name, hasLabel, onClick }: { name?: string; hasLabel: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      title={t(hasLabel ? 'properties.hasNameLabel' : 'properties.addNameLabel')}
+      aria-label={t('properties.addNameLabel')}
+      disabled={!name || hasLabel}
+      onClick={onClick}
+      className="text-gray-400 hover:text-white disabled:text-gray-600 disabled:hover:text-gray-600"
+    >
+      <Captions size={14} />
+    </button>
+  )
+}
+
 function DeleteButton({ label, onDelete }: { label: string; onDelete: () => void }) {
   return (
     <button
@@ -473,6 +496,17 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const digitalDevice = diagram?.digitalDevices.find(dd => dd.id === selectedDigitalDeviceId) ?? null
   const voltageOptions = diagram ? diagramOps.voltageClassOptions(diagram, config) : []
   const bindingProvider = config?.bindings?.provider ?? ''
+
+  // "Add name label": a label with name, For item id, beside its box where it fits inside the diagram
+  // (diagramOps.nameLabelPlacement); its width is estimated at 0.6 of the font size per character.
+  function addNameLabel(id: number, name: string, box: Box) {
+    if (!diagram) return
+    const grid = diagram.editor?.gridSpacing ?? config?.editor.gridSpacing ?? 10
+    const snap = diagram.editor?.snap ?? config?.editor.snap ?? true
+    const textWidth = name.length * diagramOps.NAME_LABEL_SIZE * 0.6
+    const { point, anchor } = diagramOps.nameLabelPlacement(box, textWidth, diagram.width, grid, snap)
+    updateDiagram(d => diagramOps.placeNameLabel(d, id, point, anchor))
+  }
 
   function moveItemToLayer(id: number, kind: string, layer: number) {
     updateDiagram(d => diagramOps.setItemsLayer(d, new Map([[id, kind]]), layer))
@@ -551,6 +585,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             />
           </label>
           <SnapToGridSection />
+          <TracingImageSection />
           <DiagramFileSection />
           <DiagramBindingsSection provider={bindingProvider} scheme={diagram.scheme} object={diagram.object} />
           <FindSection />
@@ -619,9 +654,21 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           <p className="text-xs text-gray-400">
             {typeCodeLabel(t(CONNECTOR_KIND_LABELS[connector.kind]), CONNECTOR_KIND_CODES[connector.kind])}
           </p>
-          <label className="block text-xs">
-            <span className="block text-gray-400 mb-1">{t('properties.name')}</span>
+          <div className="text-xs">
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="connector-name" className="text-gray-400">
+                {t('properties.name')}
+              </label>
+              {connector.kind === 'LinkToObject' && (
+                <NameLabelButton
+                  name={connector.name}
+                  hasLabel={diagram.labels.some(l => l.for === connector.id)}
+                  onClick={() => addNameLabel(connector.id, connector.name ?? '', pointsBox(connector.points))}
+                />
+              )}
+            </div>
             <input
+              id="connector-name"
               className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
               value={connector.name ?? ''}
               onChange={e =>
@@ -631,7 +678,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 }))
               }
             />
-          </label>
+          </div>
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.voltageClass')}</span>
             <select
@@ -733,6 +780,16 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           />
           <ConnectionsSection connector={connector} />
           <LayerSelect layers={diagram.layers} value={connector.layer} onChange={layer => moveItemToLayer(connector.id, 'connector', layer)} />
+          <BindingsSection
+            provider={bindingProvider}
+            target={{ kind: 'connector', id: connector.id }}
+            bindings={connector.bindings}
+            precision={connector.precision}
+            features={connector.features}
+            componentType={connector.componentType}
+            shape={''}
+          />
+          <ImportedBindings id={connector.id} bindings={connector.bindings} precision={connector.precision} features={connector.features} componentType={connector.componentType} />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: connector.id })}</p>
           <DeleteButton label={t('properties.deleteConnector')} onDelete={deleteSelected} />
         </div>
@@ -865,9 +922,33 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   {e.name ?? e.class}
                 </option>
               ))}
+              {diagram.connectors
+                .filter(c => c.kind === 'LinkToObject')
+                .map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.name || t(CONNECTOR_KIND_LABELS[c.kind])}
+                  </option>
+                ))}
             </select>
           </label>
           <LayerSelect layers={diagram.layers} value={label.layer} onChange={layer => moveItemToLayer(label.id, 'label', layer)} />
+          <BindingsSection
+            provider={bindingProvider}
+            target={{ kind: 'label', id: label.id }}
+            bindings={label.bindings}
+            precision={label.precision}
+            features={label.features}
+            componentType={label.componentType}
+            shape={LABEL_SHAPE}
+          />
+          <ImportedBindings
+            id={label.id}
+            shape={LABEL_SHAPE}
+            bindings={label.bindings}
+            precision={label.precision}
+            features={label.features}
+            componentType={label.componentType}
+          />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: label.id })}</p>
           <DeleteButton label={t('properties.deleteLabel')} onDelete={deleteSelected} />
         </div>
@@ -977,9 +1058,20 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           <LayerSelect layers={diagram.layers} value={digitalDevice.layer} onChange={layer => moveItemToLayer(digitalDevice.id, 'digitaldevice', layer)} />
           <BindingsSection
             provider={bindingProvider}
+            target={{ kind: 'digitaldevice', id: digitalDevice.id }}
             bindings={digitalDevice.bindings}
             precision={digitalDevice.precision}
             features={digitalDevice.features}
+            componentType={digitalDevice.componentType}
+            shape={DIGITAL_DEVICE_SHAPE}
+          />
+          <ImportedBindings
+            id={digitalDevice.id}
+            shape={DIGITAL_DEVICE_SHAPE}
+            bindings={digitalDevice.bindings}
+            precision={digitalDevice.precision}
+            features={digitalDevice.features}
+            componentType={digitalDevice.componentType}
           />
           <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: digitalDevice.id })}</p>
           <DeleteButton label={t('properties.deleteDigitalDevice')} onDelete={deleteSelected} />
@@ -1021,7 +1113,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const isArrow = el.class === 'Arrow'
   const isButton = el.class === 'Button'
   const isWindowIcon = el.class === 'WindowIcon'
-  const isAutomationDevice = el.class === 'AutomationDevice'
+  const isAutomationDevice = el.class === 'AutomationDevice' || el.class === 'DisplayPanel'
   const isRoad = el.class === 'Road'
   const isPostPole = el.class === 'PostPole'
   const isLampOnPole = el.class === 'LampOnPole'
@@ -1077,20 +1169,11 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
 
   // A label already For this element: "Add name label" is then disabled.
   const hasNameLabel = diagram.labels.some(l => l.for === el.id)
-  // "Add name label": a label with the element's name, For it, placed to
-  // its right — one grid step past its drawn outline, at its vertical
-  // centre, on the grid when snapping.
-  function addNameLabel() {
-    const grid = diagram!.editor?.gridSpacing ?? config?.editor.gridSpacing ?? 10
-    const box = elementDiagramBox(el, elements)
-    let x = box.x + box.width + grid
-    let y = box.y + box.height / 2
-    if (snapEnabled) {
-      x = Math.ceil((box.x + box.width + grid / 2) / grid) * grid
-      y = Math.round(y / grid) * grid
-    }
-    updateDiagram(d => diagramOps.placeNameLabel(d, el.id, { x, y }))
-  }
+
+  // The default label of a symbol with an editable {text:default}, undefined otherwise.
+  const elSymbol = elements.find(s => s.shape === el.shape)
+  const textDefault = templateTextDefault(elSymbol)
+  const hasTerminalSide = templateHasTerminalSide(elSymbol)
 
   // Re-fits the element's fixed ports afterward, so a change that moves
   // its terminals (orientation, mirror, position, a Fork's size, a
@@ -1116,16 +1199,11 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             <label htmlFor="element-name" className="text-gray-400">
               {t('properties.name')}
             </label>
-            <button
-              type="button"
-              title={t(hasNameLabel ? 'properties.hasNameLabel' : 'properties.addNameLabel')}
-              aria-label={t('properties.addNameLabel')}
-              disabled={!el.name || hasNameLabel}
-              onClick={addNameLabel}
-              className="text-gray-400 hover:text-white disabled:text-gray-600 disabled:hover:text-gray-600"
-            >
-              <Captions size={14} />
-            </button>
+            <NameLabelButton
+              name={el.name}
+              hasLabel={hasNameLabel}
+              onClick={() => addNameLabel(el.id, el.name ?? '', elementDiagramBox(el, elements))}
+            />
           </div>
           <input
             id="element-name"
@@ -1166,13 +1244,18 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
           </label>
         )}
 
+        <FunctionSection el={el} />
         <MridRow key={el.mrid} mrid={el.mrid} />
         <BindingsSection
           provider={bindingProvider}
+          target={{ kind: 'element', id: el.id }}
           bindings={el.bindings}
           precision={el.precision}
           features={el.features}
+          componentType={el.componentType}
+          shape={el.shape}
         />
+        <ImportedBindings id={el.id} shape={el.shape} bindings={el.bindings} precision={el.precision} features={el.features} componentType={el.componentType} />
         {(typeSymbol?.cim?.length ?? 0) > 1 && (
           <label className="block text-xs">
             <span className="block text-gray-400 mb-1">{t('properties.cimClass')}</span>
@@ -1302,6 +1385,22 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                   value={el.strokeWidth ?? 1}
                   onChange={e => patch({ strokeWidth: Number(e.target.value) })}
                 />
+              </label>
+            )}
+            {isRectangle && (
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.lineStyle')}</span>
+                <select
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.lineStyle ?? ''}
+                  onChange={e => patch({ lineStyle: (e.target.value || undefined) as ConnectorLineStyle | undefined })}
+                >
+                  {CONTAINER_STYLES.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      {t(opt.labelKey)}
+                    </option>
+                  ))}
+                </select>
               </label>
             )}
             {isRectangle && (
@@ -1461,6 +1560,21 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 onChange={e => patch({ textColor: e.target.value })}
               />
             </label>
+            {isButton && (
+              <label className="block text-xs">
+                <span className="block text-gray-400 mb-1">{t('properties.labelSize')}</span>
+                <input
+                  type="number"
+                  min={1}
+                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+                  value={el.textSize ?? BUTTON_FONT_SIZE}
+                  onChange={e => {
+                    const v = Number(e.target.value)
+                    patch({ textSize: v > 0 && v !== BUTTON_FONT_SIZE ? v : undefined })
+                  }}
+                />
+              </label>
+            )}
             <label className="flex items-center gap-2 text-xs">
               <input type="checkbox" checked={!!el.bold} onChange={e => patch({ bold: e.target.checked })} />
               <span className="text-gray-400">{t('properties.labelBold')}</span>
@@ -2435,40 +2549,8 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
 
         {isTable2 && (
           <>
-            {/* Also reuses Rectangle's own Fill/Stroke i18n keys plus
-                Line's own LineStyle select — Table2's own grid-wide
-                default cell background/grid line color/dash, matching
-                writeTable2. Row/column count and per-row/column size are
-                its own new concept (no other shape has a resizable grid);
-                per-cell Fill/TextColor overrides aren't exposed here yet
-                (still preserved/rendered correctly for anything Extract
-                recovers — see TableCell's own doc comment). */}
-            <div className="grid grid-cols-2 gap-1">
-              <label className="block text-xs">
-                <span className="block text-gray-400 mb-1">{t('properties.tableRows')}</span>
-                <input
-                  type="number"
-                  min={1}
-                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
-                  value={el.rowHeights?.length ?? 1}
-                  onChange={e =>
-                    updateDiagram(d => diagramOps.resizeTable2(d, el.id, Number(e.target.value), el.columnWidths?.length ?? 1))
-                  }
-                />
-              </label>
-              <label className="block text-xs">
-                <span className="block text-gray-400 mb-1">{t('properties.tableColumns')}</span>
-                <input
-                  type="number"
-                  min={1}
-                  className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
-                  value={el.columnWidths?.length ?? 1}
-                  onChange={e =>
-                    updateDiagram(d => diagramOps.resizeTable2(d, el.id, el.rowHeights?.length ?? 1, Number(e.target.value)))
-                  }
-                />
-              </label>
-            </div>
+            {/* The table's default cell background and grid line color, width and dash; the grid and its cells
+                are Table2Editor's. */}
             <label className="block text-xs">
               <span className="flex items-center justify-between mb-1">
                 <span className="text-gray-400">{t('properties.rectangleFill')}</span>
@@ -2520,61 +2602,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 ))}
               </select>
             </label>
-            <div>
-              <span className="block text-xs text-gray-400 mb-1">{t('properties.tableRowHeights')}</span>
-              <div className="grid grid-cols-4 gap-1">
-                {(el.rowHeights ?? []).map((h, i) => (
-                  <input
-                    key={i}
-                    type="number"
-                    min={1}
-                    className="w-full bg-surface-800 border border-surface-600 rounded px-1 py-1 text-[11px]"
-                    value={h}
-                    onChange={e => updateDiagram(d => diagramOps.updateTable2RowHeight(d, el.id, i, Number(e.target.value)))}
-                  />
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="block text-xs text-gray-400 mb-1">{t('properties.tableColumnWidths')}</span>
-              <div className="grid grid-cols-4 gap-1">
-                {(el.columnWidths ?? []).map((w, i) => (
-                  <input
-                    key={i}
-                    type="number"
-                    min={1}
-                    className="w-full bg-surface-800 border border-surface-600 rounded px-1 py-1 text-[11px]"
-                    value={w}
-                    onChange={e => updateDiagram(d => diagramOps.updateTable2ColumnWidth(d, el.id, i, Number(e.target.value)))}
-                  />
-                ))}
-              </div>
-            </div>
-            <div>
-              <span className="block text-xs text-gray-400 mb-1">{t('properties.tableCells')}</span>
-              <div className="space-y-1">
-                {Array.from({ length: el.rowHeights?.length ?? 0 }, (_, row) => (
-                  <div
-                    key={row}
-                    className="grid gap-1"
-                    style={{ gridTemplateColumns: `repeat(${el.columnWidths?.length ?? 0}, minmax(0,1fr))` }}
-                  >
-                    {Array.from({ length: el.columnWidths?.length ?? 0 }, (_, col) => {
-                      const cell = el.cells?.find(c => c.row === row && c.col === col)
-                      return (
-                        <input
-                          key={col}
-                          type="text"
-                          className="w-full bg-surface-800 border border-surface-600 rounded px-1 py-0.5 text-[11px]"
-                          value={cell?.text ?? ''}
-                          onChange={e => updateDiagram(d => diagramOps.updateTable2CellText(d, el.id, row, col, e.target.value))}
-                        />
-                      )
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
+            <Table2Editor el={el} swatchColor={swatchColor} />
           </>
         )}
 
@@ -2769,6 +2797,47 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
                 </option>
               ))}
             </select>
+          </label>
+        )}
+
+        {hasTerminalSide && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.transformerTerminal')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.terminal === 'bottom' ? 'bottom' : 'top'}
+              onChange={e => patch({ terminal: e.target.value === 'bottom' ? 'bottom' : undefined })}
+            >
+              <option value="top">{t('properties.transformerTerminalTop')}</option>
+              <option value="bottom">{t('properties.transformerTerminalBottom')}</option>
+            </select>
+          </label>
+        )}
+
+        {el.class === 'TwoTerminalBox' && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.terminalPosition')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={diagramOps.hasSideTerminals(el) ? 'left' : 'top'}
+              onChange={e => patch({ terminal: e.target.value === 'left' ? 'left' : undefined })}
+            >
+              <option value="top">{t('properties.terminalPositionTopBottom')}</option>
+              <option value="left">{t('properties.terminalPositionLeftRight')}</option>
+            </select>
+          </label>
+        )}
+
+        {textDefault !== undefined && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.substationPropertyText')}</span>
+            <input
+              type="text"
+              placeholder={textDefault}
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.propertyText ?? ''}
+              onChange={e => patch({ propertyText: e.target.value || undefined })}
+            />
           </label>
         )}
 

@@ -3,14 +3,14 @@ import { TriangleAlert } from 'lucide-react'
 import { useDiagramContext } from '../state/useDiagramContext'
 import * as api from '../lib/api'
 import { presenceSession } from '../lib/presenceSession'
-import type { OpenTab } from '../types'
+import type { OpenTab, SchemeRef } from '../types'
 import { t } from '../i18n'
 import { GuideButton } from './GuideButton'
 
 export type FolderAction =
   | { kind: 'newFolder' }
   | { kind: 'rename'; path: string; isDir: boolean }
-  | { kind: 'delete'; path: string; isDir: boolean }
+  | { kind: 'delete'; path: string; isDir: boolean; scheme?: SchemeRef }
 
 /** The File panel's folder actions as a modal: New folder (a name in the current folder), Rename or move (a full
  * path, prefilled with the item's own), and Delete (a confirmation). Rename and Delete list the other tabs that
@@ -114,6 +114,8 @@ export function FolderActionDialog({ action, onClose }: { action: FolderAction; 
             </p>
           )}
 
+          {action.kind === 'delete' && action.scheme && <LinkedSchemeWarning scheme={action.scheme} />}
+
           {deletesOpen && (
             <div className="flex gap-1.5 text-[11px] text-amber-300">
               <TriangleAlert size={14} className="shrink-0 mt-px" />
@@ -166,5 +168,27 @@ export function FolderActionDialog({ action, onClose }: { action: FolderAction; 
         </div>
       </div>
     </>
+  )
+}
+
+/** The delete confirmation's note for a diagram linked to scheme: the scheme (named when the provider answers) and
+ * its SVG for the viewer stay. */
+function LinkedSchemeWarning({ scheme }: { scheme: SchemeRef }) {
+  const [name, setName] = useState('')
+  useEffect(() => {
+    let live = true
+    api.getScheme(scheme.ref).then(
+      s => live && setName(s.name),
+      () => undefined,
+    )
+    return () => {
+      live = false
+    }
+  }, [scheme.ref])
+  return (
+    <div className="flex gap-1.5 text-[11px] text-amber-300">
+      <TriangleAlert size={14} className="shrink-0 mt-px" />
+      <p>{t('schemes.deleteLinked', { name: name || scheme.ref, ref: scheme.ref })}</p>
+    </div>
   )
 }

@@ -50,6 +50,8 @@ type Server struct {
 	cimClasses slddoc.CIMClassTable
 	// bindings is the configured SCADA binding provider; nil when bindings are off.
 	bindings binding.Provider
+	// exportMu runs exports to the provider one at a time.
+	exportMu sync.Mutex
 }
 
 // NewServer builds a ready-to-run Server. custom is the custom-elements
@@ -130,7 +132,10 @@ func (s *Server) routes() {
 	grp.GET("/diagrams/open", s.getDiagram)
 	grp.PUT("/diagrams/save", s.saveDiagram)
 	grp.GET("/diagrams/svg", s.renderDiagramSVG)
+	grp.GET("/diagrams/tracing-image", s.getTracingImage)
+	grp.PUT("/diagrams/tracing-image", s.putTracingImage)
 	grp.POST("/repair", s.repairDiagram)
+	grp.POST("/designations", s.planDesignations)
 	grp.POST("/render", s.renderPreview)
 	grp.POST("/render/fragments", s.renderPreviewFragments)
 	grp.POST("/export/xml", s.exportDiagramXML)

@@ -82,6 +82,12 @@ func main() {
 		llog.Logger.Fatalf("validating hot_keys configuration: %v", err)
 	}
 	cfg.HotKeys = hotKeys
+	if err := lib.ValidateLetterCodes(cfg.LetterCodes); err != nil {
+		llog.Logger.Fatalf("validating letter_codes configuration: %v", err)
+	}
+	if err := cfg.ValidateDesignations(); err != nil {
+		llog.Logger.Fatalf("validating designations configuration: %v", err)
+	}
 
 	cimClasses, unlisted, err := slddoc.NewCIMClassTable(lib.Classes(), cfg.CIM.Classes, cfg.CIM.Import)
 	if err != nil {
@@ -107,6 +113,9 @@ func main() {
 	store, err := storage.New(cfg.Diagrams.Dir, symbols, cfg.Indicators.DefaultFPIText, fpiColors, stateColors...)
 	if err != nil {
 		llog.Logger.Fatalf("opening diagrams directory (%s): %v", cfg.Diagrams.Dir, err)
+	}
+	for _, w := range store.IndexWarnings() {
+		llog.Logger.Warnf("scheme links: %s", w)
 	}
 
 	custom, err := storage.New(cfg.CustomElements.Dir, symbols, cfg.Indicators.DefaultFPIText, fpiColors, stateColors...)

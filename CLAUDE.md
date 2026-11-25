@@ -37,9 +37,9 @@ export) and React + Vite + TS + Tailwind frontend (interactive canvas). No datab
 
 ```
 cd backend && cp config/sld-editor.example.yaml config/sld-editor.yaml   # once; the local config is not in git
-cd backend && go run ./cmd/sld-editor -config config/sld-editor.yaml [-open-browser]   # :8090
+cd backend && go run ./cmd/sld-editor -config config/sld-editor.yaml [-open-browser]   # server.bind, :8099 shipped
 cd backend && go build ./... && go vet ./... && go test ./...
-cd frontend && npm run dev | dev:ru     # :5173, proxies /api to :8090
+cd frontend && npm run dev | dev:ru     # :5173, proxies /api to :8099
 cd frontend && npm run build            # the only frontend check (no tests, no linter)
 make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|release|clean
 ```
@@ -51,7 +51,7 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
 ## Index
 
 - Docs: `README.md` (build/run/packaging), `backend/assets/USER_GUIDE.md` + `.ru.md` (in-app guide), `TODO.md`,
-  `elements.md` (xsde2svg shapes being ported), `docs/CIM_INTEROP.md`.
+  `elements.md` (xsde2svg shapes being ported), `docs/CIM_INTEROP.md`, `docs/OPEN_QUESTIONS.md` (undecided questions).
 - Backend: `cmd/sld-editor/main.go`; `internal/config` (`config/sld-editor.yaml`: palette, hot keys, voltage/state
   colors, `cim`, `xsde:`, `bindings`), `internal/elements` (XML symbol libraries, `assets/elements/base.xml`,
   palette/hot-key validation at startup), `internal/storage` (filesystem store, `.xsld` + rendered `.svg`, history),
@@ -61,7 +61,8 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
 - Frontend `src/`: `state/DiagramContext.tsx` (+ `useDiagramContext.ts`; single source of truth, undo/redo,
   `confirmLeave`, drafts), `lib/api.ts` (only backend caller), `lib/diagramOps.ts` (pure `Diagram → Diagram` edits),
   `components/Canvas.tsx` (pan/zoom, rendering transactions, hit-testing, drag, routing, copy/paste),
-  `components/panels/*`, `lib/paletteItem.ts`, `lib/drafts.ts`, `lib/picture.ts`, `lib/guide.ts`, `types/index.ts`
+  `components/panels/*`, `components/EnumerateDialog.tsx` + `lib/designationLabels.ts` (reference designations; the
+  hierarchy itself is slddoc `Designate`), `lib/paletteItem.ts`, `lib/drafts.ts`, `lib/picture.ts`, `lib/guide.ts`, `types/index.ts`
   (hand-kept mirror of Go JSON), `i18n/`.
 
 ## Rules not derivable from code
@@ -75,9 +76,17 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
   functions — keep the two in step.** Repair never moves an existing node.
 - Ports are fixed per shape (N terminals → ports `"1"…"N"`); a BusBarSection is the exception (one port per
   connection point; downstream topology merges them).
-- `Load` rewrites shape `"71"` → `"162"`: drop that rewrite once shape 71 is ported as its own type.
+- `.svg`/`.xsde` import rewrites shapes drawn like another (`rewriteImportedShapes`, `internal/api/import_shapes.go`):
+  71 and 320006 → 162 (320006 keeps its terminals through `span`), 103 → 102; 12 is already read as 11. Their
+  symbols stay in the library (not the palette) so saved diagrams still render; saved diagrams aren't rewritten.
 - `RenderMode.Static` (saved `.svg`, downloads) must stay xsde2svg-faithful (absolute coordinates); `Interactive` is
   canvas-only (local frames, `data-editor-kind`, wider hit targets). Connector kinds use type codes 21/22/23/28.
+- Export to RSDU writes only what is flagged, never compares or deletes unflagged rows: `applyEdit` runs
+  `trackBindingChanges` (`lib/bindingStatus.ts`) on every edit, marking bindings `new`/`edited`, items
+  `componentEdited` and removed bindings (with their ref) in `deletedBindings`; a removed binding added again is
+  `deleted` + `new`, never `edited`. The export clears them (`binding.ClearExported`). Applying RSDU's own bindings
+  (bindings overview) is an `untracked` edit. A diagram write that bypasses `applyEdit` must not change bindings, or
+  the change never reaches RSDU.
 - Every edit goes through `updateDiagram` + `diagramOps`; untouched entries keep their object reference
   (`diffDiagramForRender` relies on it). Other diagram writes go through `commitDiagram`. Selection and armed tools are
   mutually exclusive, except selecting doesn't clear `armedWireKind`.
@@ -87,7 +96,8 @@ make | make linux|windows|macos|linux-en|macos-arm64-ru|docker-build|package|rel
   config (`make package` and the "shipped config" tests read it). Add or change config keys there, and keep secrets
   (database credentials) in `backend/.env`, never in either yaml.
 - Guide heading ids (`{#id}`) must be identical in both languages and stable (dialogs link to them). Every config key
-  and the xsde2svg files are documented in the guides' `#configuration` section — keep it in step.
+  and the xsde2svg files are documented in the guides' `#configuration` section and in README's `# Configuration`
+  (types, defaults, env overrides, validation) — keep all three in step.
 - The symbol ↔ CIM class mapping, both ways, lives only in the YAML's `cim:` (`classes` for export, `import` for
   import); slddoc has no built-in table. A new exported symbol needs a `classes` row, a new CIM class an `import` row.
 - Router trusts `X-Forwarded-For` only from loopback.

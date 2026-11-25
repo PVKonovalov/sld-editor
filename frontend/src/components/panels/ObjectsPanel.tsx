@@ -411,9 +411,9 @@ export function ObjectsPanel({ provider, onClose }: { provider: string; onClose:
               <div
                 key={h.kind + h.ref}
                 draggable
-                onDragStart={e => dragStart(e, { ref: h.ref, name: h.name, type: '' })}
+                onDragStart={e => dragStart(e, { ref: h.ref, name: h.name, type: h.kind === 'list' ? (h.typeName ?? '') : '' })}
                 onClick={() => openHit(h)}
-                title={h.name}
+                title={h.typeName ? `${h.name} · ${h.typeName}` : h.name}
                 className="flex items-center gap-1.5 cursor-pointer rounded px-1 text-xs hover:bg-surface-600"
                 style={{ height: ROW }}
               >
@@ -423,8 +423,8 @@ export function ObjectsPanel({ provider, onClose }: { provider: string; onClose:
                   <span className="w-[13px] shrink-0 text-center text-gray-400">•</span>
                 )}
                 <span className="truncate">{h.name}</span>
-                <span className="ml-auto shrink-0 text-[10px] text-gray-500">
-                  {h.kind === 'catalog' ? t('objects.hitCatalog') : t('objects.hitList')}
+                <span className="ml-auto shrink-0 max-w-[45%] truncate text-[10px] text-gray-500">
+                  {h.typeName || (h.kind === 'catalog' ? t('objects.hitCatalog') : t('objects.hitList'))}
                 </span>
               </div>
             ))}

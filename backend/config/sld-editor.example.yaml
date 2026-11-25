@@ -166,8 +166,8 @@ line_halos:
 
 # Global Service/Normal/Test legend a withdrawable device's own racking
 # position is labeled from (slddoc.Render's data-trolley attribute)
-# and the Properties panel's Position status dropdown offers — only Breaker/
-# Disconnector (withdrawable), shapes 43/49, currently use it. Unlike
+# and the Properties panel's Position status dropdown offers — the withdrawable
+# Breaker/Disconnector/Fuse and the Chassis, shapes 43/49/154/51, use it. Unlike
 # state_colors, position carries no color of its own, only a label — it
 # drives a geometric offset (the withdrawable body sliding out of its cell),
 # not a fill.
@@ -209,7 +209,7 @@ palette:
   - name: "Annotations"
     items: [ "3", "2", "4", "113", "302", "319", "11", "335", "5", "292", "1", "16", "310", "9", "312", "313" ]
   - name: "Wiring"
-    items: [ "7", "10", "26", "14", "56", "32", "146", "19" ]
+    items: [ "7", "10", "26", "14", "56", "32", "146", "19", "60" ]
   - name: "Switching devices"
     items: [ "41", "43", "42", "162", "164", "163", "399", "49", "50", "51", "76", "44", "175" ]
   - name: "Grounding"
@@ -219,13 +219,13 @@ palette:
   - name: "Generation"
     items: [ "173", "174", "39", "38" ]
   - name: "Measurement"
-    items: [ "34", "55" ]
+    items: [ "34", "55", "130" ]
   - name: "Other equipment"
-    items: [ "33", "37", "397", "389", "388", "172", "330001", "330002", "330003", "156", "157", "52", "385", "386", "360" ]
+    items: [ "33", "37", "397", "389", "388", "172", "330001", "330002", "330003", "330004", "156", "157", "52", "385", "386", "360" ]
   - name: "Protection"
     items: [ "35", "29", "168", "203", "154", "166" ]
   - name: "Indicators"
-    items: [ "106", "320002", "320007", "134", "320003", "320001", "103" ]
+    items: [ "106", "320002", "320007", "134", "320003", "320001", "102" ]
 
 # Placement hot keys: pressing the key (without Ctrl/Cmd/Alt) arms that
 # palette item, the same as clicking its button; pressing it again disarms it.
@@ -239,6 +239,87 @@ hot_keys:
   b: "24"    # Busbar section
   w: "21"    # Buswork
   g: "54"    # Grounder
+
+# IEC 81346-2 letter codes of equipment shapes, for reference designations
+# (=H01-QA1): a shape code, as in the palette above → 1 to 3 capital letters
+# (never I or O). A shape not listed has no letter code. Mistakes stop the
+# server at startup.
+letter_codes:
+  "41":     QA   # Breaker
+  "43":     QA   # Breaker (withdrawable)
+  "399":    QA   # Power circuit breaker
+  "76":     QA   # Starter
+  "42":     QB   # Load-break switch
+  "162":    QB   # Disconnector
+  "49":     QB   # Disconnector (withdrawable)
+  "320006": QB   # Arc-extinguishing contact
+  "71":     QB   # Railway connection, disconnector
+  "44":     QB   # Knife switch
+  "175":    QB   # 3-position knife switch
+  "164":    QB   # Sectionalizer
+  "50":     QB   # Sectionalizer (withdrawable)
+  "166":    QB   # Disconnector-fuse
+  "54":     QC   # Ground switch
+  "398":    QC   # Short-circuiter
+  "163":    QC   # Short-circuiter without ground
+  "47":     TA   # Power transformer
+  "6":      TA   # Booster/voltage regulator
+  "173":    GA   # Generator
+  "174":    GA   # Synchronous compensator
+  "39":     MA   # Synchronous motor
+  "34":     BC   # Current transformer
+  "55":     BA   # Voltage transformer
+  "35":     FA   # Surge arrester
+  "29":     FA   # Surge arrester
+  "168":    FA   # Surge arrester (grounded)
+  "203":    FC   # Fuse
+  "154":    FC   # Fuse (withdrawable)
+  "37":     RA   # Reactor
+  "33":     RA   # Choke coil
+  "397":    RA   # Reactor (shunt)
+  "156":    RA   # Resistor
+  "389":    RA   # Blocking filter
+  "388":    CA   # Capacitor
+  "172":    CA   # Capacitor bank
+  "24":     WC   # Busbar section
+
+# Reference designations (Diagram → Enumerate elements…): the letters of the
+# functional hierarchy, =<voltage level>=<unit>-<letter code><number>, e.g.
+# =E1=H03-QA1. These letters are this project's convention, not taken from
+# ISO/IEC 81346-10. Unit letters avoid the IEC 81346-2 component classes where
+# possible (B, C, K and X are sensing, storing, signal processing and
+# connecting); "other" keeps X, as nothing else is left. Mistakes stop the
+# server at startup.
+designations:
+  # A voltage level up to max_kv (and above the previous row) gets this letter;
+  # the kV is read from the voltage class name ("110 kV", "10кВ"). Rows
+  # ascending by max_kv, codes 1 to 3 capital letters other than I and O.
+  voltage_levels:
+    - { max_kv: 1,    code: M }
+    - { max_kv: 6,    code: L }
+    - { max_kv: 10,   code: K }
+    - { max_kv: 20,   code: J }
+    - { max_kv: 35,   code: H }
+    - { max_kv: 60,   code: F }
+    - { max_kv: 110,  code: E }
+    - { max_kv: 220,  code: D }
+    - { max_kv: 330,  code: C }
+    - { max_kv: 500,  code: B }
+    - { max_kv: 1150, code: A }
+  # The letter of a voltage level whose kV is unknown or above every row.
+  # Levels sharing a letter are numbered from the highest voltage down.
+  fallback_voltage_code: V
+  # Every unit kind, with its letter and the zero-padded width of its number
+  # (digits 2: =H03; 0 or 1: no padding).
+  units:
+    incoming_feeder: { code: N, digits: 2 }
+    outgoing_feeder: { code: H, digits: 2 }
+    generator:       { code: G, digits: 1 }
+    transformer:     { code: T, digits: 1 }
+    bus_coupler:     { code: Z, digits: 1 }   # bus section or coupler
+    busbar:          { code: W, digits: 1 }   # busbar system
+    measuring:       { code: Y, digits: 1 }   # VT bay
+    other:           { code: X, digits: 2 }
 
 # CIM export and import: the whole mapping between symbols and CIM classes.
 #
@@ -275,6 +356,8 @@ cim:
     "399":    [ Breaker ]                                                          # Power circuit breaker
     "42":     [ LoadBreakSwitch ]                                                  # Load-break switch
     "162":    [ Disconnector ]                                                     # Disconnector
+    "71":     [ Disconnector ]                                                     # Railway connection, disconnector
+    "320006": [ Disconnector ]                                                     # Arc-extinguishing contact
     "49":     [ Disconnector ]                                                     # Disconnector (withdrawable)
     "44":     [ Disconnector ]                                                     # Knife switch
     "175":    [ Disconnector ]                                                     # 3-position knife switch
@@ -352,22 +435,57 @@ cim:
 # provider: "" (or absent) turns bindings off; "rsdu" reads objects from an RSDU database. Checked at startup; the
 # database is not contacted until a binding call. Keep database credentials out of this file: put them in .env in
 # the folder the editor is started in (or in the environment, which wins), e.g.
-#   BINDINGS_RSDU_READ_USER=rsduadmin
-#   BINDINGS_RSDU_READ_PASSWORD=secret
-# Every connection key has one: BINDINGS_RSDU_{READ|WRITE}_{HOST|PORT|USER|PASSWORD|SID|DATABASE|ENGINE}.
+#   BINDINGS_RSDU_DSN_USER=rsduadmin
+#   BINDINGS_RSDU_DSN_PASSWORD=secret
+# Every connection key has one: BINDINGS_RSDU_DSN_{HOST|PORT|USER|PASSWORD|SID|DATABASE|ENGINE}.
 bindings:
   provider: ""
   # rsdu:
   #   driver: oracle          # oracle | postgres
-  #   schema: rsduadmin
-  #   read:                   # same fields as an entry of ctrlroom's database.dsn
+  #   schema: rsduadmin       # schema (owner) of the RSDU tables, not the database
+  #   dsn:                    # the RSDU database, for reading and export; the fields of an entry of ctrlroom's database.dsn
   #     host: 127.0.0.1
   #     port: 1521
-  #     user: ""              # from .env: BINDINGS_RSDU_READ_USER
-  #     password: ""          # from .env: BINDINGS_RSDU_READ_PASSWORD
-  #     sid: RSDU             # Oracle SID; or database: (service name / PostgreSQL database)
-  #   write: {}               # optional; without it export to RSDU is off
-  #   scheme_type: 0          # VS_FORM.ID_TYPE / VS_TCOMP.ID_DTYP of exported schemes
+  #     user: ""              # from .env: BINDINGS_RSDU_DSN_USER
+  #     password: ""          # from .env: BINDINGS_RSDU_DSN_PASSWORD
+  #     sid: RSDU             # Oracle: the instance SID; or database: the service name
+  #   export: false           # true enables export to RSDU (the dsn account must be allowed to write)
+  #   scheme_type: 518        # VS_FORM.ID_TYPE / VS_TCOMP.ID_DTYP of exported schemes (518: MODUS); needed for export
+  #   component_types:        # VS_TCOMP.ID by shape, for shapes no VS_TCOMP.MODUS_TYPE stands for (an item's own wins)
+  #     "385": 2000023
+  #   wire_types:             # VS_TCOMP.ID of an exported bound wire, by kind; absent: these RSDU defaults
+  #     BusWork: 1489
+  #     OverheadLine: 112
+  #     CableLine: 115
+  #     LinkToObject: 1014
+  #     BusbarWire: 113
   #   svg:
   #     dir: ""               # where ctrlroom reads scheme SVGs (its backend.path_to_sld)
   #     full_path: true       # as ctrlroom's backend.use_full_path_for_sld
+  #     use_object_storage: n # minio: also ctrlroom's object storage (its backend.use_object_storage)
+  #     object_storage:       # ctrlroom's backend.object_storage lines, as they are
+  #       minio:
+  #         secure: n
+  #         # user (or username) and password: in .env,
+  #         # BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_USER / _PASSWORD
+  #         bucket:
+  #           sld: sld
+  #         endpoint:           # the first is used
+  #           - host: 127.0.0.1
+  #             port: 9080
+  #
+  # The same for PostgreSQL: only driver, port and the database name differ.
+  # rsdu:
+  #   driver: postgres
+  #   schema: rsduadmin       # a schema inside the database below
+  #   dsn:
+  #     host: 127.0.0.1
+  #     port: 5432
+  #     user: ""              # from .env: BINDINGS_RSDU_DSN_USER
+  #     password: ""          # from .env: BINDINGS_RSDU_DSN_PASSWORD
+  #     database: rsdu        # PostgreSQL: the database name
+  #   export: false
+  #   scheme_type: 518
+  #   svg:
+  #     dir: ""
+  #     full_path: true

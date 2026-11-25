@@ -11,9 +11,12 @@ import (
 )
 
 // storageError responds to a failed storage call: ErrInvalidName → 400, ErrNotFound → 404, ErrExists and
-// ErrNotEmpty → 409, anything else → 500.
+// ErrNotEmpty → 409, ErrSchemeLinked → 409 with linkedTo (the holder's name), anything else → 500.
 func storageError(c *gin.Context, err error) {
+	var linked *storage.ErrSchemeLinked
 	switch {
+	case errors.As(err, &linked):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error(), "linkedTo": linked.Holder})
 	case errors.Is(err, storage.ErrInvalidName):
 		errJSON(c, http.StatusBadRequest, err)
 	case errors.Is(err, storage.ErrNotFound):

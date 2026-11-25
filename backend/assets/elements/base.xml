@@ -203,6 +203,12 @@
     <template></template>
   </symbol>
 
+  <symbol shape="102" class="DisplayPanel" name="Display panel">
+    <!-- xsde2svg element_102.go: Automation device's two-state tile with a gray fill and border by default, drawn by
+         slddoc.Render from its own Points. -->
+    <template></template>
+  </symbol>
+
   <symbol shape="302" class="WindowIcon" name="Window icon">
     <!-- Button's smaller sibling (xsde2svg element_302.go): the same
          two-corner box with a centered label, drawn by slddoc.Render from
@@ -248,6 +254,19 @@
        Element.Radius/Fill's own doc comments (slddoc internal/model/model.go) for the
        real corpus evidence and slddoc internal/render/render.go's own
        junctionRadius/junctionFill for the fallback logic itself. -->
+  <!-- 60 Zone division (xsde2svg element_60.go): the boundary of two zones on a wire, a 10-long stroke down from the
+       anchor in the voltage color under a magenta "Z"; terminals at both ends of the stroke. -->
+  <symbol shape="60" class="ZoneDivision" name="Zone division">
+    <terminals>
+      <terminal x="0" y="0"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="M 0 0 v 10" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -5 0 h 10 l -10 10 h 10" style="fill:none;stroke:magenta;stroke-width:2" />
+]]></template>
+  </symbol>
+
   <symbol shape="7" class="JunctionPoint" name="Junction point">
     <template><![CDATA[
 <circle cx="0" cy="0" r="{junctionRadius}" style="fill:{junctionFill};stroke:{color};stroke-width:1" />
@@ -444,6 +463,34 @@
   </symbol>
 
   <symbol shape="162" class="Disconnector" name="Disconnector">
+    <terminals>
+      <terminal x="0" y="-10"/>
+      <terminal x="0" y="10"/>
+    </terminals>
+    <template><![CDATA[
+<path d="{state:M 0 6 v -13|M -6 0 h 13|M -4.6 -4.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -4 -9 h 8 m 0 18 h -8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -9 v -1 M 0 9 v 1" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- 320006 Arc-extinguishing contact (xsde2svg element_3206.go, Modus custom elements "Контакт размык./замык.
+       дугогасит."): Disconnector 162's body and blade with fixed 12-long legs, so its terminals sit at ±21. Modus's
+       two names are its two states (closed / open). -->
+  <symbol shape="320006" class="Disconnector" name="Arc-extinguishing contact">
+    <terminals>
+      <terminal x="0" y="-21"/>
+      <terminal x="0" y="21"/>
+    </terminals>
+    <template><![CDATA[
+<path d="{state:M 0 6 v -13|M -6 0 h 13|M -4.6 -4.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -4 -9 h 8 m 0 18 h -8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -9 v -12 M 0 9 v 12" style="fill:none;stroke:{color};stroke-width:1" />
+]]></template>
+  </symbol>
+
+  <!-- 71 Railway connection, disconnector: its own type, drawn exactly as 162 (xsde2svg element71 draws both). -->
+  <symbol shape="71" class="Disconnector" name="Railway connection, disconnector">
     <terminals>
       <terminal x="0" y="-10"/>
       <terminal x="0" y="10"/>
@@ -735,72 +782,41 @@
        own ±10 terminals; the stub itself was shortened from the real
        corpus's own y=12 tip to end exactly at y=10 too (a deliberate,
        minor deviation from that byte-for-byte match), so the drawn line
-       stops right at the terminal instead of overshooting past it. -->
+       stops right at the terminal instead of overshooting past it. The
+       blade is centered between the two bars (y=3 and y=-17), as
+       xsde2svg 1.4.30 draws it: closed -2..-12, open at -7. The ground
+       mark is the Surge arrester's (168): lines 16, 10 and 4 wide, 3 apart. -->
   <symbol shape="54" class="GroundSwitch" name="Ground switch">
     <terminals>
       <terminal x="0" y="10"/>
     </terminals>
     <template><![CDATA[
-<path d="M 0 10 v -7 m -4 0 h 8 m -8 -20 h 8 m -4 0 v -8 m -8 0 h 16 m -2 -3 h -12 m 2 -3 h 8" style="fill:none;stroke:{color};stroke-width:1" />
-<path d="{state:M 0 -2 v -12|M 6 -8 h -12|M -4.6 -12.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 10 v -7 m -4 0 h 8 m -8 -20 h 8 m -4 0 v -8 m -8 0 h 16 m -3 -3 h -10 m 3 -3 h 4" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="{state:M 0 -2 v -10|M 6 -7 h -12|M -4.6 -11.6 l 9.2 9.2}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
-  <!-- Ported from xsde2svg's own element_398.go (element398) — a
-       single-terminal grounding-type switching device: a fixed tapered
-       earth symbol at the top (matching Ground switch (54)'s own taper),
-       one real electrical terminal at the bottom (grid-aligned to y=10,
-       lead stub shortened from the real source's own y=11 to end exactly
-       there, same deliberate minor deviation Ground switch's own stub
-       already makes), and a State-driven pivot rod bridging the gap
-       between them. Closed draws the rod as a straight bar bridging the
-       terminal to the earth symbol above it (an intentional short to
-       ground), with a fixed-contact tick where the rod meets the earth
-       symbol; Open pivots the rod away at that same end, marked with a
-       small circle there instead of the tick (the blade is permanently
-       hinged next to the earth symbol, matching how a real
-       short-circuiter's blade is bolted to the grounded structure, not
-       the live conductor), swinging its far end away from the terminal —
-       at the user's own explicit request, using element_398.go's own
-       xMirror==1 geometry as this rod's own default rather than its
-       xMirror==0 one (the direction the un-mirrored geometry swings
-       looked wrong), since this schema's generic Mirror property (see
-       Element.Mirror) already covers the xMirror==0 look for whichever
-       placed instance needs it, the same as any other symbol here. Both
-       states also draw a short arm off the rod's own midpoint with a
-       filled arrowhead at its tip — again at the user's own request,
-       this replaces element_398.go's own small arrowhead-near-the-rod
-       composition with Sectionalizer's own arm+arrowhead-at-the-tip one
-       (see that symbol's own template just above), so the two read the
-       same way, kept at its own xMirror==0 orientation (matching
-       Sectionalizer's own arrowhead direction) even though the rod above
-       it uses xMirror==1, since GROUND_TYPE_DEFAULT_ORIENT already places
-       a freshly placed instance at 180 degrees by default (see
-       diagramOps.ts), which on its own flips which way an xMirror==0
-       arrowhead reads in the common case. The rod's own deflection when
-       Open (both the pivot-to-swung-end diagonal's own dx:dy and the
-       overall rod length, now spanning the full pivot-to-terminal-side
-       reach) also no longer matches element_398.go's own h2/y6 constants
-       (7:16) — at the user's own request it now reuses Sectionalizer's
-       own deflection exactly (6:18, from that symbol's own "M -6 -9 l 6
-       18"), for the same "reads the same way as Sectionalizer" reason
-       the arm+arrowhead swap above already has. The rod/circle geometry
-       (before this and the arm+arrowhead swap) was confirmed against a
-       real xsde2svg corpus export (id 1015 in PS_110kV_Lubnisa.svg,
-       data-name "КЗ-110 Т-2 ф.А") for Open, and directly against
-       element_398.go's own partClosed formula for Closed. This device
-       has no real Intermediate position (the real source's own
-       sde.Tech.Closed is a plain boolean), so the third {state:...}
-       option duplicates the second (Open), same convention Sectionalizer
-       uses. -->
+  <!-- xsde2svg's element_398.go, exactly as it writes it (corpus-checked): both
+       states always drawn, each in its own <g data-state>, only the current one
+       visible (no Intermediate state: a third one draws as Open). The lead starts
+       at y=11 as there; the terminal stays on the grid at y=10, inside it. -->
   <symbol shape="398" class="ShortCircuiter" name="Short-circuiter">
     <terminals>
       <terminal x="0" y="10"/>
     </terminals>
     <template><![CDATA[
-<path d="M 0 10 V 3 M -5 3 H 5 M 0 -18 V -25 M -7 -25 H 7 M -5 -28 H 5 M -3 -31 H 3" style="fill:none;stroke:{color};stroke-width:1" />
-<path d="{state:M 0 -18 V 0 M -5 -18 h 10 M 0 -9 h 11|M -2 -18 a 2 2 0 1 1 4 0 a 2 2 0 1 1 -4 0 m 2 0 l 6 18 M 2 -9 h 11|M -2 -18 a 2 2 0 1 1 4 0 a 2 2 0 1 1 -4 0 m 2 0 l 6 18 M 2 -9 h 11}"{stateAttr} style="fill:none;stroke:{color};stroke-width:1" />
-<path d="{state:M 11 -9 l -8 3 v -6 z|M 13 -9 l -8 3 v -6 z|M 13 -9 l -8 3 v -6 z}" style="fill:{color};stroke:{color};stroke-width:1" />
+<g data-state="1" visibility="{state:visible|hidden|hidden}" >
+<path d="M 0 11 l 0 -8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 4 -6  v -6  l 8 3 z" style="fill:{color};stroke:{color};stroke-width:1" />
+<path d="M 0 3 h -5 m 5 0 h 5 M 0 -18 v -7 h -7 m 7 0 h 7 M 0 -28 h -5 M 0 -28 h 5 M 0 -31 h -3 M 0 -31 h 3" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 -16 v 16 M 0 -9 h 4 " style="fill:none;stroke:{color};stroke-width:1" />
+</g>
+<g data-state="0" visibility="{state:hidden|visible|visible}" >
+<path d="M 0 11 l 0 -8" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -1 -6  v -6  l 8 3 z" style="fill:{color};stroke:{color};stroke-width:1" />
+<path d="M 0 3 h -5 m 5 0 h 5 M 0 -18 v -7 h -7 m 7 0 h 7 M 0 -28 h -5 M 0 -28 h 5 M 0 -31 h -3 M 0 -31 h 3" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M -2 -18 a 2 2 0 1 1 4 0 a 2 2 0 1 1 -4 0 m 2 0 l -7 16 M -4 -9 h 3" style="fill:none;stroke:{color};stroke-width:1" />
+</g>
 ]]></template>
   </symbol>
 
@@ -970,6 +986,17 @@
        color and the secondary (bottom circle) a fixed gray, matching a
        real corpus instance exactly (e.g. sld-viewer's
        PS_110kV_Example.svg, id="4473"). -->
+  <!-- 130 Device (xsde2svg element_130.go): an energy meter, a 30x30 square with a line 10 above its center, and an
+       upright "Wh" (the source rotates only the square). No terminals. -->
+  <symbol shape="130" class="Device" name="Device">
+    <template><![CDATA[
+<path d="M -15 -15 h 30 v 30 h -30 z M -15 -10 h 30" style="fill:none;stroke:{color};stroke-width:1" />
+<g transform="rotate({counterRotate})">
+<text x="0" y="2" style="fill:{color};text-anchor:middle;dominant-baseline:middle;font-size:18px;font-family:Arial">Wh</text>
+</g>
+]]></template>
+  </symbol>
+
   <symbol shape="55" class="VoltageTransformer" name="Voltage transformer">
     <terminals>
       <terminal x="0" y="0"/>
@@ -1201,7 +1228,7 @@
       <terminal x="0" y="0"/>
     </terminals>
     <template><![CDATA[
-<path d="M 0 0 l 0 8 l -14 24 m 14 -24 l 14 24 h -28 z M 0 23 h 5 m -5 0 h -5 M 0 27 h 5 m -5 0 h -5" style="fill:none;stroke:{color};stroke-width:1" />
+<path d="M 0 0 l 0 11 l -14 24 m 14 -24 l 14 24 h -28 z M 0 27 h 5 m -5 0 h -5 M 0 31 h 5 m -5 0 h -5" style="fill:none;stroke:{color};stroke-width:1" />
 ]]></template>
   </symbol>
 
@@ -1456,15 +1483,29 @@
 ]]></template>
   </symbol>
 
-  <!-- Static var compensator: a box marked SVC. -->
+  <!-- Static var compensator: a box with its label, SVC by default, below its terminal or (terminal bottom) above it. -->
   <symbol shape="330003" class="StaticVarCompensator" name="Static var compensator">
     <terminals>
       <terminal x="0" y="0"/>
     </terminals>
     <template><![CDATA[
-<path d="M 0 0 v 6" style="fill:none;stroke:{color};stroke-width:2" />
-<path d="M -14 6 h 28 v 16 h -28 z" style="fill:none;stroke:{color};stroke-width:2" />
-<text x="0" y="14" style="fill:{color};font-size:9px;font-family:Arial;text-anchor:middle;dominant-baseline:middle" >SVC</text>
+<path d="M 0 0 v {terminal:6|-6}" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M -14 {terminal:6|-22} h 28 v 16 h -28 z" style="fill:none;stroke:{color};stroke-width:2" />
+<text x="0" y="{terminal:14|-14}" style="fill:{color};font-size:9px;font-family:Arial;text-anchor:middle;dominant-baseline:middle" >{text:SVC}</text>
+]]></template>
+  </symbol>
+
+  <!-- Two-terminal box: a generic in-line box, never turned, with its label (empty by default); its terminals are above
+       and below it or (terminal left/right) left and right of it, the declared ones then taken with x and y swapped. -->
+  <symbol shape="330004" class="TwoTerminalBox" name="Two-terminal box">
+    <terminals>
+      <terminal x="0" y="-20"/>
+      <terminal x="0" y="20"/>
+    </terminals>
+    <template><![CDATA[
+<path d="{terminalAxis:M 0 -20 v 12 M 0 8 v 12|M -20 0 h 6 M 14 0 h 6}" style="fill:none;stroke:{color};stroke-width:2" />
+<path d="M -14 -8 h 28 v 16 h -28 z" style="fill:none;stroke:{color};stroke-width:2" />
+<text x="0" y="0" style="fill:{color};font-size:9px;font-family:Arial;text-anchor:middle;dominant-baseline:middle" >{text:}</text>
 ]]></template>
   </symbol>
 </symbols>

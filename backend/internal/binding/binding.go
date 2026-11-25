@@ -23,6 +23,9 @@ var ErrNotFound = errors.New("not found")
 // ErrInvalid wraps a provider error for a malformed argument; the API answers 400.
 var ErrInvalid = errors.New("invalid argument")
 
+// ErrNotConfigured is returned when what a call needs is not set up in the configuration.
+var ErrNotConfigured = errors.New("not configured")
+
 // KindInfo is one binding kind as a provider offers it, with the option a new binding of it gets. An empty Name
 // leaves naming to the frontend.
 type KindInfo struct {
@@ -48,9 +51,18 @@ type Feature struct {
 
 // Dictionaries are a provider's reference lists.
 type Dictionaries struct {
-	Kinds    []KindInfo `json:"kinds"`
-	Options  []Option   `json:"options"`
-	Features []Feature  `json:"features"`
+	Kinds          []KindInfo      `json:"kinds"`
+	Options        []Option        `json:"options"`
+	Features       []Feature       `json:"features"`
+	ComponentTypes []ComponentType `json:"componentTypes"`
+}
+
+// ComponentType is a type an item can be exported as (RSDU: a VS_TCOMP row of the scheme type); Shape is the symbol
+// code it stands for, empty when none.
+type ComponentType struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Shape string `json:"shape,omitempty"`
 }
 
 // Section is one node of the provider's top-level object tree (RSDU: SYS_TREE21). Section, when set, is the id
@@ -88,6 +100,25 @@ type Object struct {
 	Scale     *float64 `json:"scale,omitempty"`
 }
 
+// Resolved is an object found by its ref, with what a binding caches of it (Name, Type as the type's alias,
+// TypeName, UID), its parent, and the binding kind and option the provider suggests for it.
+type Resolved struct {
+	Ref       string             `json:"ref"`
+	Name      string             `json:"name"`
+	Type      string             `json:"type,omitempty"`
+	TypeName  string             `json:"typeName,omitempty"`
+	UID       string             `json:"uid,omitempty"`
+	ParentRef string             `json:"parentRef,omitempty"`
+	Kind      slddoc.BindingKind `json:"kind"`
+	Option    string             `json:"option,omitempty"`
+}
+
+// Element is the diagram item an object is dropped on, as Suggest sees it.
+type Element struct {
+	Shape string `json:"shape"`
+	Class string `json:"class"`
+}
+
 // Hit kinds of a SearchResult.
 const (
 	HitCatalog = "catalog"
@@ -97,10 +128,11 @@ const (
 // Hit is one search match: a catalog node or a list object. Node is the catalog node to reveal: the node itself, or
 // the one the object is listed under.
 type Hit struct {
-	Ref  string `json:"ref"`
-	Name string `json:"name"`
-	Kind string `json:"kind"`
-	Node string `json:"node"`
+	Ref      string `json:"ref"`
+	Name     string `json:"name"`
+	Kind     string `json:"kind"`
+	Node     string `json:"node"`
+	TypeName string `json:"typeName,omitempty"`
 }
 
 // SearchResult holds at most the asked number of hits; Truncated tells that more matched.
@@ -122,9 +154,11 @@ type Provider interface {
 	List(ctx context.Context, section, node string) ([]Object, error)
 	// Search finds catalog nodes and objects of section whose name contains q, case-insensitively.
 	Search(ctx context.Context, section, q string, limit int) (*SearchResult, error)
-	Resolve(ctx context.Context, ref string) (*Object, error)
-	// Suggest returns the bindings an element of shape gets when bound to the object ref.
-	Suggest(ctx context.Context, ref, shape string) ([]slddoc.Binding, error)
+	// Resolve finds the object ref; ErrNotFound when it does not exist, ErrInvalid when it can't be bound.
+	Resolve(ctx context.Context, ref string) (*Resolved, error)
+	// Suggest returns the bindings an element gets when bound to the object ref automatically, at most one per kind;
+	// none when the provider proposes nothing for that object.
+	Suggest(ctx context.Context, ref string, el Element) ([]slddoc.Binding, error)
 }
 
 // Refresher is a Provider caching its data source's reference data; Refresh makes the next calls re-read it.
@@ -132,14 +166,20 @@ type Refresher interface {
 	Refresh()
 }
 
-// Exporter is a Provider that can write a diagram's bindings to its scheme name; it returns the scheme written.
+// Exporter is a Provider that can write the bindings of the diagram name, d, to a scheme of its own, as req chose,
+// in one transaction. It refuses with ErrExportRefused when its export check fails.
 type Exporter interface {
-	Export(ctx context.Context, name string, d *slddoc.Diagram) (*slddoc.SchemeRef, error)
+	Export(ctx context.Context, name string, d *slddoc.Diagram, req ExportRequest) (*ExportResult, error)
 }
 
-// Importer is a Provider that can read a scheme's bindings, returned as a diagram holding only bound items.
+// BatchResolver is a Provider that resolves many refs at once, with ResolveAll's results.
+type BatchResolver interface {
+	ResolveMany(ctx context.Context, refs []string) (map[string]*Resolved, []string, error)
+}
+
+// Importer is a Provider that can read the bindings its scheme ref holds for the items of a diagram.
 type Importer interface {
-	Import(ctx context.Context, scheme string) (*slddoc.Diagram, error)
+	SchemeBindings(ctx context.Context, ref string) (*SchemeBindings, error)
 }
 
 // Constructor builds a provider from its configuration. It must not contact the data source.
@@ -186,7 +226,7 @@ func New(cfg config.Bindings) (Provider, error) {
 	return c(cfg)
 }
 
-// CanExport reports whether p can export and cfg has a connection to write through.
+// CanExport reports whether p can export and cfg enables export.
 func CanExport(p Provider, cfg config.Bindings) bool {
 	if p == nil {
 		return false
@@ -196,7 +236,34 @@ func CanExport(p Provider, cfg config.Bindings) bool {
 	}
 	switch cfg.Provider {
 	case config.ProviderRSDU:
-		return cfg.RSDU.Write.IsSet()
+		return cfg.RSDU.Export
 	}
 	return false
+}
+
+// ResolveAll resolves every distinct ref with p. Refs that don't exist or can't be bound (ErrNotFound, ErrInvalid)
+// are listed in missing; any other error (the data source failing) stops it.
+func ResolveAll(ctx context.Context, p Provider, refs []string) (map[string]*Resolved, []string, error) {
+	if b, ok := p.(BatchResolver); ok {
+		return b.ResolveMany(ctx, refs)
+	}
+	found := map[string]*Resolved{}
+	missing := []string{}
+	seen := map[string]bool{}
+	for _, r := range refs {
+		if seen[r] {
+			continue
+		}
+		seen[r] = true
+		obj, err := p.Resolve(ctx, r)
+		switch {
+		case err == nil:
+			found[r] = obj
+		case errors.Is(err, ErrNotFound), errors.Is(err, ErrInvalid):
+			missing = append(missing, r)
+		default:
+			return nil, nil, err
+		}
+	}
+	return found, missing, nil
 }

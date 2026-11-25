@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo, type DragEvent as ReactDragEvent } from 'react'
 import { TransformWrapper, TransformComponent, useControls, type ReactZoomPanPinchContentRef } from 'react-zoom-pan-pinch'
 import { ZoomIn, ZoomOut, Maximize2, Undo2, Redo2, X as XIcon, Loader2 } from 'lucide-react'
 import { useDiagramContext, type SelectionKind } from '../state/useDiagramContext'
 import { usePaletteToggle } from '../state/usePaletteToggle'
 import * as api from '../lib/api'
 import * as diagramOps from '../lib/diagramOps'
+import { pointsBox } from '../lib/elementBox'
+import { unboundIds, type GapKind } from '../lib/bindingOverview'
 import { arcBounds, arcMidpoint, arcPathD, circularArcThrough, defaultArcBulge, type ArcParams } from '../lib/arc'
 import { clientToDiagramPoint, nearestSegmentOnPolyline, snapPointOnSegment, snapValue } from '../lib/geometry'
 import { fillPictureHrefs, readImageFile } from '../lib/picture'
@@ -12,7 +14,14 @@ import { traceNetwork, type TraceOptions, type TraceStart } from '../lib/trace'
 import { t } from '../i18n'
 import { ContextMenu, withSeparators, type ContextMenuEntry, type ContextMenuItem } from './ContextMenu'
 import { SaveCustomElementDialog } from './SaveCustomElementDialog'
+import { MergeBusworkDialog } from './MergeBusworkDialog'
+import { useTracingImage } from '../lib/tracingImage'
+import { searchSymbol } from '../lib/symbolSearchClient'
+import { defaultThreshold, frameMatrix, variantPlacement } from '../lib/symbolSearch'
+import { SymbolSearchBar } from './SymbolSearchBar'
 import { PresenceBanner } from './PresenceBanner'
+import { BindChooser, type BindDrop } from './BindChooser'
+import { draggedObject, isObjectDrag } from '../lib/bindingDictionaries'
 import type { Diagram, DiagramElement, Connector, ConnectorKind, Label, DigitalDevice, Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
@@ -24,6 +33,7 @@ const ARROW_SHAPE = '2'
 const BUTTON_SHAPE = '113'
 const WINDOW_ICON_SHAPE = '302'
 const AUTOMATION_DEVICE_SHAPE = '103'
+const DISPLAY_PANEL_SHAPE = '102'
 const ROAD_SHAPE = '335'
 const LINE_SHAPE = '1'
 const POLYGON_SHAPE = '16'
@@ -77,6 +87,7 @@ const DRAG_TO_DRAW_SHAPES: ReadonlySet<string> = new Set([
   BUTTON_SHAPE,
   WINDOW_ICON_SHAPE,
   AUTOMATION_DEVICE_SHAPE,
+  DISPLAY_PANEL_SHAPE,
   ARC_SHAPE,
   TABLE_SHAPE,
 ])
@@ -142,6 +153,8 @@ const POLYGON_CLOSE_RADIUS = 5
 // equivalent constants (its own highlight pad and BBOX_HIT_PAD), the
 // reference this project's UI/UX follows.
 const BOX_HIGHLIGHT_PAD = 6
+// The bindings overview's mark of an unbound item.
+const UNBOUND_COLOR = '#f59e0b'
 // Screen pixels a press must travel before it counts as drawing a
 // selection frame rather than a plain click on empty canvas.
 const MARQUEE_MIN_DRAG = 4
@@ -155,14 +168,6 @@ function hasMoveModifier(e: { ctrlKey: boolean; metaKey: boolean }): boolean {
 const PASTE_OFFSET_STEPS = 2
 
 type Box = { x: number; y: number; width: number; height: number }
-
-function pointsBox(points: Point[]): Box {
-  const xs = points.map(p => p.x)
-  const ys = points.map(p => p.y)
-  const x = Math.min(...xs)
-  const y = Math.min(...ys)
-  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y }
-}
 
 function pointInBox(p: Point, b: Box): boolean {
   return p.x >= b.x && p.x <= b.x + b.width && p.y >= b.y && p.y <= b.y + b.height
@@ -484,7 +489,8 @@ function ZoomControls({
 // VoltageClass's own color); nothing at all for a no-op. A lightweight
 // local "ghost" overlay gives instant feedback for an in-progress
 // drag/draw without waiting on either round trip.
-export function Canvas() {
+/** unboundGap: the binding gap whose items are marked on the canvas (see lib/bindingOverview), null = no marks. */
+export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   const {
     diagram,
     config,
@@ -518,6 +524,8 @@ export function Canvas() {
     hiddenLayers,
     focusRequest,
     highlighted,
+    tableCellRange,
+    setTableCellRange,
     requestFind,
     diagramName,
     loading,
@@ -525,6 +533,7 @@ export function Canvas() {
     documentVersion,
     preRendered,
     diagramShown,
+    setEnumeratePrompt,
   } = useDiagramContext()
   // An item on a layer hidden in the Layers section is neither drawn
   // (hiddenLayerCss) nor picked by any diagram-state hit test below.
@@ -532,6 +541,7 @@ export function Canvas() {
 
   const [svg, setSvg] = useState('')
   const [warning, setWarning] = useState<string | null>(null)
+  const [bindDrop, setBindDrop] = useState<BindDrop | null>(null)
   const [ghost, setGhost] = useState<Ghost | null>(null)
   const [newBusbar, setNewBusbar] = useState<NewBusbar | null>(null)
   const [pointDrag, setPointDrag] = useState<PointDrag | null>(null)
@@ -548,8 +558,9 @@ export function Canvas() {
   // Space held: left-drag pans through the TransformWrapper's own
   // panning even while a tool is armed (see its panning prop).
   const [spaceHeld, setSpaceHeld] = useState(false)
-  // A plain left-drag pans the view (startPanOrClick), through this ref.
-  const transformRef = useRef<ReactZoomPanPinchContentRef>(null)
+  // A plain left-drag pans the view (startPanOrClick), through this ref (set by TransformWrapper's onInit: its ref
+  // prop makes the library read props.ref, which React 18 warns about).
+  const transformRef = useRef<ReactZoomPanPinchContentRef | null>(null)
   const [panning, setPanning] = useState(false)
   // An in-progress selection frame (left-drag from empty canvas): start/
   // current in diagram units; crossing when dragged right-to-left (picks
@@ -562,6 +573,7 @@ export function Canvas() {
   // element…" (diagramOps.extractSelection's result) while its name dialog
   // is open.
   const [customElementTemplate, setCustomElementTemplate] = useState<Diagram | null>(null)
+  const [mergeWires, setMergeWires] = useState<Connector[] | null>(null)
   const [routing, setRouting] = useState<Routing | null>(null)
   const [routingCursor, setRoutingCursor] = useState<Point | null>(null)
   // An in-progress pen-tool Polygon (armedSymbol shape 16): the vertices
@@ -762,6 +774,33 @@ export function Canvas() {
   // saved, not undoable, cleared with another diagram.
   const [trace, setTrace] = useState<{ sources: TraceStart[]; opts: TraceOptions; dim: boolean } | null>(null)
   useEffect(() => setTrace(null), [diagramName])
+  const tracingImage = useTracingImage(diagramName, diagram)
+
+  // Find similar on tracing image (lib/symbolSearch): the sample rectangle around one placed element, the running
+  // search, then its matches under review (rejected: indexes into found). Not part of the diagram; ends with Place,
+  // Cancel or Esc, and when the diagram or the tracing image changes.
+  type FoundSymbol = { box: Box; score: number; place: { x: number; y: number; orient: number; mirror: boolean } }
+  const [symbolSearch, setSymbolSearch] = useState<
+    | { phase: 'sample'; elementId: number; rect: Box; failed?: boolean }
+    | { phase: 'running'; elementId: number; rect: Box; progress: number }
+    | { phase: 'review'; elementId: number; rect: Box; found: FoundSymbol[]; threshold: number; rejected: Set<number> }
+    | null
+  >(null)
+  const searchCancelRef = useRef<(() => void) | null>(null)
+  const cancelSymbolSearch = useCallback(() => {
+    searchCancelRef.current?.()
+    searchCancelRef.current = null
+    setSymbolSearch(null)
+  }, [])
+  useEffect(cancelSymbolSearch, [
+    diagramName,
+    tracingImage?.href,
+    tracingImage?.visible,
+    tracingImage?.x,
+    tracingImage?.y,
+    tracingImage?.width,
+    cancelSymbolSearch,
+  ])
   const traced = useMemo(() => {
     if (!trace || !diagram) return null
     // A start may be gone after an edit (deleted, merged).
@@ -939,6 +978,39 @@ export function Canvas() {
     )
   }
 
+  // Dashed boxes around the items linked to the one selected item: a label's "For" element or link to object, or
+  // their labels.
+  function linkedMarks() {
+    if (!diagram || ghost || labelDrag || selection.size !== 1) return null
+    const [[id, kind]] = selection
+    let linked: { id: number; kind: SelectionKind }[] = []
+    if (kind === 'label') {
+      const forId = diagram.labels.find(l => l.id === id)?.for
+      const target = forId ? diagramOps.labelTarget(diagram, forId) : undefined
+      if (target && !isHidden(target)) linked = [{ id: target.id, kind: 'class' in target ? 'element' : 'connector' }]
+    } else if (kind === 'element' || kind === 'connector') {
+      linked = diagram.labels.filter(l => l.for === id && !isHidden(l)).map(l => ({ id: l.id, kind: 'label' }))
+    }
+    return linked.map(item => {
+      const box = itemBox(item.id, item.kind)
+      if (!box) return null
+      return (
+        <rect
+          key={`linked-${item.kind}-${item.id}`}
+          x={box.x - BOX_HIGHLIGHT_PAD}
+          y={box.y - BOX_HIGHLIGHT_PAD}
+          width={box.width + BOX_HIGHLIGHT_PAD * 2}
+          height={box.height + BOX_HIGHLIGHT_PAD * 2}
+          fill="none"
+          stroke={HIGHLIGHT}
+          strokeWidth={0.5}
+          strokeDasharray="4 3"
+          pointerEvents="none"
+        />
+      )
+    })
+  }
+
   // The one dashed box drawn around a multi-selection: the union of its
   // items' own boxes.
   function selectionBox(): Box | null {
@@ -1034,11 +1106,52 @@ export function Canvas() {
         return
       }
       if (!item) selectElement(null)
+      else if (item.kind === 'element' && pickTableCell(item.id, toPoint(clientX, clientY), toggle)) return
       else if (toggle) toggleItem(item.id, item.kind)
       else selectItem(item.id, item.kind, true)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+  }
+
+  // A click at p on Table2 id: selects the table and picks the cell under p; with extend, on the table already
+  // selected, stretches the picked cells to it. Returns false when id isn't a Table2 or p misses its grid.
+  function pickTableCell(id: number, p: Point, extend: boolean): boolean {
+    const el = diagram!.elements.find(e => e.id === id)
+    if (!el || el.class !== 'Table2') return false
+    const pos = diagramOps.table2PositionAt(el, p)
+    if (!pos) return false
+    if (extend && selectedElementId === id && tableCellRange?.id === id) {
+      setTableCellRange({ ...tableCellRange, focus: pos })
+      return true
+    }
+    if (extend) return false
+    const cell = diagramOps.table2CellOver(el, pos.row, pos.col) ?? pos
+    selectItem(id, 'element', true)
+    setTableCellRange({ id, anchor: { row: cell.row, col: cell.col }, focus: { row: cell.row, col: cell.col } })
+    return true
+  }
+
+  // The frame around the picked cells of the selected Table2.
+  function tableCellMark() {
+    if (!tableCellRange || !diagram || ghost) return null
+    const el = diagram.elements.find(e => e.id === tableCellRange.id)
+    const rect = el ? diagramOps.table2RangeRect(el, tableCellRange) : null
+    if (!el || !rect) return null
+    const box = diagramOps.table2RectBox(el, rect)
+    return (
+      <rect
+        x={box.x}
+        y={box.y}
+        width={box.width}
+        height={box.height}
+        fill={HIGHLIGHT}
+        fillOpacity={0.15}
+        stroke={HIGHLIGHT}
+        strokeWidth={2}
+        pointerEvents="none"
+      />
+    )
   }
 
   // A Ctrl/Cmd press on an item: dragging past MARQUEE_MIN_DRAG moves it
@@ -1382,7 +1495,7 @@ export function Canvas() {
         continue
       }
       if (
-        (el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'Table') &&
+        (el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Arrow' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'DisplayPanel' || el.class === 'Table') &&
         el.points
       ) {
         const [p0, p1] = el.points
@@ -1467,6 +1580,25 @@ export function Canvas() {
     if (renderedRef.current && diagram) fillPictureHrefs(renderedRef.current, diagram)
   }, [svg, diagram, patchVersion])
 
+  // The bindings overview's "Highlight unbound": boxes of the visible items with the gap, measured after a render.
+  const [unboundBoxes, setUnboundBoxes] = useState<Box[]>([])
+  useEffect(() => {
+    if (!unboundGap || !diagram) {
+      setUnboundBoxes([])
+      return
+    }
+    const { elements, digitalDevices } = unboundIds(diagram, unboundGap)
+    const boxes: Box[] = []
+    const add = (id: number, kind: SelectionKind) => {
+      const box = itemBox(id, kind)
+      if (box && (box.width > 0 || box.height > 0)) boxes.push(box)
+    }
+    for (const el of diagram.elements) if (elements.has(el.id) && !isHidden(el)) add(el.id, 'element')
+    for (const dd of diagram.digitalDevices) if (digitalDevices.has(dd.id) && !isHidden(dd)) add(dd.id, 'digitaldevice')
+    setUnboundBoxes(boxes)
+    // itemBox and isHidden read the state these dependencies stand for.
+  }, [unboundGap, svg, diagram, patchVersion, elementBoxes, hiddenLayers])
+
   /** Finds the visible connector nearest point within CONNECTOR_HIT_PX
    * screen pixels of one of its segments; null if none is. The click
    * fallback for a press that missed every rendered node. */
@@ -1549,6 +1681,10 @@ export function Canvas() {
     function onKeyDown(e: KeyboardEvent) {
       const tag = (document.activeElement?.tagName ?? '').toLowerCase()
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return
+      if (symbolSearch) {
+        if (e.key === 'Escape') cancelSymbolSearch()
+        return
+      }
       if (polygonDraft && (e.key === 'Backspace' || e.key === 'Delete')) {
         // Removes the draft's last vertex (the whole draft once none are
         // left) rather than deleting the selection underneath it.
@@ -1625,6 +1761,8 @@ export function Canvas() {
     polygonDraft,
     selection,
     trace,
+    symbolSearch,
+    cancelSymbolSearch,
   ])
 
   // A mouse button held anywhere: an element/group drag in progress keeps
@@ -1787,6 +1925,37 @@ export function Canvas() {
   const showGrid = diagram.editor?.showGrid ?? config?.editor.showGrid ?? true
   const showNodes = diagram.editor?.showNodes ?? true
 
+  const bindingProvider = config?.bindings?.provider ?? ''
+
+  // An Objects-panel object dropped on an element or digital device (its drawn node, else an element's box) opens
+  // the binding chooser; anywhere else it is ignored.
+  function bindDropTarget(e: ReactDragEvent): BindDrop['target'] | null {
+    const hit = (e.target as HTMLElement).closest('[data-editor-kind]') as HTMLElement | null
+    const kind = hit?.dataset.editorKind
+    if (hit && (kind === 'element' || kind === 'digitaldevice' || kind === 'label' || kind === 'connector')) {
+      return { kind, id: Number(hit.id) }
+    }
+    const id = findElementBoxHit(toPoint(e.clientX, e.clientY))
+    return id === null ? null : { kind: 'element', id }
+  }
+
+  function handleObjectDragOver(e: ReactDragEvent) {
+    if (!bindingProvider || !isObjectDrag(e.dataTransfer)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = bindDropTarget(e) ? 'copy' : 'none'
+  }
+
+  function handleObjectDrop(e: ReactDragEvent) {
+    if (!bindingProvider) return
+    const obj = draggedObject(e.dataTransfer)
+    if (!obj) return
+    e.preventDefault()
+    const target = bindDropTarget(e)
+    if (!target || obj.source !== bindingProvider) return
+    selectMany(new Map([[target.id, target.kind]]))
+    setBindDrop({ ref: obj.ref, name: obj.name, target, x: e.clientX, y: e.clientY })
+  }
+
   function toPoint(clientX: number, clientY: number): Point {
     const rect = wrapperRef.current!.getBoundingClientRect()
     return clientToDiagramPoint(rect, diagram!.width, diagram!.height, clientX, clientY)
@@ -1811,10 +1980,12 @@ export function Canvas() {
     'Button',
     'WindowIcon',
     'AutomationDevice',
+    'DisplayPanel',
     'Road',
     'PostPole',
     'LampOnPole',
     'LED',
+    'Device',
     'Line',
     'Polygon',
     'Container',
@@ -2252,7 +2423,7 @@ export function Canvas() {
         const [p0, p1] = el.points
         const angle = (Math.atan2(p1.y - p0.y, p1.x - p0.x) * 180) / Math.PI
         node.setAttribute('transform', `translate(${p0.x + dx},${p0.y + dy}) rotate(${angle})`)
-      } else if ((el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice') && el.points) {
+      } else if ((el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'DisplayPanel') && el.points) {
         // Unlike Rectangle's bare <rect>, a Button's own <rect>/<text> live
         // inside a wrapping <g> with no transform of its own (matching real
         // xsde2svg's own absolute-coordinate markup — see writeButton), so
@@ -2267,7 +2438,7 @@ export function Canvas() {
         rect?.setAttribute('y', String(y))
         const text = node.querySelector('text')
         text?.setAttribute('x', String(x + w / 2))
-        text?.setAttribute('y', String(y + h / 2 + (el.class === 'WindowIcon' || el.class === 'AutomationDevice' ? 2 : 0)))
+        text?.setAttribute('y', String(y + h / 2 + (el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'DisplayPanel' ? 2 : 0)))
       } else if (el.class === 'Table' && el.points) {
         // Same wrapping-<g>-of-absolute-coordinate-children structure as
         // Button just above (see writeTable) — its own label additionally
@@ -2369,11 +2540,271 @@ export function Canvas() {
     node.setAttribute('y', String(y))
   }
 
+  // Whether element id can be the sample of a symbol search: one placed symbol (not drawn by points) whose box lies
+  // on the shown tracing image.
+  function canSearchSymbol(id: number): boolean {
+    const el = diagram?.elements.find(e => e.id === id)
+    const box = itemBox(id, 'element')
+    if (!tracingImage?.visible || !el || diagramOps.POINTS_BASED_CLASSES.has(el.class) || !box) return false
+    return (
+      box.width > 0 &&
+      box.height > 0 &&
+      box.x < tracingImage.x + tracingImage.width &&
+      box.x + box.width > tracingImage.x &&
+      box.y < tracingImage.y + tracingImage.height &&
+      box.y + box.height > tracingImage.y
+    )
+  }
+
+  function startSymbolSearch(id: number) {
+    const box = itemBox(id, 'element')
+    if (!box) return
+    const margin = Math.max(Math.max(box.width, box.height) * 0.25, 2)
+    selectItem(id, 'element')
+    setSymbolSearch({
+      phase: 'sample',
+      elementId: id,
+      rect: { x: box.x - margin, y: box.y - margin, width: box.width + 2 * margin, height: box.height + 2 * margin },
+    })
+  }
+
+  function runSymbolSearch() {
+    if (symbolSearch?.phase !== 'sample' || !tracingImage || !diagram) return
+    const { elementId, rect } = symbolSearch
+    const el = diagram.elements.find(e => e.id === elementId)
+    const box = itemBox(elementId, 'element')
+    if (!el || !box) return cancelSymbolSearch()
+    const opts = { rotate: diagramOps.canRotate(el), mirror: diagramOps.canMirror(el) }
+    const run = searchSymbol(tracingImage, rect, opts, done =>
+      setSymbolSearch(s => (s?.phase === 'running' ? { ...s, progress: done } : s)),
+    )
+    searchCancelRef.current = run.cancel
+    setSymbolSearch({ phase: 'running', elementId, rect, progress: 0 })
+    const offset = { x: el.x - (rect.x + rect.width / 2), y: el.y - (rect.y + rect.height / 2) }
+    // A match is skipped when the device it would place overlaps a device already there (by more than a quarter of
+    // the smaller box); busbars and drawn shapes (POINTS_BASED_CLASSES) don't count, devices sit on them.
+    const occupied = diagram.elements
+      .filter(e => !diagramOps.POINTS_BASED_CLASSES.has(e.class))
+      .map(e => itemBox(e.id, 'element'))
+      .filter((b): b is Box => !!b && b.width > 0 && b.height > 0)
+    const boxOffset = {
+      x: box.x + box.width / 2 - (rect.x + rect.width / 2),
+      y: box.y + box.height / 2 - (rect.y + rect.height / 2),
+    }
+    const isFree = (m: { box: Box; rotate: number; mirror: boolean }) => {
+      const center = { x: m.box.x + m.box.width / 2, y: m.box.y + m.box.height / 2 }
+      const c = variantPlacement(boxOffset, 0, false, center, m.rotate, m.mirror)
+      const turned = m.rotate % 180 !== 0
+      const w = turned ? box.height : box.width
+      const h = turned ? box.width : box.height
+      const placed = { x: c.x - w / 2, y: c.y - h / 2, width: w, height: h }
+      return !occupied.some(o => {
+        const ow = Math.min(placed.x + w, o.x + o.width) - Math.max(placed.x, o.x)
+        const oh = Math.min(placed.y + h, o.y + o.height) - Math.max(placed.y, o.y)
+        return ow > 0 && oh > 0 && ow * oh > 0.25 * Math.min(w * h, o.width * o.height)
+      })
+    }
+    run.promise.then(
+      matches => {
+        searchCancelRef.current = null
+        const found = matches
+          .filter(isFree)
+          .map(m => ({
+            box: m.box,
+            score: m.score,
+            place: variantPlacement(
+              offset,
+              el.orient ?? 0,
+              !!el.mirror,
+              { x: m.box.x + m.box.width / 2, y: m.box.y + m.box.height / 2 },
+              m.rotate,
+              m.mirror,
+            ),
+          }))
+        setSymbolSearch({
+          phase: 'review',
+          elementId,
+          rect,
+          found,
+          threshold: defaultThreshold(matches),
+          rejected: new Set(),
+        })
+      },
+      err => {
+        console.warn('sld-editor: symbol search:', err)
+        searchCancelRef.current = null
+        setSymbolSearch({ phase: 'sample', elementId, rect, failed: true })
+      },
+    )
+  }
+
+  function placeFoundSymbols() {
+    if (symbolSearch?.phase !== 'review') return
+    const { elementId, found, threshold, rejected } = symbolSearch
+    const places = found
+      .filter((f, i) => f.score >= threshold && !rejected.has(i))
+      .map(f => ({ ...f.place, ...snapPoint(f.place) }))
+    let ids: number[] = []
+    updateDiagram(d => {
+      const r = diagramOps.placeFoundElements(d, elementId, places, elements)
+      ids = r.ids
+      return r.diagram
+    })
+    setSymbolSearch(null)
+    if (ids.length > 0) selectMany(new Map(ids.map(id => [id, 'element' as SelectionKind])))
+  }
+
+  // A press at point during a symbol search: drags a corner of the sample rectangle, or rejects (restores) the match
+  // under it. False when it hit neither, so the press pans.
+  function pressSymbolSearch(point: Point): boolean {
+    if (!symbolSearch) return false
+    const tol = 8 / Math.max(transformRef.current?.instance.state.scale ?? 1, 0.05)
+    if (symbolSearch.phase === 'sample') {
+      const r = symbolSearch.rect
+      const corners = [
+        { x: r.x, y: r.y },
+        { x: r.x + r.width, y: r.y },
+        { x: r.x, y: r.y + r.height },
+        { x: r.x + r.width, y: r.y + r.height },
+      ]
+      const i = corners.findIndex(c => Math.hypot(c.x - point.x, c.y - point.y) <= tol)
+      if (i < 0) return false
+      const fixed = corners[3 - i]
+      const onMove = (ev: MouseEvent) => {
+        const p = toPoint(ev.clientX, ev.clientY)
+        setSymbolSearch(s =>
+          s?.phase === 'sample'
+            ? {
+                ...s,
+                failed: false,
+                rect: {
+                  x: Math.min(p.x, fixed.x),
+                  y: Math.min(p.y, fixed.y),
+                  width: Math.abs(p.x - fixed.x),
+                  height: Math.abs(p.y - fixed.y),
+                },
+              }
+            : s,
+        )
+      }
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+      return true
+    }
+    if (symbolSearch.phase !== 'review') return false
+    const { found, threshold } = symbolSearch
+    const i = found.findIndex(
+      f =>
+        f.score >= threshold &&
+        point.x >= f.box.x - tol / 2 &&
+        point.x <= f.box.x + f.box.width + tol / 2 &&
+        point.y >= f.box.y - tol / 2 &&
+        point.y <= f.box.y + f.box.height + tol / 2,
+    )
+    if (i < 0) return false
+    setSymbolSearch(s => {
+      if (s?.phase !== 'review') return s
+      const rejected = new Set(s.rejected)
+      if (rejected.has(i)) rejected.delete(i)
+      else rejected.add(i)
+      return { ...s, rejected }
+    })
+    return true
+  }
+
+  // The symbol search's marks on the overlay: the sample rectangle (with corner handles while it is set), and in
+  // review each shown match's box with a copy of the sample element as it would be placed, or struck out.
+  function symbolSearchMarks() {
+    if (!symbolSearch) return null
+    const r = symbolSearch.rect
+    const handle = 6 / Math.max(transformRef.current?.instance.state.scale ?? 1, 0.05)
+    const sample = diagram?.elements.find(e => e.id === symbolSearch.elementId)
+    return (
+      <g>
+        <rect
+          x={r.x}
+          y={r.y}
+          width={r.width}
+          height={r.height}
+          fill="none"
+          stroke={HIGHLIGHT}
+          strokeWidth={1.5}
+          strokeDasharray="4 3"
+          vectorEffect="non-scaling-stroke"
+        />
+        {symbolSearch.phase === 'sample' &&
+          [
+            [r.x, r.y],
+            [r.x + r.width, r.y],
+            [r.x, r.y + r.height],
+            [r.x + r.width, r.y + r.height],
+          ].map(([x, y]) => (
+            <rect
+              key={`${x},${y}`}
+              x={x - handle / 2}
+              y={y - handle / 2}
+              width={handle}
+              height={handle}
+              fill="white"
+              stroke={HIGHLIGHT}
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+        {symbolSearch.phase === 'review' &&
+          sample &&
+          symbolSearch.found.map((f, i) => {
+            if (f.score < symbolSearch.threshold) return null
+            const rejected = symbolSearch.rejected.has(i)
+            const color = rejected ? '#ef4444' : '#22c55e'
+            return (
+              <g key={i}>
+                <rect
+                  x={f.box.x}
+                  y={f.box.y}
+                  width={f.box.width}
+                  height={f.box.height}
+                  fill={color}
+                  fillOpacity={0.12}
+                  stroke={color}
+                  strokeWidth={1}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {rejected ? (
+                  <path
+                    d={`M${f.box.x},${f.box.y}L${f.box.x + f.box.width},${f.box.y + f.box.height}M${f.box.x + f.box.width},${f.box.y}L${f.box.x},${f.box.y + f.box.height}`}
+                    stroke={color}
+                    strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : (
+                  <use
+                    href={`#${sample.id}`}
+                    opacity={0.7}
+                    transform={`matrix(${frameMatrix(sample, f.place).join(' ')})`}
+                  />
+                )}
+              </g>
+            )
+          })}
+      </g>
+    )
+  }
+
   function handleMouseDown(e: React.MouseEvent) {
     if (e.button !== 0) return
     // Space + left-drag pans (the TransformWrapper handles it).
     if (spaceHeld) return
     const point = toPoint(e.clientX, e.clientY)
+    if (symbolSearch) {
+      e.stopPropagation()
+      if (!pressSymbolSearch(point)) startPanOrClick(e.clientX, e.clientY, null, false)
+      return
+    }
     // Reached only by a click that didn't land on a vertex/midpoint handle
     // (those stop propagation before this ever runs), so any such click
     // deselects whichever specific bend point was selected.
@@ -2443,8 +2874,8 @@ export function Canvas() {
                       ? diagramOps.placeButton(d, start, snappedEnd)
                       : shape === WINDOW_ICON_SHAPE
                         ? diagramOps.placeWindowIcon(d, start, snappedEnd)
-                      : shape === AUTOMATION_DEVICE_SHAPE
-                        ? diagramOps.placeAutomationDevice(d, start, snappedEnd)
+                      : shape === AUTOMATION_DEVICE_SHAPE || shape === DISPLAY_PANEL_SHAPE
+                        ? diagramOps.placeStatusTile(d, shape, start, snappedEnd)
                           : shape === ARC_SHAPE
                             ? diagramOps.placeArc(d, start, snappedEnd)
                             : shape === TABLE_SHAPE
@@ -2771,6 +3202,7 @@ export function Canvas() {
   // would.
   function handleContextMenu(e: React.MouseEvent) {
     e.preventDefault()
+    if (symbolSearch) return
     if (
       armedSymbol ||
       armedWireKind ||
@@ -2833,6 +3265,22 @@ export function Canvas() {
     }
     const mergeNodeId = findMergeableNodeNear(point)
     setContextMenu({ x: e.clientX, y: e.clientY, diagramPoint, elementId, connectorId, mergeNodeId })
+  }
+
+  // Context menu → Merge buswork… for a multi-selection of wires: opens MergeBusworkDialog, or is disabled with the
+  // reason the wires can't be merged (diagramOps.busworkChain).
+  function mergeSelectedBusworkItem(): ContextMenuItem {
+    const found = diagramOps.busworkChain(diagram!, connectorSelection)
+    if (!('wires' in found)) {
+      const reasons = {
+        kind: 'contextMenu.mergeBusworkKind',
+        voltage: 'contextMenu.mergeBusworkVoltage',
+        chain: 'contextMenu.mergeBusworkChain',
+        joint: 'contextMenu.mergeSelectedBuswork',
+      } as const
+      return { label: t(reasons[found.error]), disabled: true }
+    }
+    return { label: t('contextMenu.mergeSelectedBuswork'), onSelect: () => setMergeWires(found.wires) }
   }
 
   // The context menu's "Topology" submenu: both items start a pick of the
@@ -2900,7 +3348,11 @@ export function Canvas() {
                 },
               ]
             : []),
-          ...(contextMenu.mergeNodeId !== null
+          ...(contextMenu.connectorId !== null &&
+          connectorSelection.size > 1 &&
+          connectorSelection.has(contextMenu.connectorId)
+            ? [mergeSelectedBusworkItem()]
+            : contextMenu.mergeNodeId !== null
             ? [
                 {
                   label: t('contextMenu.mergeBuswork'),
@@ -2929,6 +3381,15 @@ export function Canvas() {
           ...(diagramOps.selectionGroups(diagram, selection).size > 0
             ? [{ label: t('contextMenu.ungroup'), onSelect: ungroupSelection }]
             : []),
+        ],
+        [
+          {
+            label: t('contextMenu.enumerate'),
+            onSelect: () =>
+              setEnumeratePrompt({
+                selection: [...selection].filter(([, kind]) => kind === 'element').map(([id]) => id),
+              }),
+          },
         ],
         selection.size > 0
           ? [
@@ -3043,6 +3504,9 @@ export function Canvas() {
                 },
               ]
             : []),
+          ...(contextMenu.elementId !== null && canSearchSymbol(contextMenu.elementId)
+            ? [{ label: t('contextMenu.findSimilar'), onSelect: () => startSymbolSearch(contextMenu.elementId!) }]
+            : []),
         ],
       ])
     : []
@@ -3094,7 +3558,7 @@ export function Canvas() {
   return (
     <div
       ref={viewportRef}
-      className="flex-1 relative overflow-hidden bg-surface-900"
+      className="flex-1 min-h-0 relative overflow-hidden bg-surface-900"
       onMouseMove={trackPointer}
       onMouseLeave={leavePointer}
       style={{ cursor: toolArmed ? 'none' : undefined }}
@@ -3116,7 +3580,9 @@ export function Canvas() {
         </div>
       )}
       <TransformWrapper
-        ref={transformRef}
+        onInit={ctx => {
+          transformRef.current = ctx
+        }}
         minScale={0.1}
         maxScale={8}
         limitToBounds={false}
@@ -3141,6 +3607,23 @@ export function Canvas() {
         {/* Top-center messages, stacked so they never overlap. */}
         <div className="absolute top-2 left-1/2 -translate-x-1/2 z-40 w-max max-w-[90%] flex flex-col items-center gap-2 pointer-events-none [&>*]:pointer-events-auto">
           <PresenceBanner />
+          {symbolSearch?.phase === 'sample' && (
+            <SymbolSearchBar phase="sample" failed={!!symbolSearch.failed} onSearch={runSymbolSearch} onCancel={cancelSymbolSearch} />
+          )}
+          {symbolSearch?.phase === 'running' && (
+            <SymbolSearchBar phase="running" progress={symbolSearch.progress} onCancel={cancelSymbolSearch} />
+          )}
+          {symbolSearch?.phase === 'review' && (
+            <SymbolSearchBar
+              phase="review"
+              threshold={symbolSearch.threshold}
+              shown={symbolSearch.found.filter(f => f.score >= symbolSearch.threshold).length}
+              rejected={symbolSearch.found.filter((f, i) => f.score >= symbolSearch.threshold && symbolSearch.rejected.has(i)).length}
+              onThreshold={threshold => setSymbolSearch(s => (s?.phase === 'review' ? { ...s, threshold } : s))}
+              onPlace={placeFoundSymbols}
+              onCancel={cancelSymbolSearch}
+            />
+          )}
           {traced && trace && (
             <div className="flex items-center gap-3 rounded border border-surface-500 bg-surface-700/95 px-3 py-1.5 text-xs text-gray-200 shadow">
               <span className="font-medium" style={{ color: TRACE_COLOR }}>
@@ -3203,6 +3686,8 @@ export function Canvas() {
             onMouseLeave={() => showCursor(null)}
             onDoubleClick={handleWrapperDoubleClick}
             onContextMenu={handleContextMenu}
+            onDragOver={handleObjectDragOver}
+            onDrop={handleObjectDrop}
             style={{
               position: 'relative',
               width: diagram.width,
@@ -3218,6 +3703,36 @@ export function Canvas() {
           >
             {hiddenLayers.size > 0 && <style>{hiddenLayerCss(hiddenLayers)}</style>}
             {traced && trace?.dim && <style>{traceDimCss(traced)}</style>}
+            {tracingImage?.visible && (
+              <>
+                {/* Under the rendered diagram, whose own page background is made see-through meanwhile and painted
+                    here below the image instead. */}
+                <style>{'.sld-rendered > svg { background-color: transparent !important; }'}</style>
+                <div
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    pointerEvents: 'none',
+                    background: diagram.editor?.background ?? config?.editor?.background ?? diagramOps.DEFAULT_BACKGROUND,
+                  }}
+                >
+                  <img
+                    src={tracingImage.href}
+                    alt=""
+                    draggable={false}
+                    style={{
+                      position: 'absolute',
+                      left: tracingImage.x,
+                      top: tracingImage.y,
+                      width: tracingImage.width,
+                      height: tracingImage.height,
+                      maxWidth: 'none',
+                      opacity: tracingImage.opacity,
+                    }}
+                  />
+                </div>
+              </>
+            )}
             <div
               ref={renderedRef}
               className="sld-rendered"
@@ -3276,6 +3791,22 @@ export function Canvas() {
               height={diagram.height}
               style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
             >
+              {symbolSearchMarks()}
+              {unboundBoxes.map((box, i) => (
+                <rect
+                  key={`unbound-${i}`}
+                  data-unbound-mark=""
+                  x={box.x - BOX_HIGHLIGHT_PAD}
+                  y={box.y - BOX_HIGHLIGHT_PAD}
+                  width={box.width + 2 * BOX_HIGHLIGHT_PAD}
+                  height={box.height + 2 * BOX_HIGHLIGHT_PAD}
+                  fill={UNBOUND_COLOR}
+                  fillOpacity={0.12}
+                  stroke={UNBOUND_COLOR}
+                  strokeWidth={1}
+                  strokeDasharray="3 2"
+                />
+              ))}
               {marqueePreview &&
                 [...marqueePreview].map(([id, kind]) => {
                   if (kind === 'connector') {
@@ -3319,6 +3850,7 @@ export function Canvas() {
                   strokeDasharray={marqueeCrossing ? '4 3' : undefined}
                 />
               )}
+              {tableCellMark()}
               {groupBox && (
                 <rect
                   x={groupBox.x}
@@ -3478,7 +4010,7 @@ export function Canvas() {
                       />
                     )
                   }
-                  if ((el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'Table') && el.points) {
+                  if ((el.class === 'Rectangle' || el.class === 'SmallWindow' || el.class === 'Picture' || el.class === 'Button' || el.class === 'WindowIcon' || el.class === 'AutomationDevice' || el.class === 'DisplayPanel' || el.class === 'Table') && el.points) {
                     const [p0, p1] = el.points
                     return (
                       <rect
@@ -3537,6 +4069,7 @@ export function Canvas() {
                   )
                 })}
               {highlightMark()}
+              {linkedMarks()}
               {/* Every selected connector gets this basic highlight
                   (including selectedConnector itself) — full reshape/
                   vertex handles below stay singular, tied to
@@ -3711,6 +4244,7 @@ export function Canvas() {
                 armedSymbol?.shape === BUTTON_SHAPE ||
                 armedSymbol?.shape === WINDOW_ICON_SHAPE ||
                 armedSymbol?.shape === AUTOMATION_DEVICE_SHAPE ||
+                armedSymbol?.shape === DISPLAY_PANEL_SHAPE ||
                 armedSymbol?.shape === TABLE_SHAPE) ? (
                 <rect
                   x={Math.min(newBusbar.start.x, newBusbar.current.x)}
@@ -3779,6 +4313,7 @@ export function Canvas() {
                   selectedElement.class === 'Button' ||
                   selectedElement.class === 'WindowIcon' ||
                   selectedElement.class === 'AutomationDevice' ||
+                  selectedElement.class === 'DisplayPanel' ||
                   selectedElement.class === 'Road' ||
                   selectedElement.class === 'Line' ||
                   selectedElement.class === 'Polygon' ||
@@ -3797,7 +4332,7 @@ export function Canvas() {
                     pointDrag.elementId === selectedElement.id &&
                     (() => {
                       const pts = selectedElement.points!.map((p, i) => (i === pointDrag.pointIndex ? pointDrag.point : p))
-                      if (selectedElement.class === 'Rectangle' || selectedElement.class === 'SmallWindow' || selectedElement.class === 'Picture' || selectedElement.class === 'Button' || selectedElement.class === 'WindowIcon' || selectedElement.class === 'AutomationDevice' || selectedElement.class === 'Table') {
+                      if (selectedElement.class === 'Rectangle' || selectedElement.class === 'SmallWindow' || selectedElement.class === 'Picture' || selectedElement.class === 'Button' || selectedElement.class === 'WindowIcon' || selectedElement.class === 'AutomationDevice' || selectedElement.class === 'DisplayPanel' || selectedElement.class === 'Table') {
                         const [p0, p1] = pts
                         return (
                           <rect
@@ -4041,8 +4576,23 @@ export function Canvas() {
           onClose={() => setContextMenu(null)}
         />
       )}
+      {mergeWires && (
+        <MergeBusworkDialog
+          wires={mergeWires}
+          onClose={() => setMergeWires(null)}
+          onMerge={keepId => {
+            const ids = new Set(mergeWires.map(c => c.id))
+            setMergeWires(null)
+            updateDiagram(d => diagramOps.mergeBusworkChain(d, ids, keepId))
+            selectItem(keepId, 'connector')
+          }}
+        />
+      )}
       {customElementTemplate && (
         <SaveCustomElementDialog template={customElementTemplate} onClose={() => setCustomElementTemplate(null)} />
+      )}
+      {bindDrop && bindingProvider && (
+        <BindChooser drop={bindDrop} provider={bindingProvider} onClose={() => setBindDrop(null)} />
       )}
       {loadingOverlay}
     </div>

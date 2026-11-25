@@ -3,6 +3,8 @@ import type {
   CimHeader,
   CimSameVoltageTransformer,
   Diagram,
+  SchemeRef,
+  SchemeCandidate,
   DiagramEntry,
   CustomElement,
   ElementSymbol,
@@ -15,9 +17,11 @@ import type {
   Revision,
   UnmatchedVoltage,
   VoltageColor,
+  SchemeBindings,
+  FetchedScheme,
 } from '../types'
 import type { PreparedImport } from '../lib/importDiagram'
-import type { MisplacedPort, VoltageMismatch } from '../lib/diagramOps'
+import type { MisplacedPort, TableCellRange, VoltageMismatch } from '../lib/diagramOps'
 
 // A dropped/picked file whose target name (fileName minus extension)
 // already exists on the server — parked until ConfirmReloadDialog's
@@ -101,6 +105,13 @@ export type UnsavedChoice = 'save' | 'discard' | 'cancel'
 // The four selectable kinds a mixed multi-selection can hold — matches
 // Render/RenderFragments' own data-editor-kind values ("digitaldevice",
 // not "digitalDevice").
+/** Schemes offered for linking the diagram name, imported from the file source. */
+export interface SchemeOffer {
+  name: string
+  source: string
+  candidates: SchemeCandidate[]
+}
+
 export type SelectionKind = 'element' | 'connector' | 'label' | 'digitaldevice'
 
 export interface DiagramContextValue {
@@ -187,6 +198,30 @@ export interface DiagramContextValue {
   // single-item select* functions.
   selectMany: (entries: Map<number, SelectionKind>) => void
 
+  // After an .xsde import, the schemes proposed for the imported diagram (null when none or dismissed).
+  schemeOffer: SchemeOffer | null
+  dismissSchemeOffer: () => void
+
+  // The export window of the open diagram is shown; it closes when another diagram opens.
+  exportOpen: boolean
+  setExportOpen: (open: boolean) => void
+
+  // The bindings read from the linked scheme, shown in the bindings overview to compare and apply; null when no
+  // import is in progress. It ends when another diagram opens.
+  bindingImport: SchemeBindings | null
+  setBindingImport: (b: SchemeBindings | null) => void
+
+  // After a save of a diagram exported to the provider (so changed since its export), when it can export: a
+  // non-modal offer to export it again. It ends when the export window opens or another diagram opens.
+  exportNudge: boolean
+  dismissExportNudge: () => void
+
+  // Edit from RSDU…: saves a scheme's fetched picture as the new diagram name linked to scheme ref, opens it and
+  // reads the scheme's bindings. Throws for a name that exists; false when the user stays on the open diagram.
+  editFromScheme: (fetched: FetchedScheme, ref: string, name: string) => Promise<boolean>
+  // Re-fetch from RSDU: replaces the open diagram with a fresh fetch of its linked scheme, saved, keeping the link.
+  refetchScheme: () => Promise<void>
+
   // The last voltage class the user picked in Properties (or Settings, or
   // the New Diagram dialog), remembered for the lifetime of the session
   // (not persisted itself — see Diagram.editor.defaultVoltage for the
@@ -221,7 +256,13 @@ export interface DiagramContextValue {
   // newDiagram, openDiagram and importDiagramFile first ask (unsavedPrompt)
   // when the open diagram has unsaved edits; newDiagram resolves false when
   // that was cancelled.
-  newDiagram: (name: string, width?: number, height?: number, defaultVoltageName?: string) => Promise<boolean>
+  newDiagram: (
+    name: string,
+    width?: number,
+    height?: number,
+    defaultVoltageName?: string,
+    scheme?: SchemeRef,
+  ) => Promise<boolean>
   openDiagram: (name: string) => Promise<void>
   // Parses a .xsld file's own text — or reconstructs a diagram from an
   // xsde2svg-style .svg's (lib/importDiagram's prepareImport) — and makes it
@@ -272,12 +313,14 @@ export interface DiagramContextValue {
   repairDiagram: () => Promise<boolean>
   // opts.automatic false skips what every edit otherwise gets: wire jumps (diagramOps.jumpChangedCrossings) and
   // junction points on new busbar–buswork connections (diagramOps.addJunctionPoints).
-  updateDiagram: (updater: (d: Diagram) => Diagram, opts?: { automatic?: boolean }) => void
+  // untracked: the edit sets no export statuses (it makes items match the provider).
+  updateDiagram: (updater: (d: Diagram) => Diagram, opts?: { automatic?: boolean; untracked?: boolean }) => void
   // Set while an edit would join different voltage classes at these connection points (diagramOps.
   // withVoltagePolicy) and waits for the answer: resolveVoltagePrompt(true) applies it with those joins, false
-  // without them (the ends stay free).
+  // without them (the ends stay free); with voltage too, everything joined there then takes that class
+  // (diagramOps.setMismatchVoltageClass).
   voltagePrompt: VoltageMismatch[] | null
-  resolveVoltagePrompt: (connect: boolean) => void
+  resolveVoltagePrompt: (connect: boolean, voltage?: number) => void
   updateEditorSettings: (patch: Partial<EditorSettings>) => void
   // Undo/redo of diagram edits (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z or Ctrl+Y,
   // the canvas buttons). The history restarts whenever another diagram is
@@ -315,6 +358,10 @@ export interface DiagramContextValue {
   // changes or another document opens. highlightItem toggles it and pans the item into view.
   highlighted: { id: number; kind: SelectionKind } | null
   highlightItem: (id: number, kind: SelectionKind) => void
+  // The picked cells of the selected Table2 (canvas click or the Properties cell map); null once another item is
+  // selected.
+  tableCellRange: TableCellRange | null
+  setTableCellRange: (range: TableCellRange | null) => void
   // Centres the canvas on a diagram point and flashes a ring there (the
   // Connections section's node coordinates).
   focusPoint: (point: Point) => void
@@ -330,6 +377,9 @@ export interface DiagramContextValue {
   // import waits for it); resolveVoltageColorsPrompt answers with class name → color. addVoltagePresets adds
   // presets to the server's voltage_colors, in its configuration file too.
   voltageColorsPrompt: VoltageColorsPrompt | null
+  // Set while EnumerateDialog is open: the selected element ids it was opened with (empty: none selected).
+  enumeratePrompt: { selection: number[] } | null
+  setEnumeratePrompt: (prompt: { selection: number[] } | null) => void
   resolveVoltageColorsPrompt: (colors: Map<string, string>) => void
   // Set while CimLayoutDialog asks whether a CIM import follows its model's layout or is laid out automatically (the
   // import waits for it); resolveCimLayoutPrompt answers.

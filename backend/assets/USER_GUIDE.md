@@ -5,14 +5,18 @@ file (the source of truth) together with an `.svg` rendering in the xsde2svg for
 
 This guide describes how to work with the editor. For installing and running it, see `README.md`.
 
-New to the editor? Start with [How to: draw a diagram step by step](#how-to).
+New to the editor? Start with [How to: draw a diagram step by step](#how-to). Working with RSDU schemes? See
+[How to: work with RSDU](#rsdu-howto).
 
 ## The window {#window}
 
 - **Left rail**: buttons for the **File**, **Elements**, **Objects** (only when [bindings](#configuration-bindings)
-  are on) and **Settings** panels (they share the left side; one is open at a time), the **Properties** toggle, and **Help** (this guide) and **About** at the bottom.
+  are on) and **Settings** panels (they share the left side; one is open at a time), the **Properties** toggle, the
+  [Bindings overview](#bindings-overview) toggle, and **Help** (this guide) and **About**
+  at the bottom.
 - **Canvas**: the diagram itself, with zoom buttons in the bottom-right corner.
 - **Properties** panel: docked on the right. It can stay open together with the Elements panel.
+- **Bindings overview**: docked under the canvas; it can stay open together with the panels on both sides.
 
 The browser tab shows the open diagram's name, with `*` when it has unsaved changes. The editor guards them against
 being lost: see [Unsaved changes](#unsaved).
@@ -191,12 +195,19 @@ Optionally, organise items into [layers](#layers) before saving. See [Saving and
   reported with the reason. The converter's colors and settings come from `xsde2svg.yml` and `workplace.xml`; see
   [Configuration](#configuration-xsde). A file whose header says UTF-8 but whose text is really Windows-1251 (as some Modus
   exports are) is read as Windows-1251, with a warning in the converter messages.
+- Element types that draw like another one are imported as that one: Railway connection (71) and arc-extinguishing
+  contact (320006) become a **Disconnector** (162), an automation device (103) a **Display panel** (102), an image
+  file (12) a **Backdrop** (11). An arc-extinguishing contact keeps its longer leads (**Leads**), so its wires stay
+  connected. Diagrams saved earlier keep their elements as they are.
 - Texts keep their turn: a Modus text's tilt angle (counter-clockwise) and its orientation (vertical down, reversed,
   vertical up) together turn the label as xsde2svg draws it, about the label's own anchor.
-- xsde2svg draws each device at its own size step (each step √2 larger). An `.svg` import recovers the step from where
-  the device's connection points lie, so the symbol fills the gap between its wires. Devices whose leads also stretch
-  per instance (breakers, disconnectors and similar) get their size from their drawn body and their **Leads** from
-  their two connection points.
+- xsde2svg draws each device at its own size step (each step √2 larger, from −2 to 5). Since xsde2svg 1.4.28 the
+  `.svg` names a device's step and mirroring (`data-scale`, `data-mirror`), and the import takes them from there. For
+  an `.svg` of an older xsde2svg, the import recovers the step from where the device's connection points lie, so the
+  symbol fills the gap between its wires. Devices whose leads also stretch per instance (breakers, disconnectors and
+  similar) get their size from their drawn body and their **Leads** from their two connection points. A power
+  transformer gets its size from its circles, its mirroring and the side each winding is led from (**Terminal
+  orientation**) from the drawing, and its regulated winding from the regulation arrow.
 - A device lead that ends a unit or two beside a wire (a T-tap, such as a ground switch on a feeder) is connected to
   that wire on import, splitting it there.
 - A wire that ends on the middle of another wire (a T-junction in buswork), alone or together with a device's lead,
@@ -468,6 +479,13 @@ constraints, so it is not a full CGMES model (no SSH, TP or SV). Unsaved edits a
   is not exported, and the export's notes say so.
 - **Load**, **Network infeed** and **Static var compensator** (under Other equipment in the palette) are symbols for
   CIM equipment that classic diagrams have no symbol for: a consumer, a connection to an outside network, and an SVC.
+  The text inside a Static var compensator's box is its **Label text** in Properties, `SVC` when left empty.
+  Its **Terminal orientation** in Properties is Top (the default: the box hangs below the terminal) or Bottom (the box
+  stands above it, the text still upright); the terminal stays where it is, so its wire stays connected.
+- A **Two-terminal box** (Other equipment) is a generic box between two terminals. Its **Terminal position** in
+  Properties is Top and bottom (the default) or Left and right; the box itself never turns, and the wires on its
+  terminals follow them. The text inside is its **Label text** in Properties (empty by default). It stands for no
+  CIM equipment: the export joins its two terminals into one connectivity node, and it expects no binding.
 - Each overhead or cable line becomes an AC line segment in a line of its own name.
 - A **link to object** stands for the outside object it points to: an energy consumer by default, or an energy
   source when its **CIM class** in Properties says so. It is connected at its start only; the arrow end is the object
@@ -507,6 +525,62 @@ diagram** in the diagram's Properties (nothing selected) applies the same repair
 unsaved edits included. It is one step that **Undo** reverts, and the diagram is marked as changed until you save
 it. "Nothing to repair" means the diagram already follows every rule.
 
+### Reference designations {#designations}
+
+**Enumerate elements…** (the diagram's Properties with nothing selected, or the canvas context menu) gives the
+equipment IEC 81346 reference designations built from the diagram's topology, and writes each as the element's name:
+`=E1=T1-QA1` is voltage level E1, transformer unit T1, breaker 1. The letter code of an element (`QA`, `QB`, `TA`, …)
+comes from `letter_codes`; an element whose shape has none, wires, labels and drawing shapes are left alone.
+
+How the units are found (switch states don't matter):
+
+- **Voltage levels.** Switchgear joined by wires and devices, not through a transformer or a line, is one voltage
+  level, of its most-used voltage class; its letter comes from `designations.voltage_levels`.
+- **Units.** From each busbar connection point the editor follows the wiring outward, stopping at other busbars,
+  transformers and lines. What it reaches makes the unit: a transformer → **transformer unit**; a generator or
+  synchronous compensator → **generator unit**; only two or more busbars → **bus section / coupler**; only a VT (with
+  its switches, fuses, arresters) → **measuring bay**; a network infeed or a source link → **incoming feeder**; a load
+  or motor → **outgoing feeder**; a line alone → a feeder **guessed** incoming on the highest voltage level of its
+  network, outgoing below it; anything else → **other**.
+- **Busbars.** Collinear busbar sections joined by a bay are one busbar system (`=W1`, sections `-WC1`, `-WC2`);
+  parallel ones are separate systems (`=W1`, `=W2`).
+- **Transformers.** The transformer belongs to its higher-voltage side's unit (`=E1=T1-TA1`); its lower side is a
+  unit with the same number in the lower voltage level (`=K1=T1`), and the two are linked.
+
+Numbers count per letter code within a unit, from 1, along the energy flow from the busbar outward and then in
+reading order; units are numbered in reading order of their busbar connection. Numbers are stable: placing or deleting
+an element never renumbers others, and a new element gets a designation only when you run the command again — then
+the next free number of its unit.
+
+The dialog floats over the diagram without hiding it: drag its title to move it aside. Clicking a row selects its
+element and centres the canvas on it, Ctrl/Cmd-click adds it to the selection; selected rows are highlighted, as in
+the bindings overview. It sets:
+
+- **Scope**: the whole diagram or the selected elements;
+- **Mode**: only elements without a designation, or renumber all in scope;
+- **Labels show**: the full designation, or only its product part without the dash (`QA1`). The name always keeps
+  the full one. So that a short label still names one element, the short format numbers each letter code across the
+  whole diagram instead of per unit (`=E1=H01-QB1`, `=E1=H02-QB2`); a short label that would repeat (numbered per unit
+  earlier) is renumbered, and the table warns of any left.
+
+The table lists each element with its unit and old → new name; with the short format, a **Label** column shows what
+its label will read (the old label's text first, when it has one). An element with SCADA bindings, a CIM identity or
+bindings already exported starts **unchecked**, as renaming it may break something outside the editor. Duplicate
+names, labels that couldn't be placed clear of everything, elements **not connected to a busbar** (in a diagram that
+has busbars: usually a wire end not joined to a terminal — a piece like that also becomes a voltage level of its own;
+check it with [Connections](#connections) or **Repair diagram**), and elements no unit was found for are reported. Guessed
+feeders are listed above the table: **Confirm** keeps the kind, **Flip** swaps incoming and outgoing.
+
+**Apply** is one step that **Undo** reverts. Each designation gets a label on the **Designations** layer (created on
+first use, above the other layers, so all designations can be hidden at once — see [Layers](#layers)): right of the
+element, else above it, else slid along those sides, always inside the diagram and clear of other elements, wires
+and labels. An element that already has a label gets its text changed instead (moved to the layer if it showed the
+old name).
+
+In **Properties**, **Functional unit** shows which unit the element belongs to and lets you move it to another one,
+change the unit's kind, code or number (which renames its elements), confirm a guessed feeder, or make a **new unit
+from the selection**. Moving an element doesn't rename it: run the command to give it its number there.
+
 ### Unsaved changes {#unsaved}
 
 - Opening another diagram, creating a new one, or importing a file while the open diagram has unsaved edits first
@@ -537,6 +611,401 @@ each tab first checked in again. The editor knows people only by IP address; you
 
 Every save is recorded in the diagram file (`<history>` in the `.xsld`): the time and the IP address it came from.
 With nothing selected, the **History** section of Properties lists them, newest first. The last 200 saves are kept.
+
+### RSDU schemes {#rsdu-schemes}
+
+Only when [bindings](#configuration-bindings) are on with a provider that has schemes (RSDU). A diagram can be
+**linked** to one RSDU scheme (`VS_FORM`): export to RSDU and import of a scheme's bindings work through that link.
+The link is the scheme's identifier, stored in the diagram file, never its file name; one scheme belongs to at most one
+diagram. Renaming or moving a diagram, or its folder, keeps its link. Step-by-step examples are in
+[How to: work with RSDU](#rsdu-howto).
+
+**In the file list** a linked diagram has an icon after its name; hover it for the status:
+
+- grey link: linked, never exported;
+- green link: exported, not changed since;
+- amber link: saved after the last export;
+- red crossed link: the scheme no longer exists in RSDU;
+- grey question mark: RSDU can't be reached to check it. The list never waits for RSDU.
+
+**Linking.** With nothing selected, open the **Bindings** group in Properties. **Link to RSDU scheme…** (or
+**Change…**) opens a window:
+
+- on top, the schemes proposed for this diagram by their file name (`FILE_NAME`, `\` read as `/`, without the
+  extension, letter case ignored). A scheme whose path matches the diagram's path (or the reverse, with folders)
+  comes first. One that matches only by the base name is marked *(same name only)*: the same name is often used in
+  several folders, so check it. When exactly one scheme matches by path it is chosen already;
+- below, every scheme by RSDU group, with a filter.
+
+A scheme linked to another diagram is shown with that diagram's name and can't be chosen. **Link** links the open
+diagram; **Unlink** removes the link. Both are edits like any other: undo reverts them, and they take effect when the
+diagram is saved. A save that would link a scheme another diagram already holds is refused with that diagram's name.
+RSDU itself is not changed. Registering a new scheme in RSDU comes with export to RSDU.
+
+After importing an `.xsde` file, if any free scheme matches its name, a note at the bottom of the canvas offers to
+link one: **Choose…** opens the same window.
+
+**The RSDU schemes tab** of the File panel lists every scheme by group, each with the diagram linked to it. Filter by
+name, file name, id or diagram, and show all schemes, the linked ones or those without a diagram. The folder button
+opens a linked diagram. For a scheme without a diagram, the new-file button creates an empty diagram linked to it,
+named after the scheme, in the folder you type (the File panel's current one by default).
+
+#### Editing a scheme from RSDU {#rsdu-edit}
+
+When RSDU's scheme pictures are reachable (`bindings.rsdu.svg.dir` or its Minio bucket, see
+[The SVG for ctrlroom](#rsdu-svg)), a scheme without a diagram also has the cloud button, **Edit from RSDU…**. It reads
+the scheme's SVG where ctrlroom reads it (the Minio bucket first, then the folder) and imports it like an `.svg` file.
+A form then shows the file read and what was recognised and lost, with the folder and name of the new diagram: with
+`svg.full_path: true` the folder of the scheme's file name, otherwise the File panel's current folder; the name is the
+file's. **Create and open** saves the diagram linked to the scheme, opens it with its [import log](#import) and reads
+the scheme's bindings into the bindings overview, to compare and **Apply** as with [Import bindings from RSDU…](#bindings-import). An
+existing diagram is never overwritten: choose another name.
+
+- The diagram is linked, not registered: the scheme keeps its file name in RSDU. From then on the diagram is the
+  master: the scheme opens its diagram, and only **Re-fetch from RSDU** (in the scheme link in Properties) reads the
+  SVG again. Re-fetch replaces the diagram after a confirmation, saved, keeping the link; the previous version stays
+  in [history](#history).
+- The import loses what it can't read, as for any `.svg` (see [Importing](#import)): skipped and failed items are
+  counted in the form and listed in the import log. A picture made by an **older xsde2svg**, whose wires carry no
+  `data-type`, comes in **without wires**; import the scheme's `.xsde` instead when you have it.
+- The first export (or **Export diagram only**) delivers the diagram's SVG over the scheme's picture. The picture there is first copied once to
+  `<name>.orig.svg` beside it (see [The SVG for ctrlroom](#rsdu-svg)).
+- Edits made meanwhile in RSDU's own scheme editor are not detected: the later export wins.
+
+After a save of a diagram exported to RSDU, a note at the bottom of the canvas offers **Export to RSDU…**, since RSDU
+still has the exported version. Nothing is exported until you do.
+
+**Deleting** a linked diagram keeps the RSDU scheme and the scheme's SVG for ctrlroom; the confirmation says which
+scheme it is.
+
+### Export to RSDU {#rsdu-export}
+
+With nothing selected, **Export to RSDU…** in the **Bindings** group of Properties opens the export window. It checks
+the **saved** diagram, so if it has unsaved changes, **Save and check** saves first; **Export** is available only for a
+saved diagram whose check found nothing that stops it, and only with `bindings.rsdu.export: true` in the
+[configuration](#configuration-bindings). The window shows:
+
+- **Scheme**: the linked RSDU scheme with its name, alias and group, which can be changed here and are written by the
+  export. For an unlinked diagram, or one whose scheme no longer exists, choose where it goes:
+  - **Register a new scheme**: its name (the diagram's name by default), alias (the name when empty) and RSDU group.
+    The group proposed is the group of the scheme exported last; any other can be chosen. A new scheme must be added
+    to users' menus (`US_MENU`) with RSDU's tools before ctrlroom shows it.
+  - **Use an existing scheme**: **Link to an existing scheme…** links the diagram (see [RSDU schemes](#rsdu-schemes));
+    save it, then export.
+- **Scheme type**: `bindings.rsdu.scheme_type` from the [configuration](#configuration-bindings), usually 518 (MODUS
+  scheme).
+- **File name** of the scheme (a new one: the diagram's path with `.svg`) and the **SVG for ctrlroom**: where its
+  picture goes, as ctrlroom finds it (`bindings.rsdu.svg.dir`, and the full path or only the base name by
+  `svg.full_path`).
+- What **stops the export**:
+  - no scheme type configured, or one that is not an RSDU scheme type;
+  - the linked scheme no longer exists, is linked to another diagram as well, or belongs to another provider;
+  - the linked scheme's file name is the path of another diagram of the editor (the two would share one SVG);
+  - **Register a new scheme** chosen while the linked scheme still exists;
+  - an item bound to RSDU whose id is not a positive integer (ctrlroom finds an element by its number);
+  - a scheme file name that ctrlroom can't show (not `.svg` or `.xsde`, or leaving its folder).
+- **Warnings**, which don't stop it:
+  - an item whose shape has no RSDU component type of the scheme type (`VS_TCOMP.MODUS_TYPE`, a digital device counts
+    as shape 134); it is skipped;
+  - bindings of another provider, skipped;
+  - another RSDU scheme whose SVG is the same file (letter case ignored): the same base name when `svg.full_path` is
+    off, the same path when it is on. The export writes the file, so that scheme shows this picture too;
+  - nothing bound to RSDU; no SVG folder configured; a linked scheme of another type; a new scheme to be registered.
+
+Click a finding about an item to select it and show it on the canvas. The refresh button checks again.
+
+The editor marks what the next export has to write. Every edit marks a binding it adds, or whose object it changes,
+as **new, not exported**, one whose value option or scale it changes as **changed, not exported** (Properties), the
+items whose precision, features or component type it changes, and the bindings RSDU has that it removes (with the
+binding, or with its item). A removed binding stays deleted: one added again in its place is new, never changed.
+Bindings applied from the [bindings overview](#bindings-import) are RSDU's own and get no marks. Undo takes the marks
+back with the edit. After saving, a note at the bottom of the canvas offers **Export to RSDU…** only
+when something is marked. A change to the drawing alone needs no export: every save delivers the picture
+([below](#rsdu-svg)).
+
+**Export** writes, in one transaction (on any error nothing is written), only what the marks name; nothing unmarked
+is ever written or deleted, and untouched rows keep their ids:
+
+- **Nothing marked**: the window says so and the export reads and writes nothing, first export or not.
+  **Export diagram only** (here, and next to **Export** in the full window) delivers just the diagram's picture to
+  the scheme ([below](#rsdu-svg)) and writes nothing to the database; the bindings' marks stay. Use it for a diagram
+  linked from RSDU whose picture has not been delivered yet: the window says so, and from then on every save delivers
+  it.
+- **Marked changes**: only the marked items' components (`VS_COMP`) and bindings (`VS_REGIM_TUNE`) are read. A deleted
+  binding's row is deleted (and its component, when it has nothing left), a changed one is updated in place, a new one
+  is inserted (updated if RSDU already has it), a marked component is updated, and an item new to RSDU gets its
+  component. **Changed items** in the window counts them.
+- A **new scheme** gets everything inserted.
+
+**Compare with RSDU** in the export window opens the [bindings overview](#bindings-import): RSDU's bindings of the
+scheme next to the diagram's. It only shows the differences and changes nothing in RSDU; edits made in RSDU's own scheme
+editor are brought into the diagram from there.
+
+A component is an item bound to RSDU whose shape has a component type; a jump is stored as a parameter binding to an
+object. A binding that can't be written (a bad object, a binding type or value option RSDU doesn't know, a second
+binding of one type to the same table) is skipped and listed; its item stays marked, so a later export tries it again.
+The scheme row (`VS_FORM`: name, alias, group, scheme type, export time) is written when the scheme is new, when one of
+its fields changed, or when anything else was written. A scheme registered by the editor follows the diagram: when the
+diagram is moved or renamed, the next export sets its file name to the new path. A scheme linked from RSDU keeps its
+own file name. The diagram's object (`VS_OBJ_TUNE`) is marked and written like the bindings.
+
+**Export** first only counts: the window shows how many rows the export will add, change and delete in RSDU (in red
+when it deletes any: the bindings removed or replaced in the diagram) and nothing is written until **Confirm export**;
+**Cancel** goes back. The result lists how many rows were added, changed and deleted. Then the diagram is saved with its link to the scheme,
+the export time and its marks cleared (a history entry, like any save) and reopened; its status in
+[RSDU schemes](#rsdu-schemes) is **exported** until it is changed again. RSDU clients that have the scheme open must
+reopen it to see the changes.
+
+#### The SVG for ctrlroom {#rsdu-svg}
+
+ctrlroom shows a scheme from its SVG: it finds the file by the scheme's `FILE_NAME` in RSDU (`\` read as `/`, the
+extension replaced by `.svg`) — the whole path with `svg.full_path: true`, only the file name with `false` — in its
+folder (`backend.path_to_sld`) or in its Minio bucket (`use_object_storage: minio`). The export delivers the
+diagram's saved SVG there: into `bindings.rsdu.svg.dir` (subfolders created, the old file replaced in one step) and
+into the Minio bucket of `bindings.rsdu.svg.object_storage` with `use_object_storage: minio`, whichever are
+configured. **Export diagram only** delivers only the SVG, without writing the database. After either, **every save** of the diagram
+delivers its SVG again; its bindings in RSDU change only with **Export**. A save whose delivery fails is still saved and
+says why. The export window shows where the SVG went.
+
+- The SVG's name comes from the scheme's file name in RSDU, not from the diagram's path. A scheme the editor
+  registered follows the diagram's path at the next export; the SVG under the old name stays, and ctrlroom, which
+  keeps each scheme's file name until it restarts, needs a restart to read the new one.
+- Each item ctrlroom shows values on is an SVG element whose `id` is the item's number, with `data-type` (its shape)
+  and, as xsde2svg writes them, `data-name`.
+- With `svg.full_path: false` two schemes with the same file name in different folders share one SVG; the
+  [export check](#rsdu-export) warns of it, and each delivery replaces the picture of both.
+- Before the first delivery to a scheme the editor did not register (linked from RSDU, or after an `.xsde` import),
+  the picture already there is copied once to `<name>.orig.svg` beside it, in the folder and in the Minio bucket alike.
+  That copy is never overwritten.
+
+## How to: work with RSDU {#rsdu-howto}
+
+These walk-throughs cover the usual jobs with RSDU schemes, step by step. They need [bindings](#configuration-bindings)
+on with RSDU as the provider; writing to RSDU also needs `bindings.rsdu.export: true`. Each one links to the
+reference sections for the details.
+
+What each action writes:
+
+| Action | In the editor | In the RSDU database | The scheme's picture (SVG for ctrlroom) |
+|---|---|---|---|
+| **Save** | the `.xsld` and `.svg` | nothing | delivered again, once the diagram has been exported (or its picture delivered) at least once |
+| **Export** (after **Confirm export**) | saved with the link and the export time, marks cleared | a new scheme: everything; a linked one: only what is marked (new, changed, deleted bindings, changed components) and the scheme row when its fields changed | delivered |
+| **Export diagram only** | saved with the export time; marks stay | nothing | delivered |
+| **Compare with RSDU**, **Import bindings from RSDU…** | nothing until you **Apply** | nothing (read only) | nothing |
+
+The editor marks every binding change as you make it: a binding you add, or point at another object, is **new, not
+exported**; one whose option or scale you change is **changed, not exported** (both show as a tag in Properties); a
+binding you remove, with the binding or with its element, is remembered as deleted. A deleted binding stays deleted:
+one you add again in its place is new. An export writes exactly these marks and nothing else, so what you didn't touch
+in the editor is never changed or deleted in RSDU. See [Export to RSDU](#rsdu-export).
+
+### 1. A new diagram registered in RSDU with its bindings {#howto-new-scheme}
+
+Use this for a substation that has no scheme in RSDU yet.
+
+1. **Create the diagram.** **File** on the left rail → go to the folder → **New** → name, size and default voltage →
+   confirm (see [Creating and opening](#create-open)). The folder and name become the scheme's file name in RSDU
+   (`<folder>/<name>.svg`), which ctrlroom uses to find its picture, so choose them as they should be in RSDU.
+2. **Draw it** (see [How to: draw a diagram step by step](#how-to)). Every element that ctrlroom shows values on
+   needs a positive whole-number id; the editor gives every new item one.
+3. **Bind the elements.** Open **Objects** on the left rail and find the substation's equipment in the tree or by
+   search. Drag an object onto its element on the canvas: **Bind object** opens with **Auto** proposing what RSDU's
+   scheme editor would (for a breaker: the breaker as **Equipment** and its position as **Parameters**). Untick what you
+   don't want and click **Bind**. See [Binding an object](#binding-objects) and [Automatic binding](#binding-auto).
+   - A label that opens another scheme or panel: drop that scheme or panel on the label; it becomes a **Jumps** binding.
+   - The whole diagram's object (usually the substation): with nothing selected, drop it on the **Object** row of the
+     **Bindings** group in Properties.
+   - Set **Precision** and **Features** of a measured value in Properties, under its bindings.
+   Each new binding shows the tag **new, not exported**.
+4. **Find what is still unbound.** **Bindings overview** on the left rail → **Unbound only**, and **Highlight
+   unbound** to frame those elements on the canvas. Click a row to select the element and bind it. See
+   [Bindings overview](#bindings-overview).
+5. **Save** (Ctrl+S / Cmd+S).
+6. **Open the export window.** With nothing selected, **Export to RSDU…** in the **Bindings** group of Properties.
+7. **Choose Register a new scheme** and fill in:
+   - **Scheme name**: the scheme's name in RSDU (the diagram's name by default);
+   - **Alias**: its short name (the name when empty);
+   - **Group**: the RSDU group (folder) it belongs to; the group of the scheme exported last is proposed.
+   Check **File name** and **SVG for ctrlroom**: that is where ctrlroom will look for the picture.
+8. **Read the check.** Red findings stop the export; fix them, save and click the refresh button. Amber warnings
+   don't: an element whose shape has no RSDU component type, for example, is skipped (see the list in
+   [Export to RSDU](#rsdu-export)). **Bound items** says how many elements will be written.
+9. **Export.** The window first only counts: "The export will add *N* rows…". For a new scheme everything is added: one
+   scheme row, one component per bound element, one row per binding, and the diagram's object. Nothing is changed or
+   deleted.
+10. **Confirm export.** The result lists the components and bindings written and where the SVG went. The diagram is
+    saved, now linked to the new scheme, and reopened; its icon in the file list turns into a green link.
+11. **Make the scheme reachable in RSDU.** A new scheme must be added to the users' menus (`US_MENU`) with RSDU's own
+    tools before ctrlroom shows it.
+
+From now on, see [3. Changing the bindings](#howto-bindings) and [2. Changing the picture](#howto-picture).
+
+### 2. Changing the picture of a scheme already in RSDU {#howto-picture}
+
+Use this to redraw, move or add things on a scheme that RSDU already has, without touching its bindings.
+
+**If the editor doesn't have the diagram yet:**
+
+1. **File** on the left rail → the **RSDU schemes** tab. Show the schemes **Without a diagram** and filter by name. See [RSDU schemes](#rsdu-schemes).
+2. Click the cloud button, **Edit from RSDU…**, of the scheme. It reads the scheme's current picture from where
+   ctrlroom reads it.
+3. Check the form: what was recognised and what was lost, the folder and the name of the new diagram. **Create and
+   open**. The diagram is saved linked to the scheme and opens with its import log. See
+   [Editing a scheme from RSDU](#rsdu-edit).
+4. The **Bindings overview** opens with the scheme's bindings from RSDU. Click **Apply** to take them into the diagram
+   (recommended: see [a. Taking over an RSDU scheme](#howto-take-over)), or **Cancel import** to leave them out. Either
+   way nothing is written to RSDU.
+
+**Then (or if the diagram is already in the editor):**
+
+5. Edit the drawing: move, add, rename, rewire. Keep the elements RSDU shows values on: ctrlroom finds them by their
+   id. Don't delete such an element to draw it anew: the new one gets a new id, so ctrlroom shows nothing on it until
+   it is bound and exported again (see [3. Changing the bindings](#howto-bindings)).
+6. **Save.**
+7. **The first time only**, deliver the picture: **Export to RSDU…**. With no binding marked, the window says
+   *Nothing to export* and that the picture has not been delivered yet. Click **Export diagram only**. The result
+   lists where the SVG went; RSDU's own picture is kept once as `<name>.orig.svg` beside it (see
+   [The SVG for ctrlroom](#rsdu-svg)). The database is not written.
+8. **After that, every save delivers the picture.** Nothing else is needed. A save whose delivery fails is still saved
+   and says why; save again once the folder or bucket is reachable.
+9. RSDU clients that have the scheme open must reopen it to see the new picture.
+
+Notes:
+
+- If the diagram was exported before (its icon is a green or amber link), step 7 isn't needed: saves already deliver
+  the picture. The amber link only means "saved after the last export"; the picture is delivered anyway.
+- If someone changed the scheme's picture in RSDU's own scheme editor after you took it into the editor, your next
+  save overwrites it. To start again from RSDU's version, use **Re-fetch from RSDU** in the **Scheme** row of the
+  diagram's **Bindings** group (it replaces the diagram; the previous version stays in [history](#history)).
+- Changing only the drawing never needs **Export**: the export note at the bottom of the canvas appears only when
+  bindings changed.
+
+### 3. Changing the bindings of a scheme already registered {#howto-bindings}
+
+Use this to bind new elements, rebind, change options or scales, or remove bindings of a diagram linked to an RSDU
+scheme.
+
+1. **Open the diagram.**
+2. **Make the changes.** Select an element; Properties → **Bindings** (see [Bindings](#properties-bindings)):
+   - **Add** a binding: drop an object from **Objects** on the element or on a row. Tag: **new, not exported**.
+   - **Point a binding at another object**: drop the other object on the same row (or on the element and choose
+     that kind). The old binding is marked deleted and the new one **new, not exported**.
+   - **Change the option or the scale**: tag **changed, not exported**.
+   - **Remove** a binding: **×** on the row, **Remove all bindings**, or **Remove** in the
+     [Bindings overview](#bindings-overview). It is marked deleted (it simply disappears from Properties).
+   - **Change precision, features or the component type**: the element's component is marked changed.
+   - **Delete an element** that is bound: all its bindings are marked deleted.
+   - **Bind a new element**: as in [1](#howto-new-scheme), step 3.
+   Undo takes a change back together with its marks.
+3. **Save.** A note at the bottom of the canvas says the bindings changed and are not yet exported, with
+   **Export to RSDU…**. Nothing is written until you export, so you can collect changes over several sessions.
+4. **Export to RSDU…** (from the note, or from the diagram's **Bindings** group). The window shows the scheme with its
+   name, alias and group, and **Changed items**: how many elements have marks.
+5. **Export.** The window counts what will be written, for example:
+   - one binding pointed at another object: 1 row deleted, 1 added;
+   - a scale or option changed: 1 row changed;
+   - a new element with **Equipment** and **Parameters**: 3 rows added (its component and two bindings);
+   - a bound element deleted: its bindings' rows and its component deleted.
+   Deletions are shown in red: they are the bindings you removed or replaced. If a number looks wrong, **Cancel**,
+   look at the elements (the tags in Properties) and fix them first.
+6. **Confirm export.** Only those rows are written, in one transaction (on an error nothing is). The marks are cleared,
+   the diagram is saved and reopened, and the picture is delivered too.
+7. RSDU clients that have the scheme open must reopen it.
+
+A binding the export can't write (an object that no longer exists, an option RSDU doesn't know) is listed as skipped;
+its element keeps its marks and the next export tries again.
+
+### a. Taking over an RSDU scheme with its bindings {#howto-take-over}
+
+Use this when the editor gets a scheme that RSDU already has with its bindings, so the diagram holds them too and
+further changes can be made in the editor.
+
+1. Take the picture: **Edit from RSDU…** ([2](#howto-picture), steps 1–3), or [link a diagram you already
+   have](#howto-link).
+2. With the scheme's bindings in the **Bindings overview** (it opens by itself after **Edit from RSDU…**; otherwise
+   save the diagram and click **Import bindings from RSDU…** in the diagram's **Bindings** group), read the summary:
+   - **New**: RSDU has bindings for the element, the diagram none;
+   - **Differs**: both have bindings and they differ (RSDU's values in amber);
+   - **Not in RSDU**: the diagram binds an element RSDU has no component for;
+   - the summary link lists RSDU components with no element of that id in the diagram, and rows that were skipped.
+   Select a row to see the element on the canvas and **In RSDU (import)** in Properties. See
+   [Import bindings from RSDU](#bindings-import).
+3. **Apply (N)** takes RSDU's bindings, precision, features and component types into the diagram, and RSDU's object
+   as the diagram object. They are RSDU's own, so they get **no marks**: there is nothing to export afterwards.
+4. **Save.**
+
+If you skip **Apply**, nothing is lost in RSDU: an export writes only what you mark. But the diagram then doesn't show
+RSDU's bindings, so you can't see or change them in the editor.
+
+### b. Linking a diagram you already have to an existing RSDU scheme {#howto-link}
+
+Use this for a diagram made in the editor or imported (for example from the scheme's `.xsde`) that should take the
+place of a scheme RSDU already has.
+
+1. Open the diagram. With nothing selected, Properties → **Bindings** → **Link to RSDU scheme…** (after an `.xsde`
+   import a note at the bottom of the canvas may offer **Choose…** instead). Schemes whose file name matches the
+   diagram's path come first; a scheme already linked to another diagram can't be chosen. **Link**.
+   The export window offers the same: **Use an existing scheme** → **Link to an existing scheme…**.
+2. **Save.** The link takes effect with the save.
+3. Take the scheme's bindings: **Import bindings from RSDU…** → **Apply** → **Save**
+   ([a. Taking over](#howto-take-over)). They match the diagram's elements by id: a diagram imported from the scheme's
+   own `.xsde` or SVG has RSDU's ids. A diagram drawn anew has other ids; then RSDU's components show under the
+   summary link, with no element, and the elements have to be bound again (step 3 of [1](#howto-new-scheme)) and
+   exported.
+4. Deliver the picture: **Export to RSDU…** → **Export diagram only** ([2](#howto-picture), step 7), or **Export** if
+   you marked binding changes.
+
+### c. After someone changed the scheme in RSDU {#howto-compare}
+
+Use this when bindings were changed in RSDU's own scheme editor (or by hand) after the diagram got them.
+
+1. Save the diagram. **Export to RSDU…** → **Compare with RSDU** (or **Import bindings from RSDU…** in the diagram's
+   **Bindings** group). The **Bindings overview** lists only the elements whose bindings differ (see
+   [a](#howto-take-over), step 2 for what each status means). Nothing is written to RSDU.
+2. Choose:
+   - **Take RSDU's version**: **Apply (N)**. It applies every listed element. The diagram then matches RSDU, with no
+     marks.
+   - **Keep the diagram's version** for an element: after **Apply**, set that element's binding back in Properties;
+     it gets a mark, and the next export writes it to RSDU.
+   - **Change nothing**: **Cancel import**.
+3. **Save**, and export if you marked anything ([3](#howto-bindings)).
+
+An export never overwrites or deletes what you didn't mark, so RSDU's changes stay until you decide.
+A changed picture is a different matter: the next save delivers the diagram's picture over it (see the notes of
+[2](#howto-picture)).
+
+### d. Renaming or moving a diagram, or renaming its scheme {#howto-rename}
+
+**Moving or renaming the diagram** (drag it to another folder, or rename it in the **File** panel) keeps its link.
+
+- **A scheme registered by the editor** follows the diagram's path. Until you export, saves deliver the picture under
+  the old file name, which ctrlroom still reads. To move it: **Export to RSDU…** → **Show the export** (when nothing is
+  marked) → **File name** shows the new path → **Export** ("change 1 row") → **Confirm export**. The SVG is then
+  delivered under the new name; the one under the old name stays (delete it by hand), and ctrlroom needs a restart to
+  read the new file name.
+- **A scheme linked from RSDU** keeps its own file name: nothing to do.
+
+**Renaming the scheme in RSDU**, or moving it to another group: **Export to RSDU…** → **Show the export** → change
+**Scheme name**, **Alias** or **Group** → **Export** → **Confirm export**. Only the scheme row is changed.
+
+### e. Going back to RSDU's original picture {#howto-restore-picture}
+
+The first delivery to a scheme the editor didn't register keeps RSDU's picture as `<name>.orig.svg` beside the
+scheme's SVG, in the folder and in the Minio bucket alike (see [The SVG for ctrlroom](#rsdu-svg)). It is never
+overwritten. To go back to it:
+
+1. Stop the deliveries first: unlink the diagram (Properties → **Bindings** → **Change…** → **Unlink**, then **Save**)
+   or delete the diagram ([f](#howto-delete)). Otherwise the next save delivers the diagram's picture again.
+2. Copy `<name>.orig.svg` over `<name>.svg` by hand, in the folder and in the bucket.
+3. RSDU clients reopen the scheme.
+
+Bindings already exported stay in RSDU; an unlinked diagram no longer exports to the scheme.
+
+### f. Deleting a diagram {#howto-delete}
+
+Delete it in the **File** panel; the confirmation names the RSDU scheme it is linked to. The scheme, its components,
+its bindings and its SVG stay in RSDU, as does `<name>.orig.svg`. The scheme then shows **without a diagram** in the
+**RSDU schemes** tab, and **Edit from RSDU…** can take it into the editor again: it reads the picture delivered last.
 
 ## Moving around the canvas {#navigation}
 
@@ -569,6 +1038,7 @@ Some elements are drawn instead of clicked:
 - **Busbar**, **Arrow**, **Rectangle**, **Small window**, **Button**, **Window icon**, **Table**, **Arc**:
   press on the canvas and drag from one corner or end to the other. A rectangle starts with square corners; set
   **Corner radius** in Properties to round them (0 = square, at most half the shorter side).
+  Its border is solid by default; **Line style** in Properties makes it dotted or dashed, as a container's outline.
 - **Circle**: press where the center goes (on the grid when snapping) and drag outward to set the radius, in steps of
   0.5; a plain click places a circle of radius 20. Ctrl/Cmd-drag from anywhere inside it to move it (the center stays
   on the grid); drag the square handle on its rim to change the radius. Properties has its center X/Y and radius,
@@ -587,10 +1057,23 @@ Some elements are drawn instead of clicked:
   picks another file and **Fit to image proportions** sets the frame's height from its width and the image's own
   aspect ratio.
 - **Text** places a free text label; **Digital device** places a SCADA value readout.
+- **Table 2**: click to place a 2×2 grid. In Properties, **Rows**/**Columns** set its size, and the **Cells** map
+  shows the grid to scale. Click a cell there, or on the canvas while the table is selected; Shift-click another cell
+  to pick a range (a merged cell is always picked whole). For the picked cells you can set the row height and column
+  width, the text (several lines in one cell), **B**/**I**/**U**, the size in px (empty = 11), left/center/right and
+  top/middle/bottom alignment, text color and background (**Default** goes back to black / the table's fill).
+  **Merge** joins the picked cells into the top-left one, as Modus does: it keeps that cell's look and gets every
+  cell's text joined column by column. **Unmerge** splits a merged cell: the text stays in the top-left cell, the others
+  come back empty. Tables imported from `.xsde`/`.svg` keep all of this.
 
 Newly placed elements start at the default voltage (switching devices start closed). A device's fixed connection
 points (its **terminals**) are shown as small crosses while it is selected: green where something is connected (a wire,
 or another device's terminal on the same point), red where the terminal is still free.
+
+The palette has one button per drawing. Railway connection (71) and arc-extinguishing contact (320006) are placed as a
+**Disconnector**, an automation device (103) as a **Display panel**, an image file (12) as a **Backdrop/image file**.
+Lengthen a disconnector's leads with **Leads** in Properties. Older diagrams that still hold these types open and draw
+as before (see [Importing](#import)).
 
 ## Selecting {#selecting}
 
@@ -605,6 +1088,9 @@ or another device's terminal on the same point), red where the terminal is still
 While the frame is being dragged, the items it would pick are highlighted. The frame adds to the current
 selection (click empty canvas first to start over). When more than one item is selected, a
 dashed box is drawn around the whole group, and Properties shows how many items are selected.
+
+When a single text label linked to a device or a link to object (its **For** property) is selected, that item gets
+a thin dashed box too; when a single device or link to object is selected, every text label linked to it does.
 
 ### Grouping {#grouping}
 
@@ -666,7 +1152,48 @@ terminal), even if it was off the grid before, and the rest of a moved group kee
 labels and digital devices move in whole grid steps instead. Wires attached to a moved device follow it. A device
 whose terminal touches another device's terminal directly (a surge arrester standing on a ground, say) stays connected
 when only one of them moves: a short buswork wire joins the two terminals, and it disappears again once you move them
-back together.
+back together. Moving wires without the devices they end on (a buswork line over a row of disconnectors, say) moves the
+wires and leaves the devices in place: a buswork wire runs from each device's terminal to the moved wires.
+
+### Tracing image {#tracing-image}
+
+To draw a diagram from a picture of it (a scan, a photo, a screenshot), show the picture under the canvas and draw
+over it. With nothing selected, **Properties → Tracing image → Load image…** puts it under the diagram, fitted to the
+diagram's size. **Opacity** fades it, **Show** hides it for a moment, **X**, **Y** and **Width** place and size it
+(the height keeps its proportions), **Fit to diagram** fits it again, **Replace…** loads another picture, and
+**Remove** takes it away when the diagram is done.
+
+The tracing image is only a background: it never takes clicks and is never drawn into the `.svg` or exported. Its
+file is stored on the server next to the diagram (`<diagram>.tracing.png`, `.jpg`, `.svg`, …; PNG, JPEG, GIF, WebP, BMP or SVG)
+as soon as it is loaded, and the `.xsld` records its name, place, opacity and visibility, so it is there wherever
+the diagram is opened, for every user. Placing, fading, hiding and removing it are diagram edits: they can be undone
+and are kept when the diagram is saved. Undoing **Replace…** brings back the old place, not the old picture.
+**Remove** deletes the file on the next save. **Save As** copies it to the new diagram; renaming or moving the
+diagram moves it, deleting the diagram deletes it. A tracing image an earlier version of the editor kept in this
+browser moves to the server the first time its diagram is opened here; save the diagram to keep it.
+A diagram name can't end in `.tracing`: its `.svg` would take the place of another diagram's SVG tracing image.
+
+### Finding similar symbols {#symbol-search}
+
+On a tracing image, the editor can place the same device on every copy of a symbol for you:
+
+1. Place one device exactly over one symbol of the picture, with the right shape, **Size**, orientation and
+   **Mirror**.
+2. Right-click it → **Find similar on tracing image**. A dashed sample rectangle appears around it, taking in a bit
+   of the wire through the symbol; drag its corners to fit, then **Search**. Keep it tight, so that labels next to
+   the symbol stay out.
+3. The matches appear as green boxes, each with the device as it would be placed (turned and mirrored as the
+   symbol is drawn there). **Similarity** hides weaker matches; click a box to reject it (red, crossed out), click
+   again to take it back. Panning and zooming work meanwhile.
+4. **Place** adds them all as one edit (one **Undo**), on the grid when Snap is on, and selects them; their
+   terminals connect to wires already drawn under them. **Cancel** or **Esc** ends without placing.
+
+Each placed device copies the sample's shape, voltage class, layer and size and gets its own name. A match where
+a device already stands (of any type; busbars and drawn shapes don't count) is skipped, so searching again doesn't
+double devices and a device placed by hand is never covered. The picture is read as
+ink and paper, so it suits line drawings (an exported or rendered drawing; a high-resolution render of a PDF works
+best, a small screenshot less well). It finds symbols at the sample's size only, one device type per search; wires
+are drawn by hand.
 
 ### Snapping to the grid {#snap-to-grid}
 
@@ -760,6 +1287,9 @@ rotating or pasting devices onto something, drawing, moving or reshaping a busba
 dragging a wire end onto something.
 
 - **Connect** makes the edit with those connections.
+- **Connect and set class** makes the connections and gives the class chosen in **Voltage class** (one of those
+  named) to everything joined at those connection points, as [**Fix voltage class**](#trace) does: through every
+  switch, up to the transformers, whose winding facing them takes it too. One **Undo** reverts both.
 - **Don't connect** (also **Esc**) makes the same edit without them: those ends stay free and their crosses are red.
 
 A class counts per terminal (a power transformer's terminal has its winding's voltage), and something with no
@@ -776,6 +1306,7 @@ Select a wire to show its handles (a click within a few pixels of a wire counts 
 - Click a bend handle and press **Delete** to remove just that bend.
 - Right-click a wire → **Delete segment** removes only the segment under the cursor.
 - Right-click the node where exactly two buswork wires of the same voltage class meet, with no device or busbar on it → **Merge buswork** makes them one wire: the one with the lower id runs on through the other's points, and the node is removed. Undo reverses it.
+- To merge more wires at once, or to choose which ID the merged wire keeps: select the buswork wires (they must join end to end in one line, of one voltage class, with nothing else connected where they meet), right-click one of them → **Merge buswork…**, choose the ID and click **Merge**. The kept wire keeps its name, attributes and bindings and runs through the others' points; the other wires and their bindings are deleted. When the wires can't be merged, the menu item is disabled.
 
 A wire end that is not attached to anything is allowed; you can connect it later by dragging its hollow square end handle
 exactly onto a device terminal, another wire's end, a busbar or another wire's line (that wire is split there into a
@@ -807,6 +1338,10 @@ are; one step of Undo) or **Leave as is** (the amber handles stay for fixing the
 - Rotating, mirroring or moving a device in Properties takes its connections along.
 - Dropping a two-terminal device (a breaker, a wire jump…) onto a wire so that both its terminals lie on it puts it
   into the wire: the wire is cut out between the terminals and each piece ends on one of them.
+- The same holds the other way round: a wire you draw, or whose path you change (dragging an end or a bend, moving
+  it), over a device terminal is split there and connected to it, and drawn through a two-terminal device it is cut
+  out between its terminals. A wire is not connected to the device it starts or ends on this way, and a wire you
+  don't touch is never connected to terminals already lying on it.
 - Deleting a wire leaves the devices' terminals as they are. Deleting a device also deletes the wires attached to
   it, except a device sitting in a wire (one wire on each terminal, continuing each other through it): deleting it
   joins the two wires back into one.
@@ -888,14 +1423,15 @@ nothing else needs to be installed or started.
   hold tens of thousands of objects; it scrolls smoothly.
 - **Search**: select a section (or anything inside it), type at least 2 characters of a name and press Enter. The
   search covers the section's catalog and all its objects, ignoring case; it shows up to 100 matches, half from the
-  catalog and half from the objects when both have many, and says when there are more. Click a match to show it in
-  the tree and list; **×** goes back to the tree.
+  catalog and half from the objects when both have many, and says when there are more. Each match shows its type, as
+  the tree and the list do (*catalog* or *object* when it has none). Click a match to show it in the tree and list;
+  **×** goes back to the tree.
 - **Reload** (the circular arrow) reads everything again from the database, for example after objects were added
   in the SCADA system. Expanded sections stay expanded.
 - **Errors**: when the database can't be reached, the panel shows the message where the data should be, with a
   **Retry** button.
-- **Dragging**: sections, catalog nodes, objects and search matches can be dragged. Dropping them onto the diagram to
-  bind an item comes in a later version.
+- **Dragging**: sections, catalog nodes, objects and search matches can be dragged. Drop one on an element or digital device to
+  bind it (see [Binding an object](#binding-objects)).
 
 The panel keeps its tree, selection and search while you switch to another panel.
 
@@ -904,7 +1440,8 @@ The panel keeps its tree, selection and search while you switch to another panel
 Select a single item to edit it in the Properties panel:
 
 - **Devices**: name (the caption icon beside it adds a text label with the name, linked to the device and placed to
-  its right: size 10, left-aligned, bottom anchor, Arial, white; disabled once a label is linked to the device),
+  its right, or, when it would run past the diagram's right edge, to its left (right-aligned), or else above it: size
+  10, left-aligned, bottom anchor, Arial, white; disabled once a label is linked to the device),
   voltage class, state (for switching devices), orientation and mirror, **Size** (the xsde2svg size
   step: 0 is the library size, each step √2 larger; its terminals and wires move along), **Leads** for breakers,
   disconnectors and fuses (xsde2svg's lead distance 2, 3 or 4: the terminals end up that many grid steps apart when
@@ -913,9 +1450,11 @@ Select a single item to edit it in the Properties panel:
   on grid points without moving the device are offered, so with a grid of 10 there is no 3. The body keeps its size.
   The current spacing is always listed, as its own entry when it matches none of them), and shape-specific fields
   (for example a transformer's windings or a lamp's colours).
-- **Wires**: name and voltage class.
+- **Wires**: name and voltage class. A **link to object** has the same caption icon beside its name as a device: it
+  adds a text label with the name, linked to the link and placed to the right of its route (or left, or above, as for
+  a device); deleting the link deletes the label.
 - **Text labels**: text, size, anchors, **Font style** (bold, italic and underline buttons, lit when on), colour, font,
-  and the element it belongs to.
+  and the element or link to object it belongs to.
   An `.xsde`/`.svg` import keeps a caption's bold, italic and underline.
 - **Lines** (decorative line, type 1): colour, width, line style and Modus **Composite styles**. **Add style…** gives a
   line a style, **×** removes one. The styles listed in the configuration's [`line_halos`](#configuration-line-halos) are drawn as a coloured halo
@@ -954,11 +1493,12 @@ piece keeps the parameters and the new piece starts empty.
 
 ### Bindings {#properties-bindings}
 
-A device or digital device can be bound to objects of a SCADA system (for example RSDU). The collapsible **Bindings**
-group in Properties shows these bindings. It appears only when bindings are turned on in the configuration (see
-[Bindings](#configuration-bindings)) and the item has a binding, a precision or features. For now it is read-only:
-bindings come with the diagram file. With bindings off the group is hidden, but bindings stored in a diagram are kept
-when it is saved.
+A device, digital device, text label or wire can be bound to objects of a SCADA system (for example RSDU), as RSDU's
+own scheme editor binds them: a label usually opens a panel or scheme (**Jumps**), a wire stands for a line segment or
+bus section (**Equipment**). The collapsible **Bindings**
+group in Properties shows and edits these bindings. It appears only when bindings are turned on in the configuration
+(see [Bindings](#configuration-bindings)). With bindings off the group is hidden, but bindings stored in a diagram are
+kept when it is saved.
 
 | Row | What it binds |
 |---|---|
@@ -967,18 +1507,166 @@ when it is saved.
 | Additional parameters | a second value |
 | Jumps | a scheme, panel or report opened from the item |
 
-Each row shows the object's name (its key when the name is unknown; hover to see the key), its type, the **Option**
-(how the value is read) and the **Scale** (1 when unset; a negative scale inverts a discrete value), with the
-system's name as a tag. An empty row shows "—". A binding made with another system than the configured one shows a
-lock: it is kept, but can't be edited or exported. **Precision** is the number of decimal places of a shown value and
-**Features** are the system's display features.
+Each row shows the bound object's name (its key when the name is unknown; hover to see the key), its type and the
+system's name as a tag, and lets you change:
+
+- **Option**: how the value is read, from the system's list (grouped by kind of value).
+- **Scale**: a whole number other than 0; 1 when unset; a negative scale inverts a discrete value. A value that isn't
+  allowed is marked red and not kept. Press Enter or leave the field to apply it.
+- **×** removes that binding.
+- The tree icon shows the object's full path in the system's object tree, from the root down to the object (for
+  example *company / branch / substation / bay / switch*); click it again to hide it.
+
+An empty row reads "Drop an object here from the Objects panel". Dropping an object on a row binds it as that row's
+kind (see [Binding an object](#binding-objects)). A binding made with another system than the configured one shows a
+lock: it is kept, but can't be edited or exported.
+
+Below the rows:
+
+- **Precision**: the number of decimal places of a shown value, 0 to 10 (0 = unset).
+- **Features**: the system's display features; tick the ones the item uses.
+- **Component type**: the system's type the item is exported as (RSDU: `VS_TCOMP`). *By shape* (the default) takes the
+  type that stands for the item's shape, or `bindings.rsdu.component_types` / `wire_types` from the
+  [configuration](#configuration-bindings); RSDU has some types with no shape of their own (a kiosk substation, a
+  cable joint, a point), which an [import](#bindings-import) sets here.
+- **Remove all bindings** removes the item's bindings of the configured system, its precision and its features. It
+  asks once more before it acts. Bindings of another system stay.
+
+Every change is one step of [undo](#undo) and is saved with the diagram.
 
 With nothing selected, the **Bindings** group shows the diagram's own **Scheme** (the system's scheme it is exported
-to) and **Object** (the object the whole diagram is bound to), when it has them.
+to; link or change it there, see [RSDU schemes](#rsdu-schemes)) and **Object**: the object the whole diagram is bound to, for example its substation. Drop an object
+on the **Object** row to set it; **×** clears it. **Refresh bindings** is there too (see
+[Refreshing bindings](#bindings-refresh)).
+
+#### Binding an object {#binding-objects}
+
+Open the [Objects](#objects) panel and find the object in its tree, list or search.
+
+- **Drop it on an element, digital device, text label or wire on the canvas.** The editor selects the item, reads the object from the
+  database and opens **Bind object**. The window shows:
+  - the object's name and type;
+  - **Auto** (chosen when the system proposes anything): every binding the system proposes for the object, as RSDU's
+    scheme editor's automatic choice does, each with a checkbox; untick the ones you don't want. See
+    [Automatic binding](#binding-auto);
+  - or one binding kind, with the system's suggestion marked:
+    - equipment for an object of the equipment tree;
+    - **Jumps** for a scheme, frame, panel or report;
+    - **Parameters** for a measured value;
+  - the **Option**, preset as the system's own scheme editor does: a complex object for equipment and jumps;
+    instantaneous state for a state or enumeration value; instantaneous value otherwise. Choosing another kind resets
+    the option to that kind's default.
+
+  If the item already has a binding of a chosen kind, the window says which one **Bind** replaces. **Bind** writes
+  every chosen binding in one step (one undo reverts it). **Cancel**,
+  Escape or a click outside closes it without a change. Dropping anywhere else on the canvas does nothing.
+- **Drop it on a row of the Bindings group** in Properties to bind it as that row's kind directly, without the
+  window. The option is the suggested one when the kind matches, else the kind's default.
+
+An object that can't be bound (a section of the tree) or can't be read shows the error, and nothing changes.
+
+#### Automatic binding {#binding-auto}
+
+**Auto** proposes what RSDU's scheme editor proposes with its automatic choice ("Автовыбор") for the dropped object:
+
+| Dropped object | Proposed bindings |
+|---|---|
+| a scheme, frame, panel, report or journal (an information view or a device panel) | **Jumps**: the object |
+| a switching device (a breaker, disconnector, grounding switch, recloser… or any switch type) | **Equipment**: the device; **Parameters**: its position; **Additional parameters**: its withdrawable part's position, when it has one |
+| any other equipment | **Equipment**: the object |
+| a switch position measurement | **Parameters**: the measurement; **Equipment**: its device; for a withdrawable device also **Additional parameters**: the withdrawable part's position |
+| the position of a withdrawable part | **Additional parameters**: the measurement; **Equipment**: its device; **Parameters**: the device's position |
+| another measurement | **Parameters**: the measurement |
+
+Measurements get the option by their kind of value (state or enumeration: instantaneous state; otherwise
+instantaneous value), equipment and jumps a complex object. A measurement listed in several measurement lists (for
+example the switch positions and their archive) is taken from the first list, as RSDU's own schemes store it. For
+an object without a type the system knows (for example a data acquisition parameter) **Auto** proposes nothing and
+the window starts with a binding kind instead.
+
+#### Refreshing bindings {#bindings-refresh}
+
+A binding stores the object's name, type and identifier as they were when it was made. **Refresh bindings** (in the
+diagram's Bindings group) reads every object bound in the diagram from the database again and updates them in one
+step (one undo reverts it). It then reports how many objects it checked, how many bindings changed, and the bindings
+whose object no longer exists, with the item and kind. **Select** selects that item to rebind or remove it. Refresh
+never removes a binding. Objects are read table by table, so even a diagram with a thousand bindings takes seconds;
+if the database doesn't answer within two minutes, Refresh stops with an error and changes nothing.
 
 Copy, paste and Alt-drag keep bindings, precision and features: several pictures may show one object. A
 [custom element](#custom-elements) never has them: saving a selection as a custom element and placing one from the
 palette drop them.
+
+#### Bindings overview {#bindings-overview}
+
+The **Bindings overview** button on the left rail opens a table under the canvas. Drag its top edge to change its
+height. It lists every element that is expected to be bound and every digital device, with the id, the name, the type
+and, per binding kind, the name of the bound object (`—` when there is none). Drawing shapes and connection helpers
+(lines, rectangles, circles, arcs, polygons, arrows, containers, pictures, roads, junction and connection points,
+forks, wire jumps, cable connectors and joints, ground terminals, chassis) are not expected to be bound. They are
+listed only when they carry a binding anyway, and so are text labels and wires.
+
+The overview is there also when [bindings](#configuration-bindings) are off: it then lists the items with their id,
+name and type only, without the binding columns and without the controls about gaps and removing bindings.
+
+The two buttons beside the counts switch between two views:
+
+- **Table**: one row per item.
+- **Tree by designation hierarchy**: the items grouped by the hierarchy that
+  [Enumerate elements](#designations) works out from the connections (voltage level, then unit), whatever the
+  elements are named. Each group shows its own part of the designation (`=E1`, `=Q01`), its kind (a voltage level
+  also its voltage, e.g. *Voltage level, 110 kV*) and how many items it holds. Units already applied keep their
+  numbers; the ones not applied yet are shown in italics, marked *proposed*.
+  Items that belong to no unit, such as busbars without a letter code, sit directly under their voltage level; the
+  rest (digital devices, items connected to nothing) are in the last group, **Not designated**. The tree follows every
+  edit and changes nothing in the diagram. The arrow of a group expands or collapses it; the buttons beside the view switch expand or collapse
+  them all. Click a group to select every item in it, Ctrl-click (Cmd on macOS) to add them to the selection. Filter,
+  sorting and **Unbound only** work within each group; a group with nothing left is hidden. The editor remembers the
+  view.
+
+- **Unbound** chooses what counts as a gap: *no binding at all*, or no binding of one kind (for example no
+  **Parameters**). The header counts the listed items and the gaps.
+- **Unbound only** shows only the items with that gap; **Filter** keeps the rows whose id, name, type or a bound
+  object's name contains the text.
+- Click a column header to sort by it; click it again to reverse.
+- **Highlight unbound** marks every visible item with the gap on the canvas with a dashed amber frame. The frames
+  follow every edit and are never saved.
+- Click a row to select the item and centre the canvas on it; Properties shows it, ready to bind. Ctrl-click (Cmd on
+  macOS) adds a row to the selection or removes it. Rows of selected items are highlighted, also when you select on
+  the canvas.
+- **Remove** with the kinds ticked, then **from selected**, removes those kinds' bindings from every selected item in
+  one step (one undo reverts it). Precision and features stay.
+- **CSV** downloads the rows as shown (filtered and sorted) as a CSV file that spreadsheets open with Cyrillic intact.
+
+#### Import bindings from RSDU {#bindings-import}
+
+A diagram linked to an RSDU scheme (see [RSDU schemes](#rsdu-schemes)) can take the bindings that scheme holds, for
+example after its `.xsde` was imported. **Import bindings from RSDU…** in the diagram's Bindings section reads them;
+save the diagram first, since the link of the saved file is read. Nothing changes in RSDU.
+
+Each scheme component is matched to the element, digital device, text label or wire whose id is the component's name. The component's
+regime gives the kind (*Equipment*, *Parameters*, *Additional parameters*); a *Parameters* binding to a scheme, frame, panel or
+report with the complex option is a **jump**. Its option, scale, precision, features and component type come along, and the object
+names are read again. The scheme's own object becomes the diagram object.
+
+The [Bindings overview](#bindings-overview) then shows what will change: only the items whose bindings differ, each
+kind with RSDU's binding (with option and scale when it differs from the file's; amber when it differs), and
+precision · features. The file's own bindings show in Properties when you select the item:
+
+- **New**: the file has no RSDU binding for the item.
+- **Differs**: both have bindings and they differ.
+- **Not in RSDU**: the file binds an item the scheme has no component for; its RSDU bindings will be removed.
+- A warning under the type shows when RSDU's component type is of another shape.
+
+While the import is open, Properties of a selected element, digital device, text label or wire also shows **In RSDU
+(import)**: its status and what RSDU holds for it per kind (name, ref, option, scale) with precision · features, the
+values that differ from the file's in amber.
+
+**Apply** makes the diagram's RSDU bindings, precision, features and diagram object those of RSDU, in one step (one
+undo reverts it); other providers' bindings stay. **Cancel import** goes back to the overview and changes nothing. The summary link lists the components with no item of
+their id in the diagram (for example a symbol the `.xsde` import doesn't convert yet) and the rows that were
+skipped (a component name that is not an id, an unknown regime, a second binding of one kind, an object that no longer
+exists).
 
 ### Layers and voltage classes {#layers}
 
@@ -1043,7 +1731,7 @@ the "Also open by" message show real IP addresses instead of `127.0.0.1`. The ed
 
 ```nginx
 location / {
-    proxy_pass http://127.0.0.1:8090;
+    proxy_pass http://127.0.0.1:8099;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 }
@@ -1053,13 +1741,13 @@ location / {
 
 The editor's own settings, read once at startup: restart the editor, then reload the page, after changing them. The
 exceptions are `user_guide` and the two `xsde` files, which are read again on every use. A mistake in `palette`,
-`hot_keys`, `cim`, `line_halos` or `bindings` stops the editor at startup with a message naming it.
+`hot_keys`, `letter_codes`, `designations`, `cim`, `line_halos` or `bindings` stops the editor at startup with a message naming it.
 
 | Key | What it sets |
 |---|---|
-| `server.bind` | Address and port the editor listens on, e.g. `0.0.0.0:8090`. |
+| `server.bind` | Address and port the editor listens on, e.g. `0.0.0.0:8099`. |
 | `logging.level` | Server log detail: `trace`, `debug`, `info`, `warn` or `error`. |
-| `diagrams.dir` | Folder where diagrams are stored (the File panel's root). |
+| `diagrams.dir` | Folder where diagrams are stored (the File panel's root), with their rendered `.svg` and [tracing images](#tracing-image). |
 | `custom_elements.dir` | Folder whose `.xsld` files make the palette's **Custom elements** group. |
 | `user_guide` | This guide's Markdown file; the Russian build shows `USER_GUIDE.ru.md` next to it. Empty hides **Help**. Pictures live in the `images/` folder next to it and are written `![alt](images/x.png "Caption")` (png, jpg, gif, webp or svg); the caption is optional. A translated guide shows `x.ru.png` in place of `x.png` when it exists, otherwise the shared picture. |
 | `xsde.config` | `xsde2svg.yml` used by `.xsde` import (see below). Empty uses the converter's built-in copy. |
@@ -1077,6 +1765,8 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `indicators.default_fpi_text` | Text a fault passage indicator shows when it has none of its own. |
 | `palette` | The Elements panel: groups (`name`, in display order) and their `items`, each an xsde2svg object type code. |
 | `hot_keys` | Placement keys: a letter or digit → a palette item code (`r` and `m` are taken by rotate and mirror). |
+| `letter_codes` | IEC 81346-2 letter codes for reference designations: an element shape code → 1 to 3 capital letters, never I or O (e.g. `"41": QA` breaker, `"162": QB` disconnector, `"54": QC` ground switch, `"47": TA` power transformer). A shape left out has no letter code. |
+| `designations` | The letters of [reference designations](#designations): `voltage_levels`, a list of `{max_kv, code}` ascending by a positive `max_kv` (a voltage level up to `max_kv` gets `code`; the kV is read from the voltage class name); `fallback_voltage_code`, for a level no row matches; `units`, every unit kind (`incoming_feeder`, `outgoing_feeder`, `generator`, `transformer`, `bus_coupler`, `busbar`, `measuring`, `other`) → `{code, digits}`, `digits` 0 to 3 being the number's zero-padded width. Codes are 1 to 3 capital letters other than I and O. The shipped letters are this project's convention, not ISO/IEC 81346-10. |
 | `cim.classes` | Export: a symbol shape code, as in `palette` (`"28"` is a link to object) → the CIM classes an element of that shape can stand for, its default first ([CIM export](#cim-export)). A symbol left out is not exported (the startup log names it). Only CIM classes exported alike can be chosen: switches, machines, injections, shunts, auxiliary equipment, or the symbol's own class (the file's comment lists them). |
 | `cim.import` | Import: a CIM class → the symbol shape it is drawn with. `Class.variant` picks a symbol by the object's attributes: `SynchronousMachine.condenser`, `SynchronousMachine.motor`, `AsynchronousMachine.generator`, `LinearShuntCompensator.reactor`, `NonlinearShuntCompensator.reactor` (the file's comment says when each applies). A class left out is drawn as a red box with its name ([CIM import](#cim-import)). |
 
@@ -1149,15 +1839,22 @@ bindings:
 |---|---|---|
 | `provider` | no | `""` or absent: bindings are off and the editor shows no binding controls. `rsdu`: objects come from an RSDU database. |
 | `rsdu.driver` | with `rsdu` | The RSDU database: `oracle` or `postgres`. |
-| `rsdu.schema` | no | The schema (owner) of RSDU's tables; default `rsduadmin`. Letters, digits, `_` and `$` only. |
-| `rsdu.read` | with `rsdu` | The connection objects are read through (keys below). |
-| `rsdu.write` | no | The connection diagrams are exported to RSDU through, same keys. Without it export to RSDU is off. It may be the same account as `read`. |
-| `rsdu.scheme_type` | no | The RSDU scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`); 0 or more, default 0. Used by export. |
-| `rsdu.svg.dir` | no | The folder ctrlroom reads scheme pictures from (its `backend.path_to_sld`). Used by export. |
-| `rsdu.svg.full_path` | no | As ctrlroom's `backend.use_full_path_for_sld`: `true`: ctrlroom finds a picture by the scheme's file path stored in RSDU, under `dir`; `false`: by its file name only, directly in `dir`. Used by export. |
+| `rsdu.schema` | no | The schema (owner) of RSDU's tables, not the database; default `rsduadmin`. On PostgreSQL it is a schema inside the database named in `database`. Letters, digits, `_` and `$` only. |
+| `rsdu.dsn` | with `rsdu` | The connection to the RSDU database (keys below), for reading objects and for export. |
+| `rsdu.export` | no | `true` enables export to RSDU; the `dsn` account must then be allowed to write. Default `false`. |
+| `rsdu.component_types` | no | The RSDU component type (`VS_TCOMP.ID`) an item of a shape is exported as when the scheme type has no type with that `MODUS_TYPE` and the item has no component type of its own (see [Bindings](#properties-bindings)): a map of shape code to a positive id, e.g. `"385": 2000023`. Default: none. |
+| `rsdu.wire_types` | no | The RSDU component type (`VS_TCOMP.ID`) a bound wire of each kind is exported as, since wires have no Modus shape: a map of `BusWork`, `OverheadLine`, `CableLine`, `LinkToObject`, `BusbarWire` to a positive id. Absent: RSDU's standard types `BusWork: 1489`, `OverheadLine: 112`, `CableLine: 115`, `LinkToObject: 1014`, `BusbarWire: 113`; a configured map replaces them all, and a bound wire of a kind it lacks is skipped by the export. A text label is exported as the component type of shape 5. |
+| `rsdu.scheme_type` | no | The RSDU scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`), usually 518 (MODUS scheme): an element is exported only when `VS_TCOMP` has a row of this type for its shape. 0 or more, default 0 = not set; the [export check](#rsdu-export) then refuses the export. |
+| `rsdu.svg.dir` | no | The folder ctrlroom reads scheme pictures from (its `backend.path_to_sld`); the export and later saves [deliver the SVG](#rsdu-svg) there. The editor needs write access to it. |
+| `rsdu.svg.full_path` | no | As ctrlroom's `backend.use_full_path_for_sld`: `true`: ctrlroom finds a picture by the scheme's file path stored in RSDU, under `dir`; `false`: by its file name only, directly in `dir`. The same for the Minio object name. |
+| `rsdu.svg.use_object_storage` | no | As ctrlroom's `backend.use_object_storage`: `minio` delivers the SVG to the Minio bucket below as well as to `svg.dir`; empty, `n`, `local` or `file`: no object storage. The `object_storage` lines are ctrlroom's own and can be copied from its configuration. |
+| `rsdu.svg.object_storage.minio.endpoint` | with `minio` | The servers as a list of `host` and `port`; the first is used, as ctrlroom does. |
+| `rsdu.svg.object_storage.minio.bucket.sld` | with `minio` | The bucket of scheme pictures. Other buckets (`avatar`, `report`) are ignored. |
+| `rsdu.svg.object_storage.minio.user` (or ctrlroom's `username`), `…password` | `user` with `minio` | The access key and secret; better kept in `.env` (`BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_USER`, `BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_PASSWORD`). |
+| `rsdu.svg.object_storage.minio.secure` | no | HTTPS: `y`/`n`, `yes`/`no` or `true`/`false`. Default no. |
 
-A connection (`read`, `write`) has the same keys as an entry of ctrlroom's `database.dsn`, so the same lines can be
-copied between the two files:
+The connection (`dsn`) has the same keys as an entry of ctrlroom's `database.dsn`, so the same lines can be copied
+between the two files:
 
 | Key | Required | What it sets |
 |---|---|---|
@@ -1165,24 +1862,42 @@ copied between the two files:
 | `port` | yes | Port, e.g. `1521` (Oracle) or `5432` (PostgreSQL). |
 | `user` | yes | Account name. |
 | `password` | no | Password in plain text; better kept in `.env` (below). |
-| `sid` / `database` | one of them | Oracle: the SID, or the service name in `database`. PostgreSQL: the database in `database`. |
+| `sid` / `database` | one of them | Which database to connect to. Oracle: the SID in `sid`, or the service name in `database`. PostgreSQL: the database name in `database` (a `sid` is taken as the database name when `database` is empty). |
 | `engine` | no | If given, must equal `driver`. |
 | `trace` | no | Accepted for compatibility with ctrlroom. |
 | `password_encrypted` | no | Must be `false`: encrypted passwords are not supported. |
 
-Example:
+Examples, for each database:
 
 ```yaml
+# Oracle: tables of schema rsduadmin, instance SID RSDU
 bindings:
   provider: rsdu
   rsdu:
     driver: oracle
     schema: rsduadmin
-    read:
+    dsn:
       host: 10.0.0.5
       port: 1521
-      sid: RSDU
-    scheme_type: 0
+      sid: RSDU               # or, by service name: database: RSDU
+    scheme_type: 518
+    svg:
+      dir: /opt/ctrlroom/sld
+      full_path: true
+```
+
+```yaml
+# PostgreSQL: tables of schema rsduadmin inside database rsdu
+bindings:
+  provider: rsdu
+  rsdu:
+    driver: postgres
+    schema: rsduadmin
+    dsn:
+      host: 10.0.0.6
+      port: 5432
+      database: rsdu
+    scheme_type: 518
     svg:
       dir: /opt/ctrlroom/sld
       full_path: true
@@ -1191,18 +1906,17 @@ bindings:
 with the credentials in `.env` next to it (in the folder the editor is started in):
 
 ```sh
-BINDINGS_RSDU_READ_USER=rsduadmin
-BINDINGS_RSDU_READ_PASSWORD=secret
+BINDINGS_RSDU_DSN_USER=<user>
+BINDINGS_RSDU_DSN_PASSWORD=<password>
 ```
 
 - **`.env` and environment variables.** Every key can also be set as a variable named after its path in capitals,
   in `.env` or in the environment (which wins): `BINDINGS_PROVIDER`, `BINDINGS_RSDU_DRIVER`, `BINDINGS_RSDU_SCHEMA`,
-  `BINDINGS_RSDU_SCHEME_TYPE`, `BINDINGS_RSDU_SVG_DIR`, `BINDINGS_RSDU_SVG_FULL_PATH`, and per connection
-  `BINDINGS_RSDU_READ_HOST`, `_PORT`, `_USER`, `_PASSWORD`, `_SID`, `_DATABASE`, `_ENGINE` (likewise
-  `BINDINGS_RSDU_WRITE_…`). Keep the user and password there, not in `sld-editor.yaml`; protect `.env` from other
-  users of the machine.
+  `BINDINGS_RSDU_EXPORT`, `BINDINGS_RSDU_SCHEME_TYPE`, `BINDINGS_RSDU_SVG_DIR`, `BINDINGS_RSDU_SVG_FULL_PATH`, and for
+  the connection `BINDINGS_RSDU_DSN_HOST`, `_PORT`, `_USER`, `_PASSWORD`, `_SID`, `_DATABASE`, `_ENGINE`. Keep the user
+  and password there, not in `sld-editor.yaml`; protect `.env` from other users of the machine.
 - **Startup.** The settings are checked at startup; the database is not contacted then. An unknown `provider`, a
-  missing or wrong `driver`, a missing `read`, a connection without `host`, `port`, `user` or `sid`/`database`, an
+  missing or wrong `driver`, a missing `dsn`, the former `read`/`write` sections, a connection without `host`, `port`, `user` or `sid`/`database`, an
   `engine` other than `driver`, `password_encrypted: true`, a negative `scheme_type` or a `schema` that isn't a plain
   name stops the editor with a message naming the key. An unreachable database only makes the binding actions fail.
 - **Database use.** The editor connects on the first binding action and keeps at most 4 connections open; after a lost

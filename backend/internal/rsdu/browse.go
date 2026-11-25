@@ -392,7 +392,8 @@ func (p *Provider) Search(ctx context.Context, s, q string, limit int) (*binding
 	}
 	pattern := likePattern(q)
 
-	search := func(table, parentCol string, tableID int64, kind string) ([]binding.Hit, error) {
+	// types returns the types table joined on a.ID_TYPE when table has it ("" for none), typeCol its type name column.
+	search := func(table, parentCol string, tableID int64, kind string, types func() (string, error), typeCol string) ([]binding.Hit, error) {
 		qualified, err := p.tables.Table(ctx, table)
 		if err != nil {
 			return nil, err
@@ -400,31 +401,52 @@ func (p *Provider) Search(ctx context.Context, s, q string, limit int) (*binding
 		if ok, err := p.hasColumns(ctx, table, "ID", "NAME", parentCol); err != nil || !ok {
 			return nil, err
 		}
-		query := p.d.SQL(fmt.Sprintf(`SELECT a.ID, COALESCE(a.%s, 0), a.NAME FROM %s a WHERE LOWER(a.NAME) LIKE ? ESCAPE '\' ORDER BY a.NAME, a.ID FETCH FIRST %d ROWS ONLY`,
-			parentCol, qualified, limit+1))
+		typeSel, join := "NULL", ""
+		if ok, err := p.tables.HasColumn(ctx, table, "ID_TYPE"); err != nil {
+			return nil, err
+		} else if ok {
+			t, err := types()
+			if err != nil {
+				return nil, err
+			}
+			if t != "" {
+				typeSel, join = "b."+typeCol, " LEFT JOIN "+t+" b ON b.ID = a.ID_TYPE"
+			}
+		}
+		query := p.d.SQL(fmt.Sprintf(`SELECT a.ID, COALESCE(a.%s, 0), a.NAME, %s FROM %s a%s WHERE LOWER(a.NAME) LIKE ? ESCAPE '\' ORDER BY a.NAME, a.ID FETCH FIRST %d ROWS ONLY`,
+			parentCol, typeSel, qualified, join, limit+1))
 		var hits []binding.Hit
 		err = each(ctx, p.read, query, func(r Rows) error {
 			var id, parent int64
-			var name sql.NullString
-			if err := r.Scan(&id, &parent, &name); err != nil {
+			var name, typeName sql.NullString
+			if err := r.Scan(&id, &parent, &name, &typeName); err != nil {
 				return err
 			}
 			node := parent
 			if kind == binding.HitCatalog {
 				node = id
 			}
-			hits = append(hits, binding.Hit{Ref: ref(tableID, id), Name: name.String, Kind: kind, Node: strconv.FormatInt(node, 10)})
+			hits = append(hits, binding.Hit{
+				Ref: ref(tableID, id), Name: name.String, Kind: kind, Node: strconv.FormatInt(node, 10),
+				TypeName: strings.TrimSpace(typeName.String),
+			})
 			return nil
 		}, pattern)
 		return hits, err
 	}
 	var catalog []binding.Hit
 	if sec.dir != "" && sec.dirID != 0 {
-		if catalog, err = search(sec.dir, "ID_PARENT", sec.dirID, binding.HitCatalog); err != nil {
+		tdir := func() (string, error) {
+			if sec.tdir == "" {
+				return "", nil
+			}
+			return p.tables.Table(ctx, sec.tdir)
+		}
+		if catalog, err = search(sec.dir, "ID_PARENT", sec.dirID, binding.HitCatalog, tdir, "NAME"); err != nil {
 			return nil, err
 		}
 	}
-	list, err := search(sec.lst, "ID_NODE", sec.lstID, binding.HitList)
+	list, err := search(sec.lst, "ID_NODE", sec.lstID, binding.HitList, func() (string, error) { return p.typesTable(ctx, sec) }, "ALIAS")
 	if err != nil {
 		return nil, err
 	}

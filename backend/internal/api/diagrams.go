@@ -40,6 +40,8 @@ type createDiagramRequest struct {
 	Name   string  `json:"name" binding:"required"`
 	Width  float64 `json:"width"`
 	Height float64 `json:"height"`
+	// Scheme, when set, links the new diagram to that scheme (RSDU schemes view).
+	Scheme *slddoc.SchemeRef `json:"scheme"`
 }
 
 // createDiagram implements File > New: it seeds a blank diagram (this
@@ -71,18 +73,17 @@ func (s *Server) createDiagram(c *gin.Context) {
 		Layers:  []slddoc.Layer{{ID: slddoc.BaseLayer, Name: "Base"}},
 		History: []slddoc.Revision{newRevision(c)},
 	}
+	if req.Scheme != nil {
+		d.Scheme = &slddoc.SchemeRef{Source: req.Scheme.Source, Ref: req.Scheme.Ref}
+		if err := slddoc.ValidateBindings(d); err != nil {
+			errJSON(c, http.StatusBadRequest, err)
+			return
+		}
+	}
 
 	warn, err := s.store.Create(req.Name, d)
-	if errors.Is(err, storage.ErrExists) {
-		errJSON(c, http.StatusConflict, err)
-		return
-	}
-	if errors.Is(err, storage.ErrInvalidName) {
-		errJSON(c, http.StatusBadRequest, err)
-		return
-	}
 	if err != nil {
-		errJSON(c, http.StatusInternalServerError, err)
+		storageError(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, diagramResponse(d, warn))
@@ -125,7 +126,8 @@ func (s *Server) getDiagram(c *gin.Context) {
 }
 
 // saveDiagram implements both File > Save (name unchanged) and File > Save
-// As (client sends the new name): it always upserts, since a distinct
+// As (client sends the new name, and from, the diagram's old one, whose tracing image is copied along): it always
+// upserts, since a distinct
 // "don't clobber an existing name" check belongs to the Save As UI flow
 // (checking the diagram list before submitting), not this endpoint.
 func (s *Server) saveDiagram(c *gin.Context) {
@@ -142,17 +144,22 @@ func (s *Server) saveDiagram(c *gin.Context) {
 	// The history is kept server-side: SaveRevision replaces d's own with
 	// the one on disk, plus this save.
 	name := c.Query("name")
+	if from := c.Query("from"); from != "" && from != name && d.TracingImage != nil {
+		if err := s.store.CopyTracingImage(from, name); err != nil {
+			storageError(c, err)
+			return
+		}
+	}
 	rev := newRevision(c)
 	warn, err := s.store.SaveRevision(name, &d, rev)
-	if errors.Is(err, storage.ErrInvalidName) {
-		errJSON(c, http.StatusBadRequest, err)
-		return
-	}
 	if err != nil {
-		errJSON(c, http.StatusInternalServerError, err)
+		storageError(c, err)
 		return
 	}
 	s.presence.Saved(name, rev)
+	if _, err := s.deliverSVG(c.Request.Context(), name, d.Scheme); err != nil {
+		warn = errors.Join(warn, fmt.Errorf("the diagram is saved, but its SVG was not delivered to the viewer: %w", err))
+	}
 	c.JSON(http.StatusOK, diagramResponse(&d, warn))
 }
 
@@ -370,6 +377,7 @@ func (s *Server) importDiagramSVG(c *gin.Context) {
 		errJSON(c, http.StatusBadRequest, err)
 		return
 	}
+	rewriteImportedShapes(d)
 	s.prepareDiagram(d, true)
 	c.JSON(http.StatusOK, gin.H{
 		"diagram": d,
@@ -420,6 +428,7 @@ func (s *Server) importDiagramXSDE(c *gin.Context) {
 			messages = append(messages, xsde2svg.Message{Level: "ERROR", Page: i + 1, Text: err.Error()})
 			continue
 		}
+		rewriteImportedShapes(d)
 		s.prepareDiagram(d, true)
 		out = append(out, importedPage{Page: i + 1, Title: p.Title, Diagram: d, Report: newImportReport(report)})
 	}

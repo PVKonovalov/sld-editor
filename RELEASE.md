@@ -1,5 +1,387 @@
 # Release notes
 
+2026-11-25: Objects panel search: each match shows its real type, as the tree and list do (a catalog node's type name, a list object's type alias), instead of the hit kind "catalog"/"object", which remains only for untyped matches. The RSDU search joins the types tables (LEFT JOIN, only when the table has ID_TYPE); `binding.Hit` gains `typeName`. Dragging a list match carries its type. User guides updated.
+
+2026-11-25: Bindings overview tree: a voltage level's row also shows its voltage class name (e.g. "=E1 Voltage level, 110 kV"). User guides updated.
+
+2026-11-25: Bindings overview tree: the hierarchy is now worked out from the topology, as Enumerate elements does (POST /api/designations, only-missing mode), so diagrams named by hand get a tree too; units not applied yet are shown in italics as proposed. slddoc's designation plan gains `levels` (elements in no unit, such as busbars without a letter code, and their voltage level), so they sit under their voltage level. One request at a time, repeated once after an edit made meanwhile; table view sends none. User guides updated.
+
+2026-11-25: Bindings overview: always available on the left rail, also with bindings off (then only id, name and type, without the binding columns and the gap/remove controls). A Table / Tree switch: the tree groups the items by the reference-designation hierarchy (voltage level, then unit; items in no unit under "Not designated"), with expand/collapse per group and for all; clicking a group selects every item in it, Ctrl/Cmd-click adds them. Filter, sorting and "Unbound only" work within groups; the view is remembered per browser. User guides updated.
+
+2026-11-24: Link to object (28): an "Add name label" button beside its Name in Properties, as for devices: a label with its name, For the link, placed beside its route. A label's For may now name a link to object (the For dropdown lists them): deleting the link deletes its labels, copy/paste keeps the link, and selecting either one marks the other with a dashed box. User guides updated.
+
+2026-11-24: New symbol Two-terminal box (330004, Other equipment): a generic box between two terminals. Its Terminal position in Properties is Top and bottom (default) or Left and right (`terminal="left"`); the box never turns (no Orientation), and the wires on the terminals follow them. Its Label text is empty by default. slddoc gains a `{terminalAxis:vertical|horizontal}` symbol-template placeholder and `SideTerminals` (the library terminals taken with x and y swapped, in `repair.SymbolTerminals` and `diagramOps.symbolTerminals`). It stands for no CIM equipment (slddoc `ClassTwoTerminalBox`, a pass-through in the CIM export) and expects no binding. Reading a saved `.svg` takes it back with its terminal position and label. rdss-dms-nca gets the element type row (schema, migration and patch). User guides and `XSLD_FORMAT.md` updated.
+
+2026-11-23: Selecting a single text label marks the element named in its "For" property with a thin dashed box, and selecting a single element marks every text label linked to it the same way (hidden layers and drags excepted). User guides updated.
+
+2026-11-23: Enumerate elements: clicking a row selects its element and centres the canvas on it, Ctrl/Cmd-click adds it to the selection, and selected rows are highlighted, as in the bindings overview (the checkbox only checks the row). User guides updated.
+
+2026-11-23: Enumerate elements floats over the diagram instead of dimming it, and moves by dragging its title, so an element clicked in its table can be seen on the canvas. User guides updated.
+
+2026-11-23: Enumerate elements: with the short format the preview has a **Label** column (the old label's text → the short text it will show); the full name stays beside it. Elements whose unit reaches no busbar, in a diagram that has busbars, are warned of as "not connected to a busbar" (slddoc `DesignationRow.Isolated`): usually a wire end not joined to a terminal, which also makes the piece a voltage level of its own. User guides updated.
+
+2026-11-23: Designation labels in the short format show the product part without its dash (`QA1`, was `-QA1`), and the short format numbers each letter code across the whole diagram instead of per unit (`=E1=H01-QB1`, `=E1=H02-QB2`), so a short label names one element: slddoc `DesignateOptions.UniqueNumbers`, set by `POST /api/designations`'s new `format`. Switching the format in the dialog re-runs the preview; an element whose kept number would repeat its letter code is renumbered, and the table warns of short labels that still repeat. User guides updated.
+
+2026-11-23: Automatic enumeration with IEC 81346 reference designations (`=E1=T1-QA1`). **Enumerate elements…** (the diagram's Properties, and the canvas context menu) asks the server (`POST /api/designations`, slddoc `Designate`) for designations built from the topology: voltage levels from the switchgear joined without transformers or lines, units traced from each busbar connection (transformer, generator, bus section/coupler, measuring bay, incoming/outgoing feeder, other; a line feeder is a *guessed* incoming one on its network's highest voltage level, outgoing below), busbar systems of collinear sections, a transformer in its higher-voltage side's unit with a same-numbered, paired unit on the lower side; elements numbered per letter code within their unit along the energy flow, then in reading order. The dialog sets scope (diagram / selection), mode (only missing / renumber all) and label format (full / short, stored as the diagram's `designationFormat`), and previews old → new names with warnings: elements with SCADA bindings, a CIM mRID or exported bindings start unchecked; duplicates, labels that overlap and elements without a unit are listed; guessed feeders can be confirmed or flipped. Applying is one undo step: names, `functions`, element `function`, and labels on a new "Designations" layer above the others (`lib/designationLabels.ts` `designationLabelPlacement`: right of the element, else above, else sliding up to 5 steps, inside the diagram and clear of elements, wires, labels and digital devices; an existing label For the element is updated instead). Numbers are stable: existing units and numbers are kept, new ones take the next free number. Properties → Functional unit moves an element to another unit, edits a unit's kind, code and number (renaming its elements), confirms a guessed feeder and makes a new unit from the selection. New `designations` configuration section (voltage level letters by `max_kv`, `fallback_voltage_code`, every unit kind's `code` and `digits`; validated at startup, returned by `GET /api/config`); the shipped letters are a project convention (incoming `N`, outgoing `H`, generator `G`, transformer `T`, coupler `Z`, busbar `W`, measuring `Y`, other `X`). Copies, pastes and custom elements drop `function`. User guides (`#designations`, configuration) and README updated.
+
+2026-11-23: New `letter_codes` configuration section: an equipment shape code → its IEC 81346-2 letter code for reference designations (breakers `QA`, disconnectors and load-break switches `QB`, ground switches and short-circuiters `QC`, transformers `TA`, CTs `BC`, VTs `BA`, surge arresters `FA`, fuses `FC`, reactors `RA`, capacitors `CA`, generators `GA`, motors `MA`, busbars `WC`). Checked at startup (`elements.Library.ValidateLetterCodes`: a shape in the loaded libraries, 1 to 3 capital letters other than I and O) and returned by `GET /api/config` as `letterCodes`; nothing uses it yet. User guides updated.
+
+2026-11-21: The canvas takes its zoom/pan controls from `TransformWrapper`'s `onInit` instead of a `ref`, so React 18 no longer warns in development that "`ref` is not a prop" (react-zoom-pan-pinch 4.2 reads `props.ref`, React 19 style). No change in behavior.
+
+2026-11-21: README's "Behind nginx": redirecting `http://` to `https://` — a redirect `server` block for separate ports, `error_page 497 =301 https://$host:$server_port$request_uri;` for HTTP and HTTPS on one port, testing with 302 first, and HSTS.
+
+2026-11-21: README's "Behind nginx": serve the editor over HTTPS — Safari runs Web Workers about ten times slower on a plain-HTTP page from any address other than localhost (not a secure context), so Find similar on tracing image took minutes instead of seconds; an nginx TLS example, a self-signed certificate recipe and how Macs trust it, `client_max_body_size 64m` for tracing image uploads, and the forwarded headers (`X-Forwarded-For` trusted only from loopback).
+
+2026-11-21: Tracing images may be SVG again (`<diagram>.tracing.svg`, recognized by its `<svg` root, served with a sandboxing Content-Security-Policy and `nosniff`). To keep that name free, a diagram name ending in `.tracing` (any case) is refused on create, save, Save As and rename (`ErrInvalidName`, 400); the files of such a diagram saved earlier are never taken for a tracing image. User guides updated.
+
+2026-11-21: The tracing image is stored on the server, so a diagram can be traced from any place: loading one uploads it next to the diagram as `<diagram>.tracing.<ext>` (`PUT/GET /api/diagrams/tracing-image?name=`, PNG/JPEG/GIF/WebP/BMP, up to 64 MB), and the `.xsld` records it in a new `<tracingImage file x y width height opacity hidden>` (slddoc `Diagram.TracingImage`; never rendered or exported). Placing, opacity, show/hide and Remove are now undoable diagram edits saved with the diagram. The store keeps the file in step: a save names the stored file or drops a reference to a missing one, and deletes the file when the diagram has none; Save As (`from=` on `/diagrams/save`) copies it, rename/move moves it (rewriting the `.xsld` with its modification time kept), delete deletes it. Refetching a linked scheme keeps it. A tracing image the browser kept (IndexedDB) is uploaded when its diagram opens and forgotten once the diagram is opened with it saved. User guides and `XSLD_FORMAT.md` updated.
+
+2026-11-21: Static var compensator (330003): **Terminal orientation** in Properties, Top (default) or Bottom (`terminal` on the element). Bottom draws the box above the terminal with its text upright; the terminal (the anchor) stays put, so its wire stays connected. slddoc gains a `{terminal:top|bottom}` symbol-template placeholder, and reading a saved `.svg` takes the side back from where the box is drawn. User guides and `XSLD_FORMAT.md` updated.
+
+2026-11-21: Rectangle (3): its border takes a **Line style** in Properties (`lineStyle`), as a Container's outline: Solid (default), Dotted (`3,2`) or Dashed (`6,5`) (slddoc `writeRect`). Reading an `.svg` takes the border dash back, xsde2svg's own Rectangle dashes included (`6,8` as Dotted, `9 2 2 2` as Dashed). User guides and `XSLD_FORMAT.md` updated.
+
+2026-11-21: Static var compensator (330003): the text inside its box is editable as **Label text** in Properties (`propertyText`), `SVC` when empty. slddoc gains a general `{text:default}` symbol-template placeholder (the element's `propertyText`, escaped, else `default`), and reading a saved `.svg` takes a custom SVC label back into `propertyText`. Properties shows the field for any symbol whose template has the placeholder; the palette icon shows the default. User guides and `XSLD_FORMAT.md` updated.
+
+2026-11-20: Ground switch (54): the blade is centered between the two bars in every state, with equal gaps to both (closed -2..-12, open at -7, intermediate centered on -7); before, it sat 1 higher and, closed, reached 2 closer to the top bar. Its ground mark is drawn as the Surge arrester's (168): three lines 16, 10 and 4 wide, 3 apart (was 16, 12 and 8). xsde2svg 1.4.30 draws both the same way, so imported and saved SVGs match.
+
+2026-11-20: A wire drawn, or whose path changes (end or bend dragged, wire moved, merged), over a device terminal is split there and connected to it, and one drawn through a two-terminal device is cut out between its terminals, the same as a device dropped onto a wire (`diagramOps` `joinTerminalsOnChangedWires`, run on every edit in `updateDiagram`; `joinPortNodes` takes the wires it may join). Before, a buswork drawn from a disconnector to a breaker past a ground switch's terminal left that switch unconnected. Wires not touched by an edit are never connected to terminals already on them; busbars are left as before. User guides updated.
+
+2026-11-20: Palette icons fill in every placeholder of the symbol library: the Junction point (7) icon, empty before (its `{junctionRadius}`/`{junctionFill}` were left raw), is a solid dot; the Fault passage indicator shows "FPI" in its color instead of the raw `{fpiText}`; withdrawable devices' `{positionOffset}` and the attribute placeholders no longer stay in the icon markup.
+
+2026-11-20: **Find similar on tracing image** (element context menu): with one device placed over a symbol of the tracing image, the editor finds the other copies of that symbol in the picture and, after a review (green boxes with the device as it would be placed, **Similarity** slider, click to reject), places the same device on each in one undoable edit, turned and mirrored as drawn there, skipping every match where a device of any type already stands (its box overlaps the would-be device's by more than a quarter; busbars and drawn shapes don't count). The picture is read as ink and paper and matched by chamfer distance in all rotation/mirror variants, in a Web Worker (`lib/symbolSearch.ts`, `symbolSearch.worker.ts`, `symbolSearchClient.ts`, `SymbolSearchBar`, `diagramOps.placeFoundElements`). Same scale as the sample only, one device type per search, wires by hand. User guides updated.
+
+2026-11-20: Frontend build: the app's pure logic (`src/lib`) goes to its own `lib-[hash].js` chunk beside `vendor`, so no chunk is over Vite's 500 kB warning any more (the app chunk had grown to 503 kB).
+
+2026-11-20: **Add name label** places the label where it stays inside the diagram: to the element's right as before, else to its left (right-aligned), else above its left edge (`diagramOps` `nameLabelPlacement`). Before, an element near the right edge got its label outside the diagram, where it couldn't be seen. User guides updated.
+
+2026-11-20: **Tracing image** (diagram Properties): a picture shown under the diagram on the canvas to draw it over, with **Opacity**, **Show**, **X**/**Y**/**Width** (proportions kept), **Fit to diagram**, **Replace…** and **Remove**. It never takes clicks and is not part of the diagram (not saved, rendered, exported or undone); this browser keeps it per diagram in IndexedDB (`lib/tracingImage.ts`), following the diagram's rename, move and delete. User guides updated.
+
+2026-11-20: **Connect different voltage classes?** has **Connect and set class**: it makes the connections and gives the class chosen in the dialog (one of those in conflict) to everything joined at those connection points, as **Fix voltage class** does (through every switch, up to the transformers' facing windings), in one undoable edit (`diagramOps` `setMismatchVoltageClass`). **Connect** is no longer the highlighted button. User guides updated.
+
+2026-11-20: **Merge buswork…** in the context menu of a selection of buswork wires merges them into one wire with the ID chosen in a dialog (`MergeBusworkDialog`, `diagramOps` `busworkChain`/`mergeBusworkChain`). The wires must join end to end in one line, of one voltage class, with nothing else on the joints; otherwise the item is disabled. The kept wire keeps its attributes and bindings, connects the chain's two outer ends and runs in its own direction; the others and the joint nodes are removed. The two-wire **Merge buswork** on a joint now uses the same merge. User guides updated.
+
+2026-11-20: Moving selected wires whose ends sit on terminals of devices that stay put now moves them: each such end is detached from the terminal and a buswork wire joins the terminal to the moved wires (`diagramOps` `detachWireEnds`). Before, those ends stayed on the terminals, so a buswork line running through a row of devices could not be moved. User guides updated. A moved wire end that lands exactly on another node joins it, and a wire left as an exact copy of another is removed, so wires moved off the same terminal in several drags no longer overlap unconnected (`joinMovedWireEnds`).
+
+2026-11-19: A Button (113) has its own text size (**Text size** in Properties; unset = 23px, as before), kept on import from the drawn `font-size`; its text sits 2px below the box's center, as xsde2svg draws it. xsde2svg 1.4.29 draws a button's own font size (before, only with one set on its type too), so buttons of different text sizes import as drawn.
+
+2026-11-19: Import: a Chassis (51) keeps its racking position (Service/Normal) and, racked out, the side it moves to (mirrored): before, every one came in at Normal and unmirrored. Read from `data-trolley` and xsde2svg 1.4.28's `data-mirror`, or, in an older xsde2svg's SVG, from the side its body is shifted to. `position_states` docs (README, example config) list shape 51.
+
+2026-11-19: Import reads a device's size step and mirroring from xsde2svg 1.4.28's `data-scale` and `data-mirror`: every scaled device keeps its size, also one with a single connection point (a Capacitor bank, 172, came in at size 0 before). Mirroring is taken for the shapes whose **Mirror** matches xsde2svg's (checked against its drawing), now also 32, 34, 43, 168 and 398. Sizes go up to 5 (the **Size** list too). The Capacitor bank symbol (172) is xsde2svg's: stem 11, bars at 27 and 31 (was 8, 23, 27). An `.svg` of an older xsde2svg is read as before. User guides updated.
+
+2026-11-19: Import: a Power transformer (47) keeps its size step, its mirroring (`xMirror`), the side each winding is led from (**Terminal orientation**, e.g. down with `chassis`) and its regulated winding (the regulation arrow); before, every one came in at size 0, unmirrored, with default lead sides and without the arrow, its leads short of the wires. A transformer now has a **Size** in Properties; its terminals follow the size step (`diagramOps` `transformerLocalTerminals`). Read from xsde2svg 1.4.27's `data-tap-changer`, or from an older xsde2svg's arrow drawn after the group. User guides updated.
+
+2026-11-19: Import: a Sectionalizer (164) keeps its mirroring (xsde2svg's `xMirror`, also when set on the whole type) and its leads (`distance` over 2): before, every one came in unmirrored, with the arrow pointing the other way, and without leads, its terminals short of the wires.
+
+2026-11-19: Import: a Fuse (withdrawable) (154) keeps its trolley position (Service/Normal/Test) and its size step; before, every one came in as Normal at size 0, drawn away from its connection points when scaled. Read from xsde2svg 1.4.26's `data-trolley` (which now draws 154 like the breaker 43), or from the drawing in SVGs of an older xsde2svg. `position_states` docs (README, example config) list shape 154.
+
+2026-11-19: Table (312) and Table 2 (313) no longer write `data-voltage` on their `<g>` in the canvas or the saved `.svg`: a table has no voltage. Their cells had none already.
+
+2026-11-19: Table 2 (313): cells keep bold/italic/underline, font size, horizontal and vertical alignment, several text lines and merged cells (rowSpan/colSpan), on the canvas, in the saved `.svg` (as xsde2svg draws them) and on `.xsde`/`.svg` import; before, all text was a centered 11px single line and a merged cell was drawn as one grid cell with holes beside it. The table's Properties are rebuilt (`Table2Editor`): a to-scale map of the cells; a cell is picked there or by clicking it on the canvas (Shift-click picks a range, outlined on the canvas); the picked cells get row height, column width, text, B/I/U, size, alignment, text color, background, and Merge/Unmerge, which follow Modus (merge: the top-left cell keeps its look and gets all the text joined column by column; unmerge: the text stays in the top-left cell, the rest are empty). Resizing the grid keeps merged cells, cutting them back at the new edge. User guide (en, ru) updated.
+
+2026-11-19: Import: an Arrow (2) drawn double-headed (`.xsde` `fDouble="1"`, or an editor-saved `.svg`) now imports as Double-headed instead of single-headed (slddoc `parseArrow`).
+
+2026-11-18: User guide (en, ru): a new section, "How to: work with RSDU" (`#rsdu-howto`), with step-by-step examples:
+- `#howto-new-scheme`: a new diagram registered in RSDU with its bindings;
+- `#howto-picture`: changing only the picture of a scheme already in RSDU;
+- `#howto-bindings`: changing the bindings of a registered scheme;
+- `#howto-take-over`: taking over an RSDU scheme with its bindings;
+- `#howto-link`: linking a diagram you already have to an existing scheme;
+- `#howto-compare`: after the scheme was changed in RSDU;
+- `#howto-rename`: renaming or moving a diagram, or renaming its scheme;
+- `#howto-restore-picture`: going back to RSDU's original picture;
+- `#howto-delete`: deleting a diagram.
+
+It opens with a table of what Save, Export, Export diagram only and Compare write. Linked from the guide's
+introduction and from "RSDU schemes".
+
+2026-11-18: Short-circuiter (398) is drawn exactly as xsde2svg writes it, on the canvas and in the saved `.svg`: both
+states, each in its own `<g data-state>`, with only the current one visible. The editor's own look (a rod and arrow
+like the Sectionalizer's) is gone. The editor's earlier drawing wasn't xsde2svg's, so its saved SVGs failed to import
+("Missing: Short-circuiter"). A saved `.svg` gets the new markup on its next save. The lead starts 11 below the
+anchor as in xsde2svg; the terminal stays on the grid at 10. A new test renders 398 in both states, rotated and
+not, compares it with xsde2svg's markup and imports it back.
+
+2026-11-18: Export to RSDU: **Export diagram only** delivers just the diagram's picture (SVG) to its linked scheme.
+It is in the "Nothing to export" window and next to **Export**, and is served by the new `POST
+/api/bindings/export/svg`. Nothing is written to the RSDU database and the binding marks stay. The diagram is saved
+with that time as its export time, so every later save delivers the picture too. "Nothing to export" no longer
+claims the picture is delivered on every save when the diagram has never been exported (for example, linked through
+**Edit from RSDU…**). In the export window the spinner shows on the button of the action that is running; all
+buttons stay off meanwhile.
+
+2026-11-18: Export to RSDU acts only on flags. The export writes just the bindings the editor marked, one row each:
+`new` is inserted (or updated when RSDU has the row), `edited` is updated, a deleted binding (`deletedBindings`, which
+now stores its `ref`) is deleted by component, regime and table, and `componentEdited` updates `VS_COMP`. A component
+is deleted only when its deleted bindings leave it with nothing. Unflagged rows are never read, compared or deleted,
+and nothing is done when nothing is flagged, even on the first export. The automatic first-export comparison, the
+`synced` scheme attribute and the export's compare mode are removed. A binding removed and added again is `deleted` +
+`new`, never `edited`, and a ref change is `deleted` + `new`. Tracking is always on. Bindings applied from the bindings
+overview are an untracked edit and clear the applied items' marks. **Compare with RSDU** in the export window now
+opens the bindings overview, which shows the differences and writes nothing.
+
+2026-11-18: Export to RSDU asks before writing: **Export** first runs a preview (`preview` in the export request;
+the provider reads and rolls back, counting the rows without using sequence values) and shows how many rows the export
+will add, change and delete, in red when it deletes any; **Confirm export** writes. Prompted by an export that deleted
+a scheme's 799 rows because the diagram's bindings had not been added from the bindings overview.
+
+2026-11-18: Export to RSDU: another scheme whose SVG is the same file (`svgClash`) is now a warning instead of an error;
+the export runs and the SVG is delivered to that file, so the other scheme shows this picture too.
+
+2026-11-18: Export to RSDU writes only what changed. The editor marks, while a diagram's scheme is `synced`, every
+binding an edit adds or changes (`status` new/edited, shown in Properties), every item whose precision, features or
+component type changes (`componentEdited`) and every removed binding or bound item (`deletedBindings`); undo takes the
+marks back. Export then reads only the marked items' `VS_COMP`/`VS_REGIM_TUNE` rows and deletes, updates in place or
+inserts just the differences (row ids kept, `VS_FORM` written only when something changed); with nothing marked it
+reads and writes nothing ("nothing to export"). The first export of a diagram to a scheme and the new "Compare with
+RSDU" check box compare the whole scheme the same way (extra components and duplicates removed) instead of the former
+delete-all-and-insert. Inserts go in batches of 100 rows (PostgreSQL multi-row `VALUES`, Oracle `INSERT ALL`), so a
+first export takes a few round trips instead of one per row: the former export made one statement per row (~0.3 s
+each to a remote database) and could pass its 2-minute limit and roll back. The result shows rows added, changed and
+deleted; the export nudge appears only when something is marked (a save already delivers the picture).
+
+2026-11-18: Import (slddoc): a Sectionalizer (164) in an SVG from an older xsde2svg, drawn as flat paths of only its
+current state, now imports with its state and position instead of failing. Such SVGs' wires still have no type and are
+not imported.
+
+2026-11-18: Edit from RSDU (SCADA bindings step 15). A scheme without a diagram in the RSDU schemes view gets **Edit
+from RSDU…**: the scheme's SVG is read where ctrlroom reads it (Minio bucket first, then `svg.dir`; new
+`POST /api/bindings/schemes/fetch`, optional provider capability `SVGFetcher`, `/api/config` `bindings.fetch`) and
+imported as an `.svg` import; a form shows what was recognised and lost and proposes the folder (`FILE_NAME`'s with
+`full_path: true`) and name; the diagram is saved linked from RSDU (not registered), opened with its import log, and
+the scheme's bindings are read into the bindings overview. **Re-fetch from RSDU** in the scheme link replaces a linked
+diagram after a confirmation. Before the first delivery to a scheme the editor did not register, the SVG there is
+copied once to `<name>.orig.svg` (folder and Minio). After a save of an exported diagram a non-modal note offers
+**Export to RSDU…**. Guides (new section "Editing a scheme from RSDU") and README updated. Pictures made by an older
+xsde2svg (untyped wire polylines) import without wires; the guide says so.
+
+2026-11-18: User guide, Placing elements: a note on which palette button replaces the look-alike types the import
+rewrites (71, 320006, 103, 12), with a link to Importing.
+
+2026-11-18: `.svg`/`.xsde` import turns shapes drawn like another into that one: 71 (Railway connection) and 320006
+(arc-extinguishing contact) into Disconnector 162, the latter with its terminals kept through Leads (span), and 103
+(Automation device) into Display panel 102; 12 was already read as 11. 71, 320006 and 103 left the palette; their
+symbols stay so diagrams saved with them still open, and saved diagrams aren't rewritten.
+
+2026-11-18: Arc-extinguishing contact (xsde2svg 3206, written as `data-type="320006"`) is ported as a Disconnector:
+the disconnector's body and blade with fixed legs (terminals at ±21), closed or open by its state (Modus's two names
+"Контакт размык./замык. дугогасит."), in the Switching devices palette after 71, exported to CIM as `Disconnector`.
+No real export has one yet; the import was checked on the source's output format.
+
+2026-11-18: Shape 60 (Zone division, "Деление зон" in xsde2svg) is ported: the boundary of two zones on a wire, a
+10-long stroke in the voltage color under a magenta "Z", with terminals at both ends, in the Wiring palette. Real
+exports place it inline on a buswork wire; the import connects the wires on both ends. The CIM export passes through
+it (one node, no equipment), like a cable joint.
+
+2026-11-18: Shape 130 (Device, "Устройство" in xsde2svg) is ported: an energy meter, a 30x30 square with a line
+and an upright "Wh" in its voltage color, no terminals, in the Measurement palette. Real exports write it as a bare
+`<path>` followed by an untyped `<text>Wh</text>`; the import reads that text as part of the meter instead of a free
+label. The saved SVG wraps path and text in one `<g>` like every symbol.
+
+2026-11-18: Shape 102 (Display panel, "Табло" in xsde2svg) is ported: Automation device's two-state tile (two corners,
+On/Off fill, text and text color) with xsde2svg's gray fill and border by default, in the Indicators palette after
+103. Real exports import with their fill, text and colors as the Off look; the label is written in Arial like 103's.
+Placement, resizing and Properties are shared with the Automation device.
+
+2026-11-18: Shape 71 (Railway connection, disconnector) is its own element type: a Disconnector drawn exactly as 162 (as
+xsde2svg draws both), in the Switching devices palette after 162, exported to CIM as `Disconnector`. Imported 71s stay
+71 on save and reopen (slddoc's `Load` no longer rewrites them to 162); elements already saved as 162 by that rewrite
+stay 162.
+
+2026-11-18: Planned "Edit from RSDU" (fetch a scheme's SVG from ctrlroom's storage, import, link, import its
+bindings, keep the original SVG); its undecided points (concurrent edits, SVGs not made by xsde2svg, folder of the
+fetched diagram) added to `docs/OPEN_QUESTIONS.md`.
+
+2026-11-18: README: new "RSDU clients after export" section. Export to RSDU publishes no `SchemeEvent(SAVE)` (no MQ
+connection): RSDU clients reopen the scheme, ctrlroom needs a restart after a registered scheme's file name changes,
+new schemes need `US_MENU` entries. New `docs/OPEN_QUESTIONS.md` lists undecided questions: SCADA bindings' jumps to
+other editor diagrams, registering a scheme without export, and the default RSDU group per folder.
+
+2026-11-18: README: new Configuration section, a full reference of `sld-editor.yaml` — how it is read (YAML, then
+`.env`, then the environment; variable naming, list appending, path resolution, reload, startup validation) and every
+key with its type, environment override, default and meaning, including `bindings.rsdu` with its `dsn` and MinIO
+fields. Port references in README, both user guides and the `server.bind` doc comment now follow the shipped config
+(`:8099`); CLAUDE.md keeps README in step with the guides' configuration section.
+
+2026-11-17: Component types: every bindable item can carry the provider's component type (`componentType`, RSDU
+`VS_TCOMP.ID`). The RSDU import reads each component's type and Apply stores it, Properties lists the scheme type's
+types to choose from (default: by shape), and export uses the item's own type when the scheme type has it (else
+`badComponentType` and the shape decides), then the shape's `MODUS_TYPE`, then the new
+`bindings.rsdu.component_types` (shape → `VS_TCOMP.ID`), then `wire_types`. Elements RSDU types without a Modus shape
+(kiosk substations, cable joints, points, …) now export with RSDU's own type.
+
+2026-11-17: Text labels and wires can be bound like elements and digital devices: Properties shows their Bindings
+group, Objects can be dropped on them on the canvas, the Bindings overview lists them once bound, Refresh and the RSDU
+import cover them, and export to RSDU writes their components (a label as shape 5's component type, a wire as its
+kind's `bindings.rsdu.wire_types` entry, defaults BusWork 1489, OverheadLine 112, CableLine 115, LinkToObject 1014,
+BusbarWire 113). A split wire keeps its bindings on both pieces; custom elements drop them.
+
+2026-11-17: Refresh bindings no longer hangs on large diagrams: RSDU objects are resolved table by table in chunked
+`IN` queries with each measurement type's option read once (891 refs: from 8.5 minutes to about 20 seconds), for every
+caller of `ResolveAll` (refresh, export check). `POST /api/bindings/objects` has a two-minute watchdog that answers
+504. New `GET /api/bindings/path?ref=` returns an object's path from its tree's root; a tree icon on every binding in
+Properties shows it.
+
+2026-11-17: SCADA bindings, step 14: import of bindings from RSDU. `POST /api/bindings/import?name=` reads the
+bindings of the scheme the saved diagram is linked to (VS_COMP name → item id, VS_TCOMP.MODUS_TYPE → shape,
+VS_REGIM.DEFINE_ALIAS → kind, a complex parameter binding to a scheme/frame/panel/report → jump, option, scale,
+precision, FEATURE bits → feature aliases, VS_OBJ_TUNE → diagram object, object names/types/GUIDs re-read per table);
+rows that can't be read are skipped and listed. "Import bindings from RSDU…" opens the result in the Bindings overview,
+which previews RSDU's bindings for every differing item (differences highlighted); Apply makes the diagram's
+provider bindings (with precision, features and the diagram object) those of RSDU as one undoable edit, removing those
+of items RSDU has no component for. While an import is open, Properties of the selected item shows what RSDU holds
+for it ("In RSDU (import)"), differing values highlighted; for text labels and wires RSDU binds, read-only. Guide section
+"Import bindings from RSDU".
+
+2026-11-17: SCADA bindings, step 13: SVG delivery to ctrlroom. The export, and every later save of a diagram exported
+to the provider (with `bindings.rsdu.export: true`), delivers the saved Static SVG where ctrlroom's `PathToSld` looks
+for the scheme's `VS_FORM.FILE_NAME` (`\` as `/`, extension `.svg`, the whole path or the base name by
+`svg.full_path`): into `bindings.rsdu.svg.dir` (subfolders created, temp file + rename) and into the Minio bucket of
+`bindings.rsdu.svg.object_storage` when `bindings.rsdu.svg.use_object_storage: minio` (ctrlroom's own
+`use_object_storage` / `object_storage.minio` lines, copied as they are: `secure` as y/n, `bucket.sld`, the first
+`endpoint`, `user` or `username`; the keys from `.env`, `BINDINGS_RSDU_SVG_OBJECT_STORAGE_MINIO_*`), whichever are set
+(`binding.SVGDeliverer`, `rsdu.DeliverSVG`, minio-go v7; one PUT with an unsigned payload, since the S3-like store
+ctrlroom reads from refuses aws-chunked uploads). Delivery refuses a file another scheme resolves to as well (letter case ignored), so a save never replaces another scheme's picture. A save whose delivery fails is kept and says why; the
+export result and window list where the SVG went. Bindings in RSDU still change only on Export. Tests: delivery in
+both `full_path` modes (including two schemes with one file name in different folders) and to a fake S3 server, the
+save and export hooks, and an SVG contract test (numeric `id`, `data-type`, `data-name` for every shape RSDU has a
+component type for). Guide `#rsdu-svg` and the `svg.use_object_storage` / `svg.object_storage` keys in `#configuration-bindings` (en, ru).
+
+2026-11-17: SCADA bindings, step 12: export to RSDU. `POST /api/bindings/export?name=` (only with
+`bindings.rsdu.export: true`, one export at a time) exports the saved diagram as `binding.ExportRequest` asks: to the
+linked scheme, or registering a new one (name, alias, group). `rsdu.Export` writes in one transaction, as RSDU's scheme
+editor saves: `VS_FORM` inserted or updated, the scheme's `VS_OBJ_TUNE`, `VS_REGIM_TUNE` and `VS_COMP` deleted and
+inserted again (a component per bound item with a component type, `FEATURE` from the item's features, a jump as
+`ADJUST_REGIM` with `GLT_OBJECT_OPT_COMPLEX`); bindings it can't write are skipped and listed. The diagram is then
+saved with its scheme link (`registered` for a scheme the editor registered, whose file name follows the diagram's
+path) and export time, and the `.xsld`'s mtime set to it (`Store.SaveExported`). The export check gained
+`?register=true`, the errors `fileOfDiagram` and `schemeExists`, and the scheme's alias. The export window offers
+"Register a new scheme" / "Use an existing scheme", edits a linked scheme's name, alias and group, exports and shows
+what was written and skipped. No MQ notification: RSDU clients must reopen the scheme. Tests: the SQL sequence per
+dialect with a fake transaction (including rollback), the API route, and an integration test on Oracle and PostgreSQL
+inside a transaction that is always rolled back, read back with the scheme editor's and ctrlroom's queries. Guide
+`#rsdu-export` updated (en, ru).
+
+2026-11-17: One RSDU connection. `bindings.rsdu.read` and `bindings.rsdu.write` are replaced by `bindings.rsdu.dsn` (the
+same keys as an entry of ctrlroom's `database.dsn`; environment `BINDINGS_RSDU_DSN_*`), used for reading and for
+export, and export is enabled by `bindings.rsdu.export: true` (default false; `binding.CanExport`). A config still
+holding `read:` or `write:` stops the editor at startup with a message naming the new keys. Updated the example
+config, both guides' `#configuration-bindings` section, the export window's message and tests.
+
+2026-11-17: SCADA bindings, step 11: pre-export check and export dialog (nothing is written to RSDU). New optional
+provider interface `binding.ExportChecker` (`internal/binding/export.go`), implemented by RSDU
+(`internal/rsdu/export_check.go`), and routes `GET /api/bindings/export/check?name=`, `/scheme-groups` and
+`/scheme-types` (`SYS_OTYP` joined with `VS_TYPE_V`); `/api/config` `bindings.exportCheck`. The check of the saved diagram
+reports: the scheme type `bindings.rsdu.scheme_type` not set or not a scheme type; the linked scheme missing, held by
+another diagram, of another provider or of another type; per item bound to RSDU, a shape without a `VS_TCOMP` row of the
+scheme type (`MODUS_TYPE`, a digital device as 134; skipped) and an id that is not a positive integer; bindings of other
+sources (skipped); the SVG target from `FILE_NAME` (new scheme: the diagram path with `.svg`), `svg.dir` and
+`svg.full_path` as ctrlroom's `PathToSld` resolves it, refusing another extension than .svg/.xsde, a path leaving the
+folder, and another scheme resolving to the same file (base name or full path, letter case ignored). A new scheme is
+proposed the group of the scheme exported last (from the link index, `Store.LastExported`). `binding.Scheme` gets
+`typeId`. Frontend: "Export to RSDU..." in the diagram's Bindings group opens `ExportDialog.tsx` (scheme or new scheme
+name and group, type, file, SVG target, errors and warnings with a click selecting the item, save-and-check for
+unsaved changes, the `US_MENU` note, Export disabled with the reason). New `useEscapeKey` hook (also used by the scheme
+picker): a dialog re-adding its Escape listener on every render missed an Escape that the canvas's listener had
+re-rendered it with. The example config sets `scheme_type: 518`. Guide section `#rsdu-export`.
+
+2026-11-17: SCADA bindings, step 10: diagram <-> RSDU scheme link. The store keeps an in-memory index scheme -> diagram
+(`internal/storage/index.go`), built at startup from the `<scheme>` header of every `.xsld` (`slddoc.ReadScheme`) and
+kept current by save, rename, folder rename/move and delete; a save that would link a scheme another diagram holds is
+refused with 409 `{error, linkedTo}`. The diagram list carries each diagram's scheme and status (`linked`, `exported`,
+`changed`); the File panel adds `missing`/`unknown` with a lazy `POST /api/bindings/schemes/exist` and shows a status
+icon per diagram. New read-only routes (`internal/api/schemes.go`, only for a provider implementing
+`binding.Linker`; RSDU reads `VS_GROUP`/`VS_FORM`): scheme tree with linked diagrams, one scheme, candidates ranked by
+`FILE_NAME` (path match first, backslash read as `/`, then same-name matches) and existence. Frontend: Link/Change/
+Unlink in the diagram's Bindings group via a scheme picker (`SchemePicker.tsx`, undoable `setDiagramScheme`), an
+"RSDU schemes" tab in the File panel (filter, open the linked diagram, create a new diagram linked to a scheme), an
+offer to link after an `.xsde` import, and a delete warning for linked diagrams. Registering a new scheme comes with
+export (step 12). Guide section `#rsdu-schemes`.
+
+2026-11-17: SCADA bindings, step 9: bindings overview. A new left-rail button (only when bindings are on) opens a
+resizable table docked under the canvas (`components/BindingsOverview.tsx`), which stays open together with Objects
+and Properties. It lists every element expected to be bound and every digital device: id, name, type and the bound
+object's name per binding kind.
+- Drawing shapes and connection helpers are not expected to be bound (`lib/bindingOverview.ts`), and are listed only
+  when they carry a binding.
+- Sortable columns, a text filter, and "Unbound only" by gap: no binding at all, or none of one kind.
+- A click selects the item and centres the canvas on it; Ctrl/Cmd-click toggles it in the selection.
+- "Highlight unbound" draws dashed amber frames around the visible items with the gap in the canvas overlay (not in
+  the server markup).
+- "Remove … from selected" drops the ticked kinds from all selected items in one undo step
+  (`diagramOps.removeBindingKinds`).
+- CSV export of the rows as shown (UTF-8 with a byte-order mark).
+
+Frontend only, no API change. User guides: new **Bindings overview** (`#bindings-overview`); **The window** mentions
+the dock.
+
+2026-11-17: SCADA bindings, step 8: automatic binding. The **Bind object** window opened by dropping an object on an
+element or digital device has a new **Auto** choice, chosen when the system proposes anything. It lists every binding
+proposed for the object, each with a checkbox, and **Bind** writes the ticked ones in one undo step, each replacing
+the item's binding of its kind (`diagramOps.setItemBindings`). When nothing is proposed (for example for a data
+acquisition parameter), Auto is disabled with a note and the window starts with the suggested kind. New
+`POST /api/bindings/suggest` (`{ref, element: {shape, class}}` → `{bindings}`); the provider's `Suggest` takes a
+`binding.Element`. RSDU (`internal/rsdu/suggest.go`) ports `SchemeTuneService.GetTunesAsync`:
+- a device panel, or a descendant of `OTYP_INFORMATION_VIEW`, → jump;
+- other equipment → equipment; for a switch (`OTYP_SWITCH` or a descendant) also its position → Parameters and its
+  withdrawable part's position → Additional parameters;
+- a measurement → Parameters (option by its global type); for a switch position also its device → equipment and,
+  for a `*_WITHDRAWABLE` device, the other position (a dropped drawer position becomes Additional parameters).
+
+What RSDU takes from its model cache is read from the database once and kept until Refresh:
+- type ancestors (`SYS_OTYP.ID_PARENT`);
+- measurement global types (`SYS_MEAS_TYPES` → `SYS_PTYP` → `SYS_GTYP`);
+- the measurement list tables (`SYS_TBLREF` `ID_LINK = 5` to `MEAS_LIST_GEN`), queried in one `UNION ALL`;
+- the equipment table: alias `OBJ_TREE_GEN`, else the table named `OBJ_TREE` (PostgreSQL has only `OBJ_TREE_DIR`).
+
+Two deliberate differences from RSDU's code. A measurement in several lists takes the first by table id, where
+RSDU's unordered query keeps the last; real schemes store switch positions only with `PSWT_LIST_V`, never its
+archive. And a dropped drawer position is paired with the `MEAS_SWITCH_STATE` measurement, where RSDU's prefix
+search can find the drawer itself or nothing. Checked on the PostgreSQL and the Oracle RSDU with real objects: power
+switch, withdrawable switch, its position, its drawer position, device panel, scheme, transformer, voltage,
+data acquisition parameter. On both databases, 150 components of real schemes bound to a switch were compared:
+none stores a binding other than the proposed one; 133 store exactly the proposal; 17 store only the equipment
+(bound by hand). RSDU's own scheme editor was not run. In the browser: Auto on a withdrawable switch with one binding
+unticked, Auto disabled for a parameter, a drawer position on a digital device, save, undo. User guides: **Binding an
+object** (`#binding-objects`) gains Auto; new **Automatic binding** (`#binding-auto`) with the rules. - **Tests:**
+`TestSuggest`, `TestSuggestErrors`, `TestBindingSuggest`, `TestIntegrationSuggest` (both databases).
+
+2026-11-17: SCADA bindings, step 7: binding objects by hand. Dropping an object from the **Objects** panel on an
+element or digital device opens **Bind object** (`BindChooser.tsx`): the object's name and type, the binding kind and
+the option, preset as RSDU's scheme editor does. **Bind** writes the binding, replacing one of the same kind, and says
+so first. Properties → **Bindings** is now editable for bindings of the active provider: the option (combo grouped by
+global type), the scale (a non-zero whole number), remove one, **Remove all** (asks once more), the precision (0–10)
+and the features (checkboxes). Dropping an object on a kind's row binds it directly. With nothing selected, an object
+dropped on the diagram's **Object** row binds the whole diagram. **Refresh bindings** re-reads every bound object in
+one request, updates the cached name, type and identifier in one undo step, and lists the bindings whose object is
+gone, each with **Select**. Every edit is a pure `diagramOps` function (`setItemBinding`, `updateItemBinding`,
+`removeItemBinding`, `removeAllItemBindings`, `setItemBindingExtras`, `setDiagramObject`, `refreshBindings`) run
+through `updateDiagram`; untouched items keep their objects. Backend: `GET /api/bindings/object?ref=` resolves a ref
+into `{ref, name, type, typeName, uid, parentRef, kind, option}`, and `POST /api/bindings/objects` (`{refs}`) answers
+`{objects, missing}`. The provider's `Resolve` returns the new `binding.Resolved`; `binding.ResolveAll` serves the
+batch. RSDU (`internal/rsdu/resolve.go`) reads the object as RSDU's object information service does: the table's kind
+(LST or DIR, `SYS_OTYP`) and types table, then the name, type, GUID (only when the column exists) and the parent
+(`ID_NODE` or `ID_PARENT`). Table information is cached until Refresh. The suggestion:
+- jump for `VS_FORM_LST`, `R_KADR_LST`, `VP_PANEL_LST` and `RPT_LST_LST`;
+- equipment for objects typed by `SYS_OTYP`;
+- else Parameters, with `GLT_BOOL_OPT_INSTANT` when the measurement's global type is bool or enumeration (through
+  `SYS_DTYP.ID_GTYPE` for data acquisition types, else `SYS_MEAS_TYPES` → `SYS_PTYP.ID_GTYP`) and
+  `GLT_ANALOG_OPT_INSTANT` otherwise.
+
+A section of the object tree answers 400 (can't be bound), a missing object 404. The dictionaries' kinds now carry
+`defaultOption`. Checked in a browser on the PostgreSQL and the Oracle RSDU: all four kinds on an element, a digital
+device bound by dropping on its row, option, scale, precision and features edits, removing one binding, the diagram
+object, a section refused, refresh with an outdated name and a missing object, save, reopen, and undo/redo. User
+guides: **Bindings** (`#properties-bindings`) rewritten, new **Binding an object** (`#binding-objects`) and
+**Refreshing bindings** (`#bindings-refresh`). - **Tests:** `TestResolve`, `TestResolveErrors`, `TestResolveAll`,
+`TestIntegrationResolve` (both databases), `TestBindingObject`, `TestBindingObjects`.
+
+2026-11-17: RSDU bindings on PostgreSQL connect to the database named in `sid` when `database` is empty. Before, such
+a connection had no database name, so PostgreSQL used the user name instead (for example "database rsduadmin does
+not exist"), while the error message showed the `sid`. `database` still wins when both are set. The example config and
+the user guides now say what each key means: `schema` is the schema (owner) of the RSDU tables, `sid`/`database`
+name the database to connect to (Oracle SID or service name; PostgreSQL database). Both have an Oracle and a
+PostgreSQL example. - **Test:** `TestPostgresURLDatabase`.
+
 2026-11-17: SCADA bindings, step 6: **Objects** panel, the editor's own object browser (RSDU's Adjust inside the
 editor). With bindings on, the left rail has an **Objects** button (`ObjectsPanel.tsx`): the provider's sections as a
 tree, each section's catalog loaded when first expanded, and the objects of the selected catalog node below, sortable

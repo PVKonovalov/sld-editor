@@ -16,6 +16,12 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+LOCALE="${1:-${LOCALE:-ru}}"
+
+case "$LOCALE" in
+  en|ru) ;;
+  *) echo "Unsupported locale: ${LOCALE} (expected en or ru)" >&2; exit 1 ;;
+esac
 
 # HOST/SSH_KEY name this specific deployment target, so they live in
 # scripts/.env (gitignored, not this script) rather than being hardcoded
@@ -33,13 +39,13 @@ HOST="${DEPLOY_HOST:?set DEPLOY_HOST in scripts/.env (see scripts/.env.example) 
 SSH_KEY="${DEPLOY_SSH_KEY:?set DEPLOY_SSH_KEY in scripts/.env (see scripts/.env.example) or the environment}"
 REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/usr/lib/sld-editor}"
 SERVICE="sld-editor"
-BINARY="sld-editor-linux-ru"
+BINARY="sld-editor-linux-${LOCALE}"
 
 ASSETS="$REPO_ROOT/backend/assets"
 BINARY_PATH="$REPO_ROOT/build/$BINARY"
 
-echo "==> make linux-ru"
-(cd "$REPO_ROOT" && make linux-ru)
+echo "==> make linux-${LOCALE}"
+(cd "$REPO_ROOT" && make linux-${LOCALE})
 
 # Local file -> path under REMOTE_DIR, replaced on every deploy.
 REPLACE=(

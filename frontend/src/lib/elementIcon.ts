@@ -13,6 +13,27 @@ const STATE_RE = /\{state:([^|}]*)\|([^|}]*)\|([^}]*)\}/g
 // icon; the fragment may itself contain other placeholders.
 const TAP_CHANGER_RE = /\{tapChanger:([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}/g
 
+// {text:default} is a placed element's own propertyText, default when unset; the icon shows default.
+const TEXT_RE = /\{text:([^}]*)\}/g
+
+// {terminal:top|bottom} picks a placed element's terminal side; the icon shows top.
+const TERMINAL_RE = /\{terminal:([^|}]*)\|([^}]*)\}/g
+
+// {terminalAxis:vertical|horizontal} draws a Two-terminal box's leads above and below it or left and right; the icon
+// shows vertical.
+const TERMINAL_AXIS_RE = /\{terminalAxis:([^|}]*)\|([^}]*)\}/g
+
+/** Whether a symbol's template offers a terminal side (Element.terminal). */
+export function templateHasTerminalSide(symbol: ElementSymbol | undefined): boolean {
+  return !!symbol?.template && /\{terminal:[^|}]*\|[^}]*\}/.test(symbol.template)
+}
+
+/** The default label of a symbol whose template has an editable {text:default}, undefined for one without. */
+export function templateTextDefault(symbol: ElementSymbol | undefined): string | undefined {
+  const m = symbol?.template && /\{text:([^}]*)\}/.exec(symbol.template)
+  return m ? m[1] : undefined
+}
+
 // BusBarSection (shape 24) has no template — slddoc.Render draws
 // its own Points as a polyline instead — so the palette shows a plain
 // line as a stand-in for "you drag this one instead of clicking it".
@@ -184,6 +205,7 @@ const EMPTY_TEMPLATE_ICONS: Record<string, string> = {
   '113': BUTTON_ICON,
   '302': WINDOW_ICON_ICON,
   '103': AUTOMATION_DEVICE_ICON,
+  '102': AUTOMATION_DEVICE_ICON,
   '310': CONTAINER_ICON,
   '83': CONNECTOR_ARROW_ICON,
   '335': ROAD_ICON,
@@ -224,6 +246,15 @@ export function elementIconMarkup(symbol: ElementSymbol): string {
     .replace(/\{fill\}/g, 'none')
     .replace(/\{background\}/g, 'none')
     .replace(/\{radius\}/g, '8')
+    .replace(/\{junctionRadius\}/g, '4')
+    .replace(/\{junctionFill\}/g, 'currentColor')
+    .replace(/\{fpiText\}/g, 'FPI')
+    .replace(TEXT_RE, (_match, text: string) => text)
+    .replace(TERMINAL_RE, (_match, top: string) => top)
+    .replace(TERMINAL_AXIS_RE, (_match, vertical: string) => vertical)
+    .replace(/\{fpiColor\}/g, 'currentColor')
+    .replace(/\{positionOffset\}/g, '0')
+    .replace(/\{(fillAttr|stateAttr|positionAttr|fpiFillAttr|fpiStrokeAttr)\}/g, '')
   const rotation = ICON_ROTATION[symbol.shape]
   return rotation ? `<g transform="rotate(${rotation})">${body}</g>` : body
 }

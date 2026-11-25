@@ -68,6 +68,36 @@ export interface EditorSettings {
   // Also a wire jump where two buswork wires of the same voltage class cross
   // (absent = EditorDefaults.jumpSameVoltage).
   jumpSameVoltage?: boolean
+  // What designation labels show (absent = 'full'), and the layer they go on (absent/0 = not created yet).
+  designationFormat?: DesignationFormat
+  designationLayer?: number
+}
+
+export type DesignationFormat = 'full' | 'short'
+
+// Matches slddoc.FunctionKind.
+export type FunctionKind =
+  | 'voltageLevel'
+  | 'incomingFeeder'
+  | 'outgoingFeeder'
+  | 'generator'
+  | 'transformer'
+  | 'busCoupler'
+  | 'busbar'
+  | 'measuring'
+  | 'other'
+
+// Matches slddoc.Function: one voltage level or unit of the IEC 81346 functional hierarchy (XSLD_FORMAT §4.11).
+export interface DiagramFunction {
+  id: number
+  parent?: number
+  kind: FunctionKind
+  code: string
+  number: number
+  digits?: number
+  voltage?: number
+  pair?: number
+  guessed?: boolean
 }
 
 // Matches the shared slddoc module's Class (github.com/PVKonovalov/slddoc).
@@ -110,6 +140,8 @@ export type ElementClass =
   | 'Lamp'
   | 'LampOnPole'
   | 'LED'
+  | 'Device'
+  | 'ZoneDivision'
   | 'ConnectorPoint'
   | 'ConnectorArrow'
   | 'FaultPassageIndicator'
@@ -120,6 +152,7 @@ export type ElementClass =
   | 'PowerPlant'
   | 'AnchorPole'
   | 'AutomationDevice'
+  | 'DisplayPanel'
   | 'Picture'
   | 'Arrow'
   | 'Circle'
@@ -139,6 +172,7 @@ export type ElementClass =
   | 'Load'
   | 'NetworkInfeed'
   | 'StaticVarCompensator'
+  | 'TwoTerminalBox'
 
 // Matches slddoc.WindingScheme — a PowerTransformer winding's own
 // connection scheme. Only the three values with a real connection glyph in
@@ -239,13 +273,64 @@ export interface Binding {
   name?: string
   type?: string
   uid?: string
+  // What the next export writes: added (or its ref changed), or its option/scale changed; absent: the provider has it.
+  status?: BindingStatus
 }
 
-// Matches slddoc.SchemeRef: the provider's scheme a diagram is exported to.
+export type BindingStatus = 'new' | 'edited'
+
+// Matches slddoc.DeletedBinding: the provider's kind binding with ref of item (0: the diagram's object), removed or
+// replaced by one with another ref; the next export deletes it.
+export interface DeletedBinding {
+  item: number
+  source: string
+  kind: BindingKind
+  ref: string
+}
+
+// Matches slddoc.SchemeRef: the provider's scheme a diagram is linked and exported to; exported (RFC 3339) is when
+// it was last exported, absent = never.
 export interface SchemeRef {
   source: string
   ref: string
+  exported?: string
+  registered?: boolean
 }
+
+// Matches binding.SchemeGroup: a folder of the provider's schemes; parent absent for a root group.
+export interface SchemeGroup {
+  id: string
+  parent?: string
+  name: string
+}
+
+// Matches binding.Scheme: a provider's scheme; diagram is the editor diagram linked to it.
+export interface ProviderScheme {
+  ref: string
+  group: string
+  name: string
+  alias?: string
+  type?: string
+  typeId?: string
+  fileName?: string
+  updated?: string
+  diagram?: string
+}
+
+export interface SchemeTree {
+  groups: SchemeGroup[]
+  schemes: ProviderScheme[]
+}
+
+// Matches binding.Candidate: a scheme proposed for a diagram; 'path' when its file name matches the diagram's path,
+// 'name' when only the base name matches (ambiguous).
+export interface SchemeCandidate extends ProviderScheme {
+  match: 'path' | 'name'
+}
+
+// A diagram's link to a scheme as the file list shows it: the first three from the server (storage.Scheme*), the
+// last two after asking the provider whether the scheme exists.
+export type SchemeStatus = 'linked' | 'exported' | 'changed' | 'missing' | 'unknown'
 
 export interface DiagramElement {
   id: number
@@ -326,6 +411,9 @@ export interface DiagramElement {
   // its default round one, matching slddoc's own
   // Element.Square.
   square?: boolean
+  // The side a symbol with a {terminal:top|bottom} template (Static var compensator) has its terminal on; unset =
+  // top (slddoc's Element.Terminal).
+  terminal?: TerminalDirection
   // Line (shape 1) only — its own dash pattern, matching backend/
   // slddoc's own Element.LineStyle. Reuses ConnectorLineStyle
   // (the same solid/dashed/dashDot choice a CableLine connector's own
@@ -405,14 +493,11 @@ export interface DiagramElement {
   // the grid's own top-left anchor (unlike every Points-based decorative
   // shape); rowHeights[i]/columnWidths[j] is row i's/column j's own real
   // size, cumulative-summed from that anchor to place each cell. A (row,
-  // col) with no matching TableCell entry at all is simply not drawn —
-  // see slddoc's own ClassTable2/TableCell doc comments
-  // for the full model (deliberately no cell-merging, no multi-paragraph
-  // cell text).
+  // col) with no matching TableCell entry, and not covered by a merged one, is not drawn.
   rowHeights?: number[]
   columnWidths?: number[]
   cells?: TableCell[]
-  // An AutomationDevice's (shape 103) On text and text color; propertyText/
+  // An AutomationDevice's (shape 103) or DisplayPanel's (102) On text and text color; propertyText/
   // textColor are its Off ones.
   propertyTextOn?: string
   textColorOn?: string
@@ -427,27 +512,36 @@ export interface DiagramElement {
   // The mRID of the CIM equipment it was imported from, which a CIM export keeps; unset for items drawn here or
   // copied (lib/diagramOps' placeCustomElement and extractSelection drop it).
   mrid?: string
+  // The functional unit (DiagramFunction.id) it belongs to; absent = none.
+  function?: number
   // Decimal places of a shown value, the provider's display features (comma-separated), and the SCADA bindings
   // (at most one per kind) — slddoc's Element.Precision/Features/Bindings.
   precision?: number
   features?: string
+  // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
+  componentType?: string
+  // precision, features or componentType changed since the last export.
+  componentEdited?: boolean
   bindings?: Binding[]
 }
 
-// Matches slddoc.TableCell — one real cell of a Table2
-// (shape 313) grid. Row/Col are 0-based positions into the owning
-// DiagramElement's own rowHeights/columnWidths. fill/textColor are
-// optional per-cell overrides of the table's own fill/black default —
-// empty means "use the table's own default" (see the Go type's own doc
-// comment); this editor's own Properties UI doesn't expose editing these
-// directly yet (see PropertiesPanel), but preserves whatever Extract
-// recovered from a real diagram.
+// Matches slddoc.TableCell: one cell of a Table2 (shape 313) grid at its top-left position row/col. A merged cell spans
+// rowSpan rows and colSpan columns (absent: 1); the positions it covers have no cell. text lines are split by "\n";
+// fontSize is in px (absent: 11); alignH absent is center, alignV absent is middle.
 export interface TableCell {
   row: number
   col: number
+  rowSpan?: number
+  colSpan?: number
   text?: string
   fill?: string
   textColor?: string
+  fontSize?: number
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  alignH?: 'left' | 'right'
+  alignV?: 'top' | 'bottom'
 }
 
 // Matches slddoc.ConnectorKind.
@@ -485,6 +579,14 @@ export interface Connector {
   mrid?: string
   fromMrid?: string
   toMrid?: string
+  // Precision, features and bindings as on DiagramElement.
+  precision?: number
+  features?: string
+  // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
+  componentType?: string
+  // precision, features or componentType changed since the last export.
+  componentEdited?: boolean
+  bindings?: Binding[]
 }
 
 export interface Label {
@@ -505,6 +607,14 @@ export interface Label {
   // Clockwise turn in degrees about x/y, in (-180, 180]; absent = level (slddoc Label.Rotate).
   rotate?: number
   text: string
+  // Precision, features and bindings as on DiagramElement.
+  precision?: number
+  features?: string
+  // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
+  componentType?: string
+  // precision, features or componentType changed since the last export.
+  componentEdited?: boolean
+  bindings?: Binding[]
 }
 
 // A shape-134 SCADA-style analog readout — shares Label's own text-styling
@@ -530,6 +640,10 @@ export interface DigitalDevice {
   // As in DiagramElement.
   precision?: number
   features?: string
+  // The provider's component type the item is exported as (RSDU: VS_TCOMP.ID); absent: chosen by shape.
+  componentType?: string
+  // precision, features or componentType changed since the last export.
+  componentEdited?: boolean
   bindings?: Binding[]
 }
 
@@ -576,12 +690,25 @@ export interface OpenedDiagram {
 // The wire shape (a Go nil slice serializes as JSON null): use
 // normalizeDiagram in lib/api.ts to get the array-always shape below
 // everywhere else in the app.
+// A diagram's tracing image (slddoc's TracingImage): file is the image file stored next to the diagram on the
+// server (api.tracingImageUrl), x/y/width/height its place in diagram units, opacity 0…1.
+export interface DiagramTracingImage {
+  file: string
+  x: number
+  y: number
+  width: number
+  height: number
+  opacity: number
+  hidden?: boolean
+}
+
 export interface DiagramWire {
   width: number
   height: number
   source?: string
   lastId?: number
   editor?: EditorSettings
+  tracingImage?: DiagramTracingImage
   layers: Layer[] | null
   voltageClasses: VoltageClass[] | null
   stateColors?: DiagramStateColor[]
@@ -604,9 +731,11 @@ export interface Diagram {
   // anything into yet.
   lastId?: number
   editor?: EditorSettings
+  tracingImage?: DiagramTracingImage
   // The provider's scheme this diagram is exported to, and the object the whole diagram is bound to.
   scheme?: SchemeRef
   object?: Binding
+  deletedBindings?: DeletedBinding[]
   layers: Layer[]
   voltageClasses: VoltageClass[]
   // Absent until the diagram is first saved; the server then copies config.stateColors in.
@@ -616,6 +745,7 @@ export interface Diagram {
   connectors: Connector[]
   labels: Label[]
   digitalDevices: DigitalDevice[]
+  functions?: DiagramFunction[]
   // Save history, oldest first. Appended by the server on every save
   // (backend storage.SaveRevision); the editor never changes it.
   history?: Revision[]
@@ -662,6 +792,9 @@ export interface DiagramEntry {
   name: string
   isDir: boolean
   modTime: string
+  // The scheme the diagram is linked to and its status, as the server knows it.
+  scheme?: SchemeRef
+  schemeStatus?: 'linked' | 'exported' | 'changed'
 }
 
 // Matches backend/internal/elements.Symbol. shape is a symbol-library key
@@ -836,6 +969,10 @@ export interface EditorConfig {
   // Placement hot keys (config hot_keys, lower-cased): key → palette item
   // code. Absent from an older server, or when none are configured.
   hotKeys?: Record<string, string>
+  // Equipment shape code → IEC 81346-2 letter code (config letter_codes), and the hierarchy's letters (config
+  // designations). Absent from an older server.
+  letterCodes?: Record<string, string>
+  designations?: DesignationsConfig
   // The CIM classes a connector kind exported as equipment can stand for, default first (cim.classes "28").
   cimConnectorClasses?: Partial<Record<ConnectorKind, string[]>>
   // The SCADA binding provider ("" = bindings off, no binding UI) and whether it can export (backend config
@@ -843,9 +980,123 @@ export interface EditorConfig {
   bindings?: BindingsConfig
 }
 
+// Matches backend config.Designations; units are keyed by its unit kind names (incoming_feeder, ...).
+export interface DesignationsConfig {
+  voltageLevels: { maxKv: number; code: string }[]
+  fallbackVoltageCode: string
+  units: Record<string, { code: string; digits: number }>
+}
+
+// POST /api/designations: slddoc.DesignationPlan. Functions it creates have negative ids.
+export interface DesignationRow {
+  element: number
+  function: number
+  oldName?: string
+  name: string
+  bound?: boolean
+  mrid?: boolean
+  exported?: boolean
+  duplicate?: boolean
+  // Its unit reaches no busbar (in a diagram with busbars): likely a wire not joined.
+  isolated?: boolean
+}
+
+export interface DesignationPlan {
+  functions: DiagramFunction[]
+  rows: DesignationRow[]
+  unplaced: number[]
+  // Elements in no unit (busbars, shapes without a letter code) and the voltage level function they lie in.
+  levels: { element: number; function: number }[]
+}
+
 export interface BindingsConfig {
   provider: string
   canExport: boolean
+  // Diagrams can be linked to the provider's schemes.
+  schemes?: boolean
+  // The provider can check a diagram before an export.
+  exportCheck?: boolean
+  // A linked scheme's bindings can be imported.
+  import?: boolean
+  // A scheme's picture can be read from its viewer's storage and imported (Edit from RSDU…).
+  fetch?: boolean
+}
+
+// POST /api/bindings/schemes/fetch: a scheme's picture imported as an .svg import, with the folder and name proposed
+// for its diagram.
+export interface FetchedScheme {
+  diagram: Diagram
+  report: ImportReport
+  file: string
+  folder: string
+  name: string
+}
+
+// Matches binding.SchemeType.
+export interface SchemeType {
+  id: string
+  name: string
+}
+
+// Matches binding.ExportIssue: code names the finding (the frontend words it); item, kind and shape the diagram item
+// it is about; schemes the provider's schemes involved; detail extra text.
+export interface ExportIssue {
+  code: string
+  severity: 'error' | 'warning'
+  item?: number
+  kind?: 'element' | 'device'
+  shape?: string
+  schemes?: ProviderScheme[]
+  detail?: string
+}
+
+// Matches binding.ExportCheck.
+export interface ExportCheck {
+  ok: boolean
+  scheme?: ProviderScheme
+  schemeType?: SchemeType
+  fileName: string
+  svgPath?: string
+  bound: number
+  defaultGroup?: string
+  issues: ExportIssue[]
+}
+
+// Matches binding.ExportRequest: register a new scheme or export to the linked one; "" keeps a linked scheme's own.
+export interface ExportRequest {
+  register: boolean
+  name: string
+  alias: string
+  group: string
+  // Only count what the export would write; nothing is written or saved.
+  preview?: boolean
+}
+
+// Matches binding.ExportChanges: rows an export wrote.
+export interface ExportChanges {
+  inserted: number
+  updated: number
+  deleted: number
+}
+
+// Matches api.SVGExportResult: the scheme link with its new export time and where the picture went.
+export interface SVGExportResult {
+  scheme: SchemeRef
+  svg: string[]
+}
+
+// Matches binding.ExportResult.
+export interface ExportResult {
+  scheme: SchemeRef
+  registered: boolean
+  // changes are what the export would write (a preview); nothing was.
+  preview?: boolean
+  components: number
+  bindings: number
+  changes: ExportChanges
+  skipped: ExportIssue[]
+  svg?: string[]
+  svgError?: string
 }
 
 // Matches binding.KindInfo: a binding kind as the provider offers it; an empty name is named by the frontend.
@@ -860,6 +1111,8 @@ export interface BindingDictionaries {
   kinds: BindingKindInfo[]
   options: { alias: string; name: string; group?: string; groupName?: string }[]
   features: { alias: string; name: string; mask: number }[]
+  // The types an item can be exported as (RSDU: VS_TCOMP of the scheme type); shape: the symbol code it stands for.
+  componentTypes?: { id: string; name: string; shape?: string }[]
 }
 
 // Matches binding.Section: a node of the provider's top-level object tree. section, when set, is the id the
@@ -896,12 +1149,33 @@ export interface BindingObject {
   scale?: number
 }
 
+// Matches binding.Resolved (GET /api/bindings/object): an object with what a binding caches of it and the kind and
+// option the provider suggests.
+export interface BindingResolved {
+  ref: string
+  name: string
+  type?: string
+  typeName?: string
+  uid?: string
+  parentRef?: string
+  kind: BindingKind
+  option?: string
+}
+
+// POST /api/bindings/objects: the refs found, and those that don't exist or can't be bound.
+export interface BindingResolveResult {
+  objects: Record<string, BindingResolved>
+  missing: string[]
+}
+
 // Matches binding.Hit: a search match; node is the catalog node to reveal.
 export interface BindingHit {
   ref: string
   name: string
   kind: 'catalog' | 'list'
   node: string
+  // The type's name (a catalog node's type, a list object's type alias); absent when it has none.
+  typeName?: string
 }
 
 // Matches binding.SearchResult.
@@ -916,4 +1190,23 @@ export interface DraggedObject {
   ref: string
   name: string
   type: string
+}
+
+// Matches binding.Component: what a provider's scheme holds for item; shape is its component type's shape code.
+export interface SchemeComponent {
+  item: number
+  shape?: string
+  // The component's type (RSDU: VS_TCOMP.ID).
+  type?: string
+  precision?: number
+  features?: string
+  bindings: Binding[]
+}
+
+// Matches binding.SchemeBindings: a scheme's bindings, read for import; issues are warnings.
+export interface SchemeBindings {
+  scheme: ProviderScheme
+  object?: Binding
+  components: SchemeComponent[]
+  issues: ExportIssue[]
 }
