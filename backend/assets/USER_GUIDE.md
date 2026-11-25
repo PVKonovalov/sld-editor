@@ -1616,7 +1616,7 @@ The two buttons beside the counts switch between two views:
   [Enumerate elements](#designations) works out from the connections (voltage level, then unit), whatever the
   elements are named. Each group shows its own part of the designation (`=E1`, `=Q01`), its kind (a voltage level
   also its voltage, e.g. *Voltage level, 110 kV*) and how many items it holds. Units already applied keep their
-  numbers; the ones not applied yet are shown in italics, marked *proposed*.
+  numbers; the ones not applied yet are shown in italics.
   Items that belong to no unit, such as busbars without a letter code, sit directly under their voltage level; the
   rest (digital devices, items connected to nothing) are in the last group, **Not designated**. The tree follows every
   edit and changes nothing in the diagram. The arrow of a group expands or collapses it; the buttons beside the view switch expand or collapse

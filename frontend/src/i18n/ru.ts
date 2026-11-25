@@ -780,7 +780,6 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'overview.collapse': 'Свернуть',
   'overview.expandAll': 'Развернуть всё',
   'overview.collapseAll': 'Свернуть всё',
-  'overview.proposed': 'предлагается',
   'overview.hierarchyLoading': 'Строится иерархия…',
   'overview.hierarchyError': 'Не удалось построить иерархию: {{error}}',
   'overview.noFunction': 'Без обозначения',

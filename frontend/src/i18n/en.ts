@@ -784,7 +784,6 @@ export const dictionary = {
   'overview.collapse': 'Collapse',
   'overview.expandAll': 'Expand all',
   'overview.collapseAll': 'Collapse all',
-  'overview.proposed': 'proposed',
   'overview.hierarchyLoading': 'Building hierarchy…',
   'overview.hierarchyError': 'Cannot build the hierarchy: {{error}}',
   'overview.noFunction': 'Not designated',

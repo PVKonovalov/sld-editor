@@ -395,7 +395,6 @@ export function BindingsOverview({
                 {n.fn.kind === "voltageLevel" &&
                   voltageNames.get(n.fn.voltage ?? 0) &&
                   `, ${voltageNames.get(n.fn.voltage ?? 0)}`}
-                {n.fn.id < 0 && ` (${t("overview.proposed")})`}
               </span>
             </span>
           ) : (
