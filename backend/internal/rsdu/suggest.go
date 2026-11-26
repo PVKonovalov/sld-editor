@@ -28,12 +28,6 @@ const (
 	equipTableName      = "OBJ_TREE"
 	measListTableName   = "MEAS_LIST"
 	measListLink        = 5
-	sqlObjectTypes      = "SELECT ID, COALESCE(ID_PARENT, 0), DEFINE_ALIAS FROM {s}.SYS_OTYP"
-	sqlMeasGlobalTypes  = "SELECT m.DEFINE_ALIAS, g.DEFINE_ALIAS FROM {s}.SYS_MEAS_TYPES m JOIN {s}.SYS_PTYP p ON p.ID = m.ID_TYPE JOIN {s}.SYS_GTYP g ON g.ID = p.ID_GTYP"
-	sqlEquipTable       = "SELECT ID, UPPER(DEFINE_ALIAS), UPPER(TABLE_NAME) FROM {s}.SYS_TBLLST WHERE UPPER(DEFINE_ALIAS) = ? OR UPPER(TABLE_NAME) = ?"
-	sqlMeasListTables   = "SELECT ID, TABLE_NAME FROM {s}.SYS_TBLLST WHERE ID IN (SELECT ID_TBL FROM {s}.SYS_TBLREF WHERE ID_LINK = ? AND ID_TBLREC IN (SELECT ID FROM {s}.SYS_TBLLST WHERE UPPER(DEFINE_ALIAS) = ?)) ORDER BY ID"
-	sqlSwitchMeasOfObj  = "SELECT %d, meas.ID, %s, meas.NAME, mt.DEFINE_ALIAS, mt.NAME FROM %s v JOIN {s}.MEAS_LIST meas ON meas.ID = v.ID JOIN {s}.SYS_MEAS_TYPES mt ON mt.ID = meas.ID_MEAS_TYPE WHERE meas.ID_OBJ = ? AND mt.DEFINE_ALIAS IN (?, ?)"
-	sqlOwnerOfMeas      = "SELECT obj.ID, %s, obj.NAME, t.DEFINE_ALIAS, t.NAME FROM {s}.OBJ_TREE obj JOIN {s}.SYS_OTYP t ON t.ID = obj.ID_TYPE JOIN {s}.MEAS_LIST meas ON meas.ID_OBJ = obj.ID WHERE meas.ID = ?"
 )
 
 // switchStateTypes are the measurement types of a switch's position (RSDU's _measSwitchStateAliases).
@@ -285,7 +279,7 @@ func (p *Provider) switchMeasurements(ctx context.Context, m *model, id int64) (
 		args = append(args, id, measSwitchState, measSwitchStateDraw)
 	}
 	var out []slddoc.Binding
-	q := p.d.SQL(strings.Join(parts, " UNION ALL ") + " ORDER BY 1, 2")
+	q := p.d.SQL(strings.Join(parts, sqlUnionAll) + sqlOrderByTableMeas)
 	err = each(ctx, p.read, q, func(r Rows) error {
 		var tid, mid int64
 		var g any

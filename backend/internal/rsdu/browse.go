@@ -22,10 +22,6 @@ const (
 )
 
 const (
-	sqlTree        = "SELECT ID, COALESCE(ID_PARENT, 0), COALESCE(ID_LSTTBL, 0), NAME, COALESCE(ID_ICON, 0) FROM {s}.SYS_TREE21"
-	sqlTableID     = "SELECT ID FROM {s}.SYS_TBLLST WHERE TABLE_NAME = ?"
-	sqlSection     = "SELECT v.R_TABLE, COALESCE(v.ID_DIRTBL, 0), d.TABLE_NAME, td.TABLE_NAME FROM {s}.SYS_TABL_V v LEFT JOIN {s}.SYS_TBLLST d ON d.ID = v.ID_DIRTBL LEFT JOIN {s}.SYS_TBLLST td ON td.ID = v.ID_TDIRTBL WHERE v.ID = ?"
-	sqlTypesTable  = "SELECT tl.TABLE_NAME FROM {s}.SYS_TBLREF tr JOIN {s}.SYS_TBLLST tl ON tl.ID = tr.ID_TBLREF WHERE tr.ID_TBL = ? AND tr.ID_LINK = 4"
 	treeTableName  = "SYS_TREE21"
 	userClassTable = "SYS_UCLS"
 	daParamTable   = "DA_PARAM"
@@ -162,7 +158,7 @@ func (p *Provider) Catalog(ctx context.Context, s string) ([]binding.Node, error
 			icon = "COALESCE(b.ID_ICON, 0)"
 		}
 		cols += ", b.NAME, " + icon
-		from += " JOIN " + tdir + " b ON a.ID_TYPE = b.ID"
+		from += fmt.Sprintf(sqlJoinCatalogTypes, tdir)
 	} else {
 		cols += ", NULL, 0"
 	}
@@ -174,7 +170,7 @@ func (p *Provider) Catalog(ctx context.Context, s string) ([]binding.Node, error
 
 	var ids, parents, icons []int64
 	var names, typeNames, aliases []string
-	err = each(ctx, p.read, p.d.SQL("SELECT "+cols+" FROM "+from), func(r Rows) error {
+	err = each(ctx, p.read, p.d.SQL(fmt.Sprintf(sqlCatalogNodes, cols, from)), func(r Rows) error {
 		var id, parent, icon int64
 		var name, typeName, alias sql.NullString
 		if err := r.Scan(&id, &parent, &name, &typeName, &icon, &alias); err != nil {
@@ -284,7 +280,7 @@ func (p *Provider) List(ctx context.Context, s, n string) ([]binding.Object, err
 	}
 	if types != "" {
 		cols += ", b.ALIAS"
-		from += " LEFT JOIN " + types + " b ON b.ID = a.ID_TYPE"
+		from += fmt.Sprintf(sqlJoinTypes, types)
 	} else {
 		cols += ", NULL"
 	}
@@ -297,7 +293,7 @@ func (p *Provider) List(ctx context.Context, s, n string) ([]binding.Object, err
 			return nil, err
 		}
 		cols += ", c.NAME"
-		from += " LEFT JOIN " + ucls + " c ON c.ID = a.ID_UCLASS"
+		from += fmt.Sprintf(sqlJoinUserClass, ucls)
 	} else {
 		cols += ", NULL"
 	}
@@ -316,14 +312,14 @@ func (p *Provider) List(ctx context.Context, s, n string) ([]binding.Object, err
 			param, _ := p.tables.Table(ctx, daParamTable)
 			dev, _ := p.tables.Table(ctx, daDeviceTable)
 			cols += ", d.CVALIF, e.SCALE"
-			from += " LEFT JOIN " + param + " e ON e.ID = a.ID LEFT JOIN " + dev + " d ON d.ID = e.ID_POINT"
+			from += fmt.Sprintf(sqlJoinDAPoint, param, dev)
 		}
 	}
 	if !da {
 		cols += ", NULL, NULL"
 	}
 
-	query := p.d.SQL("SELECT DISTINCT " + cols + " FROM " + from + " WHERE a.ID_NODE = ?")
+	query := p.d.SQL(fmt.Sprintf(sqlNodeObjects, cols, from))
 	var objs []binding.Object
 	var names []string
 	var ids []int64
@@ -410,10 +406,10 @@ func (p *Provider) Search(ctx context.Context, s, q string, limit int) (*binding
 				return nil, err
 			}
 			if t != "" {
-				typeSel, join = "b."+typeCol, " LEFT JOIN "+t+" b ON b.ID = a.ID_TYPE"
+				typeSel, join = "b."+typeCol, fmt.Sprintf(sqlJoinTypes, t)
 			}
 		}
-		query := p.d.SQL(fmt.Sprintf(`SELECT a.ID, COALESCE(a.%s, 0), a.NAME, %s FROM %s a%s WHERE LOWER(a.NAME) LIKE ? ESCAPE '\' ORDER BY a.NAME, a.ID FETCH FIRST %d ROWS ONLY`,
+		query := p.d.SQL(fmt.Sprintf(sqlSearchByName,
 			parentCol, typeSel, qualified, join, limit+1))
 		var hits []binding.Hit
 		err = each(ctx, p.read, query, func(r Rows) error {

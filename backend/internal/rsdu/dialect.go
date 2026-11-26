@@ -65,17 +65,17 @@ func (d Dialect) SQL(q string) string {
 // NextVal is the SQL expression taking the next value of the schema's sequence seq.
 func (d Dialect) NextVal(seq string) string {
 	if d.Driver == config.DriverOracle {
-		return d.Schema + "." + seq + ".NEXTVAL"
+		return fmt.Sprintf(sqlOracleNextVal, d.Schema, seq)
 	}
-	return "nextval('" + d.Schema + "." + strings.ToLower(seq) + "')"
+	return fmt.Sprintf(sqlPostgresNextVal, d.Schema, strings.ToLower(seq))
 }
 
 // NextVals is the query returning n values of the schema's sequence seq, one per row.
 func (d Dialect) NextVals(seq string, n int) string {
 	if d.Driver == config.DriverOracle {
-		return "SELECT " + d.NextVal(seq) + " FROM DUAL CONNECT BY LEVEL <= " + strconv.Itoa(n)
+		return fmt.Sprintf(sqlOracleNextVals, d.NextVal(seq), n)
 	}
-	return "SELECT " + d.NextVal(seq) + " FROM generate_series(1, " + strconv.Itoa(n) + ")"
+	return fmt.Sprintf(sqlPostgresNextVals, d.NextVal(seq), n)
 }
 
 // InsertRows is the statement inserting n rows of cols into the schema's table, with "?" parameters row by row:
@@ -84,18 +84,18 @@ func (d Dialect) InsertRows(table string, cols []string, n int) string {
 	into := "{s}." + table + " (" + strings.Join(cols, ", ") + ")"
 	values := "(" + strings.TrimSuffix(strings.Repeat("?, ", len(cols)), ", ") + ")"
 	if d.Driver == config.DriverOracle {
-		return "INSERT ALL" + strings.Repeat(" INTO "+into+" VALUES "+values, n) + " SELECT 1 FROM DUAL"
+		return fmt.Sprintf(sqlOracleInsertAll, strings.Repeat(fmt.Sprintf(sqlOracleInsertInto, into, values), n))
 	}
-	return "INSERT INTO " + into + " VALUES " + strings.TrimSuffix(strings.Repeat(values+", ", n), ", ")
+	return fmt.Sprintf(sqlPostgresInsertRows, into, strings.TrimSuffix(strings.Repeat(values+", ", n), ", "))
 }
 
 // ColumnsQuery returns the query listing the column names of table, with its arguments.
 func (d Dialect) ColumnsQuery(table string) (string, []any) {
 	if d.Driver == config.DriverOracle {
-		return d.SQL("SELECT COLUMN_NAME FROM ALL_TAB_COLUMNS WHERE OWNER = ? AND TABLE_NAME = ?"),
+		return d.SQL(sqlOracleColumns),
 			[]any{strings.ToUpper(d.Schema), strings.ToUpper(table)}
 	}
-	return d.SQL("SELECT column_name FROM information_schema.columns WHERE table_schema = ? AND table_name = ?"),
+	return d.SQL(sqlPostgresColumns),
 		[]any{strings.ToLower(d.Schema), strings.ToLower(table)}
 }
 

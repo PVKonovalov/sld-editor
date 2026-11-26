@@ -24,21 +24,8 @@ const exportTimeout = 2 * time.Minute
 const maxText = 255
 
 const (
-	sqlInsertForm   = "INSERT INTO {s}.VS_FORM (ID, ID_NODE, ID_TYPE, NAME, ALIAS, FILE_NAME, LAST_UPDATE) VALUES (?, ?, ?, ?, ?, ?, ?)"
-	sqlUpdateForm   = "UPDATE {s}.VS_FORM SET ID_NODE = ?, ID_TYPE = ?, NAME = ?, ALIAS = ?, FILE_NAME = ?, LAST_UPDATE = ? WHERE ID = ?"
-	sqlReadComps    = "SELECT ID, NAME, ID_TCTRL, FEATURE, PRECISION FROM {s}.VS_COMP WHERE ID_FORM = ?"
-	sqlReadTunes    = "SELECT t.ID_OWNLST, t.ID_REGIM, t.ID_TABLE, t.ID_PARAM, t.ID_GTOPT, t.SCALE FROM {s}.VS_REGIM_TUNE t JOIN {s}.VS_COMP c ON c.ID = t.ID_OWNLST WHERE c.ID_FORM = ?"
-	sqlReadObj      = "SELECT ID_TABLE, ID_PARAM FROM {s}.VS_OBJ_TUNE WHERE ID_FORM = ?"
-	sqlDeleteObj    = "DELETE FROM {s}.VS_OBJ_TUNE WHERE ID_FORM = ?"
-	sqlUpdateObj    = "UPDATE {s}.VS_OBJ_TUNE SET ID_TABLE = ?, ID_PARAM = ? WHERE ID_FORM = ?"
-	sqlInsertObj    = "INSERT INTO {s}.VS_OBJ_TUNE (ID_FORM, ID_TABLE, ID_PARAM) VALUES (?, ?, ?)"
-	sqlDeleteOwned  = "DELETE FROM {s}.VS_REGIM_TUNE WHERE ID_OWNLST IN "
-	sqlDeleteCompID = "DELETE FROM {s}.VS_COMP WHERE ID IN "
-	sqlDeleteTune   = "DELETE FROM {s}.VS_REGIM_TUNE WHERE (ID_OWNLST, ID_REGIM, ID_TABLE) IN "
-	sqlUpdateComp   = "UPDATE {s}.VS_COMP SET ID_TCTRL = ?, FEATURE = ?, PRECISION = ? WHERE ID = ?"
-	sqlUpdateTune   = "UPDATE {s}.VS_REGIM_TUNE SET ID_PARAM = ?, ID_GTOPT = ?, SCALE = ? WHERE ID_OWNLST = ? AND ID_REGIM = ? AND ID_TABLE = ?"
-	seqForm         = "VS_FORM_S"
-	seqComp         = "VS_COMP_S"
+	seqForm = "VS_FORM_S"
+	seqComp = "VS_COMP_S"
 	// batchRows is how many rows one INSERT or DELETE statement carries.
 	batchRows = 100
 )
@@ -554,7 +541,7 @@ func (p *Provider) readComps(ctx context.Context, tx Tx, id int64, names []strin
 			args = append(args, name)
 		}
 		in := placeholders(len(chunk), 1)
-		err := each(ctx, tx, p.d.SQL(sqlReadComps+" AND NAME IN "+in), func(r Rows) error {
+		err := each(ctx, tx, p.d.SQL(fmt.Sprintf(sqlReadCompsByName, in)), func(r Rows) error {
 			var c dbComp
 			var name sql.NullString
 			var tctrl, feature, precision sql.NullInt64
@@ -569,7 +556,7 @@ func (p *Provider) readComps(ctx context.Context, tx Tx, id int64, names []strin
 		if err != nil {
 			return nil, err
 		}
-		err = each(ctx, tx, p.d.SQL(sqlReadTunes+" AND c.NAME IN "+in), func(r Rows) error {
+		err = each(ctx, tx, p.d.SQL(fmt.Sprintf(sqlReadTunesByName, in)), func(r Rows) error {
 			var owner int64
 			var regim, table, param, option, scale sql.NullInt64
 			if err := r.Scan(&owner, &regim, &table, &param, &option, &scale); err != nil {
@@ -612,12 +599,12 @@ func (p *Provider) apply(ctx context.Context, tx Tx, id int64, pl *plan, ch *cha
 		for i, c := range chunk {
 			args[i] = c
 		}
-		k, err := exec(sqlDeleteOwned+placeholders(len(chunk), 1), args...)
+		k, err := exec(fmt.Sprintf(sqlDeleteOwned, placeholders(len(chunk), 1)), args...)
 		if err != nil {
 			return err
 		}
 		n.Deleted += int(k)
-		if k, err = exec(sqlDeleteCompID+placeholders(len(chunk), 1), args...); err != nil {
+		if k, err = exec(fmt.Sprintf(sqlDeleteCompID, placeholders(len(chunk), 1)), args...); err != nil {
 			return err
 		}
 		n.Deleted += int(k)
@@ -627,7 +614,7 @@ func (p *Provider) apply(ctx context.Context, tx Tx, id int64, pl *plan, ch *cha
 		for _, t := range chunk {
 			args = append(args, t[0], t[1], t[2])
 		}
-		k, err := exec(sqlDeleteTune+placeholders(len(chunk), 3), args...)
+		k, err := exec(fmt.Sprintf(sqlDeleteTune, placeholders(len(chunk), 3)), args...)
 		if err != nil {
 			return err
 		}

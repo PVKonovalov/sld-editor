@@ -37,15 +37,6 @@ var boolGlobalTypes = map[string]bool{"GLOBAL_TYPE_BOOL": true, "GLOBAL_TYPE_ENU
 const (
 	equipmentTypes = "SYS_OTYP"
 	daTypesPrefix  = "SYS_DTYP"
-
-	sqlTableInfo = "SELECT tbl.DEFINE_ALIAS, tbl.TABLE_NAME, ot.DEFINE_ALIAS, COALESCE(tv.ID_DIRTBL, 0), tt.TABLE_NAME " +
-		"FROM {s}.SYS_TBLLST tbl JOIN {s}.SYS_OTYP ot ON ot.ID = tbl.ID_TYPE " +
-		"LEFT JOIN {s}.SYS_TABL_V tv ON tv.ID = tbl.ID " +
-		"LEFT JOIN {s}.SYS_TBLLST tt ON tt.ID = CASE ot.DEFINE_ALIAS WHEN 'DIR' THEN tv.ID_TDIRTBL ELSE tv.ID_TBLREF END " +
-		"WHERE tbl.ID = ?"
-	sqlMeasGlobalType = "SELECT g.DEFINE_ALIAS FROM {s}.SYS_MEAS_TYPES m JOIN {s}.SYS_PTYP p ON p.ID = m.ID_TYPE " +
-		"JOIN {s}.SYS_GTYP g ON g.ID = p.ID_GTYP WHERE m.DEFINE_ALIAS = ?"
-	sqlDATypeGlobalType = "SELECT g.DEFINE_ALIAS FROM {s}.SYS_DTYP d JOIN {s}.SYS_GTYP g ON g.ID = d.ID_GTYPE WHERE d.ID = ?"
 )
 
 // tableInfo is what resolving needs of a table: its alias, physical name, kind (LST/DIR), the catalog its objects
@@ -234,7 +225,7 @@ func (p *Provider) resolveObjects(ctx context.Context, tableID int64, ids []int6
 		}
 		if tcols["ID"] {
 			typed = true
-			from += " LEFT JOIN " + types + " t ON t.ID = o.ID_TYPE"
+			from += fmt.Sprintf(sqlJoinObjectTypes, types)
 			for _, c := range []string{"DEFINE_ALIAS", "NAME"} {
 				if tcols[c] {
 					sel = append(sel, "t."+c)
@@ -259,7 +250,7 @@ func (p *Provider) resolveObjects(ctx context.Context, tableID int64, ids []int6
 		for i, id := range chunk {
 			args[i] = id
 		}
-		query := "SELECT " + strings.Join(sel, ", ") + " FROM " + from + " WHERE o.ID IN (" + marks + ")"
+		query := fmt.Sprintf(sqlObjectsByID, strings.Join(sel, ", "), from, marks)
 		err := each(ctx, p.read, p.d.SQL(query), func(row Rows) error {
 			var id int64
 			var name, typeAlias, typeName sql.NullString

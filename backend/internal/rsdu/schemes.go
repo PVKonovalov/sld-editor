@@ -13,10 +13,6 @@ import (
 )
 
 const (
-	sqlSchemeGroups = "SELECT ID, ID_PARENT, NAME FROM {s}.VS_GROUP"
-	sqlSchemes      = "SELECT f.ID, f.ID_NODE, f.ID_TYPE, f.NAME, f.ALIAS, t.NAME, f.FILE_NAME, f.LAST_UPDATE FROM {s}.VS_FORM f LEFT JOIN {s}.SYS_OTYP t ON t.ID = f.ID_TYPE"
-	sqlSchemeByID   = sqlSchemes + " WHERE f.ID = ?"
-	sqlSchemesIn    = "SELECT ID FROM {s}.VS_FORM WHERE ID IN (%s)"
 	// existChunk keeps an IN list under Oracle's 1000 expressions.
 	existChunk = 500
 )

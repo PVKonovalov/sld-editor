@@ -1,5 +1,7 @@
 # Release notes
 
+2026-11-26: RSDU provider refactor: every SQL statement of `internal/rsdu` now lives in `internal/rsdu/query.go`, each with a comment on what it returns or changes, its parameters and its `fmt` fills. This covers the fixed queries, the templates for the dynamically joined browse/search/lookup queries, the export's IN-list statements and the dialect's Oracle/PostgreSQL SQL. The generated SQL is unchanged.
+
 2026-11-25: Bindings overview tree: units not applied yet are shown in italics only, without the "(proposed)" note. User guides updated.
 
 2026-11-25: Objects panel search: each match shows its real type, as the tree and list do (a catalog node's type name, a list object's type alias), instead of the hit kind "catalog"/"object", which remains only for untyped matches. The RSDU search joins the types tables (LEFT JOIN, only when the table has ID_TYPE); `binding.Hit` gains `typeName`. Dragging a list match carries its type. User guides updated.

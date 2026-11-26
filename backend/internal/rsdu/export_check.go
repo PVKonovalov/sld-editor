@@ -16,8 +16,6 @@ import (
 )
 
 const (
-	sqlSchemeTypes    = "SELECT ot.ID, ot.NAME FROM {s}.SYS_OTYP ot, {s}.VS_TYPE_V vt WHERE ot.ID = vt.ID"
-	sqlComponentTypes = "SELECT ID, NAME, MODUS_TYPE FROM {s}.VS_TCOMP WHERE ID_DTYP = ? ORDER BY ID"
 	// deviceShape is the Modus symbol code of a digital device (VS_TCOMP.MODUS_TYPE), labelShape a text label's.
 	deviceShape = "134"
 	labelShape  = "5"

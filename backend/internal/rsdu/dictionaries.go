@@ -35,12 +35,6 @@ var kindOptions = map[slddoc.BindingKind]string{
 
 var kindOrder = []slddoc.BindingKind{slddoc.BindingEquipment, slddoc.BindingMeas1, slddoc.BindingMeas2, slddoc.BindingJump}
 
-const (
-	sqlRegims   = "SELECT ID, ALIAS, DEFINE_ALIAS FROM {s}.VS_REGIM ORDER BY ID"
-	sqlOptions  = "SELECT o.ID, o.NAME, o.DEFINE_ALIAS, g.DEFINE_ALIAS, g.NAME FROM {s}.SYS_GTOPT o JOIN {s}.SYS_GTYP g ON g.ID = o.ID_GTYPE ORDER BY g.ID, o.ID"
-	sqlFeatures = "SELECT MASK, NAME, DEFINE_ALIAS FROM {s}.VS_COMP_FEATURE ORDER BY MASK"
-)
-
 // dictionaries are the reference lists as served, plus the RSDU ids export needs.
 type dictionaries struct {
 	public binding.Dictionaries

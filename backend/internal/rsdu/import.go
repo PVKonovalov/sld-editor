@@ -14,15 +14,6 @@ import (
 	"sld-editor/internal/binding"
 )
 
-const (
-	sqlImportComponents = "SELECT c.ID, c.NAME, c.PRECISION, c.FEATURE, t.MODUS_TYPE, c.ID_TCTRL FROM {s}.VS_COMP c " +
-		"LEFT JOIN {s}.VS_TCOMP t ON t.ID = c.ID_TCTRL WHERE c.ID_FORM = ? ORDER BY c.ID"
-	sqlImportTunes = "SELECT t.ID_OWNLST, r.DEFINE_ALIAS, t.ID_TABLE, t.ID_PARAM, o.DEFINE_ALIAS, t.SCALE " +
-		"FROM {s}.VS_REGIM_TUNE t JOIN {s}.VS_COMP c ON c.ID = t.ID_OWNLST JOIN {s}.VS_REGIM r ON r.ID = t.ID_REGIM " +
-		"LEFT JOIN {s}.SYS_GTOPT o ON o.ID = t.ID_GTOPT WHERE c.ID_FORM = ? ORDER BY t.ID_OWNLST, t.ID_REGIM, t.ID_TABLE"
-	sqlImportObject = "SELECT ID_TABLE, ID_PARAM FROM {s}.VS_OBJ_TUNE WHERE ID_FORM = ?"
-)
-
 // objectInfo is what a binding caches of its object.
 type objectInfo struct{ name, typ, uid string }
 
@@ -233,7 +224,7 @@ func (p *Provider) objectInfos(ctx context.Context, tableID int64, ids []int64) 
 			return nil, err
 		}
 		if tcols["ID"] && tcols["DEFINE_ALIAS"] {
-			from += " LEFT JOIN " + types + " t ON t.ID = o.ID_TYPE"
+			from += fmt.Sprintf(sqlJoinObjectTypes, types)
 			sel[3] = "t.DEFINE_ALIAS"
 		}
 	}
@@ -245,7 +236,7 @@ func (p *Provider) objectInfos(ctx context.Context, tableID int64, ids []int64) 
 		for i, id := range chunk {
 			args[i] = id
 		}
-		q := fmt.Sprintf("SELECT %s FROM %s WHERE o.ID IN (%s)", strings.Join(sel, ", "), from, marks)
+		q := fmt.Sprintf(sqlObjectsByID, strings.Join(sel, ", "), from, marks)
 		err := each(ctx, p.read, p.d.SQL(q), func(r Rows) error {
 			var id int64
 			var name, typ sql.NullString
