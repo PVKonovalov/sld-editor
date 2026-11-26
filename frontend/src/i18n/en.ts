@@ -658,6 +658,7 @@ export const dictionary = {
   'canvas.resetView': 'Reset view',
 
   'contextMenu.copy': 'Copy',
+  'contextMenu.duplicate': 'Duplicate',
   'contextMenu.startBuswork': 'Start buswork',
   'contextMenu.trace': 'Trace',
   'contextMenu.clearTrace': 'Clear trace',

@@ -1150,6 +1150,7 @@ With nothing selected, the **Find** section in Properties searches the diagram (
 | Duplicate by dragging | Hold **Alt** (**Option** on a Mac) and drag an item: a copy follows the cursor and the original stays. With a multi-selection, the whole group is copied |
 | Copy | **Ctrl+C** (**Cmd+C**), or right-click → **Copy** |
 | Paste | **Ctrl+V** (**Cmd+V**) pastes the copy two grid steps down and to the right of the original, a step further with each paste. Right-click → **Paste** pastes it where you clicked |
+| Duplicate | **Ctrl+D** (**Cmd+D**) or right-click → **Duplicate**: Copy and Paste in one step. The selection is copied and the copy placed two grid steps down and to the right, selected; a following **Ctrl+V** places the next copy a step further. One step of undo |
 | Delete | **Delete** or **Backspace**, or right-click → **Delete** |
 
 A pasted or duplicated copy becomes the new selection. Copies keep their wires and connections, and get new names
@@ -2043,6 +2044,7 @@ import log. To match your Modus installation, replace `workplace.xml` with your 
 | --- | --- |
 | **Ctrl+C** / **Cmd+C** | Copy the selection |
 | **Ctrl+V** / **Cmd+V** | Paste, offset from the original |
+| **Ctrl+D** / **Cmd+D** | Duplicate the selection (Copy + Paste) |
 | **Ctrl+F** / **Cmd+F** | Find items (Properties → Find) |
 | **R** / **Shift+R** | Rotate the selected devices and labels 90° clockwise / counter-clockwise, each about its own anchor |
 | **M** | Mirror the selected devices (on/off) |

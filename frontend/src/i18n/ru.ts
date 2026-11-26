@@ -654,6 +654,7 @@ export const dictionary: Record<keyof Dictionary, string> = {
   'canvas.resetView': 'Сбросить вид',
 
   'contextMenu.copy': 'Копировать',
+  'contextMenu.duplicate': 'Дублировать',
   'contextMenu.startBuswork': 'Начать ошиновку',
   'contextMenu.trace': 'Трассировка',
   'contextMenu.clearTrace': 'Сбросить трассировку',

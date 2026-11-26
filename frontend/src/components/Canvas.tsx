@@ -1318,6 +1318,18 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     setClipboard({ ...clipboard, pastes: clipboard.pastes + 1 })
   }
 
+  // Duplicate (context menu, Ctrl/Cmd+D): Copy, then the first Ctrl/Cmd+V paste, so a further Ctrl/Cmd+V continues
+  // the same staircase.
+  function duplicateSelection() {
+    if (selection.size === 0) return
+    const template = diagramOps.extractSelection(diagram!, selection, gridSpacing)
+    const centroid = diagramOps.selectionCentroid(diagram!, selection)
+    if (!template || !centroid) return
+    const offset = gridSpacing * PASTE_OFFSET_STEPS
+    placeCopy(template, { x: centroid.x + offset, y: centroid.y + offset }, snapPoint)
+    setClipboard({ template, centroid, pastes: 1 })
+  }
+
   // Alt/Option-drag: a see-through copy of the group (clones of its
   // rendered nodes, with their ids/data-editor-kind stripped so they can't
   // be hit-tested) follows the cursor while the originals stay put; on
@@ -1913,6 +1925,9 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
       if (key === 'c' && selection.size > 0) {
         e.preventDefault()
         copySelectionToClipboard()
+      } else if (key === 'd' && selection.size > 0) {
+        e.preventDefault()
+        if (!e.repeat) duplicateSelection()
       } else if (key === 'v' && clipboard) {
         e.preventDefault()
         pasteClipboardOffset()
@@ -3430,6 +3445,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
                     copySelectionToClipboard()
                   },
                 },
+                { label: t('contextMenu.duplicate'), onSelect: duplicateSelection },
               ]
             : []),
           {
