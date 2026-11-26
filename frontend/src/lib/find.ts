@@ -103,6 +103,9 @@ function findItems(diagram: Diagram, symbols: ElementSymbol[]): (FindResult & { 
       dd.value,
     )
   }
+  for (const b of diagram.barInstruments) {
+    add({ id: b.id, kind: 'barinstrument', typeKey: 'bar', typeLabel: t('elements.barInstrument'), name: b.name ?? '', layer: b.layer, free: [] })
+  }
   return items
 }
 

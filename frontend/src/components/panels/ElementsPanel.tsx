@@ -115,6 +115,17 @@ function elementIcon(el: ElementSymbol) {
   return <FittedIcon markup={elementIconMarkup(el)} />
 }
 
+// The bar instrument's palette icon: a track with a bar filled two thirds of the way.
+function BarInstrumentIcon() {
+  return (
+    <svg width={20} height={20} viewBox="0 0 20 20" className="shrink-0" aria-hidden>
+      <rect x={1} y={7} width={18} height={6} fill="none" stroke="currentColor" strokeWidth={1} />
+      <rect x={2.5} y={8.5} width={10} height={3} fill="currentColor" />
+      <line x1={15} y1={5} x2={15} y2={15} stroke="currentColor" strokeWidth={1} />
+    </svg>
+  )
+}
+
 export function ElementsPanel({ onClose }: { onClose: () => void }) {
   const {
     elements,
@@ -124,6 +135,7 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
     armedWireKind,
     armedLabel,
     armedDigitalDevice,
+    armedBarInstrument,
     customElements,
     armedCustomElement,
     armCustomElement,
@@ -169,7 +181,9 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
                 ? t('elements.labelArmedHint')
                 : armedDigitalDevice
                   ? t('elements.digitalDeviceArmedHint')
-                  : armedCustomElement
+                  : armedBarInstrument
+                    ? t('elements.barInstrumentArmedHint')
+                    : armedCustomElement
                     ? t('elements.customArmedHint', { name: armedCustomElement.name })
                     : t('elements.pickHint')}
         </p>
@@ -215,6 +229,20 @@ export function ElementsPanel({ onClose }: { onClose: () => void }) {
                           label={t('elements.text')}
                           icon={<Type size={20} className="shrink-0" />}
                           active={armedLabel}
+                          disabled={!diagram}
+                          onClick={() => togglePaletteItem(item)}
+                          hotKey={hotKeys.get(item)}
+                        />
+                      )
+                    }
+                    if (classified.value === 'barInstrument') {
+                      return (
+                        <PaletteButton
+                          key={item}
+                          title={t('elements.barInstrument')}
+                          label={t('elements.barInstrument')}
+                          icon={<BarInstrumentIcon />}
+                          active={armedBarInstrument}
                           disabled={!diagram}
                           onClick={() => togglePaletteItem(item)}
                           hotKey={hotKeys.get(item)}

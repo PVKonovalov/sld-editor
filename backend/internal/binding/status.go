@@ -6,7 +6,7 @@ import (
 	"github.com/PVKonovalov/slddoc"
 )
 
-// boundItem is the export view of an element, digital device, label or wire.
+// boundItem is the export view of an element, digital device, bar instrument, label or wire.
 type boundItem struct {
 	id       int
 	edited   *bool
@@ -22,6 +22,10 @@ func boundItems(d *slddoc.Diagram) []boundItem {
 	for i := range d.DigitalDevices {
 		dd := &d.DigitalDevices[i]
 		out = append(out, boundItem{dd.ID, &dd.ComponentEdited, dd.Bindings})
+	}
+	for i := range d.BarInstruments {
+		b := &d.BarInstruments[i]
+		out = append(out, boundItem{b.ID, &b.ComponentEdited, b.Bindings})
 	}
 	for i := range d.Labels {
 		l := &d.Labels[i]

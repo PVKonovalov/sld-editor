@@ -227,6 +227,9 @@ func (p *Provider) checkItems(ctx context.Context, c *binding.ExportCheck, d *sl
 	for _, dd := range d.DigitalDevices {
 		item("device", dd.ID, deviceShape, dd.ComponentType, dd.Bindings)
 	}
+	for _, b := range d.BarInstruments {
+		item("bar", b.ID, slddoc.BarInstrumentShape, b.ComponentType, b.Bindings)
+	}
 	for _, l := range d.Labels {
 		item("label", l.ID, labelShape, l.ComponentType, l.Bindings)
 	}

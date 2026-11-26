@@ -78,7 +78,7 @@ section describes the same keys for whoever runs the editor.
   `user_guide` and the files named by `xsde.config` / `xsde.workplace`, which are read again on every use. The editor
   itself rewrites the file only to append entries to `voltage_colors` (see below), keeping its comments.
 - **Validation.** A mistake in `elements.libraries`, `palette`, `hot_keys`, `letter_codes`, `designations`,
-  `editor.voltage_order`, `line_halos`, `cim` or `bindings`, or a diagrams/custom elements folder that can't be opened, stops the editor at startup with a
+  `editor.voltage_order`, `line_halos`, `bar_instrument`, `cim` or `bindings`, or a diagrams/custom elements folder that can't be opened, stops the editor at startup with a
   message naming the key. An invalid `logging.level` only logs a warning and uses `info`.
 
 ## Keys
@@ -159,6 +159,22 @@ but not drawn. An empty or missing list draws no halos.
 The shipped list holds the six styles xsde2svg draws, in its colors. A missing `style`/`color`, a duplicate or a
 `,`/`:` in a style stops the editor.
 
+### bar_instrument
+
+How a new bar instrument (320008) looks, and the colors of one that sets none of its own. Every key is optional; an
+absent key takes the shipped value. Not settable by an environment variable. `GET /api/config` returns it as
+`barInstrument`.
+
+| Key | Type | Default | Meaning |
+|---|---|---|---|
+| `length` | number > 0 | `80` | Length of a bar placed with a click, and of one whose `.xsld` stores none. |
+| `thickness` | number > 0 | `4` | Bar thickness; the track is 6 wider. |
+| `value_size` | number > 0 | `12` | Font size of the value text, px; copied into an instrument when it is placed. |
+| `show_value`, `show_scale`, `show_zones` | bool | `true`, `false`, `true` | Value text, min/max/origin scale, setpoint zones on the track. Copied into an instrument when it is placed (like `length`, `thickness`); used as is for one whose `.xsld` stores none. |
+| `colors.track`, `normal`, `warning`, `alarm`, `bad` | color | `#3a3f47`, `lawngreen`, `#c9a800`, `red`, `#808080` | Track; bar and value text per zone (alarm also draws the overflow arrows); bad quality. Not copied: every instrument without its own overrides follows them. Written to the SVG's `data-colors` for the viewer. |
+
+A negative size, or a blank color or one containing `;`, `:` or `"`, stops the editor.
+
 ### indicators
 
 | Key | Type | Env | Default | Meaning |
@@ -173,7 +189,7 @@ Each item is an xsde2svg object type code, as a string:
 
 - a shape of a loaded element library (`"41"` breaker, `"330001"` load, …);
 - `"21"`, `"22"`, `"23"`, `"28"`: buswork, overhead line, cable line, link to object (arms the routing tool);
-- `"5"` text label, `"134"` digital instrument (the editor's built-in widgets).
+- `"5"` text label, `"134"` digital instrument, `"320008"` bar instrument (the editor's built-in widgets).
 
 An item that is none of these stops the editor.
 

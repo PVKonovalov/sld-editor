@@ -1,6 +1,6 @@
 import type { Binding, BindingStatus, DeletedBinding, Diagram } from '../types'
 
-/** The part of an element, wire, label or digital device an export writes. */
+/** The part of an element, wire, label, digital device or bar instrument an export writes. */
 interface Bound {
   id: number
   precision?: number
@@ -10,7 +10,7 @@ interface Bound {
   bindings?: Binding[]
 }
 
-const COLLECTIONS = ['elements', 'connectors', 'labels', 'digitalDevices'] as const
+const COLLECTIONS = ['elements', 'connectors', 'labels', 'digitalDevices', 'barInstruments'] as const
 
 const sameValue = (a: Binding, b: Binding) =>
   a.source === b.source && a.ref === b.ref && (a.option ?? '') === (b.option ?? '') && (a.scale ?? 0) === (b.scale ?? 0)

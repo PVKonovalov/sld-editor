@@ -163,3 +163,28 @@ func TestSchemeTypesAndGroups(t *testing.T) {
 		t.Errorf("groups %+v, %v", groups, err)
 	}
 }
+
+func TestCheckExportBarInstrument(t *testing.T) {
+	ctx := context.Background()
+	p := newFakeProvider(t, exportDB())
+	p.cfg.SchemeType = 518
+	p.cfg.SVG.Dir = "/srv/sld"
+	d := &slddoc.Diagram{BarInstruments: []slddoc.BarInstrument{{ID: 7, Min: 0, Max: 1, Bindings: []slddoc.Binding{
+		{Source: "rsdu", Kind: slddoc.BindingMeas1, Ref: "1:2"}, {Source: "rsdu", Kind: slddoc.BindingSetpointHA, Ref: "1:3"},
+	}}}}
+
+	c, err := p.CheckExport(ctx, "bar", d, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(c.Issues, func(i binding.ExportIssue) bool { return i.Code == binding.IssueNoComponentType })
+	if !c.OK || c.Bound != 1 || i < 0 || c.Issues[i].Item != 7 || c.Issues[i].Kind != "bar" || c.Issues[i].Shape != "320008" || c.Issues[i].Severity != binding.SeverityWarning {
+		t.Errorf("without a component type: %+v", c)
+	}
+
+	p.cfg.ComponentTypes = map[string]int64{"320008": 2000023}
+	c, _ = p.CheckExport(ctx, "bar", d, nil)
+	if !c.OK || slices.Contains(codes(c), binding.IssueNoComponentType) {
+		t.Errorf("with a component type: %v", codes(c))
+	}
+}

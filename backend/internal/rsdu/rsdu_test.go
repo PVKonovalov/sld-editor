@@ -173,6 +173,8 @@ func dictionaryResults(d Dialect) map[string][][]any {
 			{int64(2), "Parameters-db", "ADJUST_REGIM"},
 			{int64(3), "Additional-db", "ADJUST_ADDITIONAL"},
 			{int64(4), "Topology-db", "ADJUST_TOPOLOGY"},
+			{int64(6), "High alarm-db", "SETPOINT_HA"},
+			{int64(5), "Low alarm-db", "setpoint_la"},
 		},
 		d.SQL(sqlOptions): {
 			{int64(1), "Instant TI", "GLT_ANALOG_OPT_INSTANT", "GLOBAL_TYPE_ANALOG", "Analog"},
@@ -202,6 +204,8 @@ func TestDictionaries(t *testing.T) {
 				{Kind: slddoc.BindingMeas1, Name: "Parameters-db", DefaultOption: optionBool},
 				{Kind: slddoc.BindingMeas2, Name: "Additional-db", DefaultOption: optionBool},
 				{Kind: slddoc.BindingJump, DefaultOption: optionComplex},
+				{Kind: slddoc.BindingSetpointLA, Name: "Low alarm-db", DefaultOption: optionAnalog},
+				{Kind: slddoc.BindingSetpointHA, Name: "High alarm-db", DefaultOption: optionAnalog},
 			}
 			if !slices.Equal(got.Kinds, wantKinds) {
 				t.Errorf("kinds = %+v", got.Kinds)

@@ -246,6 +246,9 @@ func (p *Provider) plan(ctx context.Context, d *slddoc.Diagram, req binding.Expo
 	for _, dd := range d.DigitalDevices {
 		item("device", dd.ID, deviceShape, dd.ComponentType, dd.Precision, dd.Features, dd.ComponentEdited, dd.Bindings)
 	}
+	for _, b := range d.BarInstruments {
+		item("bar", b.ID, slddoc.BarInstrumentShape, b.ComponentType, b.Precision, b.Features, b.ComponentEdited, b.Bindings)
+	}
 	for _, l := range d.Labels {
 		item("label", l.ID, labelShape, l.ComponentType, l.Precision, l.Features, l.ComponentEdited, l.Bindings)
 	}

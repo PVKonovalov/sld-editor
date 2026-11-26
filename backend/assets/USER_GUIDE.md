@@ -1061,6 +1061,10 @@ Some elements are drawn instead of clicked:
   picks another file and **Fit to image proportions** sets the frame's height from its width and the image's own
   aspect ratio.
 - **Text** places a free text label; **Digital device** places a SCADA value readout.
+- **Bar instrument** (Indicators group) places a bar that shows a measurement against its range and setpoints. A click
+  places a horizontal bar of the configured length, 0…100 with value 50 and no setpoints; press and drag instead to set
+  its length and direction (mostly sideways gives a horizontal bar, mostly up or down a vertical one, the press point
+  being its min end). See [Bar instrument](#bar-instrument).
 - **Table 2**: click to place a 2×2 grid. In Properties, **Rows**/**Columns** set its size, and the **Cells** map
   shows the grid to scale. Click a cell there, or on the canvas while the table is selected; Shift-click another cell
   to pick a range (a merged cell is always picked whole). For the picked cells you can set the row height and column
@@ -1467,11 +1471,51 @@ Select a single item to edit it in the Properties panel:
   button back to the configured colour. A line imported from `.xsde`/`.svg` keeps all its styles; those not in
   `line_halos` are marked "not drawn" and only kept.
 - **Digital devices**: SCADA name, default value and unit.
+- **Bar instruments**: see [Bar instrument](#bar-instrument).
 
 The voltage class list includes the server's standard voltages; choosing one that the diagram doesn't have yet adds
 it. The last voltage chosen becomes the default for new elements. Voltage lists are sorted by voltage, not
 alphabetically: a name is read as a number with its unit ("400 V" comes before "6 kV", "6,3 kV" after it), in the order
 `editor.voltage_order` sets ([sld-editor.yaml](#configuration-editor)). A name that isn't a voltage comes last.
+
+### Bar instrument {#bar-instrument}
+
+A bar instrument (type 320008) shows one measured value as a bar along a track from **Min** to **Max**. Its setpoints
+can mark warning and alarm zones on the track, and the bar and its value text take the colour of the zone the value is
+in. SCADA fills the value at run time; the editor's own **Current value** is only a preview.
+
+While a bar instrument is selected, a small square sits at its max end. Drag it along the bar to change the length:
+the min end stays put, the length snaps to the grid (whole units with snapping off) and never gets shorter than two grid
+steps; moving across the bar does nothing. The bar is redrawn as you drag, and one drag is one step of [undo](#undo).
+**R** switches a selected bar between horizontal and vertical about its min end; mirroring doesn't apply. It moves,
+copies, groups, changes layer and is found by [Find](#find) like any other item.
+
+Properties:
+
+- **SCADA name**, with the button that adds its name as a text label beside it; **Unit**; **Decimal places** of the
+  value text (also the binding's precision).
+- **Current value**: a number, and a slider from 5 % below Min to 5 % above Max. The bar is redrawn as you move it, so
+  you can check every zone and the overflow marks. A value outside the range is allowed: the bar stays full (or empty)
+  and an arrow at that end of the track shows the overflow in the alarm colour.
+- **Range**: **Min**, **Max** and **Origin**. The bar grows from the origin (Min when empty), so with Min −50, Max 50
+  and Origin 0 a negative value fills to the left of (below) 0. The scale, when shown, writes Min, Max and the origin.
+- **Setpoints**: **Low alarm (LA)**, **Low warning (LW)**, **High warning (HW)**, **High alarm (HA)**, each optional,
+  and the **Deadband**. Under each setpoint is its own binding row (when the SCADA system offers setpoint bindings):
+  drop an object on it and SCADA's setpoint replaces the one typed here at run time.
+- **Look**: **Orientation**, **Length**, **Thickness**, **Value font size** (px), **Show value**, **Show scale**, **Show zones** and the
+  **Colours** of the track and of each zone, each with a reset button back to the [configured](#configuration-bar-instrument)
+  colour.
+- The layer and the **Bindings** group, whose **Parameters** row binds the measured value.
+
+Zone rules: the value is in the alarm zone below LA or above HA, else in the warning zone below LW or above HW, else
+normal; a setpoint left empty is skipped. The **Deadband** is passed to SCADA, which uses it so that a value hovering at
+a setpoint doesn't flicker: it leaves a zone only once it is back past the setpoint by the deadband. When SCADA has no
+data or bad quality for the value, the bar and text are drawn in the *bad* colour.
+
+The values must be consistent: Min less than Max; every setpoint and the origin between Min and Max; LA ≤ LW ≤ HW ≤ HA
+(empty ones skipped); Deadband, Length, Thickness and Value font size not negative. A field that would break this is marked red with the
+reason and not applied. A diagram whose file already holds inconsistent values opens with a warning naming the
+instrument, and its Properties show the problem at the top.
 
 ### Electrical parameters {#electrical-parameters}
 
@@ -1511,6 +1555,7 @@ kept when it is saved.
 | Parameters | the main measured value or state shown by the item |
 | Additional parameters | a second value |
 | Jumps | a scheme, panel or report opened from the item |
+| Low alarm (LA) … High alarm (HA) | a bar instrument's setpoints, shown under each setpoint field ([Bar instrument](#bar-instrument)); offered only when the system has them (RSDU: the `VS_REGIM` rows `SETPOINT_LA`, `SETPOINT_LW`, `SETPOINT_HW`, `SETPOINT_HA`) |
 
 Each row shows the bound object's name (its key when the name is unknown; hover to see the key), its type and the
 system's name as a tag, and lets you change:
@@ -1746,7 +1791,7 @@ location / {
 
 The editor's own settings, read once at startup: restart the editor, then reload the page, after changing them. The
 exceptions are `user_guide` and the two `xsde` files, which are read again on every use. A mistake in `palette`,
-`hot_keys`, `letter_codes`, `designations`, `cim`, `line_halos` or `bindings` stops the editor at startup with a message naming it.
+`hot_keys`, `letter_codes`, `designations`, `cim`, `line_halos`, `bar_instrument` or `bindings` stops the editor at startup with a message naming it.
 
 | Key | What it sets |
 |---|---|
@@ -1765,6 +1810,7 @@ exceptions are `user_guide` and the two `xsde` files, which are read again on ev
 | `voltage_color_tolerance` | How close (RGB distance, 0–441) a color must be to a standard one to be offered for replacement; 0 = exact only. |
 | `state_colors`, `fpi_state_colors` | Open / Close / Intermediate (and, for switching devices, Faulty) fill colors of switching devices and fault passage indicators. `state_colors` is only the starting colors of a diagram: see [State colors](#state-colors). |
 | `line_halos` | Composite styles of a line drawn as a coloured halo under it, with their default colours: see [Line halos](#configuration-line-halos). |
+| `bar_instrument` | Size, display options and colours of [bar instruments](#bar-instrument): see [Bar instrument](#configuration-bar-instrument). |
 | `bindings` | Whether diagram items can be bound to a SCADA system, and the system's connection: see [Bindings](#configuration-bindings). |
 | `position_states` | Labels of a withdrawable device's racking positions (Service / Normal / Test). |
 | `indicators.default_fpi_text` | Text a fault passage indicator shows when it has none of its own. |
@@ -1829,6 +1875,29 @@ line_halos:
   editor at startup with a message naming the entry. An empty or missing `line_halos` draws no halos.
 - `line_halos` is read at startup only (restart the editor, then reload the page) and can't be set by an environment
   variable.
+
+### Bar instrument (bar_instrument) {#configuration-bar-instrument}
+
+How a new [bar instrument](#bar-instrument) looks, and the colours of one that has none of its own. Every key is
+optional; an absent key takes the shipped value.
+
+| Key | Shipped | What it sets |
+|---|---|---|
+| `length` | `80` | Length of a bar placed with a click; also of one whose file stores none. Must be positive. |
+| `thickness` | `4` | Bar thickness; the track is 6 wider. Must be positive. |
+| `value_size` | `12` | Font size of a new instrument's value text, px. Must be positive. |
+| `show_value` | `true` | Whether a new instrument shows the value text. |
+| `show_scale` | `false` | Whether a new instrument writes Min, Max and the origin along the track. |
+| `show_zones` | `true` | Whether a new instrument draws the setpoint zones on the track. |
+| `colors.track` | `"#3a3f47"` | The track. |
+| `colors.normal`, `warning`, `alarm` | `lawngreen`, `"#c9a800"`, `red` | The bar and value text in each zone; the alarm colour also draws the overflow arrows. |
+| `colors.bad` | `"#808080"` | The bar and value text when SCADA has no data or bad quality. |
+
+A colour is any SVG colour and must not contain `;`, `:` or `"`. `length`, `thickness`, `value_size` and the three `show_` keys
+are copied into an instrument when it is placed, so changing them later leaves existing instruments as they are. The colours
+apply to every instrument that doesn't set its own in Properties, so changing them restyles those instruments (their
+saved `.svg` on the next save). An `.svg` import keeps only the colours that differ from the configured ones. A negative size or a blank colour stops the editor at startup. `bar_instrument` is read at startup only
+and can't be set by an environment variable.
 
 ### Bindings (bindings) {#configuration-bindings}
 

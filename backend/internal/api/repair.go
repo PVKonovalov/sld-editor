@@ -33,6 +33,10 @@ func (s *Server) prepareDiagram(d *slddoc.Diagram, extracted bool) bool {
 		for i := range d.Elements {
 			slddoc.DropDefaultHaloColors(&d.Elements[i], halos)
 		}
+		defaults := s.cfg.BarInstrument.RenderDefaults().Colors
+		for i := range d.BarInstruments {
+			dropDefaultBarColors(&d.BarInstruments[i], defaults)
+		}
 	}
 	return slddoc.Repair(d, terminals) || changed
 }
@@ -70,6 +74,28 @@ func (s *Server) applyPresetVoltageNames(d *slddoc.Diagram) bool {
 		}
 	}
 	return changed
+}
+
+// dropDefaultBarColors clears the colours of b equal to the configured ones (defaults), so that b follows the
+// configuration; Colors becomes nil when none is left.
+func dropDefaultBarColors(b *slddoc.BarInstrument, defaults slddoc.BarColors) {
+	if b.Colors == nil {
+		return
+	}
+	c := b.Colors
+	for _, f := range []struct {
+		v *string
+		d string
+	}{
+		{&c.Track, defaults.Track}, {&c.Normal, defaults.Normal}, {&c.Warning, defaults.Warning}, {&c.Alarm, defaults.Alarm}, {&c.Bad, defaults.Bad},
+	} {
+		if strings.EqualFold(strings.TrimSpace(*f.v), f.d) {
+			*f.v = ""
+		}
+	}
+	if *c == (slddoc.BarColors{}) {
+		b.Colors = nil
+	}
 }
 
 // LineHaloTable converts the line_halos configuration into the table slddoc draws halos from.

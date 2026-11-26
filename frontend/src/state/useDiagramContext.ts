@@ -21,7 +21,7 @@ import type {
   FetchedScheme,
 } from '../types'
 import type { PreparedImport } from '../lib/importDiagram'
-import type { MisplacedPort, TableCellRange, VoltageMismatch } from '../lib/diagramOps'
+import type { DataEditorKind, MisplacedPort, TableCellRange, VoltageMismatch } from '../lib/diagramOps'
 
 // A dropped/picked file whose target name (fileName minus extension)
 // already exists on the server — parked until ConfirmReloadDialog's
@@ -102,7 +102,7 @@ export interface PreRendered {
 // UnsavedChangesDialog's three answers.
 export type UnsavedChoice = 'save' | 'discard' | 'cancel'
 
-// The four selectable kinds a mixed multi-selection can hold — matches
+// The selectable kinds a mixed multi-selection can hold — matches
 // Render/RenderFragments' own data-editor-kind values ("digitaldevice",
 // not "digitalDevice").
 /** Schemes offered for linking the diagram name, imported from the file source. */
@@ -112,7 +112,7 @@ export interface SchemeOffer {
   candidates: SchemeCandidate[]
 }
 
-export type SelectionKind = 'element' | 'connector' | 'label' | 'digitaldevice'
+export type SelectionKind = DataEditorKind
 
 export interface DiagramContextValue {
   diagramName: string | null
@@ -168,10 +168,14 @@ export interface DiagramContextValue {
   selectedConnectorId: number | null
   selectedLabelId: number | null
   selectedDigitalDeviceId: number | null
+  // The one selected bar instrument (the selection holds only it), else null.
+  selectedBarInstrumentId: number | null
   armedSymbol: ElementSymbol | null
   armedWireKind: ConnectorKind | null
   armedLabel: boolean
   armedDigitalDevice: boolean
+  // The Elements panel's "Bar instrument" button: click or drag places one.
+  armedBarInstrument: boolean
   // The server's custom elements (GET /api/custom-elements), loaded once at
   // startup, and the one armed from the palette's "Custom elements" group
   // for click-to-place (mutually exclusive with every other arm/selection,
@@ -235,10 +239,12 @@ export interface DiagramContextValue {
   selectConnector: (id: number | null) => void
   selectLabel: (id: number | null) => void
   selectDigitalDevice: (id: number | null) => void
+  selectBarInstrument: (id: number | null) => void
   armSymbol: (symbol: ElementSymbol | null) => void
   armWireKind: (kind: ConnectorKind | null) => void
   armLabel: (armed: boolean) => void
   armDigitalDevice: (armed: boolean) => void
+  armBarInstrument: (armed: boolean) => void
   armCustomElement: (custom: CustomElement | null) => void
   // "Save selection as custom element": saves template (see
   // diagramOps.extractSelection) under name and adds/replaces it in
@@ -246,6 +252,9 @@ export interface DiagramContextValue {
   // overwrite is false.
   saveCustomElement: (name: string, template: Diagram, overwrite: boolean) => Promise<void>
   deleteSelected: () => void
+  // A gesture (a handle drag) whose edits, between begin and end, are one undo step however many there are.
+  beginGesture: () => void
+  endGesture: () => void
 
   clearError: () => void
   // defaultVoltageName: a server voltage-color preset's name (see

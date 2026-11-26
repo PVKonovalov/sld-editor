@@ -161,6 +161,9 @@ type Config struct {
 
 	// Bindings selects the SCADA data provider (ValidateBindings checks it at startup).
 	Bindings Bindings `yaml:"bindings"`
+
+	// BarInstrument is the default look of a bar instrument (320008); ValidateBarInstrument checks it at startup.
+	BarInstrument BarInstrument `yaml:"bar_instrument"`
 }
 
 // DefaultVoltageColorTolerance is VoltageColorTolerance when unset.

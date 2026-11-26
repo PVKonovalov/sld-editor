@@ -19,6 +19,8 @@ export function usePaletteToggle(): (item: PaletteItem) => void {
     armLabel,
     armedDigitalDevice,
     armDigitalDevice,
+    armedBarInstrument,
+    armBarInstrument,
   } = useDiagramContext()
   return useCallback(
     (item: PaletteItem) => {
@@ -27,13 +29,26 @@ export function usePaletteToggle(): (item: PaletteItem) => void {
         armWireKind(armedWireKind === c.value ? null : c.value)
       } else if (c.kind === 'special') {
         if (c.value === 'label') armLabel(!armedLabel)
+        else if (c.value === 'barInstrument') armBarInstrument(!armedBarInstrument)
         else armDigitalDevice(!armedDigitalDevice)
       } else {
         const el = elements.find(s => s.shape === c.shape)
         if (el) armSymbol(armedSymbol?.shape === el.shape ? null : el)
       }
     },
-    [elements, armedSymbol, armSymbol, armedWireKind, armWireKind, armedLabel, armLabel, armedDigitalDevice, armDigitalDevice],
+    [
+      elements,
+      armedSymbol,
+      armSymbol,
+      armedWireKind,
+      armWireKind,
+      armedLabel,
+      armLabel,
+      armedDigitalDevice,
+      armDigitalDevice,
+      armedBarInstrument,
+      armBarInstrument,
+    ],
   )
 }
 

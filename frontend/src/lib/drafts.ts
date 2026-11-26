@@ -1,4 +1,5 @@
-import type { Diagram } from '../types'
+import type { Diagram, DiagramWire } from '../types'
+import { normalizeDiagram } from './api'
 
 // Recovery drafts: a copy of the open diagram's unsaved edits, kept in this
 // browser's IndexedDB (localStorage's ~5 MB is too small once a diagram
@@ -68,12 +69,17 @@ export function deleteDraft(name: string): Promise<void> {
   return enqueue(() => run('readwrite', s => s.delete(name)).then(() => undefined), undefined)
 }
 
+// A draft as read back: one written by an older version may lack a list its Diagram has now.
+function normalizeDraft(d: Draft): Draft {
+  return { ...d, diagram: normalizeDiagram(d.diagram as DiagramWire) }
+}
+
 export function getDraft(name: string): Promise<Draft | null> {
-  return enqueue(() => run<Draft | undefined>('readonly', s => s.get(name)).then(d => d ?? null), null)
+  return enqueue(() => run<Draft | undefined>('readonly', s => s.get(name)).then(d => (d ? normalizeDraft(d) : null)), null)
 }
 
 export function listDrafts(): Promise<Draft[]> {
-  return enqueue(() => run<Draft[]>('readonly', s => s.getAll()), [])
+  return enqueue(() => run<Draft[]>('readonly', s => s.getAll()).then(list => list.map(normalizeDraft)), [])
 }
 
 /** Moves the drafts of the diagram from, or of every diagram inside the folder from (isDir), to the matching names

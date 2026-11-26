@@ -102,6 +102,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
   const [armedWireKind, setArmedWireKindState] = useState<ConnectorKind | null>(null)
   const [armedLabel, setArmedLabelState] = useState(false)
   const [armedDigitalDevice, setArmedDigitalDeviceState] = useState(false)
+  const [armedBarInstrument, setArmedBarInstrumentState] = useState(false)
   const [customElements, setCustomElements] = useState<CustomElement[]>([])
   const [armedCustomElement, setArmedCustomElementState] = useState<CustomElement | null>(null)
   const [defaultVoltage, setDefaultVoltage] = useState<number | undefined>(undefined)
@@ -159,7 +160,9 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     sameTask: boolean
     field: Element | null
     fieldTime: number
-  }>({ undo: [], redo: [], sameTask: false, field: null, fieldTime: 0 })
+    // An open gesture (beginGesture): 'open' until its first edit, then 'recorded'.
+    gesture: 'none' | 'open' | 'recorded'
+  }>({ undo: [], redo: [], sameTask: false, field: null, fieldTime: 0, gesture: 'none' })
   const [canUndo, setCanUndo] = useState(false)
   // The connection points where the edit waiting in pendingEditRef would join different voltage classes.
   const [voltagePrompt, setVoltagePrompt] = useState<diagramOps.VoltageMismatch[] | null>(null)
@@ -188,7 +191,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       if (opts?.reset) {
         pendingEditRef.current = null
         setVoltagePrompt(null)
-        historyRef.current = { undo: [], redo: [], sameTask: false, field: null, fieldTime: 0 }
+        historyRef.current = { undo: [], redo: [], sameTask: false, field: null, fieldTime: 0, gesture: 'none' }
         syncHistoryFlags()
         const version = ++versionRef.current
         setDocumentVersion(version)
@@ -333,7 +336,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       })
       if (!hidden || !diagram) return
       const onLayer = new Set<number>()
-      for (const list of [diagram.elements, diagram.connectors, diagram.labels, diagram.digitalDevices])
+      for (const list of [diagram.elements, diagram.connectors, diagram.labels, diagram.digitalDevices, diagram.barInstruments])
         for (const x of list) if (x.layer === layer) onLayer.add(x.id)
       if ([...selection.keys()].some(id => onLayer.has(id))) clearSelection()
     },
@@ -384,7 +387,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     if (selection.size === 0) return
     const ids = new Set<number>()
     if (diagram)
-      for (const list of [diagram.elements, diagram.connectors, diagram.labels, diagram.digitalDevices])
+      for (const list of [diagram.elements, diagram.connectors, diagram.labels, diagram.digitalDevices, diagram.barInstruments])
         for (const x of list) ids.add(x.id)
     const kept = new Map([...selection].filter(([id]) => ids.has(id)))
     if (kept.size === selection.size) return
@@ -449,14 +452,36 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedCustomElementState(null)
   }, [])
 
+  const selectBarInstrument = useCallback((id: number | null) => {
+    setFindPinned(false)
+    setSelection(id === null ? new Map() : new Map([[id, 'barinstrument']]))
+    setSelectedElementIdState(null)
+    setSelectedConnectorIdState(null)
+    setSelectedLabelIdState(null)
+    setSelectedDigitalDeviceIdState(null)
+    setArmedSymbolState(null)
+    setArmedCustomElementState(null)
+  }, [])
+
+  const selectedBarInstrumentId = useMemo(() => {
+    const only = selection.size === 1 ? [...selection][0] : null
+    return only && only[1] === 'barinstrument' ? only[0] : null
+  }, [selection])
+
   // Find's result click: select (id, kind) and keep Properties on Find.
   const selectFromFind = useCallback(
     (id: number, kind: SelectionKind) => {
-      const select = { element: selectElement, connector: selectConnector, label: selectLabel, digitaldevice: selectDigitalDevice }
+      const select = {
+        element: selectElement,
+        connector: selectConnector,
+        label: selectLabel,
+        digitaldevice: selectDigitalDevice,
+        barinstrument: selectBarInstrument,
+      }
       select[kind](id)
       setFindPinned(true)
     },
-    [selectElement, selectConnector, selectLabel, selectDigitalDevice],
+    [selectElement, selectConnector, selectLabel, selectDigitalDevice, selectBarInstrument],
   )
 
   const armSymbol = useCallback((symbol: ElementSymbol | null) => {
@@ -465,6 +490,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedLabelState(false)
     setArmedDigitalDeviceState(false)
     setArmedCustomElementState(null)
+    setArmedBarInstrumentState(false)
     setSelectedElementIdState(null)
     setSelection(new Map())
     setSelectedConnectorIdState(null)
@@ -483,6 +509,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedLabelState(false)
     setArmedDigitalDeviceState(false)
     setArmedCustomElementState(null)
+    setArmedBarInstrumentState(false)
     setSelectedElementIdState(null)
     setSelection(new Map())
     setSelectedConnectorIdState(null)
@@ -499,6 +526,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedWireKindState(null)
     setArmedDigitalDeviceState(false)
     setArmedCustomElementState(null)
+    setArmedBarInstrumentState(false)
     setSelectedElementIdState(null)
     setSelection(new Map())
     setSelectedConnectorIdState(null)
@@ -516,6 +544,22 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedWireKindState(null)
     setArmedLabelState(false)
     setArmedCustomElementState(null)
+    setArmedBarInstrumentState(false)
+    setSelectedElementIdState(null)
+    setSelection(new Map())
+    setSelectedConnectorIdState(null)
+    setSelectedLabelIdState(null)
+    setSelectedDigitalDeviceIdState(null)
+  }, [])
+
+  // The Elements panel's "Bar instrument" button, mutually exclusive with every other arm and the selection.
+  const armBarInstrument = useCallback((armed: boolean) => {
+    setArmedBarInstrumentState(armed)
+    setArmedSymbolState(null)
+    setArmedWireKindState(null)
+    setArmedLabelState(false)
+    setArmedDigitalDeviceState(false)
+    setArmedCustomElementState(null)
     setSelectedElementIdState(null)
     setSelection(new Map())
     setSelectedConnectorIdState(null)
@@ -532,6 +576,7 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
     setArmedWireKindState(null)
     setArmedLabelState(false)
     setArmedDigitalDeviceState(false)
+    setArmedBarInstrumentState(false)
     setSelectedElementIdState(null)
     setSelection(new Map())
     setSelectedConnectorIdState(null)
@@ -1107,11 +1152,15 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       const h = historyRef.current
       const field = editingField()
       const now = Date.now()
-      const coalesce = h.sameTask || (field !== null && field === h.field && now - h.fieldTime < FIELD_COALESCE_MS)
+      const coalesce =
+        h.sameTask ||
+        h.gesture === 'recorded' ||
+        (field !== null && field === h.field && now - h.fieldTime < FIELD_COALESCE_MS)
       if (!coalesce) {
         h.undo.push(prev)
         if (h.undo.length > UNDO_LIMIT) h.undo.shift()
       }
+      if (h.gesture === 'open') h.gesture = 'recorded'
       h.redo = []
       h.field = field
       h.fieldTime = now
@@ -1269,11 +1318,20 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
             return diagramOps.removeLabel(acc, id)
           case 'digitaldevice':
             return diagramOps.removeDigitalDevice(acc, id)
+          case 'barinstrument':
+            return diagramOps.removeBarInstrument(acc, id)
         }
       }, d)),
     )
     clearSelection()
   }, [selection, updateDiagram, clearSelection])
+
+  const beginGesture = useCallback(() => {
+    historyRef.current.gesture = 'open'
+  }, [])
+  const endGesture = useCallback(() => {
+    historyRef.current.gesture = 'none'
+  }, [])
 
   const clearError = useCallback(() => setError(null), [])
 
@@ -1377,10 +1435,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,
+      selectedBarInstrumentId,
       armedSymbol,
       armedWireKind,
       armedLabel,
       armedDigitalDevice,
+      armedBarInstrument,
       customElements,
       armedCustomElement,
       defaultVoltage,
@@ -1389,13 +1449,17 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectConnector,
       selectLabel,
       selectDigitalDevice,
+      selectBarInstrument,
       armSymbol,
       armWireKind,
       armLabel,
       armDigitalDevice,
+      armBarInstrument,
       armCustomElement,
       saveCustomElement,
       deleteSelected,
+      beginGesture,
+      endGesture,
       clearError,
       newDiagram,
       openDiagram,
@@ -1497,10 +1561,12 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectedConnectorId,
       selectedLabelId,
       selectedDigitalDeviceId,
+      selectedBarInstrumentId,
       armedSymbol,
       armedWireKind,
       armedLabel,
       armedDigitalDevice,
+      armedBarInstrument,
       customElements,
       armedCustomElement,
       defaultVoltage,
@@ -1509,13 +1575,17 @@ export function DiagramProvider({ children }: { children: ReactNode }) {
       selectConnector,
       selectLabel,
       selectDigitalDevice,
+      selectBarInstrument,
       armSymbol,
       armWireKind,
       armLabel,
       armDigitalDevice,
+      armBarInstrument,
       armCustomElement,
       saveCustomElement,
       deleteSelected,
+      beginGesture,
+      endGesture,
       clearError,
       newDiagram,
       openDiagram,

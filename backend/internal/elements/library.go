@@ -155,6 +155,10 @@ const (
 	PaletteDigitalDeviceShape = "134"
 )
 
+// PaletteBarInstrumentShape is the bar instrument (slddoc.BarInstrumentShape), its own Diagram entity like the digital
+// device and drawn by slddoc without a symbol.
+const PaletteBarInstrumentShape = slddoc.BarInstrumentShape
+
 // ValidatePalette checks every config.PaletteGroup.Items string — always a
 // real xsde2svg ObjectType code, never a name, the same convention every
 // item kind already follows — against the fixed wireKind/label/
@@ -173,11 +177,11 @@ func (l *Library) ValidatePalette(groups []config.PaletteGroup) error {
 			if _, ok := PaletteConnectorKinds[it]; ok {
 				continue
 			}
-			if it == PaletteLabelShape || it == PaletteDigitalDeviceShape {
+			if it == PaletteLabelShape || it == PaletteDigitalDeviceShape || it == PaletteBarInstrumentShape {
 				continue
 			}
 			if !shapes[it] {
-				return fmt.Errorf("elements: palette group %q: %q is neither a recognized wireKind/label/digitalDevice code nor an element shape in the loaded element libraries", g.Name, it)
+				return fmt.Errorf("elements: palette group %q: %q is neither a recognized wireKind/label/digitalDevice/barInstrument code nor an element shape in the loaded element libraries", g.Name, it)
 			}
 		}
 	}

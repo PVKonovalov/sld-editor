@@ -1,4 +1,5 @@
 import type { CustomElement, Point } from '../types'
+import { barInstrumentEnd } from './diagramOps'
 
 // How far a symbol's own drawing reaches beyond its anchor, for sizing the
 // icon's viewBox — a symbol has no measured extent on the frontend, and
@@ -26,6 +27,7 @@ export function customElementIconMarkup(custom: CustomElement, size: number): st
     ...d.connectors.flatMap(c => c.points),
     ...d.labels.map(l => ({ x: l.x, y: l.y })),
     ...d.digitalDevices.map(dd => ({ x: dd.x, y: dd.y })),
+    ...(d.barInstruments ?? []).flatMap(b => [{ x: b.x, y: b.y }, barInstrumentEnd(b)]),
   ]
   if (points.length > 0) {
     const xs = points.map(p => p.x)

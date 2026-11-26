@@ -42,6 +42,7 @@ export function ImportLogDialog({ onClose }: { onClose: () => void }) {
     [t('importLog.connectors'), report.connectors],
     [t('importLog.labels'), report.labels],
     [t('importLog.digitalDevices'), report.digitalDevices],
+    [t('importLog.barInstruments'), report.barInstruments],
     [t('importLog.nodes'), report.nodes],
   ]
 

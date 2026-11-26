@@ -2,7 +2,7 @@ import type { Binding, BindingKind, DesignationPlan, Diagram, DiagramElement, Di
 import { functionSegment, type BindingTarget } from './diagramOps'
 import { elementDisplayName } from './elementCatalogI18n'
 import { t, type TranslationKey } from '../i18n'
-import { DIGITAL_DEVICE_SHAPE, LABEL_SHAPE } from './paletteItem'
+import { BAR_INSTRUMENT_SHAPE, DIGITAL_DEVICE_SHAPE, LABEL_SHAPE } from './paletteItem'
 
 export const BINDING_KINDS: BindingKind[] = ['equipment', 'meas1', 'meas2', 'jump']
 
@@ -52,7 +52,7 @@ export interface Bindable {
   function?: number
 }
 
-/** Every bindable item of diagram: elements, digital devices, text labels (named by their first line), wires. */
+/** Every bindable item of diagram: elements, digital devices, bar instruments, text labels (named by their first line), wires. */
 export function bindables(diagram: Diagram): Bindable[] {
   const out: Bindable[] = []
   const fields = (i: { bindings?: Binding[]; precision?: number; features?: string; componentType?: string }) => ({
@@ -67,6 +67,9 @@ export function bindables(diagram: Diagram): Bindable[] {
   for (const d of diagram.digitalDevices) {
     out.push({ target: { kind: 'digitaldevice', id: d.id }, shape: DIGITAL_DEVICE_SHAPE, expected: true, name: d.name ?? '', ...fields(d) })
   }
+  for (const b of diagram.barInstruments) {
+    out.push({ target: { kind: 'barinstrument', id: b.id }, shape: BAR_INSTRUMENT_SHAPE, expected: true, name: b.name ?? '', ...fields(b) })
+  }
   for (const l of diagram.labels) {
     out.push({ target: { kind: 'label', id: l.id }, shape: LABEL_SHAPE, expected: false, name: l.text.split('\n')[0], ...fields(l) })
   }
@@ -79,6 +82,7 @@ export function bindables(diagram: Diagram): Bindable[] {
 /** How the overview names the types that aren't element symbols (see overviewTypeNames). */
 export interface TypeNames {
   digitalDevice: string
+  barInstrument: string
   label: string
   wire: (kind: string) => string
 }
@@ -86,6 +90,7 @@ export interface TypeNames {
 const ITEM_TITLE: Record<BindingTarget['kind'], TranslationKey> = {
   element: 'bindings.staleElement',
   digitaldevice: 'bindings.staleDigitalDevice',
+  barinstrument: 'bindings.staleBarInstrument',
   label: 'bindings.staleLabel',
   connector: 'bindings.staleWire',
 }
@@ -100,6 +105,7 @@ export function itemTitle(diagram: Diagram, target: BindingTarget): string {
 export function overviewTypeNames(): TypeNames {
   return {
     digitalDevice: t('overview.digitalDevice'),
+    barInstrument: t('overview.barInstrument'),
     label: t('overview.label'),
     wire: kind => t(`connectorKind.${kind}` as TranslationKey),
   }
@@ -114,6 +120,8 @@ export function typeName(item: Bindable, bySymbol: Map<string, ElementSymbol>, n
     }
     case 'digitaldevice':
       return names.digitalDevice
+    case 'barinstrument':
+      return names.barInstrument
     case 'label':
       return names.label
     case 'connector':
@@ -224,17 +232,25 @@ export function isUnbound(bindings: Partial<Record<BindingKind, Binding>>, gap: 
   return gap === 'any' ? Object.keys(bindings).length === 0 : !bindings[gap]
 }
 
-/** Returns the ids of diagram's elements expected to be bound and of its digital devices that have a gap. */
-export function unboundIds(diagram: Diagram, gap: GapKind): { elements: Set<number>; digitalDevices: Set<number> } {
+/** Returns the ids of diagram's elements expected to be bound and of its digital devices and bar instruments that have
+ * a gap. */
+export function unboundIds(
+  diagram: Diagram,
+  gap: GapKind,
+): { elements: Set<number>; digitalDevices: Set<number>; barInstruments: Set<number> } {
   const elements = new Set<number>()
   const digitalDevices = new Set<number>()
+  const barInstruments = new Set<number>()
   for (const el of diagram.elements) {
     if (expectsBinding(el) && isUnbound(byKind(el.bindings), gap)) elements.add(el.id)
   }
   for (const dd of diagram.digitalDevices) {
     if (isUnbound(byKind(dd.bindings), gap)) digitalDevices.add(dd.id)
   }
-  return { elements, digitalDevices }
+  for (const b of diagram.barInstruments) {
+    if (isUnbound(byKind(b.bindings), gap)) barInstruments.add(b.id)
+  }
+  return { elements, digitalDevices, barInstruments }
 }
 
 function csvCell(s: string): string {

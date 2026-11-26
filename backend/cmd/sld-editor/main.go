@@ -67,6 +67,9 @@ func main() {
 	if err := cfg.ValidateLineHalos(); err != nil {
 		llog.Logger.Fatalf("validating line_halos configuration: %v", err)
 	}
+	if err := cfg.ValidateBarInstrument(); err != nil {
+		llog.Logger.Fatalf("validating bar_instrument configuration: %v", err)
+	}
 	if err := cfg.ValidateBindings(); err != nil {
 		llog.Logger.Fatalf("validating bindings configuration: %v", err)
 	}
@@ -109,6 +112,7 @@ func main() {
 
 	symbols := lib.SymbolLibrary()
 	symbols.SetLineHalos(api.LineHaloTable(cfg.LineHalos))
+	symbols.SetBarDefaults(cfg.BarInstrument.RenderDefaults())
 
 	store, err := storage.New(cfg.Diagrams.Dir, symbols, cfg.Indicators.DefaultFPIText, fpiColors, stateColors...)
 	if err != nil {

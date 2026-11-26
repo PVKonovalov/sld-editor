@@ -57,6 +57,7 @@ function Shell() {
     selectedConnectorId,
     selectedLabelId,
     selectedDigitalDeviceId,
+    selectedBarInstrumentId,
     importDiagramFile,
     importDiagramFiles,
     batchImport,
@@ -146,12 +147,13 @@ function Shell() {
       selectedElementId !== null ||
       selectedConnectorId !== null ||
       selectedLabelId !== null ||
-      selectedDigitalDeviceId !== null
+      selectedDigitalDeviceId !== null ||
+      selectedBarInstrumentId !== null
     if (hasSelection && !hadSelection.current) {
       setPropertiesOpen(true)
     }
     hadSelection.current = hasSelection
-  }, [selectedElementId, selectedConnectorId, selectedLabelId, selectedDigitalDeviceId])
+  }, [selectedElementId, selectedConnectorId, selectedLabelId, selectedDigitalDeviceId, selectedBarInstrumentId])
 
   // Picking a diagram from the File panel (or creating one) surfaces its
   // own width/height in Properties the same way selecting something on the

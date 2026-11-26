@@ -1,4 +1,5 @@
 import { Bold, Captions, Italic, RotateCcw, Trash2, Underline, X } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useDiagramContext } from '../../state/useDiagramContext'
 import * as diagramOps from '../../lib/diagramOps'
 import { FindSection } from './FindSection'
@@ -12,7 +13,7 @@ import { ConnectionsSection } from './ConnectionsSection'
 import { MridRow } from './MridRow'
 import { FunctionSection } from './FunctionSection'
 import { ElectricalSection } from './ElectricalSection'
-import { BindingsSection, DiagramBindingsSection } from './BindingsSection'
+import { BindingsSection, DiagramBindingsSection, ItemBindingRow } from './BindingsSection'
 import { ImportedBindings } from './ImportedBindings'
 import { Table2Editor } from './Table2Editor'
 import {
@@ -28,8 +29,8 @@ import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
 import { SWITCHING_DEVICE_CLASSES } from '../../lib/switchingDevices'
 import { haloDefaults, lineStyleNames, parseHaloColors, withHaloColor, withLineStyle } from '../../lib/lineStyles'
-import { CONNECTOR_KIND_CODES, LABEL_SHAPE, DIGITAL_DEVICE_SHAPE } from '../../lib/paletteItem'
-import type { DiagramElement, ConnectorKind, ConnectorLineStyle, TransformerWinding, WindingScheme, TerminalDirection } from '../../types'
+import { BAR_INSTRUMENT_SHAPE, CONNECTOR_KIND_CODES, LABEL_SHAPE, DIGITAL_DEVICE_SHAPE } from '../../lib/paletteItem'
+import type { BarColors, BarInstrument, DiagramElement, ConnectorKind, ConnectorLineStyle, TransformerWinding, WindingScheme, TerminalDirection } from '../../types'
 
 const ORIENTATIONS = [0, 90, 180, -90]
 
@@ -480,6 +481,315 @@ function DeleteButton({ label, onDelete }: { label: string; onDelete: () => void
   )
 }
 
+// A number field of a bar instrument that refuses an invalid value: the text stays as typed and onChange's error (or
+// "enter a number") shows under it. Empty is undefined when optional. children follow the field (a setpoint's
+// binding).
+function BarNumberField({
+  label,
+  value,
+  optional,
+  hideLabel,
+  onChange,
+  children,
+}: {
+  label: string
+  value?: number
+  optional?: boolean
+  hideLabel?: boolean
+  onChange: (v: number | undefined) => string | null
+  children?: ReactNode
+}) {
+  const [text, setText] = useState(value === undefined ? '' : String(value))
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    const shown = text.trim() === '' ? undefined : Number(text)
+    if (shown !== value) {
+      setText(value === undefined ? '' : String(value))
+      setError(null)
+    }
+    // text is what the user typed; only an outside change of value resets it.
+  }, [value])
+  return (
+    <div className="text-xs space-y-1">
+      <label className="block">
+        {!hideLabel && <span className="block text-gray-400 mb-1">{label}</span>}
+        <input
+          inputMode="decimal"
+          aria-label={hideLabel ? label : undefined}
+          className={`w-full bg-surface-800 border rounded px-2 py-1 ${error ? 'border-red-500' : 'border-surface-600'}`}
+          value={text}
+          onChange={e => {
+            const v = e.target.value
+            setText(v)
+            const trimmed = v.trim().replace(',', '.')
+            if (trimmed === '') {
+              setError(optional ? onChange(undefined) : t('properties.barErrorNumber'))
+              return
+            }
+            const n = Number(trimmed)
+            setError(Number.isFinite(n) ? onChange(n) : t('properties.barErrorNumber'))
+          }}
+        />
+      </label>
+      {error && <p className="text-[11px] text-red-300 break-words">{error}</p>}
+      {children}
+    </div>
+  )
+}
+
+const BAR_FIELD_LABELS: Record<diagramOps.BarField, TranslationKey> = {
+  min: 'properties.barMin',
+  max: 'properties.barMax',
+  origin: 'properties.barOrigin',
+  lowAlarm: 'properties.barLowAlarm',
+  lowWarning: 'properties.barLowWarning',
+  highWarning: 'properties.barHighWarning',
+  highAlarm: 'properties.barHighAlarm',
+  deadband: 'properties.barDeadband',
+  length: 'properties.barLength',
+  thickness: 'properties.barThickness',
+  valueSize: 'properties.barValueSize',
+}
+
+function barErrorText(field: diagramOps.BarField, error: diagramOps.BarError): string {
+  switch (error) {
+    case 'minMax':
+      return t('properties.barErrorMinMax')
+    case 'outside':
+      return t('properties.barErrorOutside', { field: t(BAR_FIELD_LABELS[field]) })
+    case 'order':
+      return t('properties.barErrorOrder')
+    case 'negative':
+      return t('properties.barErrorNegative')
+    case 'positive':
+      return t('properties.barErrorPositive')
+  }
+}
+
+const BAR_SETPOINT_FIELDS = [
+  ['lowAlarm', 'setpointLA'],
+  ['lowWarning', 'setpointLW'],
+  ['highWarning', 'setpointHW'],
+  ['highAlarm', 'setpointHA'],
+] as const
+
+const BAR_COLOR_KEYS = [
+  ['track', 'properties.barColorTrack'],
+  ['normal', 'properties.barColorNormal'],
+  ['warning', 'properties.barColorWarning'],
+  ['alarm', 'properties.barColorAlarm'],
+  ['bad', 'properties.barColorBad'],
+] as const
+
+function BarHeading({ label }: { label: string }) {
+  return <p className="text-xs uppercase tracking-wide text-gray-400 pt-1">{label}</p>
+}
+
+// The Properties of one bar instrument: range, setpoints (each with its SCADA binding), current value, look, name,
+// layer and bindings. An edit that would make its values invalid is refused with the reason under the field.
+function BarInstrumentPanel({
+  bar,
+  onClose,
+  onAddNameLabel,
+}: {
+  bar: BarInstrument
+  onClose: () => void
+  onAddNameLabel: (id: number, name: string, box: Box) => void
+}) {
+  const { diagram, config, updateDiagram, deleteSelected } = useDiagramContext()
+  const cfg = config?.barInstrument ?? diagramOps.DEFAULT_BAR_INSTRUMENT
+  const provider = config?.bindings?.provider ?? ''
+  const target = { kind: 'barinstrument' as const, id: bar.id }
+
+  // Applies fields unless they add an error bar didn't have already; returns that error's text.
+  const tryPatch = (fields: Partial<BarInstrument>): string | null => {
+    const before = diagramOps.barInstrumentErrors(bar)
+    const after = diagramOps.barInstrumentErrors({ ...bar, ...fields })
+    const added = (Object.entries(after) as [diagramOps.BarField, diagramOps.BarError][]).find(([f, e]) => before[f] !== e)
+    if (added) return barErrorText(...added)
+    updateDiagram(d => diagramOps.updateBarInstrument(d, bar.id, fields))
+    return null
+  }
+  const patch = (fields: Partial<BarInstrument>) => updateDiagram(d => diagramOps.updateBarInstrument(d, bar.id, fields))
+  const stored = Object.entries(diagramOps.barInstrumentErrors(bar)) as [diagramOps.BarField, diagramOps.BarError][]
+
+  const span = bar.max > bar.min ? bar.max - bar.min : 1
+  const step = Math.min(10 ** -(bar.precision ?? 0), span / 100)
+  const colors = bar.colors ?? {}
+  const setColor = (key: keyof BarColors, value: string | undefined) => {
+    const next: BarColors = { ...colors, [key]: value }
+    if (value === undefined) delete next[key]
+    patch({ colors: Object.keys(next).length > 0 ? next : undefined })
+  }
+
+  return (
+    <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="bar-instrument">
+      <div className="space-y-3">
+        <p className="text-xs text-gray-400">{typeCodeLabel(t('elements.barInstrument'), BAR_INSTRUMENT_SHAPE)}</p>
+        {stored.length > 0 && (
+          <p className="text-[11px] text-amber-300 break-words">{t('properties.barInvalid', { error: barErrorText(...stored[0]) })}</p>
+        )}
+        <div className="text-xs">
+          <span className="flex items-center gap-1 text-gray-400 mb-1">
+            {t('properties.digitalDeviceName')}
+            <span className="ml-auto">
+              <NameLabelButton
+                name={bar.name}
+                hasLabel={!!diagram?.labels.some(l => l.for === bar.id)}
+                onClick={() => onAddNameLabel(bar.id, bar.name ?? '', diagramOps.barInstrumentBox(bar))}
+              />
+            </span>
+          </span>
+          <input
+            className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+            value={bar.name ?? ''}
+            onChange={e => patch({ name: e.target.value || undefined })}
+          />
+        </div>
+        <label className="block text-xs">
+          <span className="block text-gray-400 mb-1">{t('properties.digitalDeviceUnit')}</span>
+          <input
+            className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+            value={bar.unit ?? ''}
+            onChange={e => patch({ unit: e.target.value || undefined })}
+          />
+        </label>
+        <label className="block text-xs">
+          <span className="block text-gray-400 mb-1">{t('properties.barPrecision')}</span>
+          <input
+            type="number"
+            min={0}
+            max={10}
+            className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+            value={bar.precision ?? 0}
+            onChange={e => {
+              const n = Math.round(Number(e.target.value))
+              if (n >= 0 && n <= 10) updateDiagram(d => diagramOps.setItemBindingExtras(d, target, { precision: n }))
+            }}
+          />
+        </label>
+
+        <BarHeading label={t('properties.barValue')} />
+        <BarNumberField label={t('properties.barValue')} hideLabel value={bar.value} onChange={v => tryPatch({ value: v ?? 0 })} />
+        <input
+          type="range"
+          className="w-full"
+          aria-label={t('properties.barValue')}
+          min={bar.min - span * 0.05}
+          max={bar.max + span * 0.05}
+          step={step}
+          value={bar.value}
+          onChange={e => patch({ value: Number(e.target.value) })}
+        />
+        <p className="text-[11px] text-gray-500">{t('properties.barValueHint')}</p>
+
+        <BarHeading label={t('properties.barRange')} />
+        <BarNumberField label={t('properties.barMin')} value={bar.min} onChange={v => tryPatch({ min: v })} />
+        <BarNumberField label={t('properties.barMax')} value={bar.max} onChange={v => tryPatch({ max: v })} />
+        <BarNumberField label={t('properties.barOrigin')} value={bar.origin} optional onChange={v => tryPatch({ origin: v })} />
+
+        <BarHeading label={t('properties.barSetpoints')} />
+        {BAR_SETPOINT_FIELDS.map(([field, kind]) => (
+          <BarNumberField key={field} label={t(BAR_FIELD_LABELS[field])} value={bar[field]} optional onChange={v => tryPatch({ [field]: v })}>
+            <ItemBindingRow provider={provider} target={target} kind={kind} bindings={bar.bindings} />
+          </BarNumberField>
+        ))}
+        <BarNumberField
+          label={t('properties.barDeadband')}
+          value={bar.deadband}
+          optional
+          onChange={v => tryPatch({ deadband: v || undefined })}
+        />
+
+        <BarHeading label={t('properties.barLook')} />
+        <label className="block text-xs">
+          <span className="block text-gray-400 mb-1">{t('properties.barOrientation')}</span>
+          <select
+            className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+            value={bar.orient ?? 'h'}
+            onChange={e => patch({ orient: e.target.value === 'v' ? 'v' : undefined })}
+          >
+            <option value="h">{t('properties.barHorizontal')}</option>
+            <option value="v">{t('properties.barVertical')}</option>
+          </select>
+        </label>
+        <BarNumberField label={t('properties.barLength')} value={bar.length ?? cfg.length} onChange={v => tryPatch({ length: v })} />
+        <BarNumberField label={t('properties.barThickness')} value={bar.thickness ?? cfg.thickness} onChange={v => tryPatch({ thickness: v })} />
+        <BarNumberField
+          label={t('properties.barValueSize')}
+          value={bar.valueSize ?? cfg.valueSize ?? diagramOps.DEFAULT_BAR_INSTRUMENT.valueSize}
+          onChange={v => tryPatch({ valueSize: v })}
+        />
+        {(
+          [
+            ['showValue', 'properties.barShowValue'],
+            ['showScale', 'properties.barShowScale'],
+            ['showZones', 'properties.barShowZones'],
+          ] as const
+        ).map(([key, label]) => (
+          <label key={key} className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={bar[key] ?? cfg[key]} onChange={e => patch({ [key]: e.target.checked })} />
+            <span className="text-gray-400">{t(label)}</span>
+          </label>
+        ))}
+        <div className="text-xs space-y-1">
+          <span className="block text-gray-400">{t('properties.barColors')}</span>
+          {BAR_COLOR_KEYS.map(([key, label]) => (
+            <label key={key} className="flex items-center gap-2">
+              <span className="text-gray-400 flex-1">{t(label)}</span>
+              <input
+                type="color"
+                className="w-12 h-6 bg-surface-800 border border-surface-600 rounded px-0.5"
+                value={swatchColor(colors[key] ?? cfg.colors[key], '#000000')}
+                onChange={e => setColor(key, e.target.value)}
+              />
+              <button
+                type="button"
+                title={t('properties.barColorReset')}
+                aria-label={t('properties.barColorReset')}
+                disabled={!colors[key]}
+                onClick={() => setColor(key, undefined)}
+                className="text-gray-400 hover:text-white disabled:text-gray-700"
+              >
+                <RotateCcw size={12} />
+              </button>
+            </label>
+          ))}
+        </div>
+
+        {diagram && (
+          <LayerSelect
+            layers={diagram.layers}
+            value={bar.layer}
+            onChange={layer => updateDiagram(d => diagramOps.setItemsLayer(d, new Map([[bar.id, 'barinstrument']]), layer))}
+          />
+        )}
+        <BindingsSection
+          provider={provider}
+          target={target}
+          bindings={bar.bindings}
+          precision={bar.precision}
+          features={bar.features}
+          componentType={bar.componentType}
+          shape={BAR_INSTRUMENT_SHAPE}
+          kinds={['meas1']}
+          showPrecision={false}
+        />
+        <ImportedBindings
+          id={bar.id}
+          shape={BAR_INSTRUMENT_SHAPE}
+          bindings={bar.bindings}
+          precision={bar.precision}
+          features={bar.features}
+          componentType={bar.componentType}
+        />
+        <p className="text-[10px] text-gray-500">{t('common.idLabel', { id: bar.id })}</p>
+        <DeleteButton label={t('properties.deleteBarInstrument')} onDelete={deleteSelected} />
+      </div>
+    </PanelShell>
+  )
+}
+
 export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const {
     diagramName,
@@ -491,6 +801,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
     selectedConnectorId,
     selectedLabelId,
     selectedDigitalDeviceId,
+    selectedBarInstrumentId,
     updateDiagram,
     deleteSelected,
     setDefaultVoltage,
@@ -501,6 +812,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const connector = diagram?.connectors.find(c => c.id === selectedConnectorId) ?? null
   const label = diagram?.labels.find(l => l.id === selectedLabelId) ?? null
   const digitalDevice = diagram?.digitalDevices.find(dd => dd.id === selectedDigitalDeviceId) ?? null
+  const barInstrument = diagram?.barInstruments.find(b => b.id === selectedBarInstrumentId) ?? null
   const voltageOptions = diagram ? diagramOps.voltageClassOptions(diagram, config) : []
   const bindingProvider = config?.bindings?.provider ?? ''
 
@@ -525,7 +837,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   function selectionLayer(): number | undefined {
     if (!diagram) return undefined
     const layers = new Set<number>()
-    for (const list of [diagram.elements, diagram.connectors, diagram.labels, diagram.digitalDevices])
+    for (const list of [diagram.elements, diagram.connectors, diagram.labels, diagram.digitalDevices, diagram.barInstruments])
       for (const x of list) if (selection.has(x.id)) layers.add(x.layer)
     return layers.size === 1 ? [...layers][0] : undefined
   }
@@ -547,7 +859,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   // by DiagramContext right after this render) also shows the diagram.
   // A result picked in Find is selected on the canvas but keeps this view
   // (and Find) until the item is clicked on the canvas.
-  if (findPinned || (!element && !connector && !label && !digitalDevice && selection.size <= 1)) {
+  if (findPinned || (!element && !connector && !label && !digitalDevice && !barInstrument && selection.size <= 1)) {
     return (
       <PanelShell title={t('sidebar.properties')} onClose={onClose} side="right" topic="save-export">
         <div className="space-y-3">
@@ -961,6 +1273,10 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
         </div>
       </PanelShell>
     )
+  }
+
+  if (barInstrument) {
+    return <BarInstrumentPanel key={barInstrument.id} bar={barInstrument} onClose={onClose} onAddNameLabel={addNameLabel} />
   }
 
   if (digitalDevice) {

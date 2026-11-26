@@ -15,16 +15,17 @@ import (
 )
 
 // componentShapes are the shapes RSDU has a component type for (VS_TCOMP.MODUS_TYPE of scheme type 518, the same on
-// both test databases): the items an export writes as VS_COMP and ctrlroom shows values on.
+// both test databases), and the bar instrument (exported through bindings.rsdu.component_types): the items an export
+// writes as VS_COMP and ctrlroom shows values on.
 var componentShapes = map[string]bool{"5": true, "41": true, "43": true, "51": true, "54": true, "106": true,
-	"134": true, "162": true, "164": true, "398": true, "320001": true}
+	"134": true, "162": true, "164": true, "398": true, "320001": true, "320008": true}
 
 // noDataName are shapes xsde2svg writes without data-name; Static output keeps that (ctrlroom's context menu then has
 // no heading).
 var noDataName = map[string]bool{"292": true, "320001": true}
 
 // TestSVGContract checks what ctrlroom reads from a saved .svg (its useSLD.ts and ContextMenu.vue): an element of each
-// shape of the shipped library, a digital device and a label (shape 5) are rendered; an item of a component shape must be one SVG
+// shape of the shipped library, a digital device, a bar instrument and a label (shape 5) are rendered; an item of a component shape must be one SVG
 // element whose id is its number (getElementById, VS_COMP.NAME), with data-type (its shape, the component's
 // MODUS_TYPE) and data-name; any other item rendered with its id must carry its data-type.
 func TestSVGContract(t *testing.T) {
@@ -48,6 +49,8 @@ func TestSVGContract(t *testing.T) {
 	want[900] = "134"
 	d.Labels = []slddoc.Label{{ID: 901, Layer: 1, X: 50, Y: 20, Size: 12, Text: "label 901"}}
 	want[901] = "5"
+	d.BarInstruments = []slddoc.BarInstrument{{ID: 902, Layer: 1, X: 50, Y: 80, Name: "bar 902", Min: 0, Max: 100, Value: 50}}
+	want[902] = "320008"
 	if _, err := store.Save("contract", d); err != nil {
 		t.Fatal(err)
 	}

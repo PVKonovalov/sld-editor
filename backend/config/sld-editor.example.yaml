@@ -187,6 +187,25 @@ position_states:
 indicators:
   default_fpi_text: "FPI"
 
+# Bar instrument (320008): the default look of a new one; an instrument's own colours override these. Every key is
+# optional (the values below are the defaults). length/thickness: diagram units, > 0; value_size: the value text's
+# font size, px, > 0. length, thickness, value_size and show_* are copied into an instrument when placed. colors: any SVG colour, not
+# empty and without ";", ":" or a quote. normal/warning/alarm colour the bar and its value text by zone, bad is for
+# bad quality or no data in the SCADA viewer.
+bar_instrument:
+  length: 80
+  thickness: 4
+  value_size: 12
+  show_value: true
+  show_scale: false
+  show_zones: true
+  colors:
+    track: "#3a3f47"
+    normal: "lawngreen"
+    warning: "#c9a800"
+    alarm: "red"
+    bad: "#808080"
+
 # The Elements panel's own collapsible groups, in display order — the
 # single source of truth for palette layout (a Symbol in an element
 # library file carries no category/grouping of its own any more). Every
@@ -195,8 +214,8 @@ indicators:
 # (see elements.libraries), one of 21/22/23/28 (Buswork/Overhead line/
 # Cable line/Object link — arms the routing tool's next drawn connector,
 # same codes slddoc.Render's own data-type attribute uses), or
-# 5/134 (Текст/Text, Прибор цифровой/Digital instrument — this editor's
-# own two built-in non-equipment widgets, never a real element.Symbol
+# 5/134/320008 (Text, Digital instrument, Bar instrument — this editor's
+# own built-in non-equipment widgets, never a real element.Symbol
 # either). A group's own display name is looked up as
 # elementCatalog.category.<name> in the frontend's i18n dictionary, the
 # same way an element's own name is — falling back to the raw string when
@@ -225,7 +244,7 @@ palette:
   - name: "Protection"
     items: [ "35", "29", "168", "203", "154", "166" ]
   - name: "Indicators"
-    items: [ "106", "320002", "320007", "134", "320003", "320001", "102" ]
+    items: [ "106", "320002", "320007", "134", "320008", "320003", "320001", "102" ]
 
 # Placement hot keys: pressing the key (without Ctrl/Cmd/Alt) arms that
 # palette item, the same as clicking its button; pressing it again disarms it.

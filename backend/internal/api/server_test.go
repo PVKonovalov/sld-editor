@@ -681,6 +681,7 @@ func TestListElementsAndConfig(t *testing.T) {
 		VoltageColorTolerance float64               `json:"voltageColorTolerance"`
 		HotKeys               map[string]string     `json:"hotKeys"`
 		LetterCodes           map[string]string     `json:"letterCodes"`
+		BarInstrument         *config.BarInstrument `json:"barInstrument"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &cfgResp); err != nil {
 		t.Fatal(err)
@@ -690,6 +691,9 @@ func TestListElementsAndConfig(t *testing.T) {
 	}
 	if len(cfgResp.VoltageColors) != 1 || cfgResp.VoltageColors[0].Color != "#962896" {
 		t.Errorf("voltage colors = %+v", cfgResp.VoltageColors)
+	}
+	if cfgResp.BarInstrument == nil {
+		t.Error("config has no barInstrument")
 	}
 	if len(cfgResp.LetterCodes) != 0 {
 		t.Errorf("letter codes with none configured = %v, want none", cfgResp.LetterCodes)

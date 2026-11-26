@@ -50,6 +50,7 @@ function placeLabels(
   for (const dd of diagram.digitalDevices) {
     obstacles.add(textBox(dd.x, dd.y, `${dd.value}${dd.unit ?? ''}`, dd.size, dd.anchor, dd.valign))
   }
+  for (const b of diagram.barInstruments) obstacles.add(diagramOps.barInstrumentBox(b))
   const labelled = new Set(diagram.labels.map(l => l.for))
   const labels = new Map<number, Point>()
   const overlaps = new Set<number>()

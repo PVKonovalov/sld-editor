@@ -2,7 +2,7 @@ import type { ConnectorKind, PaletteItem } from '../types'
 
 // Mirrors backend/internal/elements.Library's own ValidatePalette
 // classification exactly, and its own PaletteConnectorKinds/
-// PaletteLabelShape/PaletteDigitalDeviceShape constants — a
+// PaletteLabelShape/PaletteDigitalDeviceShape/PaletteBarInstrumentShape constants — a
 // PaletteItem is always a bare xsde2svg ObjectType code, the same
 // vocabulary for every kind of palette entry, never a name for some kinds
 // and a code for others (see PaletteItem's own doc comment in
@@ -28,10 +28,11 @@ export const CONNECTOR_KIND_CODES: Partial<Record<ConnectorKind, string>> = Obje
 
 export const LABEL_SHAPE = '5'
 export const DIGITAL_DEVICE_SHAPE = '134'
+export const BAR_INSTRUMENT_SHAPE = '320008'
 
 export type ClassifiedPaletteItem =
   | { kind: 'wireKind'; value: ConnectorKind }
-  | { kind: 'special'; value: 'label' | 'digitalDevice' }
+  | { kind: 'special'; value: 'label' | 'digitalDevice' | 'barInstrument' }
   | { kind: 'element'; shape: string }
 
 export function classifyPaletteItem(item: PaletteItem): ClassifiedPaletteItem {
@@ -39,5 +40,6 @@ export function classifyPaletteItem(item: PaletteItem): ClassifiedPaletteItem {
   if (wireKind) return { kind: 'wireKind', value: wireKind }
   if (item === LABEL_SHAPE) return { kind: 'special', value: 'label' }
   if (item === DIGITAL_DEVICE_SHAPE) return { kind: 'special', value: 'digitalDevice' }
+  if (item === BAR_INSTRUMENT_SHAPE) return { kind: 'special', value: 'barInstrument' }
   return { kind: 'element', shape: item }
 }

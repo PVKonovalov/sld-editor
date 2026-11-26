@@ -67,7 +67,8 @@ async function asJSON<T>(res: Response): Promise<T> {
 
 // The backend serializes a Go nil slice as JSON null; every list field is
 // normalized to [] here so the rest of the app never has to null-check them.
-function normalizeDiagram(d: DiagramWire): Diagram {
+// Also applied to a recovery draft, which may predate a list (lib/drafts.ts).
+export function normalizeDiagram(d: DiagramWire): Diagram {
   return {
     ...d,
     layers: d.layers ?? [],
@@ -77,6 +78,7 @@ function normalizeDiagram(d: DiagramWire): Diagram {
     connectors: d.connectors ?? [],
     labels: d.labels ?? [],
     digitalDevices: d.digitalDevices ?? [],
+    barInstruments: d.barInstruments ?? [],
     history: d.history ?? undefined,
   }
 }

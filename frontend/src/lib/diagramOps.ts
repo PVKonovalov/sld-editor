@@ -15,6 +15,8 @@ import type {
   VoltageColor,
   Label,
   DigitalDevice,
+  BarInstrument,
+  BarInstrumentConfig,
   TerminalDirection,
   TableCell,
   Binding,
@@ -187,7 +189,7 @@ export function needsDefaultVoltage(diagram: Diagram): boolean {
 // slddoc's Render/RenderFragments) — "digitaldevice", not "digitalDevice",
 // same lowercase-no-separator convention Canvas.tsx's own querySelector
 // calls already use for one.
-export type DataEditorKind = 'element' | 'connector' | 'label' | 'digitaldevice'
+export type DataEditorKind = 'element' | 'connector' | 'label' | 'digitaldevice' | 'barinstrument'
 
 export type DiagramRenderDiff =
   | { kind: 'none' }
@@ -262,6 +264,8 @@ export function diffDiagramForRender(previous: Diagram, next: Diagram): DiagramR
   structural = diffArrayIds(previous.labels, next.labels, 'label', targets) || structural
   structural =
     diffArrayIds(previous.digitalDevices, next.digitalDevices, 'digitaldevice', targets) || structural
+  structural =
+    diffArrayIds(previous.barInstruments, next.barInstruments, 'barinstrument', targets) || structural
 
   if (structural) return { kind: 'full' }
   if (targets.length === 0) return { kind: 'none' }
@@ -275,7 +279,8 @@ export function diffDiagramForRender(previous: Diagram, next: Diagram): DiagramR
 function layerChanged(previous: Diagram, next: Diagram, targets: { id: number; kind: DataEditorKind }[]): boolean {
   const layers = (d: Diagram) => {
     const m = new Map<number, number>()
-    for (const list of [d.elements, d.connectors, d.labels, d.digitalDevices]) for (const x of list) m.set(x.id, x.layer)
+    for (const list of [d.elements, d.connectors, d.labels, d.digitalDevices, d.barInstruments])
+      for (const x of list) m.set(x.id, x.layer)
     return m
   }
   const before = layers(previous)
@@ -1471,20 +1476,24 @@ export function updateArcBulge(diagram: Diagram, id: number, bulge: Point): Diag
   }
 }
 
+type GroupLists = Pick<Diagram, 'elements' | 'labels' | 'digitalDevices' | 'connectors'> &
+  Partial<Pick<Diagram, 'barInstruments'>>
+
 // Every anchor a group of items is placed by: each element's/label's/
-// digital device's own x/y, plus every connector point.
-function groupAnchors(d: Pick<Diagram, 'elements' | 'labels' | 'digitalDevices' | 'connectors'>): Point[] {
+// digital device's/bar instrument's own x/y, plus every connector point.
+function groupAnchors(d: GroupLists): Point[] {
   return [
     ...d.elements.map(e => ({ x: e.x, y: e.y })),
     ...d.labels.map(l => ({ x: l.x, y: l.y })),
     ...d.digitalDevices.map(dd => ({ x: dd.x, y: dd.y })),
+    ...(d.barInstruments ?? []).map(b => ({ x: b.x, y: b.y })),
     ...d.connectors.flatMap(c => c.points),
   ]
 }
 
 /** The point placeCustomElement lands on its target point: the average of
  * every anchor in d (groupAnchors), or null when d is empty. */
-export function groupCentroid(d: Pick<Diagram, 'elements' | 'labels' | 'digitalDevices' | 'connectors'>): Point | null {
+export function groupCentroid(d: GroupLists): Point | null {
   const anchors = groupAnchors(d)
   if (anchors.length === 0) return null
   return {
@@ -1499,7 +1508,7 @@ export function groupCentroid(d: Pick<Diagram, 'elements' | 'labels' | 'digitalD
  * by (dx, dy). */
 export function selectionCentroid(
   diagram: Diagram,
-  selection: Map<number, 'element' | 'connector' | 'label' | 'digitaldevice'>,
+  selection: Map<number, DataEditorKind>,
 ): Point | null {
   const has = (id: number, kind: string) => selection.get(id) === kind
   return groupCentroid({
@@ -1507,6 +1516,7 @@ export function selectionCentroid(
     connectors: diagram.connectors.filter(c => has(c.id, 'connector')),
     labels: diagram.labels.filter(l => has(l.id, 'label')),
     digitalDevices: diagram.digitalDevices.filter(dd => has(dd.id, 'digitaldevice')),
+    barInstruments: diagram.barInstruments.filter(b => has(b.id, 'barinstrument')),
   })
 }
 
@@ -1639,13 +1649,20 @@ export function placeCustomElement(
     }
   })
 
+  const barIds = new Map<number, number>()
+  const newBarInstruments: BarInstrument[] = (template.barInstruments ?? []).map(b => {
+    const id = ids.take()
+    barIds.set(b.id, id)
+    return { ...b, id, layer: mapLayer(b.layer), group: mapGroup(b.group), ...shift(b), ...(dropBindings ? NO_BINDINGS : {}) }
+  })
+
   const newLabels: Label[] = template.labels.map(l => ({
     ...l,
     id: ids.take(),
     layer: mapLayer(l.layer),
     group: mapGroup(l.group),
     ...shift(l),
-    for: l.for ? (elementIds.get(l.for) ?? connectorIds.get(l.for)) : undefined,
+    for: l.for ? (elementIds.get(l.for) ?? connectorIds.get(l.for) ?? barIds.get(l.for)) : undefined,
     ...(dropBindings ? NO_BINDINGS : {}),
   }))
 
@@ -1666,6 +1683,7 @@ export function placeCustomElement(
     connectors: [...diagram.connectors, ...newConnectors],
     labels: [...diagram.labels, ...newLabels],
     digitalDevices: [...diagram.digitalDevices, ...newDigitalDevices],
+    barInstruments: [...diagram.barInstruments, ...newBarInstruments],
   }
   // The copy gets its shapes' full fixed Ports even when the template (an
   // older file) lacked some, and joins whatever it was dropped onto.
@@ -1697,7 +1715,7 @@ const SYMBOL_EXTENT = 12
  * forCustomElement. */
 export function extractSelection(
   diagram: Diagram,
-  selection: Map<number, 'element' | 'connector' | 'label' | 'digitaldevice'>,
+  selection: Map<number, DataEditorKind>,
   gridSpacing: number,
   forCustomElement = false,
 ): Diagram | null {
@@ -1706,7 +1724,8 @@ export function extractSelection(
   const connectors = diagram.connectors.filter(c => has(c.id, 'connector'))
   const labels = diagram.labels.filter(l => has(l.id, 'label'))
   const digitalDevices = diagram.digitalDevices.filter(dd => has(dd.id, 'digitaldevice'))
-  if (elements.length + connectors.length + labels.length + digitalDevices.length === 0) return null
+  const barInstruments = diagram.barInstruments.filter(b => has(b.id, 'barinstrument'))
+  if (elements.length + connectors.length + labels.length + digitalDevices.length + barInstruments.length === 0) return null
 
   const extent: Point[] = [
     ...elements.flatMap(e => [
@@ -1717,6 +1736,7 @@ export function extractSelection(
     ...connectors.flatMap(c => c.points),
     ...labels.map(l => ({ x: l.x, y: l.y })),
     ...digitalDevices.map(dd => ({ x: dd.x, y: dd.y })),
+    ...barInstruments.flatMap(b => [{ x: b.x, y: b.y }, barInstrumentEnd(b)]),
   ]
   const g = gridSpacing > 0 ? gridSpacing : 10
   const minX = Math.min(...extent.map(p => p.x))
@@ -1743,8 +1763,9 @@ export function extractSelection(
     ...connectors.map(c => c.layer),
     ...labels.map(l => l.layer),
     ...digitalDevices.map(dd => dd.layer),
+    ...barInstruments.map(b => b.layer),
   ])
-  const elementIds = new Set([...elements.map(e => e.id), ...connectors.map(c => c.id)])
+  const elementIds = new Set([...elements.map(e => e.id), ...connectors.map(c => c.id), ...barInstruments.map(b => b.id)])
 
   return {
     width,
@@ -1780,6 +1801,7 @@ export function extractSelection(
       ...(forCustomElement ? NO_BINDINGS : {}),
     })),
     digitalDevices: digitalDevices.map(dd => ({ ...dd, ...shift(dd), ...(forCustomElement ? NO_BINDINGS : {}) })),
+    barInstruments: barInstruments.map(b => ({ ...b, ...shift(b), ...(forCustomElement ? NO_BINDINGS : {}) })),
   }
 }
 
@@ -1823,8 +1845,8 @@ export function moveElement(diagram: Diagram, id: number, dx: number, dy: number
  * Port of an element that isn't moving is first detached (detachWireEnds):
  * the wire moves away and a buswork stub keeps it joined to that terminal.
  *
- * A label in ids.labelIds, or a digital device in ids.digitalDeviceIds,
- * just has its own x/y shifted by (dx, dy) — neither has a Port/Node of
+ * A label in ids.labelIds, a digital device in ids.digitalDeviceIds or a
+ * bar instrument in ids.barInstrumentIds just has its own x/y shifted by (dx, dy) — neither has a Port/Node of
  * its own to reroute anything through.
  *
  * Only a plain whole-selection drag goes through here — a BusBarSection's
@@ -1838,6 +1860,7 @@ export function moveSelection(
     connectorIds: Set<number>
     labelIds: Set<number>
     digitalDeviceIds: Set<number>
+    barInstrumentIds?: Set<number>
   },
   dx: number,
   dy: number,
@@ -1868,6 +1891,13 @@ export function moveSelection(
       digitalDevices: moved.digitalDevices.map(dd =>
         ids.digitalDeviceIds.has(dd.id) ? { ...dd, x: dd.x + dx, y: dd.y + dy } : dd,
       ),
+    }
+  }
+  const barIds = ids.barInstrumentIds
+  if (barIds && barIds.size > 0) {
+    moved = {
+      ...moved,
+      barInstruments: moved.barInstruments.map(b => (barIds.has(b.id) ? { ...b, x: b.x + dx, y: b.y + dy } : b)),
     }
   }
   if (movedNodeIds.size === 0) return moved
@@ -3176,8 +3206,12 @@ export function placeNameLabel(
 }
 
 /** The item a label's For may name: an element or a link to object; undefined for any other id. */
-export function labelTarget(diagram: Diagram, id: number): DiagramElement | Connector | undefined {
-  return diagram.elements.find(e => e.id === id) ?? diagram.connectors.find(c => c.id === id && c.kind === 'LinkToObject')
+export function labelTarget(diagram: Diagram, id: number): DiagramElement | Connector | BarInstrument | undefined {
+  return (
+    diagram.elements.find(e => e.id === id) ??
+    diagram.connectors.find(c => c.id === id && c.kind === 'LinkToObject') ??
+    diagram.barInstruments.find(b => b.id === id)
+  )
 }
 
 /** The full designation of function id in functions, e.g. "=E1=H03"; "" for an unknown id (slddoc
@@ -3470,6 +3504,146 @@ export function updateDigitalDevice(
 
 export function removeDigitalDevice(diagram: Diagram, id: number): Diagram {
   return { ...diagram, digitalDevices: diagram.digitalDevices.filter(dd => dd.id !== id) }
+}
+
+// The bar instrument's built-in defaults, for a server without config bar_instrument.
+export const DEFAULT_BAR_INSTRUMENT: BarInstrumentConfig = {
+  length: 80,
+  thickness: 4,
+  valueSize: 12,
+  showValue: true,
+  showScale: false,
+  showZones: true,
+  colors: { track: '#3a3f47', normal: 'lawngreen', warning: '#c9a800', alarm: 'red', bad: '#808080' },
+}
+
+/** A new bar instrument at point (its min end): range 0…100, value 50, no setpoints, the configured look. */
+export function placeBarInstrument(
+  diagram: Diagram,
+  point: Point,
+  cfg: BarInstrumentConfig = DEFAULT_BAR_INSTRUMENT,
+  orient: 'h' | 'v' = 'h',
+  length = cfg.length,
+): Diagram {
+  const ids = new IdSequence(diagram)
+  const bar: BarInstrument = {
+    id: ids.take(),
+    layer: defaultLayer(diagram),
+    x: point.x,
+    y: point.y,
+    ...(orient === 'v' ? { orient } : {}),
+    length,
+    thickness: cfg.thickness,
+    min: 0,
+    max: 100,
+    value: 50,
+    valueSize: cfg.valueSize,
+    showValue: cfg.showValue,
+    showScale: cfg.showScale,
+    showZones: cfg.showZones,
+  }
+  return { ...diagram, lastId: ids.lastId, barInstruments: [...diagram.barInstruments, bar] }
+}
+
+export function updateBarInstrument(diagram: Diagram, id: number, patch: Partial<BarInstrument>): Diagram {
+  return {
+    ...diagram,
+    barInstruments: diagram.barInstruments.map(b => (b.id === id ? { ...b, ...patch } : b)),
+  }
+}
+
+/** Switches the bar instruments ids between horizontal and vertical, each about its min end. */
+export function turnBarInstruments(diagram: Diagram, ids: number[]): Diagram {
+  if (ids.length === 0) return diagram
+  const set = new Set(ids)
+  return {
+    ...diagram,
+    barInstruments: diagram.barInstruments.map(b => {
+      if (!set.has(b.id)) return b
+      const { orient: _, ...rest } = b
+      return b.orient === 'v' ? rest : { ...rest, orient: 'v' as const }
+    }),
+  }
+}
+
+/** Removes bar instrument id and its name label. */
+export function removeBarInstrument(diagram: Diagram, id: number): Diagram {
+  return {
+    ...diagram,
+    barInstruments: diagram.barInstruments.filter(b => b.id !== id),
+    labels: diagram.labels.some(l => l.for === id) ? diagram.labels.filter(l => l.for !== id) : diagram.labels,
+  }
+}
+
+/** The max end of b's track (its resize handle): length to the right, or up for a vertical one. */
+export function barInstrumentEnd(b: BarInstrument, defaultLength = DEFAULT_BAR_INSTRUMENT.length): Point {
+  const length = b.length || defaultLength
+  return b.orient === 'v' ? { x: b.x, y: b.y - length } : { x: b.x + length, y: b.y }
+}
+
+/** The box b's track covers in diagram units (its overflow marks and texts left out). */
+export function barInstrumentBox(b: BarInstrument): { x: number; y: number; width: number; height: number } {
+  const half = (b.thickness || DEFAULT_BAR_INSTRUMENT.thickness) / 2 + 3
+  const end = barInstrumentEnd(b)
+  return b.orient === 'v'
+    ? { x: b.x - half, y: end.y, width: 2 * half, height: b.y - end.y }
+    : { x: b.x, y: b.y - half, width: end.x - b.x, height: 2 * half }
+}
+
+/** The track length that puts b's max end at point, measured along its axis only: rounded to the grid (to whole
+ * units without snapping), never less than two grid steps. */
+export function barLengthAt(b: BarInstrument, point: Point, grid: number, snap: boolean): number {
+  const along = b.orient === 'v' ? b.y - point.y : point.x - b.x
+  const step = grid > 0 ? grid : 10
+  const rounded = snap ? Math.round(along / step) * step : Math.round(along)
+  return Math.max(rounded, 2 * step)
+}
+
+/** Placing by press-and-drag between two points: the orientation of the drag's main direction, the min end (the left
+ * point, or the lower one for a vertical instrument) and the length along that direction (barLengthAt's rules). */
+export function barFromDrag(
+  a: Point,
+  b: Point,
+  grid: number,
+  snap: boolean,
+): { at: Point; orient: 'h' | 'v'; length: number } {
+  const orient = Math.abs(b.y - a.y) > Math.abs(b.x - a.x) ? 'v' : 'h'
+  const at = orient === 'v' ? (a.y >= b.y ? a : b) : a.x <= b.x ? a : b
+  const along = orient === 'v' ? Math.abs(b.y - a.y) : Math.abs(b.x - a.x)
+  const probe: BarInstrument = { id: 0, layer: 0, ...at, orient, min: 0, max: 1, value: 0 }
+  const far = orient === 'v' ? { x: at.x, y: at.y - along } : { x: at.x + along, y: at.y }
+  return { at, orient, length: barLengthAt(probe, far, grid, snap) }
+}
+
+export type BarField = 'min' | 'max' | 'origin' | 'lowAlarm' | 'lowWarning' | 'highWarning' | 'highAlarm' | 'deadband' | 'length' | 'thickness' | 'valueSize'
+
+export type BarError = 'minMax' | 'outside' | 'order' | 'negative' | 'positive'
+
+const BAR_SETPOINTS = ['lowAlarm', 'lowWarning', 'highWarning', 'highAlarm'] as const
+
+/** What is wrong with b's values, by field (slddoc ValidateBarInstrument's rules): min < max; the set setpoints
+ * ordered low alarm ≤ low warning ≤ high warning ≤ high alarm and, like origin, within min…max; deadband ≥ 0; length
+ * and thickness > 0. A setpoint out of order is reported on itself. Empty when b is valid. */
+export function barInstrumentErrors(b: BarInstrument): Partial<Record<BarField, BarError>> {
+  const out: Partial<Record<BarField, BarError>> = {}
+  if (!(b.min < b.max)) out.max = 'minMax'
+  else
+    for (const f of ['origin', ...BAR_SETPOINTS] as const) {
+      const v = b[f]
+      if (v !== undefined && (v < b.min || v > b.max)) out[f] = 'outside'
+    }
+  let prev: number | undefined
+  for (const f of BAR_SETPOINTS) {
+    const v = b[f]
+    if (v === undefined) continue
+    if (prev !== undefined && v < prev && !out[f]) out[f] = 'order'
+    prev = v
+  }
+  if ((b.deadband ?? 0) < 0) out.deadband = 'negative'
+  if (b.length !== undefined && b.length <= 0) out.length = 'positive'
+  if (b.thickness !== undefined && b.thickness <= 0) out.thickness = 'positive'
+  if (b.valueSize !== undefined && b.valueSize <= 0) out.valueSize = 'positive'
+  return out
 }
 
 /** Removes a connector, and either of its own from/to Nodes that becomes
@@ -4101,6 +4275,7 @@ export function setItemsLayer(diagram: Diagram, items: ReadonlyMap<number, strin
     connectors: move(diagram.connectors, 'connector'),
     labels: move(diagram.labels, 'label'),
     digitalDevices: move(diagram.digitalDevices, 'digitaldevice'),
+    barInstruments: move(diagram.barInstruments, 'barinstrument'),
   }
 }
 
@@ -4117,6 +4292,7 @@ export function removeLayer(diagram: Diagram, id: number): Diagram {
     connectors: move(diagram.connectors),
     labels: move(diagram.labels),
     digitalDevices: move(diagram.digitalDevices),
+    barInstruments: move(diagram.barInstruments),
   }
 }
 
@@ -4129,6 +4305,7 @@ export function layerUsage(diagram: Diagram): Map<number, number> {
   for (const x of diagram.connectors) add(x.layer)
   for (const x of diagram.labels) add(x.layer)
   for (const x of diagram.digitalDevices) add(x.layer)
+  for (const x of diagram.barInstruments) add(x.layer)
   return counts
 }
 
@@ -5465,7 +5642,7 @@ export function needsVoltagePrompt(diagram: Diagram, config: EditorConfig | null
 // never change rendering order or topology; members may sit on different
 // layers. A group always has at least two members (pruneGroups).
 
-export type GroupItemKind = 'element' | 'connector' | 'label' | 'digitaldevice'
+export type GroupItemKind = DataEditorKind
 
 function groupLists(d: Diagram): [GroupItemKind, { id: number; layer: number; group?: number }[]][] {
   return [
@@ -5473,6 +5650,7 @@ function groupLists(d: Diagram): [GroupItemKind, { id: number; layer: number; gr
     ['connector', d.connectors],
     ['label', d.labels],
     ['digitaldevice', d.digitalDevices],
+    ['barinstrument', d.barInstruments],
   ]
 }
 
@@ -5532,14 +5710,16 @@ function mapGroups(
   const connectors = apply(d.connectors, 'connector')
   const labels = apply(d.labels, 'label')
   const digitalDevices = apply(d.digitalDevices, 'digitaldevice')
+  const barInstruments = apply(d.barInstruments, 'barinstrument')
   if (
     elements === d.elements &&
     connectors === d.connectors &&
     labels === d.labels &&
-    digitalDevices === d.digitalDevices
+    digitalDevices === d.digitalDevices &&
+    barInstruments === d.barInstruments
   )
     return d
-  return { ...d, elements, connectors, labels, digitalDevices }
+  return { ...d, elements, connectors, labels, digitalDevices, barInstruments }
 }
 
 /** Ungroups every group left with fewer than two members. */
@@ -5947,9 +6127,9 @@ export function addJunctionPoints(prev: Diagram, next: Diagram, symbols: Element
 
 // ---- SCADA bindings ----
 
-/** An item that carries bindings: an element or a digital device. */
+/** An item that carries bindings. */
 export interface BindingTarget {
-  kind: 'element' | 'digitaldevice' | 'label' | 'connector'
+  kind: DataEditorKind
   id: number
 }
 
@@ -5959,6 +6139,7 @@ type BindingFields = { bindings?: Binding[]; precision?: number; features?: stri
 const BINDABLE_LISTS = {
   element: 'elements',
   digitaldevice: 'digitalDevices',
+  barinstrument: 'barInstruments',
   label: 'labels',
   connector: 'connectors',
 } as const satisfies Record<BindingTarget['kind'], keyof Diagram>

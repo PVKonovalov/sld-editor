@@ -10,12 +10,15 @@ import { useDiagramContext } from '../state/useDiagramContext'
 import { OptionSelect } from './panels/BindingsSection'
 import type { Binding, BindingKind, BindingResolved } from '../types'
 
+// The kinds offered for an item: a bar instrument takes its value and its setpoints, every other item the rest.
 const KINDS: BindingKind[] = ['equipment', 'meas1', 'meas2', 'jump']
+const BAR_KINDS: BindingKind[] = ['meas1', 'setpointLA', 'setpointLW', 'setpointHW', 'setpointHA']
 
 // The class an item other than an element is described to the provider as.
 const ITEM_CLASS: Record<BindingTarget['kind'], string> = {
   element: '',
   digitaldevice: 'DigitalDevice',
+  barinstrument: 'BarInstrument',
   label: 'Label',
   connector: 'Connector',
 }
@@ -188,7 +191,7 @@ export function BindChooser({ drop, provider, onClose }: { drop: BindDrop; provi
                 {autoError ? t('bindings.autoFailed', { error: autoError }) : t('bindings.autoNone')}
               </p>
             )}
-            {KINDS.filter(k => !dict || dict.kinds.some(i => i.kind === k)).map(k => (
+            {(drop.target.kind === 'barinstrument' ? BAR_KINDS : KINDS).filter(k => !dict || dict.kinds.some(i => i.kind === k)).map(k => (
               <label key={k} className="flex items-center gap-1.5">
                 <input
                   type="radio"

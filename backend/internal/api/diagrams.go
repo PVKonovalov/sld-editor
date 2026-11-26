@@ -15,6 +15,7 @@ import (
 
 	"github.com/PVKonovalov/slddoc"
 	"sld-editor/internal/storage"
+	"sld-editor/pkg/llog"
 	"xsde2svg/pkg/xsde2svg"
 )
 
@@ -119,8 +120,15 @@ func (s *Server) getDiagram(c *gin.Context) {
 	var buf bytes.Buffer
 	renderErr := s.store.Render(d, &buf, slddoc.Interactive)
 	resp := gin.H{"diagram": d, "svg": buf.String(), "repaired": repaired}
+	warnings := slddoc.ValidateBarInstruments(d)
+	for _, w := range warnings {
+		llog.Logger.Warnf("diagram %q: %s", c.Query("name"), w)
+	}
 	if renderErr != nil {
-		resp["warning"] = renderErr.Error()
+		warnings = append([]string{renderErr.Error()}, warnings...)
+	}
+	if len(warnings) > 0 {
+		resp["warning"] = strings.Join(warnings, "\n")
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -319,6 +327,7 @@ type importReport struct {
 	Connectors     int                  `json:"connectors"`
 	Labels         int                  `json:"labels"`
 	DigitalDevices int                  `json:"digitalDevices"`
+	BarInstruments int                  `json:"barInstruments"`
 	Nodes          int                  `json:"nodes"`
 	Skipped        []importSkippedEntry `json:"skipped"`
 	Failed         []string             `json:"failed"`
@@ -354,6 +363,7 @@ func newImportReport(r slddoc.Report) importReport {
 		Connectors:     r.Connectors,
 		Labels:         r.Labels,
 		DigitalDevices: r.DigitalDevices,
+		BarInstruments: r.BarInstruments,
 		Nodes:          r.Nodes,
 		Skipped:        skipped,
 		Failed:         failed,

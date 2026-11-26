@@ -362,32 +362,12 @@ function RemoveAll({ onRemove }: { onRemove: () => void }) {
 
 /** The Bindings group of a selected element or digital device; nothing when bindings are off (provider ""). Every
  * kind can be bound by dropping an Objects-panel object on its row. */
-export function BindingsSection({
-  provider,
-  target,
-  bindings,
-  precision,
-  features,
-  componentType,
-  shape,
-}: {
-  provider: string
-  target: BindingTarget
-  bindings?: Binding[]
-  precision?: number
-  features?: string
-  componentType?: string
-  shape: string
-}) {
+// Binds target's kind to a dropped object (resolved by the provider first), with its busy and error state.
+function useBindRef(provider: string, target: BindingTarget, dict: BindingDictionaries | null) {
   const { updateDiagram } = useDiagramContext()
-  const [collapsed, toggle] = useCollapsed()
-  const { dict, error: dictError } = useBindingDictionaries(!!provider && !collapsed)
   const [busy, setBusy] = useState<BindingKind | null>(null)
   const [dropError, setDropError] = useState<{ kind: BindingKind; error: string } | null>(null)
   useEffect(() => setDropError(null), [target.kind, target.id])
-  if (!provider) return null
-
-  const own = bindings?.filter(b => b.source === provider) ?? []
   function bindRef(kind: BindingKind, ref: string) {
     setBusy(kind)
     setDropError(null)
@@ -402,6 +382,74 @@ export function BindingsSection({
       },
     )
   }
+  return { busy, dropError, bindRef }
+}
+
+/** One binding kind of target as its own row (a bar instrument's setpoint, beside its field), offered only when the
+ * provider has that kind. */
+export function ItemBindingRow({
+  provider,
+  target,
+  kind,
+  bindings,
+}: {
+  provider: string
+  target: BindingTarget
+  kind: BindingKind
+  bindings?: Binding[]
+}) {
+  const { updateDiagram } = useDiagramContext()
+  const { dict } = useBindingDictionaries(!!provider)
+  const { busy, dropError, bindRef } = useBindRef(provider, target, dict)
+  const binding = bindings?.find(b => b.kind === kind)
+  if (!provider || (dict && !binding && !dict.kinds.some(k => k.kind === kind))) return null
+  return (
+    <BindingRow
+      title={t(`bindings.kind.${kind}` as TranslationKey)}
+      binding={binding}
+      provider={provider}
+      dict={dict}
+      editable
+      busy={busy === kind}
+      error={dropError?.kind === kind ? dropError.error : null}
+      onDropRef={ref => bindRef(kind, ref)}
+      onOption={option => updateDiagram(d => diagramOps.updateItemBinding(d, target, kind, { option }))}
+      onScale={scale => updateDiagram(d => diagramOps.updateItemBinding(d, target, kind, { scale }))}
+      onRemove={() => updateDiagram(d => diagramOps.removeItemBinding(d, target, kind))}
+    />
+  )
+}
+
+/** The bindings of target: a row per kind of kinds (all of them by default), and with showPrecision its precision,
+ * then its features and component type. */
+export function BindingsSection({
+  provider,
+  target,
+  bindings,
+  precision,
+  features,
+  componentType,
+  shape,
+  kinds = KINDS,
+  showPrecision = true,
+}: {
+  provider: string
+  target: BindingTarget
+  bindings?: Binding[]
+  precision?: number
+  features?: string
+  componentType?: string
+  shape: string
+  kinds?: BindingKind[]
+  showPrecision?: boolean
+}) {
+  const { updateDiagram } = useDiagramContext()
+  const [collapsed, toggle] = useCollapsed()
+  const { dict, error: dictError } = useBindingDictionaries(!!provider && !collapsed)
+  const { busy, dropError, bindRef } = useBindRef(provider, target, dict)
+  if (!provider) return null
+
+  const own = bindings?.filter(b => b.source === provider) ?? []
 
   return (
     <div>
@@ -409,7 +457,7 @@ export function BindingsSection({
       {!collapsed && (
         <div className="space-y-2">
           {dictError && <p className="text-[11px] text-red-300">{t('bindings.dictionariesFailed', { error: dictError })}</p>}
-          {KINDS.map(kind => (
+          {kinds.map(kind => (
             <BindingRow
               key={kind}
               title={t(`bindings.kind.${kind}` as TranslationKey)}
@@ -425,15 +473,17 @@ export function BindingsSection({
               onRemove={() => updateDiagram(d => diagramOps.removeItemBinding(d, target, kind))}
             />
           ))}
-          <label className="flex items-center gap-1 text-xs">
-            <span className="text-gray-400 flex-1">{t('bindings.precision')}</span>
-            <IntField
-              value={precision ?? 0}
-              check={n => n >= 0 && n <= 10}
-              onCommit={n => updateDiagram(d => diagramOps.setItemBindingExtras(d, target, { precision: n }))}
-              title={t('bindings.precisionHint')}
-            />
-          </label>
+          {showPrecision && (
+            <label className="flex items-center gap-1 text-xs">
+              <span className="text-gray-400 flex-1">{t('bindings.precision')}</span>
+              <IntField
+                value={precision ?? 0}
+                check={n => n >= 0 && n <= 10}
+                onCommit={n => updateDiagram(d => diagramOps.setItemBindingExtras(d, target, { precision: n }))}
+                title={t('bindings.precisionHint')}
+              />
+            </label>
+          )}
           <div className="text-xs">
             <span className="block text-gray-400 mb-0.5">{t('bindings.features')}</span>
             {dict ? (

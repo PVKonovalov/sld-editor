@@ -22,7 +22,7 @@ import { SymbolSearchBar } from './SymbolSearchBar'
 import { PresenceBanner } from './PresenceBanner'
 import { BindChooser, type BindDrop } from './BindChooser'
 import { draggedObject, isObjectDrag } from '../lib/bindingDictionaries'
-import type { Diagram, DiagramElement, Connector, ConnectorKind, Label, DigitalDevice, Point } from '../types'
+import type { BarInstrument, Diagram, DiagramElement, Connector, ConnectorKind, Label, DigitalDevice, Point } from '../types'
 
 const BUSBAR_SHAPE = '24'
 const RECTANGLE_SHAPE = '3'
@@ -512,10 +512,16 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     selectConnector,
     selectLabel,
     selectDigitalDevice,
+    selectBarInstrument,
+    selectedBarInstrumentId,
+    armedBarInstrument,
+    beginGesture,
+    endGesture,
     armSymbol,
     armWireKind,
     armLabel,
     armDigitalDevice,
+    armBarInstrument,
     armCustomElement,
     deleteSelected,
     updateDiagram,
@@ -547,6 +553,8 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   const [pointDrag, setPointDrag] = useState<PointDrag | null>(null)
   // A selected Circle's radius while its rim handle is dragged (handleRadiusMouseDown).
   const [radiusDrag, setRadiusDrag] = useState<{ elementId: number; radius: number } | null>(null)
+  // A bar instrument being placed by press-and-drag (armedBarInstrument): from the press to the cursor.
+  const [barDraft, setBarDraft] = useState<{ start: Point; current: Point } | null>(null)
   const [labelDrag, setLabelDrag] = useState<LabelDrag | null>(null)
   const [digitalDeviceDrag, setDigitalDeviceDrag] = useState<DigitalDeviceDrag | null>(null)
   // What Copy captured: the selection as a standalone diagram
@@ -632,10 +640,12 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   const connectorSelection = new Set<number>()
   const labelSelection = new Set<number>()
   const digitalDeviceSelection = new Set<number>()
+  const barInstrumentSelection = new Set<number>()
   for (const [id, kind] of selection) {
     if (kind === 'element') elementSelection.add(id)
     else if (kind === 'connector') connectorSelection.add(id)
     else if (kind === 'label') labelSelection.add(id)
+    else if (kind === 'barinstrument') barInstrumentSelection.add(id)
     else digitalDeviceSelection.add(id)
   }
 
@@ -651,6 +661,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
         connectorIds: connectorSelection,
         labelIds: labelSelection,
         digitalDeviceIds: digitalDeviceSelection,
+        barInstrumentIds: barInstrumentSelection,
       }
     }
     const group = selection.has(clickedId) ? undefined : diagramOps.itemGroup(diagram!, clickedId, clickedKind)
@@ -662,6 +673,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
         connectorIds: ofKind('connector'),
         labelIds: ofKind('label'),
         digitalDeviceIds: ofKind('digitaldevice'),
+        barInstrumentIds: ofKind('barinstrument'),
       }
     }
     const empty = new Set<number>()
@@ -670,6 +682,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
       connectorIds: clickedKind === 'connector' ? new Set([clickedId]) : empty,
       labelIds: clickedKind === 'label' ? new Set([clickedId]) : empty,
       digitalDeviceIds: clickedKind === 'digitaldevice' ? new Set([clickedId]) : empty,
+      barInstrumentIds: clickedKind === 'barinstrument' ? new Set([clickedId]) : empty,
     }
   }
 
@@ -725,11 +738,16 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     const moving = movingGroup(clickedId, clickedKind)
     const anchor = moveGridAnchor(clickedId, clickedKind)
     const totalCount =
-      moving.elementIds.size + moving.connectorIds.size + moving.labelIds.size + moving.digitalDeviceIds.size
+      moving.elementIds.size +
+      moving.connectorIds.size +
+      moving.labelIds.size +
+      moving.digitalDeviceIds.size +
+      moving.barInstrumentIds.size
     if (totalCount <= 1) {
       if (clickedKind === 'element') selectElement(clickedId)
       else if (clickedKind === 'connector') selectConnector(clickedId)
       else if (clickedKind === 'label') selectLabel(clickedId)
+      else if (clickedKind === 'barinstrument') selectBarInstrument(clickedId)
       else selectDigitalDevice(clickedId)
     } else if (!selection.has(clickedId)) {
       selectMany(selectionOf(moving))
@@ -739,10 +757,12 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     const previewLabelId = moving.labelIds.size === 1 ? [...moving.labelIds][0] : null
     const previewDigitalDeviceId = moving.digitalDeviceIds.size === 1 ? [...moving.digitalDeviceIds][0] : null
 
+    const barIds = [...moving.barInstrumentIds]
     const preview = (dx: number, dy: number) => {
       if (elementIds.length > 0) dragElementsInDom(elementIds, dx, dy)
       if (previewLabelId !== null) dragLabelInDom(previewLabelId, dx, dy)
       if (previewDigitalDeviceId !== null) dragDigitalDeviceInDom(previewDigitalDeviceId, dx, dy)
+      if (barIds.length > 0) dragBarInstrumentsInDom(barIds, dx, dy)
     }
 
     const onMove = (ev: MouseEvent) => {
@@ -920,7 +940,10 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     } catch {
       return null
     }
-    // getBBox is before the node's transform: a turned label's box is its corners turned about its anchor.
+    // getBBox is before the node's transform: a bar instrument is moved by its translate, a turned label's box is
+    // its corners turned about its anchor.
+    const bar = kind === 'barinstrument' ? diagram!.barInstruments.find(x => x.id === id) : undefined
+    if (bar) return { x: b.x + bar.x, y: b.y + bar.y, width: b.width, height: b.height }
     const label = kind === 'label' ? diagram!.labels.find(l => l.id === id) : undefined
     if (!label?.rotate) return { x: b.x, y: b.y, width: b.width, height: b.height }
     const rad = (label.rotate * Math.PI) / 180
@@ -987,8 +1010,9 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     if (kind === 'label') {
       const forId = diagram.labels.find(l => l.id === id)?.for
       const target = forId ? diagramOps.labelTarget(diagram, forId) : undefined
-      if (target && !isHidden(target)) linked = [{ id: target.id, kind: 'class' in target ? 'element' : 'connector' }]
-    } else if (kind === 'element' || kind === 'connector') {
+      if (target && !isHidden(target))
+        linked = [{ id: target.id, kind: 'class' in target ? 'element' : 'min' in target ? 'barinstrument' : 'connector' }]
+    } else if (kind === 'element' || kind === 'connector' || kind === 'barinstrument') {
       linked = diagram.labels.filter(l => l.for === id && !isHidden(l)).map(l => ({ id: l.id, kind: 'label' }))
     }
     return linked.map(item => {
@@ -1048,6 +1072,8 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     for (const l of diagram!.labels) if (!isHidden(l) && test(itemBox(l.id, 'label'))) hits.set(l.id, 'label')
     for (const dd of diagram!.digitalDevices)
       if (!isHidden(dd) && test(itemBox(dd.id, 'digitaldevice'))) hits.set(dd.id, 'digitaldevice')
+    for (const b of diagram!.barInstruments)
+      if (!isHidden(b) && test(itemBox(b.id, 'barinstrument'))) hits.set(b.id, 'barinstrument')
     return hits
   }
 
@@ -1189,6 +1215,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     if (kind === 'element') selectElement(id)
     else if (kind === 'connector') selectConnector(id)
     else if (kind === 'label') selectLabel(id)
+    else if (kind === 'barinstrument') selectBarInstrument(id)
     else selectDigitalDevice(id)
   }
 
@@ -1217,6 +1244,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
       ...[...moving.connectorIds].map(id => [id, 'connector'] as const),
       ...[...moving.labelIds].map(id => [id, 'label'] as const),
       ...[...moving.digitalDeviceIds].map(id => [id, 'digitaldevice'] as const),
+      ...[...moving.barInstrumentIds].map(id => [id, 'barinstrument'] as const),
     ])
   }
 
@@ -1237,10 +1265,12 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     const cons = had(before.connectors)
     const labs = had(before.labels)
     const dds = had(before.digitalDevices)
+    const bars = had(before.barInstruments)
     for (const e of after.elements) if (!els.has(e.id)) added.set(e.id, 'element')
     for (const c of after.connectors) if (!cons.has(c.id)) added.set(c.id, 'connector')
     for (const l of after.labels) if (!labs.has(l.id)) added.set(l.id, 'label')
     for (const dd of after.digitalDevices) if (!dds.has(dd.id)) added.set(dd.id, 'digitaldevice')
+    for (const b of after.barInstruments) if (!bars.has(b.id)) added.set(b.id, 'barinstrument')
     return added
   }
 
@@ -1587,7 +1617,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
       setUnboundBoxes([])
       return
     }
-    const { elements, digitalDevices } = unboundIds(diagram, unboundGap)
+    const { elements, digitalDevices, barInstruments } = unboundIds(diagram, unboundGap)
     const boxes: Box[] = []
     const add = (id: number, kind: SelectionKind) => {
       const box = itemBox(id, kind)
@@ -1595,6 +1625,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     }
     for (const el of diagram.elements) if (elements.has(el.id) && !isHidden(el)) add(el.id, 'element')
     for (const dd of diagram.digitalDevices) if (digitalDevices.has(dd.id) && !isHidden(dd)) add(dd.id, 'digitaldevice')
+    for (const b of diagram.barInstruments) if (barInstruments.has(b.id) && !isHidden(b)) add(b.id, 'barinstrument')
     setUnboundBoxes(boxes)
     // itemBox and isHidden read the state these dependencies stand for.
   }, [unboundGap, svg, diagram, patchVersion, elementBoxes, hiddenLayers])
@@ -1729,6 +1760,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
         else if (armedWireKind) armWireKind(null)
         else if (armedLabel) armLabel(false)
         else if (armedDigitalDevice) armDigitalDevice(false)
+        else if (armedBarInstrument) armBarInstrument(false)
         else if (armedCustomElement) armCustomElement(null)
         else if (selection.size === 0 && trace) setTrace(null)
         else selectElement(null)
@@ -1745,12 +1777,14 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     armedWireKind,
     armedLabel,
     armedDigitalDevice,
+    armedBarInstrument,
     armedCustomElement,
     deleteSelected,
     armSymbol,
     armWireKind,
     armLabel,
     armDigitalDevice,
+    armBarInstrument,
     armCustomElement,
     selectElement,
     contextMenu,
@@ -1823,17 +1857,22 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
         return
       }
       // R / Shift+R rotates the selected devices and labels 90° clockwise /
-      // counter-clockwise and M mirrors the devices, each about its own anchor
+      // counter-clockwise (a bar instrument switches between horizontal and vertical) and M mirrors the devices, each
+      // about its own anchor
       // (r and m are never placement hot keys, see elements.ReservedHotKeys).
       if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.code === 'KeyR' || e.code === 'KeyM')) {
-        const turnsLabels = e.code === 'KeyR' && labelSelection.size > 0
+        const turnsLabels = e.code === 'KeyR' && (labelSelection.size > 0 || barInstrumentSelection.size > 0)
         if ((elementSelection.size === 0 && !turnsLabels) || pointerHeldRef.current || gestureInProgress) return
         e.preventDefault()
         const ids = [...elementSelection]
         const labelIds = [...labelSelection]
+        const barIds = [...barInstrumentSelection]
         updateDiagram(d =>
           e.code === 'KeyR'
-            ? diagramOps.rotateLabels(diagramOps.rotateElements(d, ids, elements, !e.shiftKey), labelIds, !e.shiftKey)
+            ? diagramOps.turnBarInstruments(
+                diagramOps.rotateLabels(diagramOps.rotateElements(d, ids, elements, !e.shiftKey), labelIds, !e.shiftKey),
+                barIds,
+              )
             : diagramOps.mirrorElements(d, ids, elements),
         )
         return
@@ -1932,7 +1971,10 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
   function bindDropTarget(e: ReactDragEvent): BindDrop['target'] | null {
     const hit = (e.target as HTMLElement).closest('[data-editor-kind]') as HTMLElement | null
     const kind = hit?.dataset.editorKind
-    if (hit && (kind === 'element' || kind === 'digitaldevice' || kind === 'label' || kind === 'connector')) {
+    if (
+      hit &&
+      (kind === 'element' || kind === 'digitaldevice' || kind === 'barinstrument' || kind === 'label' || kind === 'connector')
+    ) {
       return { kind, id: Number(hit.id) }
     }
     const id = findElementBoxHit(toPoint(e.clientX, e.clientY))
@@ -2527,6 +2569,16 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     node.querySelectorAll('tspan').forEach(tspan => tspan.setAttribute('x', String(x)))
   }
 
+  // Same instant-DOM-first move for bar instruments: their root <g> is placed by its translate.
+  function dragBarInstrumentsInDom(ids: number[], dx: number, dy: number) {
+    const root = wrapperRef.current
+    for (const id of ids) {
+      const bar = diagram!.barInstruments.find(b => b.id === id)
+      const node = root?.querySelector(`[data-editor-kind="barinstrument"][id="${id}"]`)
+      if (bar && node) node.setAttribute('transform', `translate(${bar.x + dx},${bar.y + dy})`)
+    }
+  }
+
   // Same instant-DOM-first move as dragLabelInDom, for a selected
   // DigitalDevice's own <text> instead of a Label's.
   function dragDigitalDeviceInDom(id: number, dx: number, dy: number) {
@@ -2908,6 +2960,32 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
       return
     }
 
+    // A click places a horizontal bar instrument of the configured length at the point; a drag sets its direction
+    // and length (barFromDrag).
+    if (armedBarInstrument) {
+      e.stopPropagation()
+      const start = snapPoint(point)
+      setBarDraft({ start, current: start })
+      const onMove = (ev: MouseEvent) => setBarDraft({ start, current: toPoint(ev.clientX, ev.clientY) })
+      const onUp = (ev: MouseEvent) => {
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+        setBarDraft(null)
+        const end = toPoint(ev.clientX, ev.clientY)
+        const cfg = config?.barInstrument
+        if (Math.hypot(end.x - start.x, end.y - start.y) > gridSpacing / 2) {
+          const drag = diagramOps.barFromDrag(start, end, gridSpacing, snapEnabled)
+          updateDiagram(d => diagramOps.placeBarInstrument(d, drag.at, cfg, drag.orient, drag.length))
+        } else {
+          updateDiagram(d => diagramOps.placeBarInstrument(d, start, cfg))
+        }
+        armBarInstrument(false)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+      return
+    }
+
     if (armedCustomElement) {
       e.stopPropagation()
       updateDiagram(d =>
@@ -2995,7 +3073,14 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
       }
     }
     e.stopPropagation()
-    if (hitKind !== 'element' && hitKind !== 'connector' && hitKind !== 'label' && hitKind !== 'digitaldevice') return
+    if (
+      hitKind !== 'element' &&
+      hitKind !== 'connector' &&
+      hitKind !== 'label' &&
+      hitKind !== 'digitaldevice' &&
+      hitKind !== 'barinstrument'
+    )
+      return
     const kind: SelectionKind = hitKind
 
     // Alt/Option-drag duplicates: the whole selection when the item is part
@@ -3039,6 +3124,31 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
       setRadiusDrag(null)
       const radius = radiusAt(ev)
       updateDiagram(d => ({ ...d, elements: d.elements.map(x => (x.id === el.id ? { ...x, radius } : x)) }))
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  // Drags a selected bar instrument's end handle: the length follows the cursor along the axis (barLengthAt), the min
+  // end stays put, and each step is rendered as it goes; the whole drag is one undo step.
+  function handleBarResizeMouseDown(e: React.MouseEvent, bar: BarInstrument) {
+    e.stopPropagation()
+    if (hasMoveModifier(e)) {
+      startModifierDrag(toPoint(e.clientX, e.clientY), e.clientX, e.clientY, bar.id, 'barinstrument')
+      return
+    }
+    let length = bar.length
+    beginGesture()
+    const onMove = (ev: MouseEvent) => {
+      const next = diagramOps.barLengthAt(bar, toPoint(ev.clientX, ev.clientY), gridSpacing, snapEnabled)
+      if (next === length) return
+      length = next
+      updateDiagram(d => diagramOps.updateBarInstrument(d, bar.id, { length: next }))
+    }
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      endGesture()
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -3208,6 +3318,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
       armedWireKind ||
       armedLabel ||
       armedDigitalDevice ||
+      armedBarInstrument ||
       armedCustomElement ||
       newBusbar ||
       pointDrag ||
@@ -3242,6 +3353,8 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
         if (!keepsSelection(id, 'label')) selectItem(id, 'label')
       } else if (hit.dataset.editorKind === 'digitaldevice') {
         if (!keepsSelection(id, 'digitaldevice')) selectItem(id, 'digitaldevice')
+      } else if (hit.dataset.editorKind === 'barinstrument') {
+        if (!keepsSelection(id, 'barinstrument')) selectItem(id, 'barinstrument')
       } else {
         elementId = id
         if (!keepsSelection(id, 'element')) selectItem(id, 'element')
@@ -3517,6 +3630,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
     armedWireKind ||
     armedLabel ||
     armedDigitalDevice ||
+    armedBarInstrument ||
     armedCustomElement ||
     routing ||
     topologyPick
@@ -3594,6 +3708,7 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
           !!armedWireKind ||
           !!armedLabel ||
           !!armedDigitalDevice ||
+          !!armedBarInstrument ||
           !!armedCustomElement ||
           !!ghost ||
           !!pointDrag ||
@@ -4427,6 +4542,35 @@ export function Canvas({ unboundGap = null }: { unboundGap?: GapKind | null }) {
                     })()}
                 </>
               )}
+              {/* A bar instrument being placed: its track from the min end, dashed. */}
+              {barDraft &&
+                (() => {
+                  const moved = Math.hypot(barDraft.current.x - barDraft.start.x, barDraft.current.y - barDraft.start.y) > gridSpacing / 2
+                  const drag = moved
+                    ? diagramOps.barFromDrag(barDraft.start, barDraft.current, gridSpacing, snapEnabled)
+                    : { at: barDraft.start, orient: 'h' as const, length: config?.barInstrument?.length ?? diagramOps.DEFAULT_BAR_INSTRUMENT.length }
+                  const box = diagramOps.barInstrumentBox({ id: 0, layer: 0, ...drag.at, orient: drag.orient, length: drag.length, thickness: config?.barInstrument?.thickness, min: 0, max: 1, value: 0 })
+                  return (
+                    <rect {...box} fill="none" stroke={HIGHLIGHT} strokeWidth={2} strokeDasharray="6 4" />
+                  )
+                })()}
+              {/* A selected bar instrument's end handle, at its max end: dragging it along the axis sets the length. */}
+              {selectedBarInstrumentId !== null &&
+                (() => {
+                  const bar = diagram.barInstruments.find(b => b.id === selectedBarInstrumentId)
+                  if (!bar || isHidden(bar)) return null
+                  const h = diagramOps.barInstrumentEnd(bar, config?.barInstrument?.length)
+                  return (
+                    <g
+                      style={{ pointerEvents: 'auto', cursor: bar.orient === 'v' ? 'ns-resize' : 'ew-resize' }}
+                      onMouseDown={e => handleBarResizeMouseDown(e, bar)}
+                    >
+                      <title>{t('canvas.barLength', { length: bar.length ?? '' })}</title>
+                      <circle cx={h.x} cy={h.y} r={10} fill="transparent" />
+                      <rect x={h.x - 5} y={h.y - 5} width={10} height={10} fill="none" stroke="red" strokeWidth={1} />
+                    </g>
+                  )
+                })()}
               {/* A selected Circle's radius handle, on its rim to the right of the center: dragging it sets the radius
                   (in CIRCLE_RADIUS_STEP steps), previewed dashed until the release. */}
               {selectedElement?.class === 'Circle' &&

@@ -258,7 +258,15 @@ export interface Electrical {
 }
 
 // Matches slddoc.BindingKind: what a binding supplies to its item.
-export type BindingKind = 'equipment' | 'meas1' | 'meas2' | 'jump'
+export type BindingKind =
+  | 'equipment'
+  | 'meas1'
+  | 'meas2'
+  | 'jump'
+  | 'setpointLA'
+  | 'setpointLW'
+  | 'setpointHW'
+  | 'setpointHA'
 
 // Matches slddoc.Binding: a link of a diagram item to an object of a SCADA data provider.
 export interface Binding {
@@ -647,6 +655,61 @@ export interface DigitalDevice {
   bindings?: Binding[]
 }
 
+// A bar instrument (320008), slddoc's BarInstrument: a value drawn as a bar along a track from min to max, coloured by
+// the zone of the value. x/y is the track's min end; orient 'h' (absent) grows right, 'v' up. length/thickness and
+// the show* options absent take the bar_instrument config. The setpoints absent are not set; bound, SCADA overrides
+// them at run time.
+export interface BarInstrument {
+  id: number
+  layer: number
+  group?: number
+  x: number
+  y: number
+  orient?: 'h' | 'v'
+  length?: number
+  thickness?: number
+  name?: string
+  unit?: string
+  min: number
+  max: number
+  origin?: number
+  lowAlarm?: number
+  lowWarning?: number
+  highWarning?: number
+  highAlarm?: number
+  deadband?: number
+  value: number
+  valueSize?: number
+  showValue?: boolean
+  showScale?: boolean
+  showZones?: boolean
+  colors?: BarColors
+  precision?: number
+  features?: string
+  componentType?: string
+  componentEdited?: boolean
+  bindings?: Binding[]
+}
+
+export interface BarColors {
+  track?: string
+  normal?: string
+  warning?: string
+  alarm?: string
+  bad?: string
+}
+
+// GET /api/config's barInstrument (config.BarInstrument, validated: every field set).
+export interface BarInstrumentConfig {
+  length: number
+  thickness: number
+  valueSize: number
+  showValue: boolean
+  showScale: boolean
+  showZones: boolean
+  colors: Required<BarColors>
+}
+
 // One unsupported xsde2svg data-type code an .svg import skipped: its
 // human-readable name (slddoc.ObjectTypeName, "" when unknown) and how many
 // top-level nodes carried it.
@@ -672,6 +735,7 @@ export interface ImportReport {
   connectors: number
   labels: number
   digitalDevices: number
+  barInstruments: number
   nodes: number
   skipped: ImportSkippedEntry[]
   failed: string[]
@@ -717,6 +781,7 @@ export interface DiagramWire {
   connectors: Connector[] | null
   labels: Label[] | null
   digitalDevices: DigitalDevice[] | null
+  barInstruments?: BarInstrument[] | null
   history?: Revision[] | null
 }
 
@@ -745,6 +810,7 @@ export interface Diagram {
   connectors: Connector[]
   labels: Label[]
   digitalDevices: DigitalDevice[]
+  barInstruments: BarInstrument[]
   functions?: DiagramFunction[]
   // Save history, oldest first. Appended by the server on every save
   // (backend storage.SaveRevision); the editor never changes it.
@@ -978,6 +1044,8 @@ export interface EditorConfig {
   // The SCADA binding provider ("" = bindings off, no binding UI) and whether it can export (backend config
   // bindings). Absent from an older server.
   bindings?: BindingsConfig
+  // The default look of a bar instrument (config bar_instrument). Absent from an older server.
+  barInstrument?: BarInstrumentConfig
 }
 
 // Matches backend config.Designations; units are keyed by its unit kind names (incoming_feeder, ...).

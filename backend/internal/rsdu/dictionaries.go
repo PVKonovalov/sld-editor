@@ -11,29 +11,45 @@ import (
 )
 
 // VS_REGIM.DEFINE_ALIAS of each binding kind; ADJUST_TOPOLOGY is unused and skipped. jump has no row: RSDU adds it
-// virtually and stores it under ADJUST_REGIM's id.
+// virtually and stores it under ADJUST_REGIM's id. The bar instrument's setpoint kinds are offered only when RSDU has
+// their rows.
 const (
-	regimEquipment = "EQUIPMENT"
-	regimMeas1     = "ADJUST_REGIM"
-	regimMeas2     = "ADJUST_ADDITIONAL"
+	regimEquipment  = "EQUIPMENT"
+	regimMeas1      = "ADJUST_REGIM"
+	regimMeas2      = "ADJUST_ADDITIONAL"
+	regimSetpointLA = "SETPOINT_LA"
+	regimSetpointLW = "SETPOINT_LW"
+	regimSetpointHW = "SETPOINT_HW"
+	regimSetpointHA = "SETPOINT_HA"
 )
 
 var regimKinds = map[string]slddoc.BindingKind{
-	regimEquipment: slddoc.BindingEquipment,
-	regimMeas1:     slddoc.BindingMeas1,
-	regimMeas2:     slddoc.BindingMeas2,
+	regimEquipment:  slddoc.BindingEquipment,
+	regimMeas1:      slddoc.BindingMeas1,
+	regimMeas2:      slddoc.BindingMeas2,
+	regimSetpointLA: slddoc.BindingSetpointLA,
+	regimSetpointLW: slddoc.BindingSetpointLW,
+	regimSetpointHW: slddoc.BindingSetpointHW,
+	regimSetpointHA: slddoc.BindingSetpointHA,
 }
 
 // kindOptions are the option each kind defaults to in RSDU's scheme editor; a measurement bound by Resolve's
 // suggestion gets bool or analog by its type instead.
 var kindOptions = map[slddoc.BindingKind]string{
-	slddoc.BindingEquipment: optionComplex,
-	slddoc.BindingMeas1:     optionBool,
-	slddoc.BindingMeas2:     optionBool,
-	slddoc.BindingJump:      optionComplex,
+	slddoc.BindingEquipment:  optionComplex,
+	slddoc.BindingMeas1:      optionBool,
+	slddoc.BindingMeas2:      optionBool,
+	slddoc.BindingJump:       optionComplex,
+	slddoc.BindingSetpointLA: optionAnalog,
+	slddoc.BindingSetpointLW: optionAnalog,
+	slddoc.BindingSetpointHW: optionAnalog,
+	slddoc.BindingSetpointHA: optionAnalog,
 }
 
-var kindOrder = []slddoc.BindingKind{slddoc.BindingEquipment, slddoc.BindingMeas1, slddoc.BindingMeas2, slddoc.BindingJump}
+var kindOrder = []slddoc.BindingKind{
+	slddoc.BindingEquipment, slddoc.BindingMeas1, slddoc.BindingMeas2, slddoc.BindingJump,
+	slddoc.BindingSetpointLA, slddoc.BindingSetpointLW, slddoc.BindingSetpointHW, slddoc.BindingSetpointHA,
+}
 
 // dictionaries are the reference lists as served, plus the RSDU ids export needs.
 type dictionaries struct {
