@@ -50,7 +50,10 @@ type RSDUBindings struct {
 	// ComponentTypes is the VS_TCOMP.ID an item of a shape is exported as when no component type of the scheme type
 	// has that MODUS_TYPE and the item has no type of its own.
 	ComponentTypes map[string]int64 `yaml:"component_types"`
-	SVG            struct {
+	// Sections limits the Objects panel to these SYS_TREE21 paths, each the node ids from a top node down to the node
+	// shown with its whole subtree; absent: the whole tree from node 1.
+	Sections [][]int64 `yaml:"sections"`
+	SVG      struct {
 		// Dir is where ctrlroom reads scheme SVGs (its backend.path_to_sld).
 		Dir string `yaml:"dir" env:"true"`
 		// FullPath mirrors ctrlroom's backend.use_full_path_for_sld.
@@ -184,6 +187,9 @@ func (c *Config) ValidateBindings() error {
 			return fmt.Errorf("bindings.rsdu.wire_types.%s: %d is not a VS_TCOMP id", kind, id)
 		}
 	}
+	if err := validateSections(r.Sections); err != nil {
+		return err
+	}
 	if r.LegacyRead != nil || r.LegacyWrite != nil {
 		return errors.New("bindings.rsdu.read / write: replaced by one connection, bindings.rsdu.dsn (environment: BINDINGS_RSDU_DSN_*), and bindings.rsdu.export: true to enable export")
 	}
@@ -207,6 +213,27 @@ func (c *Config) ValidateBindings() error {
 		}
 	default:
 		return fmt.Errorf("bindings.rsdu.svg.use_object_storage: unknown object storage %q (known: minio)", r.SVG.UseObjectStorage)
+	}
+	return nil
+}
+
+// validateSections checks that every path is non-empty, of positive ids without repeats, and listed once.
+func validateSections(paths [][]int64) error {
+	for i, path := range paths {
+		if len(path) == 0 {
+			return fmt.Errorf("bindings.rsdu.sections[%d]: empty path", i)
+		}
+		for k, id := range path {
+			if id <= 0 {
+				return fmt.Errorf("bindings.rsdu.sections[%d]: %d is not a positive SYS_TREE21 id", i, id)
+			}
+			if slices.Contains(path[:k], id) {
+				return fmt.Errorf("bindings.rsdu.sections[%d]: node %d repeats", i, id)
+			}
+		}
+		if j := slices.IndexFunc(paths[:i], func(p []int64) bool { return slices.Equal(p, path) }); j >= 0 {
+			return fmt.Errorf("bindings.rsdu.sections[%d]: same path as sections[%d]", i, j)
+		}
 	}
 	return nil
 }

@@ -101,6 +101,102 @@ func TestSections(t *testing.T) {
 	}
 }
 
+func TestSectionsLimited(t *testing.T) {
+	tree := [][]any{
+		{int64(1), int64(0), int64(0), "Root", int64(0)},
+		{int64(12), int64(1), int64(0), "Energy", int64(0)},
+		{int64(120), int64(12), int64(40), "Sub A", int64(0)},
+		{int64(1200), int64(120), int64(0), "Bay", int64(0)},
+		{int64(12000), int64(1200), int64(41), "Cell", int64(0)},
+		{int64(121), int64(12), int64(0), "Sub B", int64(0)},
+		{int64(122), int64(12), int64(0), "Sub C", int64(0)},
+		{int64(345), int64(1), int64(0), "Meas", int64(0)},
+		{int64(346), int64(1), int64(0), "Other", int64(0)},
+		{int64(88), int64(0), int64(0), "Top two", int64(0)},
+		{int64(89), int64(88), int64(0), "Under two", int64(0)},
+		{int64(77), int64(500), int64(0), "Orphan", int64(0)},
+	}
+	sections := func(t *testing.T, paths [][]int64) string {
+		f := &fakeDB{rows: func(q string, args []any) [][]any {
+			if strings.Contains(q, "SYS_TBLLST WHERE TABLE_NAME") {
+				return [][]any{{int64(28)}}
+			}
+			return tree
+		}}
+		p := newFakeProvider(t, f)
+		p.cfg.Sections = paths
+		got, err := p.Sections(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var show func(ss []binding.Section) string
+		show = func(ss []binding.Section) string {
+			var parts []string
+			for _, s := range ss {
+				parts = append(parts, s.ID+"("+show(s.Children)+")")
+			}
+			return strings.Join(parts, ",")
+		}
+		return show(got)
+	}
+	cases := []struct {
+		name  string
+		paths [][]int64
+		want  string
+	}{
+		{"no paths", nil, "1(12(120(1200(12000())),121(),122()),345(),346())"},
+		{"top only", [][]int64{{88}}, "88(89())"},
+		{"shared beginning", [][]int64{{1, 12, 120}, {1, 12, 121}, {1, 345}}, "1(12(120(1200(12000())),121()),345())"},
+		{"subtree", [][]int64{{1, 12, 120}}, "1(12(120(1200(12000()))))"},
+		{"prefix wins", [][]int64{{1, 12, 120}, {1, 12}}, "1(12(120(1200(12000())),121(),122()))"},
+		{"two tops", [][]int64{{88}, {1, 346}}, "1(346()),88(89())"},
+		{"missing id", [][]int64{{1, 12, 999}}, "1(12())"},
+		{"wrong parent", [][]int64{{1, 12, 1200}, {1, 345}}, "1(12(),345())"},
+		{"not a top node", [][]int64{{12, 120}, {88}}, "88(89())"},
+		{"orphan is no top node", [][]int64{{77}}, ""},
+		{"all invalid", [][]int64{{999}, {12}}, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := sections(t, c.paths); got != c.want {
+				t.Errorf("got %s, want %s", got, c.want)
+			}
+		})
+	}
+}
+
+func TestLimitTreeWarnings(t *testing.T) {
+	ids := []int64{1, 12, 120, 345}
+	parents := []int64{0, 1, 12, 1}
+	names := []string{"Root", "Energy", "Sub", "Meas"}
+	top, children := forest(ids, parents, names)
+	cases := []struct {
+		name  string
+		paths [][]int64
+		want  []string
+	}{
+		{"valid", [][]int64{{1, 12, 120}}, nil},
+		{"missing id", [][]int64{{1, 12, 999}}, []string{
+			"bindings.rsdu.sections: path [1 12 999]: node 999 is not in SYS_TREE21; shown up to node 12, without its subtree"}},
+		{"wrong parent", [][]int64{{1, 345, 120}}, []string{
+			"bindings.rsdu.sections: path [1 345 120]: node 120 is not a child of node 345 (its parent is 12); shown up to node 345, without its subtree"}},
+		{"top node below", [][]int64{{1, 12, 1}}, []string{
+			"bindings.rsdu.sections: path [1 12 1]: node 1 is not a child of node 12 (it is a top node); shown up to node 12, without its subtree"}},
+		{"not a top node", [][]int64{{12}, {1}}, []string{
+			"bindings.rsdu.sections: path [12]: node 12 is not a top node of SYS_TREE21 (its parent is 1); path not shown"}},
+		{"none valid", [][]int64{{999}}, []string{
+			"bindings.rsdu.sections: path [999]: node 999 is not in SYS_TREE21; path not shown",
+			"bindings.rsdu.sections: no path is valid; the Objects panel shows no sections"}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if _, _, got := limitTree(ids, parents, top, children, c.paths); !slices.Equal(got, c.want) {
+				t.Errorf("got %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
 func sectionsEqual(a, b []binding.Section) bool {
 	return slices.EqualFunc(a, b, func(x, y binding.Section) bool {
 		return x.ID == y.ID && x.Name == y.Name && x.Icon == y.Icon && x.Section == y.Section && x.Ref == y.Ref &&

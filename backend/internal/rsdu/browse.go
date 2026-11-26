@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"sld-editor/internal/binding"
+	"sld-editor/pkg/llog"
 )
 
 // rootSection is the SYS_TREE21 node the object browser starts at (as Adjust).
@@ -27,6 +29,15 @@ const (
 	daParamTable   = "DA_PARAM"
 	daDeviceTable  = "DA_DEV_DESC"
 )
+
+// warned holds the warnings already logged, so a configuration problem is logged once per process.
+var warned sync.Map
+
+func warnOnce(w string) {
+	if _, loaded := warned.LoadOrStore(w, true); !loaded {
+		llog.Logger.Warnf("%s", w)
+	}
+}
 
 // ref is the RSDU object key "tableId:id".
 func ref(table, id int64) string {
@@ -76,10 +87,18 @@ func (p *Provider) Sections(ctx context.Context) ([]binding.Section, error) {
 	}
 	top, children := forest(ids, parents, names)
 	roots := top
-	for i, id := range ids {
-		if id == rootSection {
-			roots = []int{i}
-			break
+	if len(p.cfg.Sections) > 0 {
+		var warnings []string
+		roots, children, warnings = limitTree(ids, parents, top, children, p.cfg.Sections)
+		for _, w := range warnings {
+			warnOnce(w)
+		}
+	} else {
+		for i, id := range ids {
+			if id == rootSection {
+				roots = []int{i}
+				break
+			}
 		}
 	}
 	return walk(roots, children, func(i int, kids []binding.Section) binding.Section {

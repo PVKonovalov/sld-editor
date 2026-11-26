@@ -459,6 +459,13 @@ bindings:
   #     CableLine: 115
   #     LinkToObject: 1014
   #     BusbarWire: 113
+  #   sections:               # SYS_TREE21 paths shown in the Objects panel; absent or empty: the tree from node 1
+  #     # Each path is the node ids from a top node (ID_PARENT is NULL) down to the node wanted; paths with a common
+  #     # beginning share it. A path's last node is shown with its whole subtree; a node on the way shows only its
+  #     # children that lie on a listed path. A path broken in the database is shown up to the break (with a warning).
+  #     - [ 1, 12, 120 ]      # Root / Energy objects / Substation A
+  #     - [ 1, 12, 121 ]      # Root / Energy objects / Substation B
+  #     - [ 1, 345 ]          # Root / Measurements
   #   svg:
   #     dir: ""               # where ctrlroom reads scheme SVGs (its backend.path_to_sld)
   #     full_path: true       # as ctrlroom's backend.use_full_path_for_sld

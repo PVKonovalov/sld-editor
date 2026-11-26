@@ -68,4 +68,5 @@ frontend/src/i18n/active.ts
 /docs/AGENT_*.md
 /docs/executed/
 /backend/config/sld-editor.yaml
+/backend/config/sections.yaml
 

@@ -47,6 +47,11 @@ func TestValidateBindings(t *testing.T) {
 		{"component types", func(b *Bindings) { b.RSDU.ComponentTypes = map[string]int64{"385": 2000023} }, ""},
 		{"component type of no shape", func(b *Bindings) { b.RSDU.ComponentTypes = map[string]int64{"KTP": 1} }, "component_types"},
 		{"bad component type", func(b *Bindings) { b.RSDU.ComponentTypes = map[string]int64{"385": 0} }, "component_types"},
+		{"sections", func(b *Bindings) { b.RSDU.Sections = [][]int64{{1, 12, 120}, {1, 12, 121}, {1}} }, ""},
+		{"empty section path", func(b *Bindings) { b.RSDU.Sections = [][]int64{{1}, {}} }, "sections[1]: empty path"},
+		{"section id not positive", func(b *Bindings) { b.RSDU.Sections = [][]int64{{1, 0}} }, "sections[0]: 0 is not a positive"},
+		{"section id repeats", func(b *Bindings) { b.RSDU.Sections = [][]int64{{1, 12, 1}} }, "sections[0]: node 1 repeats"},
+		{"section listed twice", func(b *Bindings) { b.RSDU.Sections = [][]int64{{1, 12}, {1}, {1, 12}} }, "sections[2]: same path as sections[0]"},
 		{"unknown wire kind", func(b *Bindings) { b.RSDU.WireTypes = map[string]int64{"Rope": 1} }, `"Rope" is not a wire kind`},
 		{"bad wire type", func(b *Bindings) { b.RSDU.WireTypes = map[string]int64{"CableLine": 0} }, "wire_types.CableLine"},
 	}

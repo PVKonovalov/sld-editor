@@ -1417,7 +1417,8 @@ nothing else needs to be installed or started.
 - **Tree** (upper part): the system's sections. Expand a node with its arrow or a double-click. A section with a
   database icon has a catalog (for example equipment), loaded from the database when you first expand it; a large
   catalog takes a few seconds ("Loading…"). Catalog nodes show their type on the right; hover a node to see its
-  type and alias.
+  type and alias. The configuration may limit the tree to chosen branches (`rsdu.sections`, see
+  [Bindings](#configuration-bindings)).
 - **List** (lower part): the objects (parameters) of the selected catalog node, with **Name**, **Type** and
   **Class**. Click a column header to sort by it, again to reverse the order. The count is shown below. A list can
   hold tens of thousands of objects; it scrolls smoothly.
@@ -1844,6 +1845,7 @@ bindings:
 | `rsdu.export` | no | `true` enables export to RSDU; the `dsn` account must then be allowed to write. Default `false`. |
 | `rsdu.component_types` | no | The RSDU component type (`VS_TCOMP.ID`) an item of a shape is exported as when the scheme type has no type with that `MODUS_TYPE` and the item has no component type of its own (see [Bindings](#properties-bindings)): a map of shape code to a positive id, e.g. `"385": 2000023`. Default: none. |
 | `rsdu.wire_types` | no | The RSDU component type (`VS_TCOMP.ID`) a bound wire of each kind is exported as, since wires have no Modus shape: a map of `BusWork`, `OverheadLine`, `CableLine`, `LinkToObject`, `BusbarWire` to a positive id. Absent: RSDU's standard types `BusWork: 1489`, `OverheadLine: 112`, `CableLine: 115`, `LinkToObject: 1014`, `BusbarWire: 113`; a configured map replaces them all, and a bound wire of a kind it lacks is skipped by the export. A text label is exported as the component type of shape 5. |
+| `rsdu.sections` | no | The [Objects](#objects) tree is limited to these `SYS_TREE21` branches: a list of paths, each the node ids from a top node (`ID_PARENT` empty) down to the node wanted, e.g. `[ 1, 12, 120 ]`. Paths with a common beginning share it; a path's last node is shown with its whole subtree (nodes added in RSDU later included), a node on the way only with its children on a listed path; of `[1, 12]` and `[1, 12, 120]` the shorter wins. Checked at startup: every path non-empty, positive ids, no id twice in a path, no path twice. A path that does not match the database (an id missing, or not a child of the one before) is shown up to the break, without the subtree, with a warning in the log; no valid path gives an empty tree. Catalogs, lists, search inside a shown section and bindings to objects of hidden sections are not affected. Absent or empty: the tree from node 1. |
 | `rsdu.scheme_type` | no | The RSDU scheme type of exported schemes (`VS_FORM.ID_TYPE`, `VS_TCOMP.ID_DTYP`), usually 518 (MODUS scheme): an element is exported only when `VS_TCOMP` has a row of this type for its shape. 0 or more, default 0 = not set; the [export check](#rsdu-export) then refuses the export. |
 | `rsdu.svg.dir` | no | The folder ctrlroom reads scheme pictures from (its `backend.path_to_sld`); the export and later saves [deliver the SVG](#rsdu-svg) there. The editor needs write access to it. |
 | `rsdu.svg.full_path` | no | As ctrlroom's `backend.use_full_path_for_sld`: `true`: ctrlroom finds a picture by the scheme's file path stored in RSDU, under `dir`; `false`: by its file name only, directly in `dir`. The same for the Minio object name. |
