@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<diagram width="250" height="370" lastId="36">
+  <editor gridSpacing="10" snap="true" background="#12161d" defaultVoltage="13" jumpSameVoltage="true" designationFormat="full" designationLayer="30"/>
+  <deletedBindings/>
+  <layers>
+    <layer id="0" name="Base"/>
+  </layers>
+  <stateColors>
+    <state state="0" color="red"/>
+    <state state="1" color="lawngreen"/>
+    <state state="2" color="#c9a800"/>
+    <state state="3" color="magenta"/>
+  </stateColors>
+  <labels>
+    <label id="25" for="24" layer="0" x="80" y="10" size="10" anchor="start" color="white" font="Arial">Power</label>
+  </labels>
+  <barInstruments>
+    <barInstrument id="23" layer="0" x="10" y="360" orient="v" length="330" thickness="10" unit="М" min="0" max="100" lowAlarm="10" lowWarning="20" highWarning="80" highAlarm="90" deadband="2" value="49" showValue="true" showScale="true" showZones="true"/>
+    <barInstrument id="24" layer="0" x="90" y="360" orient="v" length="330" thickness="10" name="Power" unit="М" min="0" max="100" lowAlarm="10" lowWarning="20" highWarning="80" highAlarm="90" deadband="2" value="45" valueSize="18" showValue="true" showScale="true" showZones="true"/>
+    <barInstrument id="35" layer="0" x="170" y="360" orient="v" length="330" thickness="10" name="Power" unit="М" min="0" max="100" lowAlarm="10" lowWarning="20" highWarning="80" highAlarm="90" deadband="2" value="45" valueSize="18" showValue="true" showScale="true" showZones="true"/>
+    <barInstrument id="36" layer="0" x="240" y="360" orient="v" length="330" thickness="10" name="Power" unit="М" min="0" max="100" lowAlarm="10" lowWarning="20" highWarning="80" highAlarm="90" deadband="2" value="45" valueSize="18" showValue="true" showScale="true" showZones="true"/>
+  </barInstruments>
+</diagram>
