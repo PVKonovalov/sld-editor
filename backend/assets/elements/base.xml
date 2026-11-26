@@ -987,12 +987,18 @@
        real corpus instance exactly (e.g. sld-viewer's
        PS_110kV_Example.svg, id="4473"). -->
   <!-- 130 Device (xsde2svg element_130.go): an energy meter, a 30x30 square with a line 10 above its center, and an
-       upright "Wh" (the source rotates only the square). No terminals. -->
+       upright editable text, "Wh" by default (the source rotates only the square). One terminal at the end of a lead,
+       on the side its Terminal names as seen on the diagram whatever its Orientation: the lead is drawn in the
+       counter-rotated group, and slddoc's UprightTerminal places the declared (top) terminal the same way. -->
   <symbol shape="130" class="Device" name="Device">
+    <terminals>
+      <terminal x="0" y="-20"/>
+    </terminals>
     <template><![CDATA[
 <path d="M -15 -15 h 30 v 30 h -30 z M -15 -10 h 30" style="fill:none;stroke:{color};stroke-width:1" />
 <g transform="rotate({counterRotate})">
-<text x="0" y="2" style="fill:{color};text-anchor:middle;dominant-baseline:middle;font-size:18px;font-family:Arial">Wh</text>
+<path d="{terminalSide:M 0 -15 v -5|M 15 0 h 5|M 0 15 v 5|M -15 0 h -5}" style="fill:none;stroke:{color};stroke-width:1" />
+<text x="0" y="2" style="fill:{color};text-anchor:middle;dominant-baseline:middle;font-size:18px;font-family:Arial">{text:Wh}</text>
 </g>
 ]]></template>
   </symbol>

@@ -23,7 +23,7 @@ import {
   type ElectricalField,
 } from '../../lib/electrical'
 import { elementDiagramBox, pointsBox, type Box } from '../../lib/elementBox'
-import { templateHasTerminalSide, templateTextDefault } from '../../lib/elementIcon'
+import { templateHasTerminalSide, templateHasTerminalSides, templateTextDefault } from '../../lib/elementIcon'
 import { t, type TranslationKey } from '../../i18n'
 import { elementDisplayName } from '../../lib/elementCatalogI18n'
 import { SWITCHING_DEVICE_CLASSES } from '../../lib/switchingDevices'
@@ -125,6 +125,13 @@ const TRANSFORMER_TERMINALS: { value: TerminalDirection; labelKey: TranslationKe
   { value: 'bottom', labelKey: 'properties.transformerTerminalBottom' },
   { value: 'left', labelKey: 'properties.transformerTerminalLeft' },
   { value: 'right', labelKey: 'properties.transformerTerminalRight' },
+]
+// A Device's (meter) terminal sides, in the order seen going round it.
+const SIDE_TERMINALS: { value: TerminalDirection; labelKey: TranslationKey }[] = [
+  { value: 'top', labelKey: 'properties.transformerTerminalTop' },
+  { value: 'right', labelKey: 'properties.transformerTerminalRight' },
+  { value: 'bottom', labelKey: 'properties.transformerTerminalBottom' },
+  { value: 'left', labelKey: 'properties.transformerTerminalLeft' },
 ]
 // A freshly added winding (growing Number of windings) starts as a plain
 // wye, the same default placeElement seeds a freshly placed transformer's
@@ -1174,6 +1181,7 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
   const elSymbol = elements.find(s => s.shape === el.shape)
   const textDefault = templateTextDefault(elSymbol)
   const hasTerminalSide = templateHasTerminalSide(elSymbol)
+  const hasTerminalSides = templateHasTerminalSides(elSymbol)
 
   // Re-fits the element's fixed ports afterward, so a change that moves
   // its terminals (orientation, mirror, position, a Fork's size, a
@@ -2810,6 +2818,23 @@ export function PropertiesPanel({ onClose }: { onClose: () => void }) {
             >
               <option value="top">{t('properties.transformerTerminalTop')}</option>
               <option value="bottom">{t('properties.transformerTerminalBottom')}</option>
+            </select>
+          </label>
+        )}
+
+        {hasTerminalSides && (
+          <label className="block text-xs">
+            <span className="block text-gray-400 mb-1">{t('properties.terminalPosition')}</span>
+            <select
+              className="w-full bg-surface-800 border border-surface-600 rounded px-2 py-1"
+              value={el.terminal ?? 'top'}
+              onChange={e => patch({ terminal: e.target.value === 'top' ? undefined : (e.target.value as TerminalDirection) })}
+            >
+              {SIDE_TERMINALS.map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {t(opt.labelKey)}
+                </option>
+              ))}
             </select>
           </label>
         )}

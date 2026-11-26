@@ -23,9 +23,17 @@ const TERMINAL_RE = /\{terminal:([^|}]*)\|([^}]*)\}/g
 // shows vertical.
 const TERMINAL_AXIS_RE = /\{terminalAxis:([^|}]*)\|([^}]*)\}/g
 
+// {terminalSide:top|right|bottom|left} draws a Device's (meter) lead on its terminal's side; the icon shows top.
+const TERMINAL_SIDE_RE = /\{terminalSide:([^|}]*)\|([^|}]*)\|([^|}]*)\|([^}]*)\}/g
+
 /** Whether a symbol's template offers a terminal side (Element.terminal). */
 export function templateHasTerminalSide(symbol: ElementSymbol | undefined): boolean {
   return !!symbol?.template && /\{terminal:[^|}]*\|[^}]*\}/.test(symbol.template)
+}
+
+/** Whether a symbol's template offers a terminal on any of four sides (Element.terminal top/right/bottom/left). */
+export function templateHasTerminalSides(symbol: ElementSymbol | undefined): boolean {
+  return !!symbol?.template && /\{terminalSide:[^}]*\}/.test(symbol.template)
 }
 
 /** The default label of a symbol whose template has an editable {text:default}, undefined for one without. */
@@ -252,6 +260,7 @@ export function elementIconMarkup(symbol: ElementSymbol): string {
     .replace(TEXT_RE, (_match, text: string) => text)
     .replace(TERMINAL_RE, (_match, top: string) => top)
     .replace(TERMINAL_AXIS_RE, (_match, vertical: string) => vertical)
+    .replace(TERMINAL_SIDE_RE, (_match, top: string) => top)
     .replace(/\{fpiColor\}/g, 'currentColor')
     .replace(/\{positionOffset\}/g, '0')
     .replace(/\{(fillAttr|stateAttr|positionAttr|fpiFillAttr|fpiStrokeAttr)\}/g, '')

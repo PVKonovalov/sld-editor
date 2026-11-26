@@ -2378,6 +2378,17 @@ export function hasSideTerminals(el: DiagramElement): boolean {
   return el.class === 'TwoTerminalBox' && (el.terminal === 'left' || el.terminal === 'right')
 }
 
+/** Whether el's terminal ignores its orient and mirror (slddoc's UprightTerminal): a Device (meter) has its one
+ * terminal on the side its terminal names (top when unset) as seen on the diagram. */
+export function hasUprightTerminal(el: DiagramElement): boolean {
+  return el.class === 'Device'
+}
+
+/** The rotation from the top to side dir (slddoc's TerminalAngle). */
+function terminalAngle(dir: TerminalDirection | undefined): number {
+  return dir === 'right' ? 90 : dir === 'bottom' ? 180 : dir === 'left' ? -90 : 0
+}
+
 export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): Point[] | null {
   if (el.class === 'PowerTransformer') {
     return transformerLocalTerminals(el).map(t => placeLocalPoint(el, t))
@@ -2391,13 +2402,14 @@ export function symbolTerminals(el: DiagramElement, symbols: ElementSymbol[]): P
   const step = symbol.scalable ? (el.scale ?? 0) : 0
   const half = symbol.leads && el.span ? el.span / 2 : 0
   const side = hasSideTerminals(el)
+  const at = hasUprightTerminal(el) ? { ...el, orient: terminalAngle(el.terminal), mirror: undefined } : el
   return symbol.terminals.map(({ x: tx, y: ty }) => {
     if (side) [tx, ty] = [ty, tx]
     const x = scaledLength(tx * scale, step)
     let y = scaledLength(ty * scale, step)
     // A lead shape's leads reach ±span/2 (slddoc's LeadTerminal).
     if (half > Math.abs(y) && y !== 0) y = Math.sign(y) * half
-    return placeLocalPoint(el, { x, y })
+    return placeLocalPoint(at, { x, y })
   })
 }
 
@@ -5576,7 +5588,7 @@ const NO_ORIENT_CLASSES = new Set([
 const NO_MIRROR_CLASSES = new Set([
   'PowerflowIndicator', 'Fork', 'Booster', 'Resistor', 'SynchronousCompensator', 'SynchronousMotor',
   'KnifeSwitch3', 'KnifeSwitch', 'BlockingFilter', 'PowerPole', 'Load', 'NetworkInfeed', 'StaticVarCompensator',
-  'TwoTerminalBox',
+  'TwoTerminalBox', 'Device',
 ])
 // A Power plant's (38) hydro kind (NType), the only one with a mirrored layout.
 export const POWER_PLANT_HYDRO = 1

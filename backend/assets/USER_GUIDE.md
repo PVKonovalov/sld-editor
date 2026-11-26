@@ -486,6 +486,10 @@ constraints, so it is not a full CGMES model (no SSH, TP or SV). Unsaved edits a
   Properties is Top and bottom (the default) or Left and right; the box itself never turns, and the wires on its
   terminals follow them. The text inside is its **Label text** in Properties (empty by default). It stands for no
   CIM equipment: the export joins its two terminals into one connectivity node, and it expects no binding.
+- A **Device** (meter, shape 130) has one terminal at the end of a short lead. Its **Terminal position** in
+  Properties is Top (the default), Right, Bottom or Left, as seen on the diagram; its **Orientation** turns only the
+  square, and the wire on the terminal follows it. The text inside stays upright; it is its **Label text** in
+  Properties, `Wh` when left empty.
 - Each overhead or cable line becomes an AC line segment in a line of its own name.
 - A **link to object** stands for the outside object it points to: an energy consumer by default, or an energy
   source when its **CIM class** in Properties says so. It is connected at its start only; the arrow end is the object
