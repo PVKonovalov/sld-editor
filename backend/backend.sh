@@ -24,7 +24,8 @@ if [[ -n "$pids" ]]; then
   echo "Port ${PORT} is in use by:"
   lsof -i "tcp:${PORT}" -sTCP:LISTEN
   echo "Sending SIGTERM to: ${pids//$'\n'/ }"
-  kill "$pids" 2>/dev/null || true
+  # shellcheck disable=SC2086 # one PID per word
+  kill $pids 2>/dev/null || true
 
   for _ in {1..10}; do
     [[ -z "$(listeners)" ]] && break
@@ -34,7 +35,8 @@ if [[ -n "$pids" ]]; then
   pids="$(listeners)"
   if [[ -n "$pids" ]]; then
     echo "Still listening after 5s, sending SIGKILL to: ${pids//$'\n'/ }"
-    kill -9 "$pids" 2>/dev/null || true
+    # shellcheck disable=SC2086
+    kill -9 $pids 2>/dev/null || true
     sleep 0.5
   fi
 

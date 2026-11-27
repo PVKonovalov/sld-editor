@@ -7231,3 +7231,6 @@ Like the other jumps it follows the resulting state of an edit, not the drawing 
 `jumpChangedCrossings`), but only for buswork drawn or changed from then on: switching the option on or off doesn't
 change anything already on the diagram. The CIM import is unchanged, since a new diagram starts with the option off. -
 **Test:** `TestEditorSettings_JumpSameVoltageRoundTrip` (slddoc). - **User guides:** `#settings` and `#wiring`.
+
+2026-11-27: `backend/backend.sh` and `frontend/frontend.sh` now free the port when several processes listen on it (e.g. IPv4 and IPv6): the PIDs are passed to `kill` as separate words, not as one quoted string that `kill` rejected.
+2026-11-27: Move to Go 1.27

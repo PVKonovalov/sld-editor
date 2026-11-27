@@ -13,7 +13,7 @@
 # sld-editor has no cgo dependencies (see the root Makefile's own doc
 # comment), so a plain Go toolchain image cross-compiles both linux and
 # windows binaries without any C toolchain.
-FROM golang:1.26-bookworm
+FROM golang:1.27-bookworm
 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \

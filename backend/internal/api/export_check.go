@@ -153,8 +153,7 @@ func (s *Server) exportDiagram(c *gin.Context, x binding.ExportChecker, e bindin
 		return
 	}
 	res, err := e.Export(ctx, name, d, req)
-	var refused *binding.ErrExportRefused
-	if errors.As(err, &refused) {
+	if refused, ok := errors.AsType[*binding.ErrExportRefused](err); ok {
 		c.JSON(http.StatusConflict, gin.H{"error": "the export check failed", "check": refused.Check})
 		return
 	}

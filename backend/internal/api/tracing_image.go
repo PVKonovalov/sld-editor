@@ -19,8 +19,7 @@ const maxTracingImage = 64 << 20
 func (s *Server) putTracingImage(c *gin.Context) {
 	data, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, maxTracingImage))
 	if err != nil {
-		var tooLarge *http.MaxBytesError
-		if errors.As(err, &tooLarge) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			errJSON(c, http.StatusRequestEntityTooLarge, err)
 			return
 		}
